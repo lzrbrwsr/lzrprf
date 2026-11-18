@@ -73,12 +73,12 @@ TESTING="${LZRBRWSR_BASE:-}${LZRBRWSR_SECOND:-}${LZRPRF_BASE:-}${LZRBRWSR_DEST:-
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="3d26f978ec4859a2344bcedccbd4058219abd3330b1422c8dcd4982d84ffc026"
-RELEASE="6"
-LZRPRF_COMMIT="ecdefbf62bf15e1f5cb42161b4ee7dd8e8df5b04"
+SHA256="59d54f2abd005a33d680401695f3d57d65b2dffe680cbbd286d5ca83cbba5b34"
+RELEASE="7"
+LZRPRF_COMMIT="063303d475e117927af0115c97776139d6612372"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="634bda3537aca051ca48a138ab461963101aba5fc4d908ab83241a0f9a56e68b"
-SELFTEST_SHA256="2327f5ed0c9fc292dcce7833ca71c489e0c6f9a2c8b012d202110771516a7e90"
+LZRPRF_SHA256="d5063087f8cb7665cf3260a3bcd3272cca9bff09d921fe19d61d4d14a648fb09"
+SELFTEST_SHA256="a73d93f26cab16337ae3958a6399906595ac9c660e61bd85d55e44e6c4372eef"
 
 # Outside the tests, files come over https and nothing else, also when an
 # address sends on to another. In a test they come from files on this computer
@@ -322,7 +322,7 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 6
+release 7
 newest https://raw.githubusercontent.com/henryverlin/lzrprf/main/latest
 installer https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
@@ -408,8 +408,9 @@ else
 	stop "lzrprf's self-test did not hold on this computer."
 fi
 
-# What is put in place carries no extended attribute that the archive held, and exactly these rights.
-xattr -cr "$tmp/unpacked" 2>/dev/null || true
+# What is put in place has exactly these rights. No attribute is taken off anything: the archive is
+# packed without any (and is the file whose SHA-256 stands above), and a mark that macOS itself put on
+# a file, the quarantine mark among them, stays where it is.
 find "$tmp/unpacked" -type d -exec chmod 755 {} +
 find "$tmp/unpacked" -type f -exec chmod 644 {} +
 chmod 755 "$tmp/unpacked/LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin" "$tmp/unpacked/LZRBRWSR.app/Contents/MacOS/lzrbrwsr"
@@ -447,6 +448,11 @@ rm -f "$HOME/.lzrprf/rules" "$HOME/.lzrprf/refused"	# kept by an earlier lzrprf;
 trap - INT TERM HUP
 step "lzrprf is installed:    $HOME/.lzrprf/lzrprf"
 step "LZRBRWSR is installed:  $dest/LZRBRWSR.app"
+# A log an earlier release wrote. Nothing here removes it: that is for you, in the window.
+if [ -s "$HOME/.lzrprf/log" ] && { [ ! -f "$HOME/.lzrprf/keep" ] || [ -L "$HOME/.lzrprf/keep" ] || ! grep -Eq '^(hosts|all) [0-9]+$' "$HOME/.lzrprf/keep"; }; then
+	step "a log written earlier is still on this computer: $HOME/.lzrprf/log"
+	step "this release adds nothing to it; the Log button of the window offers to clear it"
+fi
 
 # The Dock, if you say so. It is the one setting of yours this script can change,
 # and only after a yes: one entry is added to the Dock's list of applications,
@@ -470,10 +476,13 @@ cat <<DONE
   Open LZRBRWSR from Applications. It is one window. The window, its address
   bar and the words under the bar are lzrprf's: the browser has no window and
   no network. Type an address into the bar. lzrprf writes it down, fetches
-  it, and only then hands the answer to the browser, in its container. To
-  read the log, press Log in the window, or:
+  it, and only then hands the answer to the browser, in its container. What
+  it wrote down is behind the Log button of the window. Unless you chose to
+  keep a log, it is gone when the window closes: nothing is kept on your
+  disk unless you choose it, in Terminal and nowhere else. This says what
+  is kept and how to choose:
 
-      ${B}perl ~/.lzrprf/lzrprf log${N}
+      ${B}perl ~/.lzrprf/lzrprf keep${N}
 
   At its first start it asks once whether it may look for a newer release.
   It never updates itself: a newer release is offered, and then that
