@@ -449,8 +449,8 @@ the installer, and `release.txt` holds its SHA-256, so what your copy names is w
 here:
 
     release 8
-    newest https://raw.githubusercontent.com/henryverlin/lzrprf/main/latest
-    installer https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh
+    newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
+    installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
 
@@ -639,7 +639,7 @@ installer runs from a file and never from a pipe, so that what runs is something
 and check first:
 
     curl -q -fsSLO https://lzrbrwsr.com/install.sh &&
-    curl -q -fsSL https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh | cmp - install.sh &&
+    curl -q -fsSL https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&
     sh install.sh
 
 The first line saves the installer from the site as a file. The second compares that file, byte
@@ -785,14 +785,14 @@ A signature says who made a program, not what it does, and whoever gives it can 
 Give this to an AI agent you trust, or follow it by hand.
 
 ```text
-Audit https://github.com/henryverlin/lzrprf and tell me whether it is safe to run the
+Audit https://github.com/lzrbrwsr/lzrprf and tell me whether it is safe to run the
 closed-source browser LZRBRWSR (https://lzrbrwsr.com) on my Mac. Trust nothing the README says
 until the code shows it.
 
 Read one fixed commit, not a page that moves. First get the full hash of the newest commit of
-the `main` branch (`git ls-remote https://github.com/henryverlin/lzrprf main`, or clone it) and
+the `main` branch (`git ls-remote https://github.com/lzrbrwsr/lzrprf main`, or clone it) and
 name that hash in your answer. Read every file at that hash, as raw files, for example
-https://raw.githubusercontent.com/henryverlin/lzrprf/HASH/lzrprf. Give the SHA-256 of `lzrprf`,
+https://raw.githubusercontent.com/lzrbrwsr/lzrprf/HASH/lzrprf. Give the SHA-256 of `lzrprf`,
 `selftest` and `install.sh` as you read them. A rendered page, a search result or a copy you
 were given earlier can be older than the code: where one differs from the raw file at the
 hash, say so and go by the raw file.
