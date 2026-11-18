@@ -3,26 +3,36 @@
 # containers, and says what it managed to do. Run it from the folder that
 # holds lzrprf:
 #
-#   perl selftest            about a minute
+#   perl selftest            a minute or two
 #   perl selftest limits     also checks the time limits; about three minutes more
+#   perl selftest windows    also opens lzrprf's real windows, and tells you what to press
 #
-# It uses nothing outside this computer, opens no window and asks you nothing:
+# It uses nothing outside this computer and, unless you ask for the windows,
+# opens no window and asks you nothing:
 # it starts lzrprf with "try", which keeps its state in a folder of its own,
 # gives every window one fixed answer after one second, and leads every name
 # to a test site on this computer, whose certificate is signed by an authority
 # made here a moment ago. Everything else is the code "run" uses.
 #
-# Three kinds of line are printed. "works" is an attack tried outside every
+# Four kinds of line are printed. "works" is an attack tried outside every
 # container first, where it must succeed: so a refusal inside means the
 # container refused it, not that the attempt was broken. "held" is an attack
-# that failed, or a promise that was checked. The test site keeps its own
+# that failed, or a promise that was checked. "limit" is something the
+# application can do, that the README names as a limit, and that is measured
+# here so the README cannot understate it. "UNTESTED" is an attack this
+# computer gave no way to try, with the reason. The test site keeps its own
 # record of every connection and every byte it received, and what lzrprf says
-# it did is compared with that record. Any other word is a failure. It leaves
-# nothing behind.
+# it did is compared with that record. Any other word is a failure.
+#
+# When nothing failed, the mark of what was tested (this build of macOS, this
+# lzrprf) is written to ~/.lzrprf/proven: "lzrprf run" starts nothing without
+# it. Nothing else is left behind.
 use strict;
 use warnings;
 use Cwd 'abs_path';
+use Fcntl ':flock';
 use File::Basename 'dirname';
+use File::Path qw(make_path remove_tree);
 use IO::Select;
 use IO::Socket::IP;
 use POSIX ();
@@ -33,11 +43,12 @@ require IO::Socket::SSL;
 my $lzrprf = dirname(abs_path($0)) . '/lzrprf';
 my $home = abs_path((getpwuid $<)[7]);
 my $secret = "$home/.lzrprf-selftest-secret";
-my $limits = (shift // '') eq 'limits' ? 1 : 0;
-my $failures = 0;
+my $mode = shift // '';
+my $limits = $mode eq 'limits' ? 1 : 0;
+my ($failures, $untested) = (0, 0);
+our ($probe_source, $other_application);  # the texts are at the end of this file
 my $outside = $$;
-my $made = mkdir "$home/.lzrprf";       # lzrprf keeps its state here; removed again below if this run made it
-chmod 0700, "$home/.lzrprf";
+my $made = mkdir "$home/.lzrprf", 0700; # lzrprf keeps its state here; what is already there is left as it is
 my $base = "$home/.lzrprf/selftest.$outside";
 my $site_folder = "$base.site";
 mkdir $site_folder or die "selftest: cannot make $site_folder: $!\n";
@@ -113,6 +124,8 @@ open my $file, '>', $secret or die "selftest: cannot write $secret: $!\n";
 print $file "a file in the home folder\n";
 close $file;
 unlink "$secret.written";
+open my $left_open, '<', $secret or die "selftest: cannot read $secret: $!\n";
+POSIX::dup2(fileno $left_open, 19) // die "selftest: cannot keep a file open: $!\n";    # every program started from here on inherits this open file as descriptor 19
 $ENV{LZRPRF_SELFTEST_MARK} = 'a variable of the user';
 my $computer = (POSIX::uname())[1] // '';
 
@@ -135,6 +148,7 @@ sub process_list {                        # asks the system for the table of all
     return eval { syscall(202, $names, 4, 0, $size, 0, 0) } == 0 && unpack('Q', $size) > 0;
 }
 sub attempts {
+    report 'use a file that was open in whoever started lzrprf', POSIX::fstat(19) ? 'open' : 'closed';
     report 'connect straight to a listener on this computer', direct('127.0.0.1', $port);
     report 'connect straight to a server on the internet', direct('1.1.1.1', 443) unless $part eq 'outside';
     report 'look up a name', gethostbyname('localhost') ? 'resolved' : 'refused';
@@ -173,10 +187,17 @@ if ($part eq 'in curl\'s place') {        # in the fetch container: one socket f
     attempts();
 }
 if (defined $address) {                   # in a page container: descriptor 0 holds the answer, descriptor 1 leads to the main container
+    if ($address =~ m{/watch$}) {         # a page container that lives for some seconds, and listens whether it ran all the time
+        listen_for_silence();
+        my $until = Time::HiRes::time() + 9;
+        select(undef, undef, undef, 0.2) while Time::HiRes::time() < $until;
+        report 'keep running while a window of lzrprf is open', longest_silence();
+        exit 0;
+    }
     if ($address =~ m{/spin$}) { 1 while 1 }
     if ($address =~ m{/sleep$}) { sleep 1000 }
     my $answer = do { local $/; <STDIN> } // '';
-    if ($part eq 'fetcher') { print $answer; exit 0 }
+    if ($part eq 'fetcher' || $part eq 'inplace') { print $answer; exit 0 }
     if ($part eq 'elsewhere') { report 'the answer to an address that sends on to another', $answer =~ m{^HTTP/1\.1 302 Found\r\nLocation: https://elsewhere\.test/moved\r\n} ? 'the sending-on itself, not followed' : 'something else'; exit 0 }
     if ($part eq 'pieces') { report 'an answer the site sent in pieces', $answer =~ m{\r\n\r\n4\r\nthe \r\n16\r\npage of the test site\n\r\n0\r\n\r\n$} ? 'handed over as the site sent it' : 'changed on the way'; exit 0 }
     exit 0 unless $part eq 'yes';
@@ -199,6 +220,8 @@ sub hear {                                # the gateway's answer, and what a pag
 }
 sub gateway { my ($answer, $page) = hear(say_to($_[1])); report "gateway: $_[0]", $answer; print $page }
 # Whether this process ran all the time: a clock rings every twentieth of a second, and the longest silence is kept.
+sub listen_for_silence;
+sub longest_silence;
 my ($rang, $silence) = (0, 0);
 sub listen_for_silence {
     ($rang, $silence) = (Time::HiRes::time(), 0);
@@ -206,19 +229,34 @@ sub listen_for_silence {
     Time::HiRes::ualarm(50_000, 50_000);
 }
 sub longest_silence { Time::HiRes::ualarm(0); return $silence > 0.8 ? 'stopped' : 'ran' }
+if ($part eq 'watch') {                   # this run: a page container is alive when the next window opens
+    my $gate = say_to("address\n");
+    my $first = '';
+    1 while $first !~ /\n/ && take($gate, $first, 1);
+    report 'gateway: ask for the address window (watch)', $first =~ s/\n//r;
+    gateway 'ask for the log window straight after an address was fetched', "show log\n";
+    sleep 4;
+    listen_for_silence();
+    gateway 'ask for the log window some seconds later', "show log\n";
+    report 'keep running while the log window is open', longest_silence();
+    my $rest = '';
+    1 while take($gate, $rest, 65536);
+    print $rest;
+    exit 0;
+}
 if ($part eq 'no') {                      # this run: the user says no to a host inside the own network
     gateway 'ask for the address window; the user types an address that leads into the own network, and says no', "address\n";
     gateway 'ask again straight after the no', "address\n";
     gateway 'ask for the log window straight after the no', "show log\n";
     exit 0;
 }
-if ($part =~ /^(?:closed|unfit|certificate|untrusted|plain|large|unwritable|slow|elsewhere|pieces|fetcher|biglog|spin|sleep)$/) {
+if ($part =~ /^(?:closed|unfit|certificate|untrusted|plain|large|unwritable|slow|elsewhere|pieces|fetcher|inplace|biglog|spin|sleep|ask)$/) {
     my $start = time;
     gateway "ask for the address window ($part)", "address\n";
     report "a page that never stops ($part)", time - $start if $part =~ /^(?:spin|sleep)$/;
     exit 0;
 }
-if ($part =~ /^(?:keep|clear)$/) { gateway "ask for the log window ($part)", "show log\n"; exit 0 }
+if ($part =~ /^(?:keep|clear|clearbusy|asklog)$/) { gateway "ask for the log window ($part)", "show log\n"; exit 0 }
 # This run: the user types https://site.test/selftest?q=1 and says yes.
 gateway 'name an address itself, the way the first version allowed', "https://hidden-$outside.example/\n";
 gateway 'name an address after the sentence', "address https://hidden-$outside.example/\n";
@@ -228,6 +266,7 @@ gateway 'the sentence in capital letters', "ADDRESS\n";
 gateway 'a line of control characters', "\e[2J\raddress\n";
 gateway 'a sentence that never ends', "address";
 gateway 'a very long line', ("hidden-$outside " x 400) . "\n";
+report 'what its input is', -c STDIN && (stat STDIN)[6] == (stat '/dev/null')[6] ? 'nothing' : 'something that was open in whoever started lzrprf';
 listen_for_silence();
 my $until = Time::HiRes::time() + 1.5;
 select(undef, undef, undef, 0.2) while Time::HiRes::time() < $until;
@@ -254,19 +293,19 @@ sleep 2;
 attempts();
 END
 
-my @attempts = ('connect straight to a listener on this computer', 'look up a name', 'send a datagram', 'listen for connections', 'read a file in the home folder',
+my @attempts = ('use a file that was open in whoever started lzrprf', 'connect straight to a listener on this computer', 'look up a name', 'send a datagram', 'listen for connections', 'read a file in the home folder',
     'read the same file by its other path, through the data volume', 'learn whether a file exists in the home folder', 'list the home folder', 'list the folder of all users',
     'read the log', 'change the log', 'empty the log', 'change lzrprf itself', 'write a file in the home folder', 'write a file in the temporary folder',
     'signal another process', 'see a variable of the user', 'read the computer\'s name', 'read the list of processes', 'start a second process', 'start another program');
 my %hidden = map { $_ => 1 } 'see a variable of the user', 'read the computer\'s name', 'learn whether a file exists in the home folder';
 my %refused = map { ("$_: connect straight to a server on the internet" => 'refused') } 'main container', 'page container', 'fetch container';
-for my $where ('main container', 'page container', 'fetch container') { $refused{"$where: $_"} = $hidden{$_} ? 'hidden' : 'refused' for @attempts }
+for my $where ('main container', 'page container', 'fetch container') { $refused{"$where: $_"} = $hidden{$_} ? 'hidden' : /^use a file/ ? 'closed' : 'refused' for @attempts }
 sub contained { my ($where) = @_; return map { $_ => $refused{$_} } grep { /^\Q$where\E: / } keys %refused }
 
 my $no_sentence = 'no not a sentence lzrprf knows';
 my $busy = 'no a window of lzrprf is open, or was closed a moment ago';
 my $typed = 'https://site.test/selftest?q=1';
-my (%folder, %prepare);
+my (%folder, %prepare, %program, %limit, %told);
 
 # One run of lzrprf with the hostile application in it. $peer is the listener
 # every name leads to, $types what the user types into the address window,
@@ -279,8 +318,8 @@ sub attack {
     my $pid = open(my $run, '-|') // die "selftest: cannot fork: $!\n";
     if (!$pid) {
         $prepare{$part}->($$) if $prepare{$part};    # this process becomes lzrprf and then the application, so $$ is the application's number
-        exec '/usr/bin/perl', $lzrprf, 'try', $folder{$part}, "127.0.0.1:$port{$peer}", $types, $answer, '/usr/bin/perl', '-e', $hostile,
-            $port{echo}, $secret, $home, $outside, $lzrprf, $folder{$part}, $computer, $part, $$;
+        exec '/usr/bin/perl', $lzrprf, 'try', $folder{$part}, "127.0.0.1:$port{$peer}", $types, $answer, $program{$part} ? @{$program{$part}} : ('/usr/bin/perl', '-e', $hostile,
+            $port{echo}, $secret, $home, $outside, $lzrprf, $folder{$part}, $computer, $part, $$);
         exit 1;
     }
     my %seen;
@@ -288,8 +327,10 @@ sub attack {
         chomp;
         my ($attempt, $result) = split /\t/;
         $result //= '';
-        if ($seen{$attempt}++) { check(0, $attempt, 'reported twice') }
+        if ($told{$part}) { $told{$part}{$attempt} = $result }    # this run's lines are judged by whoever asked for the run
+        elsif ($seen{$attempt}++) { check(0, $attempt, 'reported twice') }
         elsif (my $seconds = $within->{$attempt}) { check($result =~ /^\d+$/ && $result <= $seconds, $attempt, "ended after $result seconds") }
+        elsif ($limit{$attempt} && $result eq ($expected->{$attempt} // '')) { printf "%-6s %s (%s)\n", 'limit', $attempt, $result }
         else { check($result eq ($expected->{$attempt} // 'nothing is expected under this name'), $attempt, $result) }
     }
     close $run;
@@ -314,7 +355,7 @@ $folder{outside} = "$base.outside";
 mkdir $folder{outside};
 open my $empty_log, '>', "$folder{outside}/log";
 close $empty_log;
-my %works = ('connect straight to a listener on this computer' => 'reached', 'look up a name' => 'resolved', 'send a datagram' => 'sent', 'listen for connections' => 'listening',
+my %works = ('use a file that was open in whoever started lzrprf' => 'open', 'connect straight to a listener on this computer' => 'reached', 'look up a name' => 'resolved', 'send a datagram' => 'sent', 'listen for connections' => 'listening',
     'read a file in the home folder' => 'read', 'read the same file by its other path, through the data volume' => 'read', 'learn whether a file exists in the home folder' => 'found',
     'list the home folder' => 'listed', 'list the folder of all users' => 'listed', 'read the log' => 'read', 'change the log' => 'opened', 'empty the log' => 'opened',
     'change lzrprf itself' => 'opened', 'write a file in the home folder' => 'written', 'write a file in the temporary folder' => 'written', 'signal another process' => 'allowed',
@@ -341,6 +382,7 @@ attack('yes', 'trusted', $typed, 'allow', {
     'main container: gateway: a line of control characters' => $no_sentence,
     'main container: gateway: a sentence that never ends' => 'nothing',
     'main container: gateway: a very long line' => $no_sentence,
+    'main container: what its input is' => 'nothing',
     'main container: the clock of this process, while no window is open' => 'ran',
     'main container: keep running while lzrprf\'s windows are open' => 'stopped',
     'main container: gateway: two address windows asked for at once' => "$busy / ok $typed",
@@ -356,17 +398,17 @@ attack('yes', 'trusted', $typed, 'allow', {
 my @saw = site_saw();
 my $request = "GET /selftest?q=1 HTTP/1.1\r\nHost: site.test\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
 check(@saw == 1 && $saw[0] eq "trusted\tbytes " . unpack('H*', $request), 'the test site received one connection, and on it these bytes and no other: the address that was typed, its host, and two fixed lines', @saw == 1 ? 'compared every byte' : scalar(@saw) . ' connections');
-my ($log, $refused) = map { kept('yes', $_) } qw(log refused);
+my $log = kept('yes', 'log');
 my @lines = split /\n/, $log;
 my %numbers = map { (split /\t/)[1] => 1 } @lines;
-check(what_happened('yes') eq "you typed $typed | you allowed site.test, which is inside your own network (127.0.0.1), this once | $typed -> lzrprf connects to the first that answers of: 127.0.0.1 | $typed answered: " . length(answer_for('/selftest?q=1')) . ' bytes',
+check(what_happened('yes') eq "you typed $typed | you allowed site.test, which is inside your own network (127.0.0.1), this once | $typed -> lzrprf connects to the first that answers of: 127.0.0.1 | $typed answered: " . length(answer_for('/selftest?q=1')) . ' bytes from 127.0.0.1',
     'the log holds, in this order: what was typed, the yes to a host inside the own network, where lzrprf connects, how it ended; and no other line', what_happened('yes'));
 check(keys %numbers == 1, 'the four lines carry the number of one request', join ' ', sort keys %numbers);
-check(!!($log !~ /hidden-/ && $refused !~ /hidden-/ && $log !~ /\e/), 'the log and the count of refusals hold nothing the application sent', 'looked for it');
-check(length $refused < 500 && !!($refused =~ m{^107\t\S+\tnot a sentence lzrprf knows$}m), '107 refused lines added nothing but a count', length($refused) . ' bytes');
 for (1 .. 30) { last unless glob "$folder{yes}/gate.*"; select undef, undef, undef, 0.1 }    # the gateway ends within a second of the application
 my @left = sort map { m{([^/]+)$} } glob "$folder{yes}/*";
-check("@left" eq 'asking authority.pem lock log refused', 'lzrprf keeps no list of allowed hosts, no rule and no address: its folder holds the log, the count of refusals, and nothing the application can come back for', "@left");
+my $all_kept = join '', map { kept('yes', $_) } grep { $_ ne 'authority.pem' } @left;
+check(!!($all_kept !~ /hidden-|flood-|\e/), 'what the application sent, 107 refused lines among it, is written nowhere: not in the log and in no other file of lzrprf', length($all_kept) . ' bytes kept, looked through all of them');
+check("@left" eq 'asking authority.pem busy lock log quiet', 'lzrprf keeps no list of allowed hosts, no rule and no address: its folder holds the log, three empty files it locks, the clock time before which no window opens, and nothing the application can come back for', "@left");
 check(!-e "$secret.written" && !-e "/tmp/lzrprf-selftest.$outside", 'no file was written anywhere', 'looked for them');
 
 # 3. A host inside the own network, and the user says no.
@@ -425,8 +467,26 @@ site_saw();
 $folder{keep} = $folder{clear} = $folder{yes};
 attack('keep', 'trusted', '-', 'deny', { 'main container: gateway: ask for the log window (keep)' => 'ok' }, {});
 check(kept('yes', 'log') eq $log, 'the log window was opened and closed: the log is as it was', 'compared it');
+$folder{clearbusy} = $folder{yes};
+sleep 4;                                  # a window was just closed: no new one for some seconds
+open my $between, '>>', "$folder{yes}/busy" or die "selftest: cannot open: $!\n";
+flock $between, LOCK_SH;                  # what a request holds from "you typed" until its last line is written
+attack('clearbusy', 'trusted', '-', 'allow', { 'main container: gateway: ask for the log window (clearbusy)' => 'ok' }, {});
+check(kept('yes', 'log') eq $log, 'the user pressed "Clear the log" while a request was between its first line and its last: nothing was cleared', 'compared it');
+close $between;
+sleep 4;
 attack('clear', 'trusted', '-', 'allow', { 'main container: gateway: ask for the log window (clear)' => 'ok' }, {});
 check(what_happened('yes') =~ /^you cleared the log: it held 4 lines, 0\.0 MB, from \S+ to \S+$/, 'the user pressed "Clear the log", twice: the new log begins by saying so', what_happened('yes'));
+
+# A window stops every process of the application: the main container and a page container that is alive then.
+attack('watch', 'trusted', 'https://site.test/watch', 'allow', {
+    'main container: gateway: ask for the address window (watch)' => 'ok https://site.test/watch',
+    'main container: gateway: ask for the log window straight after an address was fetched' => $busy,
+    'main container: gateway: ask for the log window some seconds later' => 'ok',
+    'main container: keep running while the log window is open' => 'stopped',
+    'page container: keep running while a window of lzrprf is open' => 'stopped',
+}, {});
+site_saw();
 
 # 7. curl's container. The hostile application stands in curl's place.
 $prepare{fetcher} = sub {
@@ -453,7 +513,8 @@ check($opened != 0, 'ask the system to open an address in another program', $ope
 # is run outside and inside the container; only the number of bytes is looked at.
 my $copied = length(qx{/usr/bin/pbpaste 2>/dev/null} // '');
 my $read = length(qx{$try /usr/bin/pbpaste 2>/dev/null} // '');
-check($read == 0, 'read the clipboard', $read ? "read $read bytes" : $copied ? "refused; outside the container the same tool read $copied bytes" : 'refused; it was empty, so copy something and run again to see this one for sure');
+if ($copied || $read) { check($read == 0, 'read the clipboard with the system\'s own tool', $read ? "read $read bytes" : "refused; outside the container the same tool read $copied bytes") }
+else { untested('read the clipboard with the system\'s own tool', 'the clipboard is empty: copy something and run again') }
 @saw = site_saw();
 check(!@saw, 'neither reached the test site', scalar(@saw) . ' connections');
 
@@ -464,9 +525,17 @@ my %leads = (
     '::ffff:192.168.1.1' => 0, '64:ff9b::7f00:1' => 0, '64:ff9b::a00:1' => 0, '2002:7f00:1::' => 0, '2001::1' => 0, '2001:db8::1' => 0, '3fff::1' => 0, 'fe80::1%lo0' => 0, 'nonsense' => 0,
     '1.1.1.1' => 1, '8.8.8.8' => 1, '2606:4700:4700::1111' => 1, '::ffff:1.1.1.1' => 1, '64:ff9b::808:808' => 1,
 );
-my %said = map { chomp; my ($address, $verdict) = split /\t/; $address => $verdict =~ /^on the public internet/ ? 1 : 0 } qx{/usr/bin/perl "$lzrprf" public @{[map { "'$_'" } sort keys %leads]}};
+my (%said, %sent_by);
+for (qx{/usr/bin/perl "$lzrprf" public @{[map { "'$_'" } sort keys %leads]}}) {
+    chomp;
+    my ($address, $verdict, $way) = split /\t/;
+    ($said{$address}, $sent_by{$address}) = ($verdict =~ /^on the public internet/ ? 1 : 0, $way // '');
+}
 my @wrong = grep { ($said{$_} // -1) != $leads{$_} } sort keys %leads;
 check(!@wrong, 'an address on this computer or in a network of your own is told apart from one on the public internet', @wrong ? "wrong for @wrong" : scalar(keys %leads) . ' addresses');
+check($sent_by{'127.0.0.1'} eq 'sent by a route of its own', 'an address this computer reaches by a route of its own is told apart from one it sends the way the internet at large is, whatever range it is in', "127.0.0.1 is $sent_by{'127.0.0.1'}");
+if ($sent_by{'1.1.1.1'} eq 'sent the way the internet at large is') { check(1, 'an address on the internet is seen as sent that way', "1.1.1.1 is $sent_by{'1.1.1.1'}") }
+else { untested('an address on the internet is seen as sent that way', "this computer says of 1.1.1.1: $sent_by{'1.1.1.1'}") }
 my %sent = (
     'site.test' => 'https://site.test/', 'Site.Test/A?b=C#d' => 'https://site.test/A?b=C', 'https://site.test:443/x' => 'https://site.test/x', 'site.test?q=1' => 'https://site.test/?q=1',
     'https://site.test/a/../b' => 'https://site.test/a/../b', '  https://site.test/  ' => 'https://site.test/',
@@ -493,18 +562,202 @@ if ($limits) {
     check(time - $start < 60, 'a site that never answers is given up on', 'after ' . (time - $start) . ' seconds');
 }
 
+# 11. macOS itself, asked the way a native application asks. A small C program
+# is compiled here and run outside, as the application (main container, then
+# page container) and in curl's place (fetch container).
+my ($app, $tools) = ("$base.probe/Probe.app", qx{/usr/bin/xcode-select -p 2>/dev/null} // '');
+chomp $tools;
+my ($probe, $other, $started) = ("$app/Contents/MacOS/probe", "$app/Contents/Other.app", "$base.probe/started");
+my @native = ('reach services of the system by their name', 'list the windows of other applications', 'list the running applications',
+    'read the clipboard the way an application does', 'have the system start another application');
+if ($? || !-d $tools || !-x '/usr/bin/cc') { untested($_, 'this Mac has no C compiler; "xcode-select --install" gives one') for @native }
+else {
+    make_path("$app/Contents/MacOS", "$other/Contents/MacOS");
+    my %file = ("$base.probe/probe.c" => $probe_source, "$other/Contents/MacOS/other" => "#!/bin/sh\necho started >> \"$started\"\n",
+        "$other/Contents/Info.plist" => $other_application);
+    for my $name (keys %file) { open my $out, '>', $name or die "selftest: cannot write $name: $!\n"; print $out $file{$name}; close $out }
+    chmod 0755, "$other/Contents/MacOS/other";
+    my $built = system("/usr/bin/cc -o \"$probe\" \"$base.probe/probe.c\" -framework ApplicationServices -framework AppKit 2>/dev/null") == 0;
+    if (!$built) { untested($_, 'the C compiler of this Mac did not build the probe') for @native }
+    else {
+        my %out = map { chomp; split /\t/, $_, 2 } qx{"$probe" "$other"};
+        for (1 .. 50) { last if -e $started; select undef, undef, undef, 0.1 }
+        my %control = (
+            $native[0] => scalar(() = ($out{"outside: $native[0]"} // '') =~ /com\./g) >= 10,
+            $native[1] => ($out{"outside: $native[1]"} // '') =~ /^\d+ windows/,
+            $native[2] => ($out{"outside: $native[2]"} // '') =~ /^\d+ applications/,
+            $native[3] => ($out{"outside: $native[3]"} // '') =~ /^sees \d+ kinds/,
+            $native[4] => -e $started,
+        );
+        for (@native) {
+            my $saw = $out{"outside: $_"} // 'no report';
+            $saw = (() = $saw =~ /com\./g) . ' of the ' . (() = $probe_source =~ /"com\.apple\./g) . ' it asks for' if $_ eq $native[0];
+            if ($control{$_}) { works(1, "outside every container: $_", $saw) }
+            else { untested($_, $_ eq $native[3] ? 'the clipboard is empty: copy something and run again' : "outside every container it gave: $saw") }
+        }
+        unlink $started;
+        $told{probe} = {};
+        $program{probe} = [$probe, $other];
+        attack('probe', 'trusted', 'https://site.test/probe', 'allow');
+        $told{inplace} = {};
+        $prepare{inplace} = sub {
+            open my $instead, '>', "$base.inplace/fetcher" or die "selftest: cannot write: $!\n";
+            print $instead map { "$_\n" } $probe, $other, 'fetch', "$base.inplace";
+        };
+        attack('inplace', 'echo', 'https://site.test/inplace', 'allow');
+        site_saw();
+        sleep 3;                              # the system starts an application a moment after it was asked
+        my %inside = (%{$told{probe}}, %{$told{inplace}});
+        my %allowed = map { $_ => 1 } 'com.apple.windowserver.active', 'com.apple.coreservices.launchservicesd', 'com.apple.hiservices-xpcservice';
+        for my $where ('main container', 'page container', 'fetch container') {
+            for (grep { $control{$_} } @native) {
+                my $saw = $inside{"$where: $_"} // 'no report';
+                if ($_ eq $native[0] && $where eq 'main container') {
+                    my @reached = $saw =~ /(com\.[\w.\-\@]+)/g;
+                    check($saw ne 'no report' && !grep({ !$allowed{$_} } @reached), "$where: $_: only those its window needs", $saw);
+                }
+                elsif ($where eq 'main container' && /^list the / && $saw =~ /^\d+ /) { printf "%-6s %s (%s)\n", 'limit', "$where: $_", "$saw: their names, nothing of what is in them" }
+                elsif ($_ eq $native[4]) { check(!-e $started && $saw ne 'no report', "$where: $_", -e $started ? 'it was started' : "$saw; nothing was started") }
+                else { check($saw =~ /^(?:none|refused|sees nothing)$/, "$where: $_", $saw) }
+            }
+        }
+    }
+}
+
+# 12. Your part, when asked for: lzrprf's real windows.
+if ($mode eq 'windows') {
+    print "\nNow your part. A window of lzrprf opens: type  site.test/hello  into it and press Go. In the next window press \"Yes, this once\".\n";
+    attack('ask', 'trusted', '-', 'ask', { $asks->('ask', 'ok https://site.test/hello') }, {});
+    @saw = site_saw();
+    check(@saw == 1 && what_happened('ask') =~ m{^you typed https://site\.test/hello \| you allowed site\.test, }, 'what you typed into the real window is what the test site received and what the log says', what_happened('ask'));
+    my $held = kept('ask', 'log');
+    $folder{asklog} = $folder{ask};
+    print "\nThe log window opens after four seconds: look at it, and press Close.\n";
+    sleep 4;
+    attack('asklog', 'trusted', '-', 'ask', { 'main container: gateway: ask for the log window (asklog)' => 'ok' }, {});
+    check(kept('ask', 'log') eq $held, 'the real log window was opened and closed: the log is as it was', 'compared it');
+}
+
 kill 'TERM', $site;
 kill 'TERM', map { /^\s*(\d+)\s+$site\s*$/ ? $1 : () } qx{/bin/ps -axo pid=,ppid=};    # the site's own helpers, if one is still waiting
 unlink $secret;
+close $left_open;
+POSIX::close(19);
+remove_tree("$base.probe");
 for my $one (glob "$base.*") { chmod 0600, glob "$one/*"; unlink glob "$one/*"; rmdir $one }
-rmdir "$home/.lzrprf" if $made;
-print $failures ? "\n$failures FAILED. Do not trust this copy of lzrprf on this computer.\n" : "\nAll held.\n";
-exit($failures ? 1 : 0);
+if ($failures) {
+    rmdir "$home/.lzrprf" if $made;
+    print "\n$failures FAILED. Do not trust this copy of lzrprf on this computer.\n";
+    exit 1;
+}
+# The mark of what was just tested. "lzrprf run" starts an application only when this is the mark of now.
+chomp(my $mark = qx{/usr/bin/perl "$lzrprf" mark} // '');
+unlink "$home/.lzrprf/proven";
+open my $proven, '>', "$home/.lzrprf/proven" or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
+print $proven "$mark\n";
+close $proven or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
+print "\nAll held", ($untested ? ", $untested untested (see above)" : ''), ".\nTested and marked: $mark\n";
+exit 0;
+
+BEGIN {
+$other_application = <<'END';
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>test.lzrprf.selftest.other</string>
+<key>CFBundleExecutable</key><string>other</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSUIElement</key><true/>
+</dict></plist>
+END
+# probe OTHER.app [fetch FOLDER]: what a program can reach of macOS itself.
+$probe_source = <<'END';
+#include <ApplicationServices/ApplicationServices.h>
+#include <servers/bootstrap.h>
+#include <objc/message.h>
+#include <objc/runtime.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+static const char *where;
+static void report(const char *what, const char *result) { printf("%s: %s\t%s\n", where, what, result); fflush(stdout); }
+static long count_of(const char *class, const char *one, const char *list) {    // [[Class one] list].count, or -1
+    id first = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass(class), sel_registerName(one));
+    id all = first ? ((id (*)(id, SEL))objc_msgSend)(first, sel_registerName(list)) : 0;
+    return all ? (long)((unsigned long (*)(id, SEL))objc_msgSend)(all, sel_registerName("count")) : -1;
+}
+
+int main(int argc, char **argv) {
+    static const char *names[] = {    // the three the main container is allowed come first; the rest is what an application would ask for next
+        "com.apple.windowserver.active", "com.apple.coreservices.launchservicesd", "com.apple.hiservices-xpcservice",
+        "com.apple.pasteboard.1", "com.apple.lsd.open", "com.apple.lsd.mapdb", "com.apple.coreservices.appleevents", "com.apple.tccd",
+        "com.apple.tccd.system", "com.apple.cfprefsd.daemon", "com.apple.cfprefsd.agent", "com.apple.distributed_notifications@Uv3",
+        "com.apple.dnssd.service", "com.apple.SystemConfiguration.configd", "com.apple.system.opendirectoryd.libinfo",
+        "com.apple.coreservices.quarantine-resolver", "com.apple.audio.audiohald", "com.apple.cmio.registerassistantservice",
+        "com.apple.screencapture.interactive", "com.apple.dock.server", "com.apple.system.notification_center", "com.apple.fonts",
+        "com.apple.FontObjectsServer", "com.apple.logd", "com.apple.diagnosticd", "com.apple.iohideventsystem", "com.apple.axserver",
+        "com.apple.inputmethodkit.launchagent", "com.apple.tsm.uiserver", "com.apple.CARenderServer"};
+    char text[4096] = "", line[200];
+    int fetch = argc > 3 && !strcmp(argv[2], "fetch"), gate = socket(AF_UNIX, SOCK_STREAM, 0);
+    struct sockaddr_un to = {.sun_family = AF_UNIX};
+    where = fetch ? "fetch container" : getenv("LZRPRF_CONTAINED") ? "page container" : getenv("LZRPRF") ? "main container" : "outside";
+    if (fetch) {                          // in curl's place: lzrprf waits on this socket file for what curl would send
+        snprintf(to.sun_path, sizeof to.sun_path, "%s/way.%d", argv[3], (int)getppid());
+        if (connect(gate, (struct sockaddr *)&to, sizeof to) == 0) write(gate, "hello", 5);
+    }
+
+    for (unsigned i = 0; i < sizeof names / sizeof *names; i++) {
+        mach_port_t port = MACH_PORT_NULL;
+        if (bootstrap_look_up(bootstrap_port, names[i], &port) != KERN_SUCCESS) continue;
+        if (*text) strlcat(text, ", ", sizeof text);
+        strlcat(text, names[i], sizeof text);
+    }
+    report("reach services of the system by their name", *text ? text : "none");
+
+    CFArrayRef windows = CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID);
+    long count = windows ? CFArrayGetCount(windows) : 0, titled = 0;
+    for (long i = 0; i < count; i++) if (CFDictionaryGetValue(CFArrayGetValueAtIndex(windows, i), kCGWindowName)) titled++;
+    snprintf(line, sizeof line, "%ld windows, %ld with their title", count, titled);
+    report("list the windows of other applications", count > 0 ? line : "refused");
+
+    count = count_of("NSWorkspace", "sharedWorkspace", "runningApplications");
+    snprintf(line, sizeof line, "%ld applications", count);
+    report("list the running applications", count > 0 ? line : "refused");
+
+    count = count_of("NSPasteboard", "generalPasteboard", "types");
+    snprintf(line, sizeof line, "sees %ld kinds of content", count);
+    report("read the clipboard the way an application does", count > 0 ? line : count ? "refused" : "sees nothing");
+
+    CFURLRef other = CFURLCreateFromFileSystemRepresentation(0, (const UInt8 *)argv[1], strlen(argv[1]), 1);
+    snprintf(line, sizeof line, "the system answered %d", (int)LSOpenCFURLRef(other, 0));
+    report("have the system start another application", line);
+
+    if (!strcmp(where, "main container")) {    // ask for an address, so that a page container is started: it runs this program too
+        strlcpy(to.sun_path, getenv("LZRPRF"), sizeof to.sun_path);
+        if (connect(gate, (struct sockaddr *)&to, sizeof to) == 0 && write(gate, "address\n", 8) == 8) {
+            shutdown(gate, SHUT_WR);
+            for (ssize_t n; (n = read(gate, text, sizeof text)) > 0;) fwrite(text, 1, n, stdout);
+        }
+    }
+    return 0;
+}
+END
+}
 
 sub check {
     my ($held, $what, $saw) = @_;
     $failures++ unless $held;
     printf "%-6s %s (%s)\n", $held ? 'held' : 'FAILED', $what, $saw;
+}
+
+sub untested {
+    my ($what, $why) = @_;
+    $untested++;
+    printf "%-6s %s (%s)\n", 'UNTESTED', $what, $why;
 }
 
 sub works {
