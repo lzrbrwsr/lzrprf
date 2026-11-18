@@ -1,0 +1,14 @@
+lzrbrwsr-macos-arm64.tar.gz in this repository is not covered by the MIT licence in LICENSE.
+
+It is the closed application LZRBRWSR as it is installed: the property of create.repeat Oy, all
+rights reserved. Anyone may install it and use it free of charge. Nobody may sell or rent it,
+pass copies on or offer it for download, change it, or take it apart, except where the law
+gives that right whatever a contract says. Its terms are the file LICENSE.txt inside the
+archive and https://lzrbrwsr.com/terms.html.
+
+GitHub's own terms let anyone view and fork a public repository, this file with it. That gives
+no right to the file beyond the terms above.
+
+It is kept here, beside the open container lzrprf, as the public record of what the installer
+installs: the installer fetches it from https://lzrbrwsr.com and from this repository and stops
+unless both are the same file. Everything else in this repository is MIT.

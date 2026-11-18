@@ -38,7 +38,7 @@
 #   [C7]  What a site is sent is made from the address alone: the same bytes from every computer, with nothing kept from an earlier request.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of four kinds of line is not drawn at all.
-#   [C10] The window's process has no network, writes no file, starts no program, and reads nothing in your home folder but your settings and fonts.
+#   [C10] The window's process has no network of its own, writes no file, starts no program, opens nothing through the system, commands no other program, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. lzrprf asks the system whether that holds before anything is shown. It still reaches the system's services, the clipboard among them.
 #   [C11] Nothing is shown before selftest held on this build of macOS with this file.
 #   [C12] The log is only added to. It is cleared by your button and by nothing else.
 #
@@ -153,13 +153,19 @@ END
 
 # The window's container. A window needs the system's services, so this one
 # is written the other way round: what a program of yours may do, without
-# four things. No network of any kind, so the process that draws a site's
-# text can send nothing anywhere. No writing of any file. No starting of any
-# program. No reading in your home folder, apart from your settings, your
-# fonts and keyboard layouts, and the application's own folder for its
-# icon: so it holds nothing of yours that it could put into the bar. What it
-# reads on descriptor 0 and writes on descriptor 1 is its talk with lzrprf,
-# and nothing else leaves it.                                          # [C10]
+# the things below. No network of any kind. No writing of any file. No
+# starting of any program. No asking the system to open an address, a file
+# or another program for it. No command to another program. No writing of
+# your settings. No asking the system's downloader to fetch for it. No
+# reading under /Users or on another disk, apart from your settings, your
+# fonts, keyboard layouts and input methods, and the application's own
+# folder for its icon.
+# What it reads on descriptor 0 and writes on descriptor 1 is its talk with
+# lzrprf.
+# What this container does NOT refuse, said plainly: the other services of
+# the system. The clipboard is one of them, because you paste into the bar.
+# So this container is weaker than the page container, and the README says
+# what follows from that.                                              # [C10]
 my $WINDOW_CONTAINER = <<'END';
 (version 1)
 (allow default)
@@ -169,12 +175,16 @@ my $WINDOW_CONTAINER = <<'END';
 (deny process-fork)
 (deny process-exec)
 (allow process-exec (literal "/usr/bin/osascript"))
-(deny file-read* (subpath (param "HOME")))
+(deny lsopen)
+(deny appleevent-send)
+(deny user-preference-write)
+(deny mach-lookup (global-name "com.apple.nsurlsessiond"))
+(deny file-read* (subpath "/Users") (subpath "/Volumes") (subpath (param "HOME")))
 (allow file-read*
   (subpath (string-append (param "HOME") "/Library/Preferences")) (subpath (string-append (param "HOME") "/Library/Fonts"))
   (subpath (string-append (param "HOME") "/Library/Keyboard Layouts")) (subpath (string-append (param "HOME") "/Library/Input Methods"))
   (subpath (param "OWN")))
-(allow file-read-metadata (literal (param "HOME")) (literal (string-append (param "HOME") "/Library")))
+(allow file-read-metadata (literal "/Users") (literal "/Volumes") (literal (param "HOME")) (literal (string-append (param "HOME") "/Library")))
 END
 
 sub contain {
@@ -293,7 +303,10 @@ sub holds {
 # Only when the system says no to all four is the process handed anything:
 # a page container the site's answer, curl the connection to the site. The
 # question is put to the system, by number of the process. Nothing is asked
-# of the process itself.                                                 # [C3]
+# of the process itself. The window's process is asked about in the same
+# way before anything is shown: no to the first three, and no to opening
+# something through the system, to commanding another program and to
+# writing your settings. A system service it may reach.                # [C3]
 my $WITNESS = <<'END';
 ObjC.import('Foundation');
 ObjC.bindFunction('sandbox_check', ['int', ['int', 'char *', 'int']]);
@@ -305,7 +318,7 @@ function run() {
         held += $.NSString.alloc.initWithDataEncoding(data, 4).js;
         for (var at; (at = held.indexOf('\n')) >= 0; held = held.slice(at + 1)) {
             var pid = parseInt(held.slice(0, at), 10);
-            var refused = ['network-outbound', 'file-write-create', 'process-fork', 'mach-lookup'].map(function (what) { return $.sandbox_check(pid, what, 0); });
+            var refused = ['network-outbound', 'file-write-create', 'process-fork', 'mach-lookup', 'lsopen', 'appleevent-send', 'user-preference-write'].map(function (what) { return $.sandbox_check(pid, what, 0); });
             to.writeData($(pid + ' ' + refused.join(' ') + '\n').dataUsingEncoding(4));
         }
     }
@@ -314,7 +327,15 @@ END
 my ($witness, $to_witness, $from_witness);
 
 sub inside {                              # true when the system says that this process is contained; it is asked for two seconds, and then the answer is no
-    my ($pid) = @_;
+    my ($pid, $window) = @_;
+    my $contained = $window ? qr/^\Q$pid\E 1 1 1 [01] 1 1 1\n\z/ : qr/^\Q$pid\E 1 1 1 1 [01] [01] [01]\n\z/;    # the page and fetch containers refuse everything; what the last three say of them is not what holds them
+    my $lost = sub {                      # the one that answers did not answer: it is ended, so that no late answer of its is ever read as the answer to a later question
+        kill 'KILL', $witness;
+        waitpid $witness, 0;
+        close $_ for $to_witness, $from_witness;
+        undef $witness;
+        return 0;
+    };
     if (!$witness) {
         pipe(my $asked, $to_witness) && pipe($from_witness, my $told) or return 0;
         $witness = fork // return 0;
@@ -324,12 +345,12 @@ sub inside {                              # true when the system says that this 
     }
     my $until = now() + 2;
     while (now() < $until) {
-        print $to_witness "$pid\n" or return 0;
+        print $to_witness "$pid\n" or return $lost->();
         my $ready = '';
         vec($ready, fileno $from_witness, 1) = 1;
-        select($ready, undef, undef, $until - now() + 0.5) > 0 or return 0;
-        my $says = readline($from_witness) // return 0;
-        return 1 if $says eq "$pid 1 1 1 1\n";
+        select($ready, undef, undef, $until - now() + 0.5) > 0 or return $lost->();
+        my $says = readline($from_witness) // return $lost->();
+        return 1 if $says =~ $contained;
         select undef, undef, undef, 0.01; # not yet: the process is still being put into its container
     }
     return 0;
@@ -382,6 +403,7 @@ sub behind {
     leave() unless (hear(60) // '') eq 'ready';
     return closed("lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e "$DIR/prove") || proven();    # [C11]
     return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless holds();    # [C2]
+    return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
     newer();
     idle("$APP is contained: no network, no file, no other program. lzrprf fetches what you type above, and writes it in the log first.");
     while (defined(my $event = hear())) {
@@ -499,8 +521,8 @@ sub checked {
     my @hosts = split ' ', $1;
     my $boxes = 0;
     for (@lines) {
-        if (/^T[\@-O]./s) { s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\x{fffe}\x{ffff}]/\x{fffd}/g }
-        elsif (/^I(\d{1,3})x(\d{1,3})$/) { return unless $1 >= 8 && $1 <= 640 && $2 >= 8 && $2 <= 480 && ++$boxes <= $BOXES }
+        if (/^T[\@-O]./s) { s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/\x{fffd}/g }    # the last: a number above every character there is, which Perl would pass on and the window could not read
+        elsif (/^I([0-9]{1,3})x([0-9]{1,3})$/) { return unless $1 >= 8 && $1 <= 640 && $2 >= 8 && $2 <= 480 && ++$boxes <= $BOXES }
         else { return unless /^(?:P[p123lqcr][0-9]|B)$/ }
     }
     utf8::encode($_) for @lines;
@@ -509,10 +531,18 @@ sub checked {
 
 # The application did not give a page. What is said is one of the fixed
 # phrases below. And when the application's maker named an address for
-# reports, you are asked whether to send one, shown every byte of it first:
-# which of the phrases it was, the release, the build of macOS. Not the
-# address you typed, and nothing of the page. It is sent the way a typed
-# address is, and written in the log the same way.
+# reports, you are asked whether to send one, shown the whole address first:
+# one of two words, the release, the build of macOS. Not the address you
+# typed, and nothing of the page. It is sent the way a typed address is, and
+# written in the log the same way.
+# Two words and not the six phrases, because four of the six are the
+# application's own doing: it could fail in one of four ways on purpose, and
+# a report that named the way would carry what the application chose. So a
+# report says "page" for all four, and "container" for the two that lzrprf
+# and the system decide. One thing stays the application's choice and cannot
+# be taken from it: whether it fails on a page at all. A report you send
+# therefore tells its maker that some page failed on your computer at that
+# moment, and not which.
 my %FAULT = (
     unstarted => 'its container could not be started',
     uncontained => 'the system did not say that it was in its container, so the answer was not handed to it',
@@ -527,7 +557,8 @@ sub fault {
     my $says = "$APP did not show this page: $FAULT{$which}.";
     my ($release, undef, $to) = beside();
     my ($build) = mark() =~ /^macOS build (\w+)/;
-    my ($url, $host) = $to && $build ? address("$to?fault=$which&release=$release&macos=$build") : ();
+    my $word = $which =~ /^un(?:started|contained)$/ ? 'container' : 'page';
+    my ($url, $host) = $to && $build ? address("$to?fault=$word&release=$release&macos=$build") : ();
     return idle($says) unless $url;
     return idle($says) unless ask("$says Send an anonymous report to its developer? This is all of it, and it is written in the log: $url", "Don't send", 'Send') == 2;    # [C4]
     idle("$says " . (fixed("you sent a report: $url", $url, $host) ? 'The report was sent.' : 'The report could not be sent.'));
@@ -752,20 +783,25 @@ sub fixed {
 }
 
 # What the application's maker put beside the program, in a file "release":
-# the number of this release, and up to three addresses. Where the newest
-# release number is published, where the installer is, where reports go. A
-# program without that file is never checked for a newer one, and is never
-# asked about in a report.
+# the number of this release, and up to four addresses. Where the newest
+# release number is published, where the installer is, where reports go, and
+# a second place that holds the same installer ("same"), so that the copy
+# from one place can be compared with the copy from the other. A program
+# without that file is never checked for a newer one, and is never asked
+# about in a report.
 sub beside {
     my $file = $PROGRAM =~ m{^(.*\.app)/Contents/MacOS/} ? "$1/Contents/Resources/release" : dirname($PROGRAM) . '/release';
     open my $in, '<', $file or return;
-    my %is = map { /^(release|newest|installer|report) (\S+)$/ ? ($1 => $2) : () } <$in>;
+    my %is = map { /^(release|newest|installer|report|same) (\S+)$/ ? ($1 => $2) : () } <$in>;
     return unless ($is{release} // '') =~ /^\d{1,6}$/;
-    return ($is{release}, map { my ($url) = address($is{$_} // ''); $url } 'newest', 'report', 'installer');
+    my ($same) = address($is{same} // '');
+    return ($is{release}, (map { my ($url) = address($is{$_} // ''); $url } 'newest', 'report', 'installer'), exists $is{same} ? $same // '' : undef);    # a second place that is named and is no address counts as one that does not agree: nothing is written
 }
 
 # A newer release. The first time, you are asked whether lzrprf may look at
-# each start, and your answer is kept in a file. With a yes, lzrprf fetches
+# each start, and your answer is kept in a file. A yes is kept with the
+# address it was given for: when a later release names another address, the
+# yes does not count for it and you are asked again. With a yes, lzrprf fetches
 # one fixed address at each start, where the newest release number is
 # published and nothing else. The request holds what "request" above holds:
 # the same bytes from every computer, so it says nothing about you or about
@@ -774,14 +810,15 @@ sub beside {
 # so and offers the installer. The installer then runs in Terminal, in front
 # of you, and asks before it prints itself and before it changes anything.
 sub newer {
-    my ($release, $newest, undef, $installer) = beside();
+    my ($release, $newest, undef, $installer, $same) = beside();
     return unless $newest && $installer;
     my $may = '';
     if (open my $in, '<', "$DIR/look") { $may = <$in> // '' }
-    if ($may !~ /^(?:yes|no)$/) {
+    $may = $may eq "yes $newest" ? 'yes' : $may =~ /^no\b/ ? 'no' : '';    # a yes for another address is no yes for this one; a no stays a no
+    if (!$may) {
         $may = ask("May lzrprf look for a newer release of $APP at each start? It fetches one fixed address, $newest, with the same bytes from every computer, and writes it in the log like every other. It tells nobody who you are or what you read.", 'No', 'Yes, look') == 2 ? 'yes' : 'no';
         unlink "$DIR/look";
-        if (sysopen my $out, "$DIR/look", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out $may }
+        if (sysopen my $out, "$DIR/look", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out $may eq 'yes' ? "yes $newest" : 'no' }
     }
     return unless $may eq 'yes';
     busy('Looking for a newer release.');
@@ -790,8 +827,9 @@ sub newer {
     my ($there) = $got =~ m{\AHTTP/1\.1 200 .*?\r\n\r\n(?:[0-9a-f]{1,4}\r\n)?(\d{1,6})\s*(?:0\r\n\r\n)?\z}s or return;    # one number and nothing else, or the answer counts for nothing
     return unless $there > $release;
     return unless ask("A newer release of $APP is published: $there. You run $release. The installer runs in Terminal, where you see every step, and it asks before it changes anything.", 'Later', 'Install it') == 2;
-    my ($file, $text) = ("$DIR/install.command", installer_file($installer));
+    my ($file, $text) = ("$DIR/install.command", installer_file($installer, $same));
     return unless length $text;
+    record("you chose to install release $there: Terminal fetches the installer from " . join ' and from ', $installer, defined $same ? $same : ()) or return;    # these fetches are Terminal's, made by the file below after your Return; lzrprf writes down that you asked for them
     unlink $file;
     sysopen(my $out, $file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0700) or return;
     print $out $text;
@@ -802,18 +840,31 @@ sub newer {
 
 # What "Install it" runs, in Terminal. The installer is fetched into a file,
 # not into a shell: the file stays where you can read it, its SHA-256 is
-# shown, and it runs only after you pressed Return. lzrprf itself replaces
-# nothing: not the application, and not this file. Whatever is replaced is
-# replaced by that installer, in front of you, after it asked.
+# shown, and it runs only after you pressed Return. When the release file
+# names a second place for the same installer, it is fetched from both, and
+# it runs only when the two copies are the same byte for byte: somebody who
+# changed the installer in one place would have had to change it in the other
+# too. curl is started with -q, so it reads no settings file of yours that
+# could switch off its checking of the site. lzrprf itself replaces nothing: not the application, and not this
+# file. Whatever is replaced is replaced by that installer, in front of you,
+# after it asked.
 sub installer_file {
-    my ($installer) = @_;
-    return '' unless $installer =~ m{^https://[A-Za-z0-9./_~%?=&+:-]+$};    # the address stands between quotes in the file below: one that could end the quote is not written at all
+    my ($installer, $same) = @_;
+    my $plain = qr{^https://[A-Za-z0-9./_~%?=&+:-]+$};    # an address stands between quotes in the file below: one that could end the quote is not written at all
+    return '' unless $installer =~ $plain && (!defined $same || $same =~ $plain);
+    my $twice = defined $same ? <<"END" : "echo 'The installer comes from one place: $installer'\n";
+/usr/bin/curl -q -fsSL --proto =https -o second '$same' || { echo 'The second copy of the installer could not be fetched. Nothing was changed.'; exit 1; }
+/usr/bin/cmp -s install.sh second || { echo 'The two places hold different installers. Nothing was changed.'; echo '  $installer'; echo '  $same'; exit 1; }
+echo 'The installer was fetched from two places, and both hold the same file:'
+echo '  $installer'
+echo '  $same'
+END
     return <<"END";
 #!/bin/sh
 # Written by lzrprf when you pressed "Install it".
 cd "\$(/usr/bin/mktemp -d)" || exit 1
-/usr/bin/curl -fsSL --proto =https -o install.sh '$installer' || { echo 'The installer could not be fetched. Nothing was changed.'; exit 1; }
-echo "The installer is in this file, to read before it runs: \$PWD/install.sh"
+/usr/bin/curl -q -fsSL --proto =https -o install.sh '$installer' || { echo 'The installer could not be fetched. Nothing was changed.'; exit 1; }
+${twice}echo "The installer is in this file, to read before it runs: \$PWD/install.sh"
 echo "Its SHA-256: \$(/usr/bin/shasum -a 256 install.sh | /usr/bin/cut -d' ' -f1)"
 printf 'Press Return to run it, or close this window and nothing is changed. '
 read answer || exit 1
@@ -823,10 +874,10 @@ END
 
 # The window's side. The window is lzrprf's: the text at the end of this file,
 # run by the system's own osascript in the window container. It is told what
-# to show in lines, and says what you did in lines. Four things can come from
+# to show in lines, and says what you did in lines. Five things can come from
 # it, and nothing the application wrote is among them: that it is ready, what
 # you typed into the bar when you pressed Return, which of two buttons you
-# pressed, and that you asked for the log. The words lzrprf says are in a
+# pressed, that you asked for the log, and that it could not draw a list. The words lzrprf says are in a
 # strip of their own between the bar and the page, where no page can write.
 sub window {
     for my $line (@_) {
@@ -850,10 +901,15 @@ sub hear {                                # the next thing the window says; noth
 }
 
 # A question, in lzrprf's strip of the window, with two buttons. The first
-# button is always the one that changes nothing, and it is the answer when
-# the window closes or the time is over. Returns 1 or 2.
+# button is always the one that fetches, sends and replaces nothing, and it
+# is the answer when the window closes or the time is over. Returns 1 or 2.
+# Both sides count the questions, and a button says which question it
+# answers: a press that comes late, after its question ran out of time, is
+# not taken as the answer to the next one.
+my $ASKED = 0;
 sub ask {
     my ($words, @buttons) = @_;
+    $ASKED++;
     window(join "\t", 'ask ' . $words =~ s/\s+/ /gr, @buttons);
     if (!$FROM) {
         window('answered ' . ($ANSWER eq 'allow' ? 2 : 1));
@@ -862,7 +918,7 @@ sub ask {
     my $until = now() + $ANSWER_SECONDS;
     while ((my $left = $until - now()) > 0) {
         my $event = hear($left) // leave();
-        return $1 if $event =~ /^button ([12])$/;
+        return $1 if $event =~ /^button $ASKED ([12])$/;
     }
     return 1;
 }
@@ -979,6 +1035,10 @@ sub show {
 # build of macOS and the SHA-256 of this file. Nothing is shown unless that
 # mark is the mark of now. So after macOS was updated, or this file changed,
 # no page is shown before the attacks were made again.                   # [C11]
+# The file of marks holds up to eight lines, one for each copy of lzrprf that
+# was tested on this build of macOS: testing another copy, such as one from
+# the public repository, does not take the proof from the one that is
+# installed. A line counts only when it is the mark of this file, of now.
 sub mark {
     my ($build) = said(5, '/usr/sbin/sysctl', '-n', 'kern.osversion');
     open my $self, '<', $SELF or return '';
@@ -988,7 +1048,7 @@ sub mark {
 
 sub proven {
     my $mark = mark();
-    my $is = sub { open my $in, '<', "$DIR/proven" or return 0; return length $mark && (<$in> // '') eq "$mark\n" };
+    my $is = sub { open my $in, '<', "$DIR/proven" or return 0; return length $mark && grep { $_ eq "$mark\n" } map { scalar(<$in>) // () } 1 .. 8 };
     return 1 if $is->();
     my $test = dirname($SELF) . '/selftest';
     if (ask("lzrprf has not been tested on this Mac as it is now: macOS was updated, or lzrprf is new. The test attacks lzrprf with a hostile application and takes about half a minute. $APP shows a page only when every attack was held. Test now?", 'Not now', 'Test now') != 2) {
@@ -1022,7 +1082,7 @@ sub lookup {                              # every address a name leads to, as nu
 sub window_text {
     return <<'END';
 ObjC.import('Cocoa');
-var NAME = 'lzrprf', ICON = '', app, win, bar, logs, words, first, second, scroll, page, hand, asking = false, list = null;
+var NAME = 'lzrprf', ICON = '', app, win, bar, logs, words, first, second, scroll, page, hand, asking = false, asked = 0, list = null;
 var to = $.NSFileHandle.fileHandleWithStandardOutput, from = $.NSFileHandle.fileHandleWithStandardInput, held = $.NSMutableData.data;
 var looks = {}, paragraphs = {};
 
@@ -1040,7 +1100,7 @@ function heard(line) {
     var at = line.indexOf(' '), word = at < 0 ? line : line.slice(0, at), rest = at < 0 ? '' : line.slice(at + 1);
     if (word == 'page') list = [];
     else if (word == 'busy' || word == 'idle') strip(rest.split('\t'), word == 'idle', false);
-    else if (word == 'ask') strip(rest.split('\t'), false, true);
+    else if (word == 'ask') { asked++; strip(rest.split('\t'), false, true); }
     else if (word == 'address') bar.stringValue = $(rest);
     else if (word == 'quit') app.terminate(null);
     told(word, rest);
@@ -1159,8 +1219,8 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
         bar.enabled = false;
         say('go ' + typed);
     } },
-    'first:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button 1'); } } },
-    'second:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button 2'); } } },
+    'first:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 1'); } } },
+    'second:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 2'); } } },
     'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled) { logs.enabled = false; bar.enabled = false; say('log'); } } },
     'bar:': { types: ['void', ['id']], implementation: function (sender) { if (bar.enabled) win.makeFirstResponder(bar); } },
     'applicationShouldTerminateAfterLastWindowClosed:': { types: ['bool', ['id']], implementation: function (sender) { return true; } },
@@ -1297,7 +1357,7 @@ elsif ($command eq 'public' && @ARGV) {
     }
 }
 elsif ($command eq 'mark' && !@ARGV) { print mark(), "\n" }
-elsif ($command eq 'behind' && @ARGV > 5) {    # started by run, not by hand
+elsif ($command eq 'behind' && @ARGV > 5 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask)$/ && $ARGV[4] =~ /^\d+$/) {    # started by run, not by hand: the same five things "try" sets, handed on
     ($TRY, $DIR, $PEER, $ANSWER, $RUN) = splice @ARGV, 0, 5;
     named(@ARGV);
     open $FROM, '<&=', 0 or exit 1;
