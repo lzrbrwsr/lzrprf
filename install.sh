@@ -5,7 +5,7 @@
 # you can read and check first. In Terminal:
 #
 #     curl -q -fsSLO https://lzrbrwsr.com/install.sh &&
-#     curl -q -fsSL https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh | cmp - install.sh &&
+#     curl -q -fsSL https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&
 #     sh install.sh
 #
 # The first line saves this file. The second compares it, byte for byte, with
@@ -60,7 +60,7 @@
 # set and a file that would come from the internet, nothing runs: so a
 # variable left in your shell cannot quietly change an install from the site.
 #
-# lzrprf is open source: https://github.com/henryverlin/lzrprf
+# lzrprf is open source: https://github.com/lzrbrwsr/lzrprf
 # LZRBRWSR is proprietary software: free to use, never to resell or pass on.
 # All rights reserved. The licence: https://lzrbrwsr.com/terms.html
 set -eu
@@ -71,12 +71,12 @@ umask 022
 # Is one of the tests' six variables set? This is asked before any of them is given its usual value.
 TESTING="${LZRBRWSR_BASE:-}${LZRBRWSR_SECOND:-}${LZRPRF_BASE:-}${LZRBRWSR_DEST:-}${LZRBRWSR_DOCK:-}${LZRBRWSR_UNATTENDED:-}"
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
-SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/main}}"
+SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="340c8b74e48a959b00ff31465f1bb3d912f639b683f09152d14f327ece6f02cb"
-RELEASE="8"
+SHA256="336c77f45bcc40b482b927aa4f9b8cc480a9c536e163746172d21214a9ffc5f3"
+RELEASE="9"
 LZRPRF_COMMIT="e28d57d0fcc8a252d8044a732ffd2efa19924793"
-LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/$LZRPRF_COMMIT}"
+LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
 LZRPRF_SHA256="6226e42365d66b0e7e731d1cc3f65132e5b42aeb8d87a695155863fb86f1dfb3"
 SELFTEST_SHA256="83cafb0bcdfef996db69eef213b31b18fe48922e02d9e350f9576b420389c2b9"
 
@@ -93,7 +93,7 @@ fi
 # nothing runs, and it says how to get the file.
 if [ ! -f "$0" ] || [ "$(sed -n 2p "$0" 2>/dev/null)" != "# LZRBRWSR installer." ]; then
 	cat >/dev/null 2>&1 || true	# what is left of the pipe is not read as a script
-	printf '\n  LZRBRWSR: this installer runs from a file, not from a pipe, so that you can\n  read and check what runs. Nothing was installed. In Terminal:\n\n      curl -q -fsSLO https://lzrbrwsr.com/install.sh &&\n      curl -q -fsSL https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh | cmp - install.sh &&\n      sh install.sh\n\n  What the middle line checks: https://github.com/henryverlin/lzrprf#the-installer\n\n' >&2
+	printf '\n  LZRBRWSR: this installer runs from a file, not from a pipe, so that you can\n  read and check what runs. Nothing was installed. In Terminal:\n\n      curl -q -fsSLO https://lzrbrwsr.com/install.sh &&\n      curl -q -fsSL https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&\n      sh install.sh\n\n  What the middle line checks: https://github.com/lzrbrwsr/lzrprf#the-installer\n\n' >&2
 	exit 1
 fi
 
@@ -142,7 +142,7 @@ cat <<ART
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃${N}  You do not have to take our word for any of it.                           ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
- ${G}┃${N}  Read the container   https://github.com/henryverlin/lzrprf                ${G}┃${N}
+ ${G}┃${N}  Read the container   https://github.com/lzrbrwsr/lzrprf                ${G}┃${N}
  ${G}┃${N}  Get the browser      https://lzrbrwsr.com                                 ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${N}
@@ -188,7 +188,7 @@ ask() {
 }
 if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
 	(: >/dev/tty) 2>/dev/null || stop "there is no terminal to ask you on, and this script runs only after you said so."
-	printf '  This installer is the file %s\n  Its SHA-256 is %s\n  The published one: install.sh and release.txt at https://github.com/henryverlin/lzrprf\n  Only your own comparison counts: a changed installer could print anything here.\n\n' "$0" "$(sum "$0")" >/dev/tty
+	printf '  This installer is the file %s\n  Its SHA-256 is %s\n  The published one: install.sh and release.txt at https://github.com/lzrbrwsr/lzrprf\n  Only your own comparison counts: a changed installer could print anything here.\n\n' "$0" "$(sum "$0")" >/dev/tty
 	if ask "Print the whole script here, before anything runs?"; then
 		# Every byte of the file, except control characters, which could hide a line from you. It holds none.
 		LC_ALL=C tr -d '\000-\010\013-\037\177' <"$0" >/dev/tty
@@ -255,7 +255,7 @@ cat >"$tmp/launcher" <<'LAUNCHER'
 #!/bin/sh
 # LZRBRWSR starts here, and only here. This file is plain text so that you
 # can read what the icon runs: lzrprf, the open container
-# (https://github.com/henryverlin/lzrprf), and inside it the program,
+# (https://github.com/lzrbrwsr/lzrprf), and inside it the program,
 # lzrbrwsr-bin, which stands beside this file.
 #
 # The window you see is lzrprf's, under the name LZRBRWSR. The program has
@@ -322,9 +322,9 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 8
-newest https://raw.githubusercontent.com/henryverlin/lzrprf/main/latest
-installer https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh
+release 9
+newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
+installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 RELEASEFILE
@@ -338,7 +338,7 @@ if [ -f "$HOME/.lzrprf/lzrprf" ] && [ "$(sum "$HOME/.lzrprf/lzrprf")" != "$LZRPR
 	step "this release replaces lzrprf, the container itself"
 	step "  installed  $(sum "$HOME/.lzrprf/lzrprf")"
 	step "  new        $LZRPRF_SHA256"
-	step "  every change to it: https://github.com/henryverlin/lzrprf/commits/main"
+	step "  every change to it: https://github.com/lzrbrwsr/lzrprf/commits/main"
 	if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
 		ask "Replace lzrprf with the new one? It is attacked on this Mac first." || stop "you said no to the new lzrprf."
 	fi
@@ -494,6 +494,6 @@ cat <<DONE
   lzrprf: you can read it, and it was just attacked on this Mac. After an
   update of macOS it asks to be tested again before it starts anything.
   To have your own AI check that all of this is true, copy the prompt from
-  https://github.com/henryverlin/lzrprf
+  https://github.com/lzrbrwsr/lzrprf
 
 DONE

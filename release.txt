@@ -1,16 +1,16 @@
 LZRBRWSR for macOS on Apple silicon: the SHA-256 of everything https://lzrbrwsr.com/install.sh installs.
 This record, the installer and the download each stand in two places: https://lzrbrwsr.com and
-https://github.com/henryverlin/lzrprf. Compare them: a difference means one place was changed.
+https://github.com/lzrbrwsr/lzrprf. Compare them: a difference means one place was changed.
 lzrprf and selftest are the files of that repository at commit e28d57d0fcc8a252d8044a732ffd2efa19924793.
 Check a file with: shasum -a 256 FILE
 
-44c308841357004bdb6cbb3a71074e159ce33eff2603dddf71ec0b265672636e  install.sh
-340c8b74e48a959b00ff31465f1bb3d912f639b683f09152d14f327ece6f02cb  lzrbrwsr-macos-arm64.tar.gz
+968654ff37dce7d79083340ed93e3121a6790358793582d2ef43aa1fc666393d  install.sh
+336c77f45bcc40b482b927aa4f9b8cc480a9c536e163746172d21214a9ffc5f3  lzrbrwsr-macos-arm64.tar.gz
 e90b0a714519f5959185152fa2acfd4cac03662896ab77a86392e988f87d30b4  LZRBRWSR.app/Contents/Info.plist
-b96f46ead048b4c767a96763f31823ef2e17e74fb58561910f8147ee6ac2cb6c  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
-1b0ab8e0e273054211f7cb6f05f0bdf27e853dfe22cee405035ffeb3e58ee6c3  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
-5ae2fbe1e861b1e4dc9c289088fbbfdb7e83f85d1ad3c33f309e794703d1951c  LZRBRWSR.app/Contents/Resources/LICENSE.txt
+187f2b92e79623c95112a651cd469ef39afb86392b50e88d403b90c114094657  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
+d02999f58b3e8c893d420540c3e39fded4ea5cf1e9789141cd588d0efba0f749  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
+54dbcf635e61885963239b5dbcd1e1ba5b663aeffc39da17487f6cd66416ad38  LZRBRWSR.app/Contents/Resources/LICENSE.txt
 d538134742fe1726d098d7c7a351edcb100d7900e2ee285cb1a55050de5064dc  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
-28711d271cbff5d2f23ccc0e61fce3402fd998d47b1266accb529be6deca6b63  LZRBRWSR.app/Contents/Resources/release
+b037d61ec76af8eb81d0fcf22322dc0ca12e8abed036e5ee7a952ddc776e5a34  LZRBRWSR.app/Contents/Resources/release
 6226e42365d66b0e7e731d1cc3f65132e5b42aeb8d87a695155863fb86f1dfb3  lzrprf
 83cafb0bcdfef996db69eef213b31b18fe48922e02d9e350f9576b420389c2b9  selftest
