@@ -448,7 +448,7 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 8
+    release 9
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
