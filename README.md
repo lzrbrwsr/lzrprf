@@ -245,7 +245,10 @@ Who could keep a record of where you go?
   your own click: a report you chose to send (three values, none of them an address you
   visited), and the installer of a newer release you chose to install. Installing asks it too:
   the three lines under "The installer" fetch the installer from it, and the installer fetches
-  the download.
+  the download. The site is the maker's own server. While that server is down the maker can
+  point the name at a copy held by a hosting company (Vercel), which then sees those requests
+  in its place; the header `X-Served-By` of every answer says which one answered, `box` or
+  `copy`. A report goes to `origin.lzrbrwsr.com`, which names the maker's own server only.
 - GitHub: once you said yes to looking for newer releases, it is asked for the file `latest`
   at each start. It sees your internet address and the time you started the application, and
   nothing else from lzrprf.
@@ -364,9 +367,14 @@ section above. So this is the whole of what can be sent, and to whom:
 as 26B123. The question shows that address in full before anything is sent.
 
 What the maker's server keeps of it cannot be checked from here, and this repository does not
-claim it as proven. The maker's word: one line with the day and those three values, no internet
-address and no time of day. What you can check is everything on your side: the bytes
-(`perl lzrprf request ADDRESS`), the question, and the line in your log.
+claim it as proven. The maker's word, the same as on the site's privacy page
+(https://lzrbrwsr.com/privacy.html): the server sees your internet address and the moment, as
+any server does, and keeps neither; it keeps one line with the day and those three values. What
+you can check is everything on your side: the bytes (`perl lzrprf request ADDRESS`), the
+question, and the line in your log.
+
+Everyone on the same update of macOS has the same build. A rare build, such as a test build,
+narrows down who could have sent a report. The question shows the build before you choose.
 
 ## What it does not prove
 
