@@ -109,19 +109,32 @@ my $CONTAINER = <<'END';
   (literal "/System/Volumes") (literal "/System/Volumes/Preboot")
 END
 
-# What the main container is allowed on top of that: three system services
-# and the gateway's socket. The window server draws its window and brings it
-# the keys pressed in that window. Launch services and the hiservices helper
-# are asked by the system's window code when an application starts; without
-# them no window appears. It is not allowed the clipboard, the services that
-# open files or addresses, or any network. Through these three it can learn
-# which applications are running and what their windows are called, and
-# nothing of what is in them.
+# What the main container is allowed on top of that: six system services and
+# the gateway's socket. Each is one a window on this system cannot do without,
+# and selftest fails when one is missing or a seventh is reached:
+#   the window server gives it a window and the keys pressed in that window;
+#   the render server puts what the application drew into that window;
+#   the window manager places the window on the screen: without these two the
+#     window exists and nobody sees it;
+#   launch services and the hiservices helper are asked by the system's window
+#     code when an application starts;
+#   the events service lets the system tell it "you were opened again" and
+#     "quit". Without it a second click on its icon ends in "not responding".
+#     It may receive such events. Sending one to another application is a
+#     different permission, which it does not have (selftest tries).
+# It is not allowed the clipboard, the services that open files or addresses,
+# or any network. Through these six it can learn which applications are
+# running and what their windows are called. A picture of another window is
+# macOS's own permission to give ("Screen Recording"), not lzrprf's: selftest
+# tries to take one and says what it got.
 my $MAIN = <<'END';
 (allow mach-lookup
   (global-name "com.apple.windowserver.active")
+  (global-name "com.apple.CARenderServer")
+  (global-name "com.apple.windowmanager.server")
   (global-name "com.apple.coreservices.launchservicesd")
-  (global-name "com.apple.hiservices-xpcservice"))
+  (global-name "com.apple.hiservices-xpcservice")
+  (global-name "com.apple.coreservices.appleevents"))
 (allow network-outbound (literal (param "GATE")))
 END
 
@@ -433,6 +446,13 @@ sub route {
     my ($says) = said(5, '/sbin/route', '-n', 'get', ($family == AF_INET6 ? '-inet6' : ()), $text =~ s/%.*//r);
     my ($to) = $says =~ /^\s*destination: (\S+)/m or return;
     return 'internet' if $to eq 'default';
+    if ($says =~ /^\s*flags: <[^>]*\bWASCLONED\b/m && $text ne 'default') {
+        # macOS keeps a route of its own for every address it spoke to a moment ago, a copy of the route
+        # that led there. It is the internet's when it leaves by the same door as the default route.
+        my ($usual) = said(5, '/sbin/route', '-n', 'get', ($family == AF_INET6 ? '-inet6' : ()), 'default');
+        my @door = map { my $all = $_; join ' ', map { $all =~ /^\s*$_: (\S+)/m ? $1 : '?' } 'gateway', 'interface' } $says, $usual // '';
+        return 'internet' if $door[0] eq $door[1] && $door[0] !~ /\?/ && ($usual // '') =~ /^\s*destination: default\s*$/m;
+    }
     my ($mask) = $says =~ /^\s*mask: (\S+)/m or return 'own';
     my $bits = inet_pton($family, $mask) // return 'own';
     return unpack('%32b*', $bits) < 8 ? 'internet' : 'own';    # a route for half of all addresses is how some VPNs carry the whole internet

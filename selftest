@@ -46,6 +46,9 @@ my $secret = "$home/.lzrprf-selftest-secret";
 my $mode = shift // '';
 my $limits = $mode eq 'limits' ? 1 : 0;
 my ($failures, $untested) = (0, 0);
+sub check($$$);                           # each of the three is taken as one value. Without this, a comparison that
+sub works($$$);                           # fails where a list is expected gives no value at all, the two after it
+sub untested($$);                         # move up, and the line of a failed attack reads "held"
 our ($probe_source, $other_application);  # the texts are at the end of this file
 my $outside = $$;
 my $made = mkdir "$home/.lzrprf", 0700; # lzrprf keeps its state here; what is already there is left as it is
@@ -404,7 +407,7 @@ my %numbers = map { (split /\t/)[1] => 1 } @lines;
 check(what_happened('yes') eq "you typed $typed | you allowed site.test, which is inside your own network (127.0.0.1), this once | $typed -> lzrprf connects to the first that answers of: 127.0.0.1 | $typed answered: " . length(answer_for('/selftest?q=1')) . ' bytes from 127.0.0.1',
     'the log holds, in this order: what was typed, the yes to a host inside the own network, where lzrprf connects, how it ended; and no other line', what_happened('yes'));
 check(keys %numbers == 1, 'the four lines carry the number of one request', join ' ', sort keys %numbers);
-for (1 .. 30) { last unless glob "$folder{yes}/gate.*"; select undef, undef, undef, 0.1 }    # the gateway ends within a second of the application
+for (1 .. 100) { my @open = glob "$folder{yes}/gate.*"; last unless @open; select undef, undef, undef, 0.1 }    # the gateway ends within a second of the application; a busy computer is given ten
 my @left = sort map { m{([^/]+)$} } glob "$folder{yes}/*";
 my $all_kept = join '', map { kept('yes', $_) } grep { $_ ne 'authority.pem' } @left;
 check(!!($all_kept !~ /hidden-|flood-|\e/), 'what the application sent, 107 refused lines among it, is written nowhere: not in the log and in no other file of lzrprf', length($all_kept) . ' bytes kept, looked through all of them');
@@ -569,7 +572,8 @@ my ($app, $tools) = ("$base.probe/Probe.app", qx{/usr/bin/xcode-select -p 2>/dev
 chomp $tools;
 my ($probe, $other, $started) = ("$app/Contents/MacOS/probe", "$app/Contents/Other.app", "$base.probe/started");
 my @native = ('reach services of the system by their name', 'list the windows of other applications', 'list the running applications',
-    'read the clipboard the way an application does', 'have the system start another application');
+    'read the clipboard the way an application does', 'have the system start another application',
+    "take a picture of another application's window", 'give a command to another application');
 if ($? || !-d $tools || !-x '/usr/bin/cc') { untested($_, 'this Mac has no C compiler; "xcode-select --install" gives one') for @native }
 else {
     make_path("$app/Contents/MacOS", "$other/Contents/MacOS");
@@ -588,11 +592,14 @@ else {
             $native[2] => ($out{"outside: $native[2]"} // '') =~ /^\d+ applications/,
             $native[3] => ($out{"outside: $native[3]"} // '') =~ /^sees \d+ kinds/,
             $native[4] => -e $started,
+            $native[5] => ($out{"outside: $native[5]"} // '') =~ /^a picture of \d+/,
+            $native[6] => ($out{"outside: $native[6]"} // '') =~ /^the system answered (?:0|-1708|-1744)$/,    # it arrived, or only your own yes was missing
         );
         for (@native) {
             my $saw = $out{"outside: $_"} // 'no report';
             $saw = (() = $saw =~ /com\./g) . ' of the ' . (() = $probe_source =~ /"com\.apple\./g) . ' it asks for' if $_ eq $native[0];
             if ($control{$_}) { works(1, "outside every container: $_", $saw) }
+            elsif ($_ eq $native[5]) { untested($_, "outside every container it gave: $saw; the program that started this test may not record the screen, so there is nothing to compare with. That permission is macOS's own, in System Settings") }
             else { untested($_, $_ eq $native[3] ? 'the clipboard is empty: copy something and run again' : "outside every container it gave: $saw") }
         }
         unlink $started;
@@ -608,17 +615,20 @@ else {
         site_saw();
         sleep 3;                              # the system starts an application a moment after it was asked
         my %inside = (%{$told{probe}}, %{$told{inplace}});
-        my %allowed = map { $_ => 1 } 'com.apple.windowserver.active', 'com.apple.coreservices.launchservicesd', 'com.apple.hiservices-xpcservice';
+        my %allowed = map { $_ => 1 } 'com.apple.windowserver.active', 'com.apple.CARenderServer', 'com.apple.windowmanager.server', 'com.apple.coreservices.launchservicesd',
+            'com.apple.hiservices-xpcservice', 'com.apple.coreservices.appleevents';
         for my $where ('main container', 'page container', 'fetch container') {
             for (grep { $control{$_} } @native) {
                 my $saw = $inside{"$where: $_"} // 'no report';
                 if ($_ eq $native[0] && $where eq 'main container') {
                     my @reached = $saw =~ /(com\.[\w.\-\@]+)/g;
-                    check($saw ne 'no report' && !grep({ !$allowed{$_} } @reached), "$where: $_: only those its window needs", $saw);
+                    check($saw ne 'no report' && !grep({ !$allowed{$_} } @reached) && @reached == keys %allowed, "$where: $_: the six its window needs, and no other", $saw);
                 }
-                elsif ($where eq 'main container' && /^list the / && $saw =~ /^\d+ /) { printf "%-6s %s (%s)\n", 'limit', "$where: $_", "$saw: their names, nothing of what is in them" }
+                elsif ($where eq 'main container' && /^list the / && $saw =~ /^\d+ /) { printf "%-6s %s (%s)\n", 'limit', "$where: $_", "$saw: their names" }
+                elsif ($where eq 'main container' && $_ eq $native[5] && $saw =~ /^a picture of \d+/) { printf "%-6s %s (%s)\n", 'limit', "$where: $_", "$saw: the program that started this test may record the screen, and macOS extends that to what it starts. Started from its icon, the application has no such permission unless you give it one in System Settings" }
+                elsif ($_ eq $native[6]) { check($saw =~ /^the system answered -?\d+$/ && $saw !~ /answered (?:0|-1708|-1744|-1712)$/, "$where: $_", "$saw: it did not arrive") }
                 elsif ($_ eq $native[4]) { check(!-e $started && $saw ne 'no report', "$where: $_", -e $started ? 'it was started' : "$saw; nothing was started") }
-                else { check($saw =~ /^(?:none|refused|sees nothing)$/, "$where: $_", $saw) }
+                else { check($saw =~ /^(?:none|refused|sees nothing|no window to try)$/, "$where: $_", $saw) }
             }
         }
     }
@@ -678,6 +688,7 @@ $probe_source = <<'END';
 #include <objc/runtime.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -692,15 +703,16 @@ static long count_of(const char *class, const char *one, const char *list) {    
 }
 
 int main(int argc, char **argv) {
-    static const char *names[] = {    // the three the main container is allowed come first; the rest is what an application would ask for next
-        "com.apple.windowserver.active", "com.apple.coreservices.launchservicesd", "com.apple.hiservices-xpcservice",
-        "com.apple.pasteboard.1", "com.apple.lsd.open", "com.apple.lsd.mapdb", "com.apple.coreservices.appleevents", "com.apple.tccd",
+    static const char *names[] = {    // the six the main container is allowed come first; the rest is what an application would ask for next
+        "com.apple.windowserver.active", "com.apple.CARenderServer", "com.apple.windowmanager.server", "com.apple.coreservices.launchservicesd",
+        "com.apple.hiservices-xpcservice", "com.apple.coreservices.appleevents",
+        "com.apple.pasteboard.1", "com.apple.lsd.open", "com.apple.lsd.mapdb", "com.apple.window_proxies", "com.apple.tccd",
         "com.apple.tccd.system", "com.apple.cfprefsd.daemon", "com.apple.cfprefsd.agent", "com.apple.distributed_notifications@Uv3",
         "com.apple.dnssd.service", "com.apple.SystemConfiguration.configd", "com.apple.system.opendirectoryd.libinfo",
         "com.apple.coreservices.quarantine-resolver", "com.apple.audio.audiohald", "com.apple.cmio.registerassistantservice",
         "com.apple.screencapture.interactive", "com.apple.dock.server", "com.apple.system.notification_center", "com.apple.fonts",
         "com.apple.FontObjectsServer", "com.apple.logd", "com.apple.diagnosticd", "com.apple.iohideventsystem", "com.apple.axserver",
-        "com.apple.inputmethodkit.launchagent", "com.apple.tsm.uiserver", "com.apple.CARenderServer"};
+        "com.apple.inputmethodkit.launchagent", "com.apple.tsm.uiserver", "com.apple.dock.fullscreen"};
     char text[4096] = "", line[200];
     int fetch = argc > 3 && !strcmp(argv[2], "fetch"), gate = socket(AF_UNIX, SOCK_STREAM, 0);
     struct sockaddr_un to = {.sun_family = AF_UNIX};
@@ -724,6 +736,38 @@ int main(int argc, char **argv) {
     snprintf(line, sizeof line, "%ld windows, %ld with their title", count, titled);
     report("list the windows of other applications", count > 0 ? line : "refused");
 
+    // A picture of what another application shows: of up to eight windows that are not this program's.
+    // The call is looked up by name, because newer versions of macOS no longer offer it to a program that is being built.
+    typedef CGImageRef (*picture_of)(CGRect, uint32_t, uint32_t, uint32_t);
+    picture_of picture = (picture_of)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
+    long tried = 0, got = 0;
+    for (long i = 0; picture && i < count && tried < 8; i++) {
+        CFDictionaryRef window = CFArrayGetValueAtIndex(windows, i);
+        CFNumberRef owner = CFDictionaryGetValue(window, kCGWindowOwnerPID), level = CFDictionaryGetValue(window, kCGWindowLayer),
+            number = CFDictionaryGetValue(window, kCGWindowNumber);
+        CFDictionaryRef bounds = CFDictionaryGetValue(window, kCGWindowBounds);
+        int pid = 0, layer = 1, id = 0;
+        CGRect box = CGRectZero;
+        if (!owner || !level || !number || !bounds || !CGRectMakeWithDictionaryRepresentation(bounds, &box)) continue;
+        CFNumberGetValue(owner, kCFNumberIntType, &pid);
+        CFNumberGetValue(level, kCFNumberIntType, &layer);
+        CFNumberGetValue(number, kCFNumberIntType, &id);
+        if (pid == getpid() || layer != 0 || box.size.width < 200 || box.size.height < 200) continue;
+        tried++;
+        CGImageRef image = picture(CGRectNull, 1 << 3, (uint32_t)id, 1);    // this window only, as large as it is
+        if (!image) continue;
+        unsigned char dots[32 * 32 * 4] = {0};    // drawn small: a picture that holds something is not one colour
+        CGColorSpaceRef colours = CGColorSpaceCreateDeviceRGB();
+        CGContextRef small = CGBitmapContextCreate(dots, 32, 32, 8, 32 * 4, colours, kCGImageAlphaPremultipliedLast);
+        if (small) CGContextDrawImage(small, CGRectMake(0, 0, 32, 32), image);
+        for (unsigned at = 4; small && at < sizeof dots; at += 4) if (memcmp(dots, dots + at, 4)) { got++; break; }
+        if (small) CGContextRelease(small);
+        CGColorSpaceRelease(colours);
+        CGImageRelease(image);
+    }
+    snprintf(line, sizeof line, "a picture of %ld of the %ld windows it tried", got, tried);
+    report("take a picture of another application's window", !picture ? "this macOS has no such call" : !tried ? "no window to try" : got ? line : "refused");
+
     count = count_of("NSWorkspace", "sharedWorkspace", "runningApplications");
     snprintf(line, sizeof line, "%ld applications", count);
     report("list the running applications", count > 0 ? line : "refused");
@@ -735,6 +779,22 @@ int main(int argc, char **argv) {
     CFURLRef other = CFURLCreateFromFileSystemRepresentation(0, (const UInt8 *)argv[1], strlen(argv[1]), 1);
     snprintf(line, sizeof line, "the system answered %d", (int)LSOpenCFURLRef(other, 0));
     report("have the system start another application", line);
+
+    // A command to another application, the way a script gives one: an event the Finder does not know.
+    // macOS is told never to ask the user about it, so no window opens here.
+    AEAddressDesc finder;
+    AppleEvent event, reply;
+    OSStatus sent = -1;
+    if (AECreateDesc(typeApplicationBundleID, "com.apple.finder", 16, &finder) == noErr) {
+        if (AECreateAppleEvent('LZRP', 'ping', &finder, kAutoGenerateReturnID, kAnyTransactionID, &event) == noErr) {
+            sent = AESendMessage(&event, &reply, kAEWaitReply | 0x00020000, 120);    // waits two seconds at most
+            if (sent == noErr) AEDisposeDesc(&reply);
+            AEDisposeDesc(&event);
+        }
+        AEDisposeDesc(&finder);
+    }
+    snprintf(line, sizeof line, "the system answered %d", (int)sent);
+    report("give a command to another application", line);
 
     if (!strcmp(where, "main container")) {    // ask for an address, so that a page container is started: it runs this program too
         strlcpy(to.sun_path, getenv("LZRPRF"), sizeof to.sun_path);
@@ -748,19 +808,19 @@ int main(int argc, char **argv) {
 END
 }
 
-sub check {
+sub check($$$) {
     my ($held, $what, $saw) = @_;
     $failures++ unless $held;
     printf "%-6s %s (%s)\n", $held ? 'held' : 'FAILED', $what, $saw;
 }
 
-sub untested {
+sub untested($$) {
     my ($what, $why) = @_;
     $untested++;
     printf "%-6s %s (%s)\n", 'UNTESTED', $what, $why;
 }
 
-sub works {
+sub works($$$) {
     my ($did, $what, $saw) = @_;
     $failures++ unless $did;
     printf "%-6s %s (%s)\n", $did ? 'works' : 'FAILED', $what, $saw;

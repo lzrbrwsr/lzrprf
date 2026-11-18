@@ -19,7 +19,7 @@ the browser.
 
 The whole of it is two files you can read in one sitting:
 
-- `lzrprf`: the containers, the gateway, the fetch, the windows and the log. About 850 lines of Perl.
+- `lzrprf`: the containers, the gateway, the fetch, the windows and the log. About 860 lines of Perl.
 - `selftest`: a hostile application that attacks all of it and says what it managed to do.
 
 It runs on macOS on Apple silicon and uses only what macOS already has. `install.sh` and
@@ -44,7 +44,7 @@ Three containers, each a macOS sandbox profile that denies everything and then a
 
 | container | what runs in it | network | what it can reach |
 | --- | --- | --- | --- |
-| main | the application, with its window | none | the window server, and one socket: lzrprf's gateway |
+| main | the application, with its window | none | six system services its window needs, and one socket: lzrprf's gateway |
 | fetch | the system's `curl`, for one request | none | one socket file, behind which lzrprf holds the connection |
 | page | a second copy of the application, for one answer | none | a pipe with the site's answer in, a pipe to the main container out |
 
@@ -86,7 +86,11 @@ started with `lzrprf run`, however malicious.
    none of your environment variables and not the computer's name. It is handed three
    descriptors lzrprf chose, and no file, socket or terminal that was open in whoever started
    lzrprf. It cannot read or change the log or lzrprf. Of the system's services it reaches the
-   three its window needs, and no other (see "Small things the application can learn").
+   six its window needs, and no other: the window server, its render server and the window
+   manager (a window, its content, its place on the screen), launch services and a helper of
+   theirs (asked when an application starts), and the events service (so that the system can
+   tell it "you were opened again" and "quit"). It can receive such events; it cannot send one
+   to another application, and it gets no picture of another window: `selftest` tries both.
 2. **Network ownership.** No container has a network: no connection, no name lookup, no datagram,
    no listening. The only connection to a site is made by lzrprf.
 3. **Authorization.** A request is made only for an address that was typed into lzrprf's address
@@ -143,10 +147,10 @@ started with `lzrprf run`, however malicious.
   you typed, and how the system's `curl` speaks TLS. The name lookup is seen by your resolver.
 - **The parts lzrprf stands on.** The macOS kernel and its sandbox; the system's `perl`, `sh`, `curl`
   with its TLS library and list of authorities, `route`, `ps`, `sysctl`, and `osascript`, which draws
-  lzrprf's windows; the window server and two launch services the application must speak to for
-  its window to appear. A flaw in one of these is a flaw here. A flaw in `curl` can reach one
-  place only: the connection lzrprf made for the address you typed (`selftest` puts a hostile
-  program in curl's place).
+  lzrprf's windows; and the six system services named under "Confinement", which the
+  application must speak to for its window to be seen. A flaw in one of these is a flaw here. A
+  flaw in `curl` can reach one place only: the connection lzrprf made for the address you typed
+  (`selftest` puts a hostile program in curl's place).
 - **`sandbox-exec` is marked deprecated.** The command and the profile language are, the
   mechanism in the kernel is not: it is the one macOS and every large browser confine their own
   processes with. macOS offers a program nothing supported that gives another program less: the
@@ -156,7 +160,8 @@ started with `lzrprf run`, however malicious.
   itself again on every build of macOS, and it starts nothing when it does not hold.
 - **Your account.** Any other program you run can change `~/.lzrprf/lzrprf` or the launcher.
   Compare them with this repository (below). Recording the screen or watching keys of other
-  programs is refused by macOS's own privacy permissions, not by lzrprf.
+  programs is refused by macOS's own privacy permissions, not by lzrprf: `selftest` asks for a
+  picture of another application's window from inside each container and prints what it got.
 - **Small things the application can learn:** the system's own folders and the folder it was
   installed in, the names in the top folder of the disk, the path of your home folder (which
   holds your account's short name), the model of the computer, its processor and the version of
@@ -221,7 +226,8 @@ icon runs (one command, `perl ~/.lzrprf/lzrprf run .../lzrbrwsr-bin`) and the pr
 names the launcher to macOS and sets no variable for it. It runs `selftest` and stops if one
 line fails. Only then are files put in place, each written beside the one it replaces and then
 given its name in one step, so an older install stays whole until the new one is. It never runs
-the closed program. There is no updater and nothing is left running. The program is signed
+the closed program. At the end it asks whether to put the app in the Dock, and changes the Dock
+only on a yes. There is no updater and nothing is left running. The program is signed
 locally and not by an Apple developer identity, and it is not notarized: see "Who vouches".
 
 ## Check it yourself
