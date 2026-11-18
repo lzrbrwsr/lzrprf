@@ -4,8 +4,8 @@
 # It runs from a file and never from a pipe, so that what runs is something
 # you can read and check first. In Terminal:
 #
-#     curl -fsSLO https://lzrbrwsr.com/install.sh &&
-#     curl -fsSL https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh | cmp - install.sh &&
+#     curl -q -fsSLO https://lzrbrwsr.com/install.sh &&
+#     curl -q -fsSL https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh | cmp - install.sh &&
 #     sh install.sh
 #
 # The first line saves this file. The second compares it, byte for byte, with
@@ -13,38 +13,52 @@
 # every change to it is on record. It prints nothing when the two are the
 # same, and the third line runs only then. Your own shell makes that
 # comparison, before a byte of this file has run; this file cannot make it for
-# you, because a changed file would simply say yes. Then this file asks you,
-# on your terminal, whether to print the whole script here first, and then
-# whether to run it.
+# you, because a changed file would simply say yes. curl is given -q first, so
+# it reads no settings file of yours that could switch off its checking of the
+# two sites. Then this file asks you, on your terminal, whether to print the
+# whole script here first, and, whatever you answered, whether to run it.
 #
 # What it does, in order:
 #   1. asks you the two questions;
-#   2. stops if the LZRBRWSR that is installed is a newer release than this one;
+#   2. stops if an LZRBRWSR that is installed, in Applications or in your own
+#      Applications folder, is a newer release than this one;
 #   3. downloads lzrprf, the open container, from its public repository at one
 #      fixed commit, and checks its two files against the checksums below;
-#   4. downloads LZRBRWSR and checks it against the checksum below;
+#   4. downloads LZRBRWSR from two places, this site and lzrprf's public
+#      repository, checks it against the checksum below, and stops unless the
+#      two copies are the same file;
 #   5. checks what the icon will run: the download must hold exactly the six
 #      files named below, and its launcher, its property list and its release
 #      file must be, byte for byte, the three texts written out in this script;
 #   6. when this release would replace the lzrprf that is installed with
 #      another one, says so and asks: the container is never changed silently;
-#   7. runs lzrprf's own self-test on this computer, and stops if one line fails;
-#   8. only then puts lzrprf into ~/.lzrprf and LZRBRWSR.app into Applications.
+#   7. runs lzrprf's own self-test on this computer, and stops if one attack
+#      was not held (a line FAILED). A line UNTESTED, something this Mac gave
+#      no way to try, is counted and said, and does not stop it. When all held,
+#      the test writes the mark of what it tested into ~/.lzrprf/proven;
+#   8. only then puts lzrprf into ~/.lzrprf and LZRBRWSR.app into Applications,
+#      or into your own Applications folder when that one is not yours to write.
 #      Each new file is first written beside the one it replaces and takes its
-#      name in one step, so an older copy stays whole until the new one is;
-#   9. asks whether to put LZRBRWSR in the Dock, and does so only on a yes.
-# If a step before step 8 fails, nothing was changed. It never runs the closed
-# program, asks for no password, reports nothing back, installs no updater and
-# leaves nothing running. LZRBRWSR never updates itself: when you allowed it,
-# lzrprf looks whether a newer release is published, and offers to fetch this
-# installer into a file and run it in Terminal, with the same steps and the
-# same questions.
+#      name by a rename, so an older copy stays whole until the new one is;
+#      Ctrl-C is not taken while the names change. Two files an earlier lzrprf
+#      kept and this one does not (rules, refused) are removed;
+#   9. asks whether to put LZRBRWSR in the Dock, and only on a yes adds it and
+#      starts the Dock again so that it shows.
+# If a step before step 8 fails, the only thing that changed is the mark of
+# step 7. It never runs the closed program, asks for no password, reports
+# nothing back, installs no updater and leaves nothing running. LZRBRWSR never
+# updates itself: when you allowed it, lzrprf looks whether a newer release is
+# published, and offers to fetch that release's installer into a file and run
+# it in Terminal, with the same steps and the same questions.
 #
-# For tests, five variables change what it does: LZRBRWSR_BASE and LZRPRF_BASE
-# (where the files come from; the checksums below must still match),
+# For tests, six variables change what it does: LZRBRWSR_BASE, LZRBRWSR_SECOND
+# and LZRPRF_BASE (where the files come from; the checksums below must still match),
 # LZRBRWSR_DEST (the folder the app is put in), LZRBRWSR_DOCK (a file that
 # stands for the Dock's settings) and LZRBRWSR_UNATTENDED (ask nothing, and
-# leave the Dock alone). It says so when one of them is set.
+# leave the Dock alone). They are taken only when every file comes from this
+# computer itself (file:///...), which is what a test does. With one of them
+# set and a file that would come from the internet, nothing runs: so a
+# variable left in your shell cannot quietly change an install from the site.
 #
 # lzrprf is open source: https://github.com/henryverlin/lzrprf
 # LZRBRWSR is proprietary software: free to use, never to resell or pass on.
@@ -54,28 +68,32 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin	# the system's own tools, whatever your shell
 export PATH
 umask 022
 
+# Is one of the tests' six variables set? This is asked before any of them is given its usual value.
+TESTING="${LZRBRWSR_BASE:-}${LZRBRWSR_SECOND:-}${LZRPRF_BASE:-}${LZRBRWSR_DEST:-}${LZRBRWSR_DOCK:-}${LZRBRWSR_UNATTENDED:-}"
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
+SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="67c57f0cc2a686ee52f343694414d2b894b157f7eff45dee2d6e8aa6351756b5"
-RELEASE="5"
-LZRPRF_COMMIT="4b7e66f464cd338d17422b68f564e0e50e3089e5"
+SHA256="3d26f978ec4859a2344bcedccbd4058219abd3330b1422c8dcd4982d84ffc026"
+RELEASE="6"
+LZRPRF_COMMIT="ecdefbf62bf15e1f5cb42161b4ee7dd8e8df5b04"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="2cbe0f655c777dd186b0304681b6ffc5a18e69b4c4bfb2d1b8b64a9661ec60f6"
-SELFTEST_SHA256="c6a3c585ac159cb0b81a3852dce52ff277ece72e0b292e0dafc8f06fe7e8e607"
+LZRPRF_SHA256="634bda3537aca051ca48a138ab461963101aba5fc4d908ab83241a0f9a56e68b"
+SELFTEST_SHA256="2327f5ed0c9fc292dcce7833ca71c489e0c6f9a2c8b012d202110771516a7e90"
 
 # Outside the tests, files come over https and nothing else, also when an
-# address sends on to another. curl reads no settings file of yours (-q).
-if [ -z "${LZRBRWSR_BASE:-}${LZRPRF_BASE:-}" ]; then
+# address sends on to another. In a test they come from files on this computer
+# and nothing else. curl reads no settings file of yours (-q).
+if [ -z "$TESTING" ]; then
 	fetch() { curl -q -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 30 --max-time 900 --max-filesize 209715200 "$1" -o "$2"; }
 else
-	fetch() { curl -q -fsSL --connect-timeout 30 --max-time 900 "$1" -o "$2"; }
+	fetch() { curl -q -fsS --proto '=file' --max-time 900 "$1" -o "$2"; }
 fi
 
 # From a pipe there is no file that could be shown to you or checked. So
 # nothing runs, and it says how to get the file.
 if [ ! -f "$0" ] || [ "$(sed -n 2p "$0" 2>/dev/null)" != "# LZRBRWSR installer." ]; then
 	cat >/dev/null 2>&1 || true	# what is left of the pipe is not read as a script
-	printf '\n  LZRBRWSR: this installer runs from a file, not from a pipe, so that you can\n  read and check what runs. Nothing was installed. In Terminal:\n\n      curl -fsSLO https://lzrbrwsr.com/install.sh &&\n      curl -fsSL https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh | cmp - install.sh &&\n      sh install.sh\n\n  What the middle line checks: https://github.com/henryverlin/lzrprf#the-installer\n\n' >&2
+	printf '\n  LZRBRWSR: this installer runs from a file, not from a pipe, so that you can\n  read and check what runs. Nothing was installed. In Terminal:\n\n      curl -q -fsSLO https://lzrbrwsr.com/install.sh &&\n      curl -q -fsSL https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh | cmp - install.sh &&\n      sh install.sh\n\n  What the middle line checks: https://github.com/henryverlin/lzrprf#the-installer\n\n' >&2
 	exit 1
 fi
 
@@ -110,15 +128,15 @@ cat <<ART
  ${G}┃${N}  The cage is open so you can verify its safety.                            ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃${N}   ▸ The browser has no network and no window. lzrprf owns the one          ${G}┃${N}
- ${G}┃${N}     window, and fetches the address you type into its bar. Only that.      ${G}┃${N}
+ ${G}┃${N}     window, and fetches the address you type into its bar.                 ${G}┃${N}
  ${G}┃${N}   ▸ Every address is written down before it is fetched, in a log           ${G}┃${N}
  ${G}┃${N}     the browser cannot touch and only you can clear.                       ${G}┃${N}
  ${G}┃${N}   ▸ It cannot read your files or your clipboard, cannot write a            ${G}┃${N}
  ${G}┃${N}     file, cannot start a program.                                          ${G}┃${N}
  ${G}┃${N}   ▸ Every page is treated as hostile: each is read in a sealed             ${G}┃${N}
  ${G}┃${N}     box of its own, and the box is thrown away.                            ${G}┃${N}
- ${G}┃${N}   ▸ The browser keeps nothing: no cookies, no account, no                  ${G}┃${N}
- ${G}┃${N}     telemetry. The one record is that log, on your computer.               ${G}┃${N}
+ ${G}┃${N}   ▸ The browser keeps nothing: no cookies, no account. Nothing is          ${G}┃${N}
+ ${G}┃${N}     reported unless you press Send. The one record is that log.            ${G}┃${N}
  ${G}┃${N}   ▸ Version one lays a page out as text, with a grey box where             ${G}┃${N}
  ${G}┃${N}     a picture stands. Nothing a page sends is ever run.                    ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
@@ -142,7 +160,16 @@ for part in perl sandbox-exec curl osascript openssl; do
 	[ -x "/usr/bin/$part" ] || stop "this Mac lacks /usr/bin/$part, which lzrprf or its self-test is made of."
 done
 
-[ -z "${LZRBRWSR_BASE:-}${LZRPRF_BASE:-}${LZRBRWSR_DEST:-}${LZRBRWSR_DOCK:-}${LZRBRWSR_UNATTENDED:-}" ] || step "test settings are in use: files from $BASE and $LZRPRF_BASE, the app into ${LZRBRWSR_DEST:-Applications}${LZRBRWSR_UNATTENDED:+, and no question is asked}"
+# The six variables of the tests count only when every file comes from this computer.
+if [ -n "$TESTING" ]; then
+	for place in "$BASE" "$SECOND" "$LZRPRF_BASE"; do
+		case "$place" in
+		file:///*) ;;
+		*) stop "a test setting is set in this shell (a variable whose name begins LZRBRWSR_ or LZRPRF_), and test settings are taken only when every file comes from this computer. Take the variable away (unset) and run the installer again." ;;
+		esac
+	done
+fi
+[ -z "$TESTING" ] || step "test settings are in use: files from $BASE, $SECOND and $LZRPRF_BASE, the app into ${LZRBRWSR_DEST:-Applications}${LZRBRWSR_UNATTENDED:+, and no question is asked}"
 [ ! -L "$HOME/.lzrprf" ] || stop ".lzrprf in your home folder is a link to somewhere else, and lzrprf keeps its files in a folder of its own."
 
 sum() { shasum -a 256 "$1" | cut -d' ' -f1; }
@@ -167,6 +194,8 @@ if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
 		LC_ALL=C tr -d '\000-\010\013-\037\177' <"$0" >/dev/tty
 		printf '\n' >/dev/tty
 		ask "That was all of it. Run it now?" || stop "you said no."
+	else
+		ask "Run it now?" || stop "you said no."
 	fi
 fi
 
@@ -177,10 +206,14 @@ dest="${LZRBRWSR_DEST:-/Applications}"
 
 # An older release is never put over a newer one: not by a mistake, and not by somebody who serves
 # you an old installer on purpose. The release that is installed says its number in a plain file.
-installed="$(sed -n 's/^release \([0-9]\{1,6\}\)$/\1/p' "$dest/LZRBRWSR.app/Contents/Resources/release" 2>/dev/null | sed -n 1p)"
-if [ -n "$installed" ] && [ "$installed" -gt "$RELEASE" ]; then
-	stop "the LZRBRWSR that is installed is release $installed, and this installer holds the older release $RELEASE. To go back on purpose, move LZRBRWSR.app to the Trash first."
-fi
+# Both folders an install can be in are looked at. The refusal is this installer's: one from before
+# release 5 does not hold it.
+for folder in "$dest" "$HOME/Applications"; do
+	installed="$(sed -n 's/^release \([0-9]\{1,6\}\)$/\1/p' "$folder/LZRBRWSR.app/Contents/Resources/release" 2>/dev/null | sed -n 1p)"
+	if [ -n "$installed" ] && [ "$installed" -gt "$RELEASE" ]; then
+		stop "the LZRBRWSR that is installed in $folder is release $installed, and this installer holds the older release $RELEASE. To go back on purpose, move that LZRBRWSR.app to the Trash first."
+	fi
+done
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -195,7 +228,15 @@ get "$LZRPRF_BASE/lzrprf" lzrprf "$LZRPRF_SHA256" "lzrprf"
 get "$LZRPRF_BASE/selftest" selftest "$SELFTEST_SHA256" "lzrprf's self-test"
 step "lzrprf downloaded, and it is the published one (commit $(printf %.12s "$LZRPRF_COMMIT"))"
 get "$BASE/$FILE" "$FILE" "$SHA256" "the download"
-step "LZRBRWSR downloaded, and it matches its checksum"
+# The same download once more, from a second place: lzrprf's public repository, where every
+# release's download is on record with its date. Both must be the file this installer names.
+# One changed place cannot pass: the site's copy is held to the checksum above, and so is this one.
+fetch "$SECOND/$FILE" "$tmp/second" || stop "could not download the second copy of LZRBRWSR, from lzrprf's public repository."
+if ! cmp -s "$tmp/$FILE" "$tmp/second"; then
+	stop "lzrprf's public repository holds another download than the site. Either a newer release was just published (get the installer again), or one of the two places was changed."
+fi
+rm -f "$tmp/second"
+step "LZRBRWSR downloaded from two places: both are the same file, and it matches its checksum"
 
 # What the icon will run is checked before anything is put in place. The
 # download must name these six files, the four folders they are in, and
@@ -230,7 +271,8 @@ if [ ! -f "$lzrprf" ]; then
 	/usr/bin/osascript -e 'display alert "LZRBRWSR needs lzrprf" message "lzrprf, the open container LZRBRWSR runs in, is not on this computer, and LZRBRWSR does not start without it. Install it again: how is on https://lzrbrwsr.com"' >/dev/null 2>&1
 	exit 1
 fi
-exec /usr/bin/perl "$lzrprf" run "$here/lzrbrwsr-bin" "$@"
+# env -i: lzrprf is started with no variable of whoever started this, so none can change how perl reads it.
+exec /usr/bin/env -i /usr/bin/perl "$lzrprf" run "$here/lzrbrwsr-bin" "$@"
 LAUNCHER
 cmp -s "$tmp/launcher" "$tmp/unpacked/LZRBRWSR.app/Contents/MacOS/lzrbrwsr" || stop "the icon would not start LZRBRWSR through lzrprf."
 # The property list tells macOS which file the icon runs, and it could also set
@@ -269,18 +311,22 @@ cat >"$tmp/plist" <<'PLIST'
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Proprietary. All rights reserved. No licence is granted.</string>
+	<string>Proprietary. Copyright 2026 create.repeat Oy. All rights reserved. Free to use; the terms: https://lzrbrwsr.com/terms.html</string>
 </dict>
 </plist>
 PLIST
 cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "the app's property list is not the one written out in the installer."
-# The release file is what lzrprf reads beside the program: the number of this release, and the two
-# fixed addresses of the update check. This is all of it: lzrprf fetches the first only after you
-# said yes in its window, and the second is this installer's own public copy.
+# The release file is what lzrprf reads beside the program: the number of this release, and four
+# fixed addresses. This is all of it. "newest" is the one address lzrprf fetches by itself, and only
+# after you said yes in its window. "installer" and "same" are the two places a newer release's
+# installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
+# goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 5
+release 6
 newest https://raw.githubusercontent.com/henryverlin/lzrprf/main/latest
 installer https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh
+same https://lzrbrwsr.com/install.sh
+report https://origin.lzrbrwsr.com/report
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 step "the icon runs one thing: lzrprf, and inside it LZRBRWSR (release $RELEASE)"
@@ -303,8 +349,57 @@ fi
 # It also leaves the mark of what it tested (this build of macOS, this lzrprf)
 # in ~/.lzrprf/proven: lzrprf starts nothing without that mark, and asks to be
 # tested again when macOS has changed.
+#
+# The test's steps are shown as they happen, each with its title and a beam
+# while it runs. Every word of it is read from the test's own output: its
+# lines "now ..." and its numbered headings are the titles, and the lines
+# "held" under a heading are counted. Nothing here decides what held.
+shown() {	# shown <steps already printed> <frame> <seconds so far> <has the test ended: 0 or 1>
+	awk -v printed="$1" -v frame="$2" -v seconds="$3" -v ended="$4" -v G="$G" -v B="$B" -v N="$N" '
+		/^now / { n++; title[n] = substr($0, 8); sub(/[.:;].*/, "", title[n]); next }
+		/^[0-9]+\. / { n++; title[n] = $0; sub(/^[0-9]+\. /, "", title[n]); sub(/[.:;].*/, "", title[n]); next }
+		/^(held|works) / { held[n]++ }
+		/^FAILED/ { failed[n]++ }
+		END {
+			clear = G == "" ? "" : "\r\033[K"
+			last = ended ? n : n - 1
+			for (i = printed + 1; i <= last; i++)
+				printf "%s    %-54s %s━━━━━━━▓█%s  %s\n", clear, title[i], G, N, failed[i] ? "FAILED" : held[i] ? held[i] " held" : "done"
+			if (!ended && n > 0 && G != "") {
+				at = frame % 8
+				beam = ""
+				for (i = 0; i < at; i++) beam = beam "━"
+				beam = beam (frame % 2 ? B : G) "▒▓█" N
+				for (i = at; i < 7; i++) beam = beam " "
+				printf "%s    %-54s %s%s%s  %s s", clear, title[n], G, beam, N, seconds
+			}
+			exit last > printed ? last : printed
+		}' "$tmp/selftest.out"
+}
 step "Validating the safety of lzrprf on this computer, about half a minute"
-if /usr/bin/perl "$tmp/selftest" >"$tmp/selftest.out" 2>&1; then
+/usr/bin/perl "$tmp/selftest" >"$tmp/selftest.out" 2>&1 &
+testing=$!
+# Stopped with Ctrl-C: the test is told, and it ends every process it started and takes its files away.
+trap 'kill "$testing" 2>/dev/null || true; wait "$testing" 2>/dev/null || true; exit 130' INT TERM HUP
+printed=0 frame=0 began="$(date +%s)"
+while kill -0 "$testing" 2>/dev/null; do
+	seconds="$(($(date +%s) - began))"
+	if [ "$seconds" -gt 600 ]; then	# a test that does not end is ended, and counts as one that did not hold
+		kill "$testing" 2>/dev/null || true
+		break
+	fi
+	if [ -t 1 ]; then
+		shown "$printed" "$frame" "$seconds" 0 && printed=0 || printed=$?
+		frame=$((frame + 1))
+		sleep 0.1
+	else
+		sleep 1
+	fi
+done
+if wait "$testing"; then held=yes; else held=no; fi
+trap - INT TERM HUP
+shown "$printed" 0 0 1 || true
+if [ "$held" = yes ]; then
 	untested="$(grep -c '^UNTESTED' "$tmp/selftest.out" || true)"
 	step "lzrprf self-test on this computer: all $(grep -c '^held' "$tmp/selftest.out") attacks held"
 	[ "$untested" = 0 ] || step "$untested could not be tried on this Mac; why is in: perl ~/.lzrprf/selftest"
@@ -313,7 +408,7 @@ else
 	stop "lzrprf's self-test did not hold on this computer."
 fi
 
-# What is put in place carries no attribute from the download and exactly these rights.
+# What is put in place carries no extended attribute that the archive held, and exactly these rights.
 xattr -cr "$tmp/unpacked" 2>/dev/null || true
 find "$tmp/unpacked" -type d -exec chmod 755 {} +
 find "$tmp/unpacked" -type f -exec chmod 644 {} +
@@ -326,6 +421,7 @@ mkdir -p "$HOME/.lzrprf" "$dest"
 chmod 700 "$HOME/.lzrprf"
 new="$dest/.LZRBRWSR.app.new.$$"
 old="$dest/.LZRBRWSR.app.old.$$"
+trap '' INT TERM HUP	# from here until every file has its name, Ctrl-C is not taken: a half-placed install is worse than a late stop
 beside() { rm -rf "$new" "$HOME/.lzrprf/lzrprf.new" "$HOME/.lzrprf/selftest.new"; }
 { cp "$tmp/lzrprf" "$HOME/.lzrprf/lzrprf.new" && cp "$tmp/selftest" "$HOME/.lzrprf/selftest.new" && chmod 644 "$HOME/.lzrprf/lzrprf.new" "$HOME/.lzrprf/selftest.new" && mv "$tmp/unpacked/LZRBRWSR.app" "$new"; } || {
 	beside
@@ -342,11 +438,13 @@ if ! mv "$new" "$dest/LZRBRWSR.app"; then
 	stop "the new LZRBRWSR.app could not be put in place; the older one is back."
 fi
 if ! { mv -f "$HOME/.lzrprf/lzrprf.new" "$HOME/.lzrprf/lzrprf" && mv -f "$HOME/.lzrprf/selftest.new" "$HOME/.lzrprf/selftest"; }; then
+	rm -rf "$old"
 	printf '\n  LZRBRWSR: the new LZRBRWSR.app is in place, but lzrprf could not be replaced. Run the installer again.\n\n' >&2
 	exit 1
 fi
 rm -rf "$old"
 rm -f "$HOME/.lzrprf/rules" "$HOME/.lzrprf/refused"	# kept by an earlier lzrprf; this one keeps neither
+trap - INT TERM HUP
 step "lzrprf is installed:    $HOME/.lzrprf/lzrprf"
 step "LZRBRWSR is installed:  $dest/LZRBRWSR.app"
 
@@ -378,8 +476,8 @@ cat <<DONE
       ${B}perl ~/.lzrprf/lzrprf log${N}
 
   At its first start it asks once whether it may look for a newer release.
-  It never updates itself: a newer release is offered, and then this
-  installer runs again, in front of you.
+  It never updates itself: a newer release is offered, and then that
+  release's installer runs, in front of you.
 
   LZRBRWSR is not signed by an Apple developer identity and not notarized,
   and that is on purpose. A signature says who made a program, not what it

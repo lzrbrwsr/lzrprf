@@ -1,14 +1,16 @@
 LZRBRWSR for macOS on Apple silicon: the SHA-256 of everything https://lzrbrwsr.com/install.sh installs.
-lzrprf and selftest are the files of this repository at commit 4b7e66f464cd338d17422b68f564e0e50e3089e5.
+This record, the installer and the download each stand in two places: https://lzrbrwsr.com and
+https://github.com/henryverlin/lzrprf. Compare them: a difference means one place was changed.
+lzrprf and selftest are the files of that repository at commit ecdefbf62bf15e1f5cb42161b4ee7dd8e8df5b04.
 Check a file with: shasum -a 256 FILE
 
-1715a4186ea95027d7dd6de4138b56b97ec5643b23800a49d39c3666b65551e4  install.sh
-67c57f0cc2a686ee52f343694414d2b894b157f7eff45dee2d6e8aa6351756b5  lzrbrwsr-macos-arm64.tar.gz
-b93212ae6d321e77456446381b4f537cf59f21563d926f7c205e405684f5dabc  LZRBRWSR.app/Contents/Info.plist
-20e1a5ee5a56dd8909cd76777f5be81fce75e5b85748f13d9671b53efbf5488c  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
+f2289d198b3cfa3d80b8d1be6750e865fd5462599b729fc03aaaac88338f40fb  install.sh
+3d26f978ec4859a2344bcedccbd4058219abd3330b1422c8dcd4982d84ffc026  lzrbrwsr-macos-arm64.tar.gz
+e90b0a714519f5959185152fa2acfd4cac03662896ab77a86392e988f87d30b4  LZRBRWSR.app/Contents/Info.plist
+b96f46ead048b4c767a96763f31823ef2e17e74fb58561910f8147ee6ac2cb6c  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
 1b0ab8e0e273054211f7cb6f05f0bdf27e853dfe22cee405035ffeb3e58ee6c3  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
 5ae2fbe1e861b1e4dc9c289088fbbfdb7e83f85d1ad3c33f309e794703d1951c  LZRBRWSR.app/Contents/Resources/LICENSE.txt
 d538134742fe1726d098d7c7a351edcb100d7900e2ee285cb1a55050de5064dc  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
-eddf8edcbeb958dbfa7526d76693d0223c0b08ba0502aede628468dc960292a2  LZRBRWSR.app/Contents/Resources/release
-2cbe0f655c777dd186b0304681b6ffc5a18e69b4c4bfb2d1b8b64a9661ec60f6  lzrprf
-c6a3c585ac159cb0b81a3852dce52ff277ece72e0b292e0dafc8f06fe7e8e607  selftest
+5682ce6e7ae2ebd9229fcd1c960256c2090652895c8a1d54328a12d185a43c00  LZRBRWSR.app/Contents/Resources/release
+634bda3537aca051ca48a138ab461963101aba5fc4d908ab83241a0f9a56e68b  lzrprf
+2327f5ed0c9fc292dcce7833ca71c489e0c6f9a2c8b012d202110771516a7e90  selftest
