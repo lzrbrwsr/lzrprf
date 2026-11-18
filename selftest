@@ -1,0 +1,187 @@
+#!/usr/bin/perl
+# selftest: plays a hostile application inside lzrprf, in both of its
+# containers, and says what it managed to do. Run it from the folder that
+# holds lzrprf:
+#
+#   perl selftest            about five seconds
+#   perl selftest limits     also checks the time limits; about a minute more
+#
+# It uses nothing outside this computer. Every line it prints must say "held".
+# It leaves a few lines in the log and one rule (127.0.0.1, denied) behind.
+use strict;
+use warnings;
+use Cwd 'abs_path';
+use File::Basename 'dirname';
+use IO::Socket::IP;
+
+my $lzrprf = dirname(abs_path($0)) . '/lzrprf';
+my $home = abs_path((getpwuid $<)[7]);
+my $secret = "$home/.lzrprf-selftest-secret";
+my $limits = (shift // '') eq 'limits' ? 1 : 0;
+my $failures = 0;
+
+# A listener on this computer stands in for "a server somewhere". It answers
+# whatever it is sent with the same bytes, preceded by "echo:".
+my $server = IO::Socket::IP->new(LocalHost => '127.0.0.1', LocalPort => 0, Listen => 8, ReuseAddr => 1) or die "selftest: cannot listen: $!\n";
+my $port = $server->sockport;
+my $echo = fork // die "selftest: cannot fork: $!\n";
+if (!$echo) {
+    $SIG{CHLD} = 'IGNORE';
+    while (my $client = $server->accept) {
+        next if fork;                     # one process for each connection, so a silent one holds up nobody
+        if (sysread($client, my $data, 100)) { syswrite($client, "echo:$data") }
+        sysread($client, my $rest, 1);    # stay until the other side goes
+        exit 0;
+    }
+    exit 0;
+}
+close $server;
+open my $file, '>', $secret or die "selftest: cannot write $secret: $!\n";
+print $file "a file in the home folder\n";
+close $file;
+unlink "$secret.written";
+$ENV{LZRPRF_SELFTEST_MARK} = 'a variable of the user';
+
+# The hostile application. lzrprf starts it once in the main container, and
+# once more in a page container for every address the gateway lets through.
+# Each attempt prints its name and what happened.
+my $hostile = <<'END';
+use IO::Socket::IP; use IO::Socket::UNIX; use Socket;
+my ($port, $secret, $home, $outside, $lzrprf, $limits) = @ARGV;
+$| = 1; $SIG{PIPE} = 'IGNORE';
+my $address = $ENV{LZRPRF_CONTAINED};
+my $where = defined $address ? 'page container' : 'main container';
+sub report { print "$where: $_[0]\t$_[1]\n" }
+sub direct { IO::Socket::IP->new(PeerHost => $_[0], PeerPort => $_[1], Timeout => 5) ? 'reached' : 'refused' }
+sub attempts {
+    report 'connect straight to the listener on this computer', direct('127.0.0.1', $port);
+    report 'connect straight to a server on the internet', direct('1.1.1.1', 443);
+    report 'look up a name', gethostbyname('example.com') ? 'resolved' : 'refused';
+    socket(my $udp, PF_INET, SOCK_DGRAM, 0);
+    report 'send a datagram', $udp && send($udp, 'x', 0, pack_sockaddr_in($port, inet_aton('127.0.0.1'))) ? 'sent' : 'refused';
+    report 'listen for connections', IO::Socket::IP->new(LocalHost => '127.0.0.1', LocalPort => 0, Listen => 1) ? 'listening' : 'refused';
+    report 'read a file in the home folder', open(my $in, '<', $secret) ? 'read' : 'refused';
+    report 'list the home folder', opendir(my $dir, $home) ? 'listed' : 'refused';
+    report 'read the log', open(my $log, '<', "$home/.lzrprf/log") ? 'read' : 'refused';
+    report 'change the log', open(my $add, '>>', "$home/.lzrprf/log") ? 'opened' : 'refused';
+    report 'change lzrprf itself', open(my $self, '>>', $lzrprf) ? 'opened' : 'refused';
+    report 'write a file in the home folder', open(my $out, '>', "$secret.written") ? 'written' : 'refused';
+    report 'write a file in the temporary folder', open(my $tmp, '>', "/tmp/lzrprf-selftest.$outside") ? 'written' : 'refused';
+    report 'signal another process', kill(0, $outside) ? 'allowed' : 'refused';
+    report 'see a variable of the user', exists $ENV{LZRPRF_SELFTEST_MARK} ? 'seen' : 'hidden';
+    report 'start a second process', defined(my $pid = fork) ? 'started' : 'refused';
+    exit 0 if defined $pid && !$pid;
+    { no warnings; exec '/bin/sh', '-c', "printf '$where: start another program\tstarted\n'"; }
+    report 'start another program', 'refused';
+    exit 0;
+}
+if (defined $address) {                   # in a page container: descriptor 0 is the site, descriptor 1 the main container
+    open my $site, '+<&=', 0;
+    syswrite($site, 'hello');
+    sysread($site, my $back, 100);
+    if ($address =~ m{/part$}) { report 'talk to the allowed host the page asked for', $back // 'nothing'; exit 0 }
+    if ($address =~ m{/spin$}) { 1 while 1 }
+    if ($address =~ m{/sleep$}) { sleep 1000 }
+    report 'talk to the one site it was started for', $back // 'nothing';
+    my $ready = '';
+    vec($ready, 1, 1) = 1;
+    open my $main, '+<&=', 1;
+    report 'read what the main container sent after its request line', select($ready, undef, undef, 2) && sysread($main, my $got, 100) ? 'read' : 'nothing';
+    my ($gate) = $address =~ /gate=(\d+)$/;
+    report 'reach the gateway', IO::Socket::UNIX->new(Peer => "$home/.lzrprf/gate.$gate") ? 'reached' : 'refused';
+    attempts();
+}
+sub ask {                                 # one request to the gateway: its answer, and what the page container then sent
+    my $gate = IO::Socket::UNIX->new(Peer => $ENV{LZRPRF}) or return ('no gateway', '');
+    syswrite($gate, "$_[0]\n" . ($_[1] // ''));
+    my ($answer, $page) = ('', '');
+    while (sysread($gate, my $byte, 1)) { last if $byte eq "\n"; $answer .= $byte }
+    while (sysread($gate, my $more, 4096)) { $page .= $more }
+    return ($answer, $page);
+}
+sub gateway { my ($answer, $page) = ask(@_[1, 2]); report "gateway: $_[0]", $answer; print $page }
+my ($own) = $ENV{LZRPRF} =~ /(\d+)$/;
+gateway 'an address that is not https', "http://localhost:$port/";
+gateway 'an address with a second host hidden in it', "https://localhost:$port\@hidden-$outside.example/";
+gateway 'a line of control characters', "\e[2J\rhttps://hidden-$outside.example/";
+gateway 'the address the user typed', "https://localhost:$port/selftest?gate=$own", 'bytes after the request line';
+gateway 'an https address whose host does not exist', 'https://no-such-host.invalid/';
+my $page = "https://localhost:$port/selftest https://127.0.0.1:$port/part";
+gateway 'a page asks for a host no rule allows', $page;
+gateway 'the user allows that host for an hour', 'rule 127.0.0.1 1';
+gateway 'the page asks for the allowed host', $page;
+gateway 'the user denies that host', 'rule 127.0.0.1 deny';
+gateway 'the page asks for the denied host', $page;
+if ($limits) {                            # two page containers that never finish, at the same time
+    my $start = time;
+    my @never = map { IO::Socket::UNIX->new(Peer => $ENV{LZRPRF}) } 1, 2;
+    syswrite($never[0], "https://localhost:$port/spin\n");
+    syswrite($never[1], "https://localhost:$port/sleep\n");
+    for (0, 1) { 1 while sysread($never[$_], my $data, 4096); report 'a page that never stops ' . ('computing', 'waiting')[$_], time - $start }
+}
+attempts();
+END
+
+my %expected = (
+    'main container: gateway: the address the user typed' => 'ok',
+    'main container: gateway: an address that is not https' => 'no not an https address',
+    'main container: gateway: an address with a second host hidden in it' => 'no not an https address',
+    'main container: gateway: a line of control characters' => 'no not an https address',
+    'main container: gateway: an https address whose host does not exist' => 'no could not connect',
+    'main container: gateway: a page asks for a host no rule allows' => 'no no rule allows this host',
+    'main container: gateway: the user allows that host for an hour' => 'ok',
+    'main container: gateway: the page asks for the allowed host' => 'ok',
+    'main container: gateway: the user denies that host' => 'ok',
+    'main container: gateway: the page asks for the denied host' => 'no no rule allows this host',
+    'page container: talk to the one site it was started for' => 'echo:hello',
+    'page container: talk to the allowed host the page asked for' => 'echo:hello',
+    'page container: read what the main container sent after its request line' => 'nothing',
+    'page container: reach the gateway' => 'refused',
+);
+for my $where ('main container', 'page container') {
+    $expected{"$where: $_"} = 'refused' for 'connect straight to the listener on this computer', 'connect straight to a server on the internet',
+        'look up a name', 'send a datagram', 'listen for connections', 'read a file in the home folder', 'list the home folder', 'read the log',
+        'change the log', 'change lzrprf itself', 'write a file in the home folder', 'write a file in the temporary folder',
+        'signal another process', 'start a second process', 'start another program';
+    $expected{"$where: see a variable of the user"} = 'hidden';
+}
+my %ended_within = $limits ? ('main container: a page that never stops computing' => 45, 'main container: a page that never stops waiting' => 70) : ();
+
+my $outside = $$;
+open my $run, '-|', '/usr/bin/perl', $lzrprf, 'run', '/usr/bin/perl', '-e', $hostile, $port, $secret, $home, $outside, $lzrprf, $limits or die "selftest: cannot run lzrprf: $!\n";
+my %seen;
+while (<$run>) {
+    chomp;
+    my ($attempt, $result) = split /\t/;
+    $result //= '';
+    if ($seen{$attempt}++) { check(0, $attempt, 'reported twice') }
+    elsif (my $seconds = $ended_within{$attempt}) { check($result =~ /^\d+$/ && $result <= $seconds, $attempt, "ended after $result seconds") }
+    else { check($result eq ($expected{$attempt} // 'nothing is expected under this name'), $attempt, $result) }
+}
+close $run;
+check($seen{$_}, "$_: was attempted", $seen{$_} ? 'yes' : 'no report') for sort grep { !$seen{$_} } keys %expected, keys %ended_within;
+
+# Asking another program to open an address is a way out that needs no socket.
+my $opened = system("/usr/bin/perl \"$lzrprf\" run /usr/bin/open -g https://localhost:$port/ 2>/dev/null");
+check($opened != 0, 'ask the system to open an address in another program', $opened ? 'refused' : 'opened');
+
+# The log must hold the addresses that were let through, and the refusals.
+my $log = qx{/usr/bin/perl "$lzrprf" log};
+check($log =~ m{\thttps://localhost:$port/selftest\?gate=\d+ -> localhost:$port\n}, 'the log shows the address that was let through', 'looked for it');
+check($log =~ m{\trefused: not an https address\n}, 'the log shows that addresses were refused', 'looked for it');
+check($log =~ m{\thttps://localhost:$port/selftest -> https://127\.0\.0\.1:$port/part asked for by the page\n}, 'the log shows the call the page made, beside the typed address', 'looked for it');
+check($log =~ m{\thttps://localhost:$port/selftest -> 127\.0\.0\.1:$port asked for by the page: refused, no rule allows this host\n}, 'the log shows the call that was refused', 'looked for it');
+check($log =~ m{\trule: 127\.0\.0\.1 allowed for 1 hours\n} && $log =~ m{\trule: 127\.0\.0\.1 denied\n}, 'the log shows every choice the gateway was told', 'looked for it');
+check($log !~ /\e/ && $log !~ /hidden-/, 'the log holds nothing from a refused line', 'looked for it');
+check(!-e "$secret.written" && !-e "/tmp/lzrprf-selftest.$outside", 'no file was written anywhere', 'looked for them');
+
+kill 'TERM', $echo;
+unlink $secret;
+print $failures ? "\n$failures FAILED. Do not trust this copy of lzrprf on this computer.\n" : "\nAll held.\n";
+exit($failures ? 1 : 0);
+
+sub check {
+    my ($held, $what, $saw) = @_;
+    $failures++ unless $held;
+    printf "%-6s %s (%s)\n", $held ? 'held' : 'FAILED', $what, $saw;
+}
