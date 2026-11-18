@@ -1,79 +1,132 @@
 #!/usr/bin/perl
 # lzrprf: runs one application inside containers that this file defines, and
-# keeps a list of every address that was reached.
+# does for it the one thing it may have done: fetch the https address that you
+# typed into lzrprf's own window.
 #
 #   lzrprf run /path/to/program [arguments]     start a program, contained
-#   lzrprf log                                  print what was reached
-#   lzrprf rules                                print which other hosts pages may call
+#   lzrprf log                                  print every address that was fetched
+#   lzrprf log window                           the same in a window, with the button that clears it
+#   lzrprf address TEXT...                      say what would be sent if TEXT were typed into the address window
+#   lzrprf public NUMBER...                     say whether a numeric address is on the public internet
 #
-# The program runs in the MAIN container: it can show a window and nothing
-# else. It has no way to any network. Its one way out is the gateway's socket,
-# where it can name the address the user typed. For each such address lzrprf
-# itself opens the connection and starts a second copy of the program in a
-# PAGE container that holds that one connection and nothing else: no window,
-# no keyboard, no clipboard, no file of yours, no system service, no gateway.
+# The application is treated as hostile. It never holds a connection to
+# anything but lzrprf, and it cannot name an address: it can only ask lzrprf
+# to open the address window, and while that window is open the application is
+# stopped. You type there, lzrprf writes the address in the log, and lzrprf
+# makes the one connection itself. The system's own curl does the https over
+# that connection, with the certificate checked, from a container that has no
+# network of its own. Only when the request is over is the answer handed to a
+# second copy of the application, which has no network, no window and no file,
+# and from there to the window as bytes.
 #
-# This file is the whole program. Its parts, in order: the two containers
-# (what the operating system lets the application do), the gateway (what may
-# be reached), the rules (which hosts a page may call), the log.
+# The application runs in the MAIN container: it can show a window and say
+# two fixed sentences to lzrprf's gateway, neither of which carries data. The
+# copy that reads a site's answer runs in a PAGE container. curl runs in the
+# FETCH container.
+#
+# This file is the whole program. Its parts, in order: the containers (what
+# the operating system lets each of them do), the gateway (the two sentences),
+# the fetch, your windows, the log.
 use strict;
 use warnings;
 use Cwd 'abs_path';
 use Fcntl ':flock';
+use IO::Handle;
 use IO::Select;
-use IO::Socket::IP;
 use IO::Socket::UNIX;
 use POSIX 'strftime';
-use Socket qw(SOL_SOCKET SO_RCVTIMEO SO_SNDTIMEO);
+use Socket qw(AF_INET AF_INET6 SOCK_STREAM SOL_SOCKET SO_ERROR NI_NUMERICHOST NI_NUMERICSERV inet_aton inet_pton pack_sockaddr_in getaddrinfo getnameinfo);
+
+umask 0077;                               # what lzrprf writes is readable by you alone
 
 my $HOME = abs_path((getpwuid $<)[7]);    # from the account, not from the environment
 my $DIR = "$HOME/.lzrprf";                # no container can read or write this folder
-my $LOG = "$DIR/log";
-my $RULES = "$DIR/rules";                 # one line for each host: host, tab, deny | always | the second it ends
-my $LOG_BYTES = 256 * 1024;               # the log never grows past this
-my $DROPPED = '(older lines dropped to keep this file small)';
+my $CURL = '/usr/bin/curl';               # the system's own; it does the https, lzrprf holds no code for it
+my $ROOTS = '/private/etc/ssl/cert.pem';  # the system's list of certificate authorities
+my $FETCH_BYTES = 6 * 1024 * 1024;        # the most that is taken from a site for one address
+my $FETCH_SECONDS = 45;                   # the most one request may take
+my $PAGE_BYTES = 6 * 1024 * 1024;         # the most one page container may send to the window's side
+my $PAGE_SECONDS = 30;                    # a page container is ended after this, whatever it is doing
+my $AT_ONCE = 8;                          # sentences served at the same time
+my $QUIET = 3;                            # seconds without a new window after you closed one
+my $LARGE = 10 * 1024 * 1024;             # from this size on the application is told that the log is large, so it can show you
+my $NAME = qr/(?:[A-Za-z0-9-]{1,63}\.)+[A-Za-z][A-Za-z0-9-]{0,62}/;    # a host name: never a bare number, never one word
+
+# "lzrprf try" is the same program for tests (selftest, and nothing else):
+# its state is in a folder of its own, every window gets a fixed answer after
+# one second, and every name leads to one listener on this computer, whose
+# certificate must be signed by the test's own authority. "lzrprf run" has
+# none of the three.
+my ($PEER, $TYPED, $ANSWER, $RUN, $APP) = ('-', '-', '-', 0, 'the application');
 
 # What the operating system allows inside any container. Every line is an
 # allowance; what is not listed is refused: every network use, writing any
 # file, reading any file outside the system's own folders, starting any other
 # program, starting a second process, signalling another process, asking
-# another program to open something, every system service.
+# another program to open something, every system service, and every fact
+# about the computer that is not in the short list of names below (so: not
+# its name, not its other processes, not its network).
 my $CONTAINER = <<'END';
 (version 1)
 (deny default)
 (allow process-exec (literal (param "APP")))
 (allow file-map-executable)
-(allow sysctl-read)
-(allow file-read-metadata)
+(allow sysctl-read
+  (sysctl-name-prefix "hw.") (sysctl-name-prefix "machdep.cpu.") (sysctl-name-prefix "kern.osvariant")
+  (sysctl-name "kern.ostype") (sysctl-name "kern.osrelease") (sysctl-name "kern.osversion")
+  (sysctl-name "kern.osproductversion") (sysctl-name "kern.osproductversioncompat") (sysctl-name "kern.version")
+  (sysctl-name "kern.maxfilesperproc") (sysctl-name "kern.argmax") (sysctl-name "kern.ngroups")
+  (sysctl-name "kern.usrstack64") (sysctl-name "kern.secure_kernel") (sysctl-name "kern.willshutdown")
+  (sysctl-name "kern.hv_vmm_present") (sysctl-name "vm.footprint_suspend")
+  (sysctl-name "sysctl.proc_native") (sysctl-name "sysctl.proc_cputype") (sysctl-name "sysctl.proc_translated"))
 (allow file-read*
-  (literal "/") (subpath "/System") (subpath "/usr/lib") (subpath "/usr/share")
+  (subpath "/System") (subpath "/usr/lib") (subpath "/usr/share")
   (subpath "/Library/Fonts") (subpath "/private/etc/ssl") (subpath "/private/var/db/timezone")
-  (literal "/dev/null") (literal "/dev/random") (literal "/dev/urandom")
+  (literal "/") (literal "/dev/null") (literal "/dev/random") (literal "/dev/urandom")
   (subpath (param "OWN")))
+(deny file-read* (subpath "/System/Volumes"))
+(allow file-read* (subpath "/System/Volumes/Preboot/Cryptexes"))
+(allow file-read-metadata
+  (literal "/") (literal "/usr") (literal "/Library") (literal "/dev") (literal "/private")
+  (literal "/private/etc") (literal "/private/var") (literal "/private/var/db") (literal "/etc") (literal "/var")
+  (literal "/System/Volumes") (literal "/System/Volumes/Preboot")
 END
 
-# What the main container is allowed on top of that: four system services,
-# without which no window can be shown and nothing can be pasted, and the
-# gateway's socket.
-my $MAIN = $CONTAINER . <<'END';
+# What the main container is allowed on top of that: three system services
+# and the gateway's socket. The window server draws its window and brings it
+# the keys pressed in that window. Launch services and the hiservices helper
+# are asked by the system's window code when an application starts; without
+# them no window appears. It is not allowed the clipboard, the services that
+# open files or addresses, or any network.
+my $MAIN = <<'END';
 (allow mach-lookup
   (global-name "com.apple.windowserver.active")
   (global-name "com.apple.coreservices.launchservicesd")
-  (global-name "com.apple.hiservices-xpcservice")
-  (global-name "com.apple.pasteboard.1"))
+  (global-name "com.apple.hiservices-xpcservice"))
 (allow network-outbound (literal (param "GATE")))
 END
 
+# What curl's container is allowed on top of it: one socket file, behind which
+# lzrprf holds the connection to the site, and the list of certificate
+# authorities. It has no network of its own. So whatever a site sends it, curl
+# can reach no other place, read no file of yours, write nothing and start
+# nothing.
+my $FETCH = <<'END';
+(allow network-outbound (literal (param "WAY")))
+(allow file-read* (literal (param "ROOTS")))
+END
+
 # A page container is allowed nothing on top of it. It also gets at most 30
-# seconds of processor time, may create no file and no memory dump, and is
-# ended after 60 seconds whatever it is doing.
+# seconds of processor time, and may create no file and no memory dump.
 my $PAGE_LIMITS = 'ulimit -t 30 -f 0 -c 0 && exec "$@"';
-my $PAGE_SECONDS = 60;
 
 sub contain {
-    my ($profile, $program, @rest) = @_;
+    my ($more, $program, @rest) = @_;
     my $own = $program =~ m{^(.*\.app)/Contents/MacOS/[^/]+$} ? $1 : $program;
-    return ('/usr/bin/sandbox-exec', '-D', "APP=$program", '-D', "OWN=$own", @rest, '-p', $profile, $program);
+    my @above;                            # the folders above the program: it may know they exist, and no more
+    for (my $up = $own; $up =~ s{/[^/]+$}{} && length $up;) { push @above, qq{(literal "$up")} }
+    die "lzrprf: the program's path holds a character lzrprf does not pass on\n" if $own =~ /["\\\n]/;
+    return ('/usr/bin/sandbox-exec', '-D', "APP=$program", '-D', "OWN=$own", @rest, '-p', "$CONTAINER  @above)\n$more", $program);
 }
 
 sub run {
@@ -82,16 +135,15 @@ sub run {
     die "lzrprf: no such program\n" unless -f $program && -x _;
     mkdir $DIR;
     chmod 0700, $DIR;
-    umask 0077;
-    for my $old (glob "$DIR/gate.*") {    # sockets left by runs that have ended
-        unlink $old unless $old =~ /\.(\d+)$/ && kill 0, $1;
+    for my $old (glob("$DIR/gate.*"), glob("$DIR/last.*"), glob("$DIR/way.*")) {    # left by runs that have ended
+        unlink $old unless $old =~ /\.(\d+)$/ && $1 != $$ && kill 0, $1;
     }
     my $gate = "$DIR/gate.$$";
     my $listen = IO::Socket::UNIX->new(Local => $gate, Listen => 16) or die "lzrprf: cannot open $gate: $!\n";
     my $child = fork // die "lzrprf: cannot fork: $!\n";
     if (!$child) {                        # the gateway: a fresh copy of this file, outside every container
         POSIX::dup2(fileno $listen, 0);
-        exec $^X, abs_path($0), 'gateway', $gate, $program, @arguments;
+        exec $^X, abs_path($0), 'gateway', $DIR, $PEER, $TYPED, $ANSWER, $$ == 1 ? 0 : getppid(), $program, @arguments;
         exit 1;
     }
     close $listen;
@@ -101,81 +153,273 @@ sub run {
 }
 
 # The gateway is a child of the application's own process and ends when the
-# application ends. Every connection is served by a fresh copy of this file.
+# application ends. Every connection is served by a fresh copy of this file,
+# and no more than a few at the same time.
 sub gateway {
-    my ($gate, @program) = @_;
+    my (@program) = @_;
     open my $listen, '+<&=', 0 or exit 1;
     bless $listen, 'IO::Socket::UNIX';
     my $waiting = IO::Select->new($listen);
+    my %serving;
+    $SIG{PIPE} = 'IGNORE';                # an application that hangs up early ends nothing here
     while (getppid() != 1) {
-        1 while waitpid(-1, POSIX::WNOHANG()) > 0;
+        while ((my $done = waitpid(-1, POSIX::WNOHANG())) > 0) { delete $serving{$done} }
+        if (open my $turn, '>>', "$DIR/asking") {    # no window is open: the application runs, whatever ended while it was stopped
+            kill 'CONT', $RUN if flock $turn, LOCK_EX | LOCK_NB;
+            close $turn;                  # the lock is let go at once: it is the windows' own
+        }
         next unless $waiting->can_read(1);
         my $app = $listen->accept or next;
+        if (keys %serving >= $AT_ONCE) {
+            refuse($app, 'too many at once');
+            next;
+        }
         my $pid = fork;
         if (defined $pid && !$pid) {
             POSIX::dup2(fileno $app, 0);
-            exec $^X, $0, 'serve', @program;
+            exec $^X, $0, 'serve', $DIR, $PEER, $TYPED, $ANSWER, $RUN, @program;
             exit 1;
         }
+        $serving{$pid} = 1 if $pid;
         close $app;
     }
-    unlink $gate;
+    unlink "$DIR/gate.$RUN", "$DIR/last.$RUN";
 }
 
-# One connection from the main container, one request line:
+# One connection from the main container, one sentence. These two are the
+# whole language, and anything else is refused unread:
 #
-#   https://typed                  the address the user typed
-#   https://typed https://other    the page at the typed address asks for another
-#                                  address: allowed only on the same host, or on
-#                                  a host that a rule allows
-#   rule HOST deny|always|HOURS    the user's choice for a host that pages ask for
-#   rules                          send back the rules
+#   address      open the address window. What you type there is fetched;
+#                the application is told the address and gets the answer
+#   show log     open the log window
 #
-# For an address, lzrprf connects to its host, and what then talks to that
-# host is a page container, never the main one. The request line, which is
-# written in the log in full, is everything the main container can send out.
+# No sentence has a place for data. So there is nothing the application can
+# make lzrprf send, allow, write down or forget.
 sub serve {
     my ($program, @arguments) = @_;
     open my $app, '+<&=', 0 or return;
     $SIG{PIPE} = 'IGNORE';
-    alarm 30;                             # a request or a connect that takes longer ends this process
+    alarm 30;                             # a sentence that is not whole by then ends this process
     my ($line, $whole) = ('', 0);
-    while (length $line < 4096) {
+    while (length $line < 16) {
         sysread($app, my $byte, 1) or return;
         if ($byte eq "\n") { $whole = 1; last }
         $line .= $byte;
     }
-    return refuse($app, 'not a request') unless $whole;
-    return answer($app, join '', map { "$_->[0]\t$_->[1]\n" } rules()) if $line eq 'rules';
-    return decide($app, lc $1, $2) if $line =~ /^rule ([A-Za-z0-9.-]{1,253}) (deny|always|[1-9][0-9]{0,3})$/;
-    my $address = qr{https://([A-Za-z0-9.-]+)(?::([0-9]{1,5}))?(?:[/?#][\x21-\x7e]*)?};
-    my ($typed, $typed_host, $typed_port, $other, $other_host, $other_port) = $line =~ /^($address)(?: ($address))?$/
-        or return refuse($app, 'not an https address');
-    my ($host, $port) = defined $other ? (lc $other_host, $other_port || 443) : (lc $typed_host, $typed_port || 443);
-    return refuse($app, 'not an https address') if $port > 65535;
-    if (defined $other && $host ne lc $typed_host && !allowed($host)) {
-        record("$typed -> $host:$port asked for by the page: refused, no rule allows this host");
-        return answer($app, "no no rule allows this host\n");
+    alarm 0;
+    return refuse($app, 'not a sentence lzrprf knows') unless $whole && $line =~ /^(?:address|show log)$/;
+    my $turn = window_turn() or return refuse($app, 'a window of lzrprf is open, or was closed a moment ago');
+    if ($line eq 'show log') {
+        log_window();
+        return answer($app, "ok\n");
     }
-    record(defined $other ? "$typed -> $other asked for by the page" : "$typed -> $host:$port");    # written down first, connected second
-    my $site = IO::Socket::IP->new(PeerHost => $host, PeerPort => $port) or return answer($app, "no could not connect\n");
-    setsockopt($site, SOL_SOCKET, $_, pack('l!l!', 20, 0)) for SO_RCVTIMEO, SO_SNDTIMEO;    # a silent site ends the page
-    answer($app, "ok\n") or return;
-    shutdown($app, 0);                    # from here on bytes go one way only: page container to main container
+    my ($url, $host) = typed_address();
+    return refuse($app, $host) unless $url;
+    record("you typed $url") or return refuse($app, 'the log could not be written');    # before the name is even looked up
+    my ($where, $why) = find($host);
+    $why = inside($host, $where) if $where && grep { !public($_->{text}) } @$where;
+    close $turn;                          # no window is needed from here on
+    my $got;
+    if (!$why) {
+        record("$url -> lzrprf connects to the first that answers of: " . join ', ', map { $_->{text} } @$where) or return refuse($app, 'the log could not be written');    # written down first, connected second
+        ($got, $why) = fetch($url, $where);
+    }
+    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . ' bytes'));
+    return refuse($app, $why) if $why;
+    answer($app, "ok $url" . ((-s "$DIR/log" // 0) > $LARGE ? ' the log is large' : '') . "\n") or return;
+    shutdown($app, 0);                    # from here on nothing the main container sends is read by anyone
+    # The request is over and the connection to the site is closed. Only now
+    # does a copy of the application see the answer, in a page container.
+    pipe(my $answer_out, my $answer_in) or return;
+    pipe(my $from_page, my $to_window) or return;
     my $page = fork // return;
-    if (!$page) {                         # the page container: the site is its input, the main container its output
-        POSIX::dup2(fileno $app, 1);     # first, because the main container's connection is descriptor 0 here
-        POSIX::dup2(fileno $site, 0);
+    if (!$page) {
+        POSIX::dup2(fileno $answer_out, 0);
+        POSIX::dup2(fileno $to_window, 1);
+        close $_ for $answer_in, $from_page, $app;
         open STDERR, '>', '/dev/null';
-        %ENV = (LZRPRF_CONTAINED => $other // $typed);
-        exec '/bin/sh', '-c', $PAGE_LIMITS, 'lzrprf', contain($CONTAINER, $program), @arguments;
+        %ENV = (LZRPRF_CONTAINED => $url);
+        exec '/bin/sh', '-c', $PAGE_LIMITS, 'lzrprf', contain('', $program), @arguments;
         exit 1;
     }
-    close $site;
-    close $app;
-    $SIG{ALRM} = sub { kill 'KILL', $page };
-    alarm $PAGE_SECONDS;
-    waitpid $page, 0;
+    my $feeder = fork // return;
+    if (!$feeder) {                       # hands the answer over and ends; a page that does not read it changes nothing
+        close $_ for $answer_out, $from_page, $to_window, $app;
+        answer($answer_in, $got);
+        exit 0;
+    }
+    close $_ for $answer_out, $answer_in, $to_window;
+    carry($from_page, $app, $page);
+    kill 'KILL', $page, $feeder;
+    waitpid $_, 0 for $page, $feeder;
+}
+
+# What a page container writes is carried to the main container by this
+# process, through a pipe, as fast as it comes and whether or not the main
+# container is reading.
+sub carry {
+    my ($from_page, $app, $page) = @_;
+    $app->blocking(0);
+    my ($held, $taken, $open, $until) = ('', 0, 1, time + $PAGE_SECONDS);
+    while ($open || length $held) {
+        if (time >= $until) {             # out of time: the page is ended, and what it already sent gets five seconds more
+            last unless $open;
+            ($open, $until) = (0, time + 5);
+            kill 'KILL', $page;
+        }
+        my ($read, $write) = ('', '');
+        vec($read, fileno $from_page, 1) = 1 if $open;
+        vec($write, fileno $app, 1) = 1 if length $held;
+        select($read, $write, undef, 1) > 0 or next;
+        if ($open && vec($read, fileno $from_page, 1)) {
+            my $got = sysread($from_page, my $data, 65536);
+            $open = 0 unless $got;
+            if ($got) {
+                $taken += $got;
+                return if $taken > $PAGE_BYTES;
+                $held .= $data;
+            }
+        }
+        if (length $held && vec($write, fileno $app, 1)) {
+            my $sent = syswrite($app, $held);
+            return unless defined $sent || $!{EAGAIN};
+            substr($held, 0, $sent, '') if $sent;
+        }
+    }
+}
+
+# Where a host is. The name is looked up here, outside every container, after
+# the address is in the log. Returns every address the name leads to.
+sub find {
+    my ($host) = @_;
+    if ($PEER ne '-') {                   # "lzrprf try" only: every name leads to the test's listener
+        my ($to, $port) = split /:/, $PEER;
+        return [{ family => AF_INET, addr => pack_sockaddr_in($port, inet_aton($to)), text => $to }];
+    }
+    my ($failed, @found) = getaddrinfo($host, 443, { socktype => SOCK_STREAM });
+    return (undef, 'no such host') if $failed || !@found;
+    for my $one (@found) {
+        (my $unreadable, $one->{text}) = getnameinfo($one->{addr}, NI_NUMERICHOST | NI_NUMERICSERV);
+        return (undef, 'no such host') if $unreadable;
+    }
+    return \@found;
+}
+
+# The one connection to the site, made by lzrprf: to an address that was just
+# checked and written down, never to the name again.
+sub reach {
+    my ($where) = @_;
+    for my $one (@$where) {
+        socket(my $site, $one->{family}, SOCK_STREAM, 0) or next;
+        $site->blocking(0);
+        connect($site, $one->{addr});
+        my $ready = '';
+        vec($ready, fileno $site, 1) = 1;
+        return $site if select(undef, $ready, undef, 10) > 0 && !unpack 'i', getsockopt($site, SOL_SOCKET, SO_ERROR);
+    }
+    return;
+}
+
+# The request. curl does the https, and it is told the address you typed and
+# nothing else of yours: no cookie, no name of a browser, no language. It has
+# no network. It gets one socket file; when it comes there, lzrprf connects to
+# the site and carries the bytes both ways, which are encrypted between curl
+# and the site. curl is held to https, follows no redirect, tries once, and
+# the certificate must prove the host to the system's list of authorities.
+# Returns the answer, or why there is none.
+sub fetch {
+    my ($url, $where) = @_;
+    my ($way, $roots) = ("$DIR/way.$$", $PEER ne '-' ? "$DIR/authority.pem" : $ROOTS);
+    my $none = 'the request could not be made';
+    my $listen = IO::Socket::UNIX->new(Local => $way, Listen => 1) or return (undef, $none);
+    pipe(my $from_curl, my $out) or return (undef, $none);
+    my $curl = fork // return (undef, $none);
+    if (!$curl) {
+        close $_ for $from_curl, $listen;
+        open STDIN, '<', '/dev/null';
+        POSIX::dup2(fileno $out, 1);
+        open STDERR, '>', '/dev/null';
+        %ENV = ();                        # curl takes no setting from the environment
+        my @curl = ($CURL, '-q', '-g', '-s', '-i', '--raw', '--path-as-is', '--proto', '=https', '--tlsv1.2', '--http1.1', '--noproxy', '*',
+            '--cacert', $roots, '--max-time', $FETCH_SECONDS, '--max-filesize', $FETCH_BYTES,
+            '-H', 'User-Agent:', '-H', 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close',
+            '--unix-socket', $way, '--', $url);
+        if ($PEER ne '-' && open my $instead, '<', "$DIR/fetcher") { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to attack this container too
+        exec contain($FETCH, shift @curl, '-D', "WAY=$way", '-D', "ROOTS=$roots"), @curl;
+        exit 127;
+    }
+    close $out;
+    my ($got, $until, $unreached, @links) = ('', time + $FETCH_SECONDS + 5, 0);    # a link: from, to, bytes held, 1 while "from" is open
+    while (time < $until && length $got <= $FETCH_BYTES) {
+        my ($read, $write) = ('', '');
+        vec($read, fileno $from_curl, 1) = 1;
+        vec($read, fileno $listen, 1) = 1 unless @links;
+        for (@links) {
+            vec($read, fileno $_->[0], 1) = 1 if $_->[3] == 1 && length $_->[2] < 262144;
+            vec($write, fileno $_->[1], 1) = 1 if length $_->[2];
+        }
+        select($read, $write, undef, 1) > 0 or next;
+        if (!@links && vec($read, fileno $listen, 1)) {
+            my $in = $listen->accept or last;
+            my $site = reach($where);
+            if (!$site) { $unreached = 1; last }
+            $in->blocking(0);
+            @links = ([$in, $site, '', 1], [$site, $in, '', 1]);
+            next;
+        }
+        for my $link (@links) {
+            my ($from, $to) = @$link;
+            if ($link->[3] == 1 && vec($read, fileno $from, 1)) {
+                my $n = sysread($from, $link->[2], 65536, length $link->[2]);
+                $link->[3] = 0 if defined $n ? !$n : !$!{EAGAIN};
+            }
+            if (length $link->[2] && vec($write, fileno $to, 1)) {
+                my $sent = syswrite($to, $link->[2]);
+                substr($link->[2], 0, $sent, '') if $sent;
+                @$link[2, 3] = ('', 0) unless defined $sent || $!{EAGAIN};
+            }
+            if (!$link->[3] && !length $link->[2]) {    # one side has ended and all it sent is passed on
+                shutdown($to, 1);
+                $link->[3] = 2;
+            }
+        }
+        if (vec($read, fileno $from_curl, 1)) { sysread($from_curl, $got, 65536, length $got) or last }
+    }
+    my $late = time >= $until;
+    unlink $way;
+    kill 'KILL', $curl if $late || $unreached || length $got > $FETCH_BYTES;
+    waitpid $curl, 0;
+    my $exit = $? >> 8;
+    return (undef, 'the answer is larger than lzrprf takes') if length $got > $FETCH_BYTES || $exit == 63;
+    return (undef, 'could not connect') if $unreached;
+    return (undef, 'the site did not answer in time') if $late || $exit == 28;
+    return ($got) if $? == 0 && length $got;
+    return (undef, 'the certificate does not prove the host') if grep { $exit == $_ } 51, 53, 54, 58, 59, 60, 66, 77, 80, 82, 83, 90, 91;
+    return (undef, 'no secure connection could be made') if $exit == 35;
+    return (undef, $none);
+}
+
+sub public {
+    my ($address) = @_;
+    if (my $four = inet_pton(AF_INET, $address)) { return public4(unpack 'N', $four) }
+    my $six = inet_pton(AF_INET6, $address) or return 0;
+    my @part = unpack 'n8', $six;
+    my $inside = ($part[6] << 16) | $part[7];                                    # where an address of the older kind is carried
+    return public4($inside) if !grep({ $_ } @part[0 .. 4]) && $part[5] == 0xffff;
+    return public4($inside) if $part[0] == 0x64 && $part[1] == 0xff9b && !grep { $_ } @part[2 .. 5];
+    return 0 unless ($part[0] & 0xe000) == 0x2000;                               # only the block the public internet uses
+    return 0 if $part[0] == 0x2002 || $part[0] == 0x2001 && ($part[1] < 0x200 || $part[1] == 0xdb8) || ($part[0] & 0xfff0) == 0x3ff0;    # tunnels, special uses, examples
+    return 1;
+}
+
+sub public4 {
+    my ($number) = @_;
+    for (qw(0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.0.2.0/24
+            192.88.99.0/24 192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/3)) {
+        my ($net, $bits) = split m{/};
+        return 0 if ($number & (0xffffffff << (32 - $bits) & 0xffffffff)) == unpack 'N', inet_aton($net);
+    }
+    return 1;
 }
 
 sub answer {
@@ -187,88 +431,186 @@ sub answer {
     return 1;
 }
 
+# A refusal is counted under its reason, and the reason is one of the fixed
+# phrases in this file. Nothing the application sent is written down for a
+# refusal, so refusals cannot fill or push anything out of the log.
 sub refuse {
     my ($app, $why) = @_;
-    record("refused: $why");              # the reason only: what was sent is not copied into the log
+    if (open my $lock, '>>', "$DIR/lock") {
+        flock $lock, LOCK_EX;
+        my %count;
+        if (open my $in, '<', "$DIR/refused") { /^(\d+)\t(\S+)\t(.+)$/ and $count{$3} = $1 while <$in> }
+        $count{$why}++;
+        my $now = strftime '%Y-%m-%dT%H:%M:%SZ', gmtime;
+        if (open my $out, '>', "$DIR/refused.new") {
+            print $out map { "$count{$_}\t" . ($_ eq $why ? $now : '-') . "\t$_\n" } sort keys %count;
+            close $out and rename "$DIR/refused.new", "$DIR/refused";
+        }
+    }
     answer($app, "no $why\n");
 }
 
-# The rules. A host that pages ask for is refused unless a rule allows it.
-# The choice is made in the application's window; lzrprf cannot see the click,
-# so every choice it is told is also written in the log.
-sub rules {
-    open my $in, '<', $RULES or return;
-    return map { chomp; [split /\t/, $_, 2] } <$in>;
+# Your windows. Each is opened by lzrprf, outside every container, and while
+# one is open the application is stopped by the system: it runs no
+# instruction, so it cannot type into the window, press its buttons, watch
+# it or draw over it. What a window says is fixed words from this file, plus
+# what you typed or what lzrprf looked up; nothing the application sent is
+# ever shown or used. One window is open at a time, none waits in a queue, and
+# after you close one there is no new one for some seconds.
+sub window_turn {
+    open my $turn, '>>', "$DIR/asking" or return;
+    my $mine = 0;
+    for (1 .. 3) {                        # the gateway holds this lock for an instant each second, to see that no window is open
+        last if $mine = flock $turn, LOCK_EX | LOCK_NB;
+        select undef, undef, undef, 0.05;
+    }
+    return unless $mine;
+    if (open my $quiet, '<', "$DIR/quiet") { return if (<$quiet> // 0) > time }
+    return $turn;
 }
 
-sub allowed {
-    my ($host) = @_;
-    my ($rule) = grep { $_->[0] eq $host } rules();
-    return $rule && ($rule->[1] eq 'always' || $rule->[1] =~ /^\d+$/ && $rule->[1] > time);
+sub window {
+    my ($fixed, $script, @said) = @_;
+    kill 'STOP', $RUN if $RUN;            # the gateway lets it run again when no window is open
+    my $answer = '';                      # a window that could not be shown is a window you closed
+    if ($ANSWER ne '-') {                 # "lzrprf try" only: the fixed answer, after the time a window would be open
+        sleep 1;
+        $answer = $fixed;
+    }
+    elsif (open my $out, '-|', '/usr/bin/osascript', '-e', "on run said\nactivate\n$script\nend run", '--', @said) {
+        local $/;
+        $answer = <$out> // '';
+        close $out;
+        chomp $answer;
+    }
+    kill 'CONT', $RUN if $RUN;
+    return $answer;
 }
 
-sub decide {
-    my ($app, $host, $choice) = @_;
+# The address window: the one place an address can come from. Returns the
+# address exactly as it will be sent, and its host; or nothing and the reason.
+sub typed_address {
+    my $last = '';
+    if (open my $in, '<', "$DIR/last.$RUN") { $last = <$in> // '' }
+    my $says = "$APP asks where to go.\n\nType an https address. Only what you type here is sent, exactly as lzrprf's log then shows it. If something told you to type an address you do not know, do not.";
+    my $why = 'you closed the window';
+    for (1 .. 3) {
+        my $typed = window($TYPED eq '-' ? '' : "go\n$TYPED",
+            'set r to display dialog (item 1 of said) default answer (item 2 of said) with title "lzrprf" buttons {"Cancel", "Go"} default button 2 cancel button 1 giving up after 120' . "\n"
+            . 'if gave up of r then return ""' . "\n" . 'return "go" & linefeed & (text returned of r)', $says, $last);
+        my ($went, $text) = split /\n/, $typed, 2;
+        last unless ($went // '') eq 'go';
+        if (my ($url, $host) = address($text // '')) {
+            if (open my $out, '>', "$DIR/last.$RUN") { print $out $url }
+            return ($url, $host);
+        }
+        $why = 'what was typed is not an address lzrprf fetches';
+        last if $ANSWER ne '-';
+        ($says, $last) = ("lzrprf does not fetch that. An address must be https, a host by its name, port 443, in plain characters without a space.\n\nType an https address.", $text =~ s/[^\x20-\x7e]//gr);
+    }
+    quiet();
+    return (undef, $why);
+}
+
+sub quiet { if (open my $out, '>', "$DIR/quiet") { print $out time + $QUIET } }
+
+# What is sent for a text that was typed. An address is https, a host by its
+# name, port 443, and plain characters without a space. lzrprf adds https://
+# when no scheme was typed, writes the host in small letters, and leaves out
+# what follows a #, which is never sent to a site. Everything else is sent
+# exactly as typed, or, when it is not such an address, not at all.
+sub address {
+    my ($text) = @_;
+    $text =~ s/^[ \t]+|[ \t\r\n]+$//g;
+    $text =~ s/#.*//s;
+    $text = "https://$text" unless $text =~ m{^[A-Za-z][A-Za-z0-9+.-]*://};
+    return unless $text =~ m{^https://($NAME)(?::443)?([/?][\x21-\x7e]*)?$}i && length $1 <= 253 && length $text <= 2000;
+    my ($host, $rest) = (lc $1, $2 // '/');
+    $rest = "/$rest" if $rest =~ /^\?/;
+    return ("https://$host$rest", $host);
+}
+
+# A host that leads to this computer or into a network of your own is not the
+# public internet. It is fetched only after you said yes to exactly that, in
+# a window that says so, and the yes holds for that one request. Returns
+# nothing after a yes, and the reason after a no.
+sub inside {
+    my ($host, $where) = @_;
+    my $there = join ', ', map { $_->{text} } @$where;
+    my $said = window($ANSWER eq 'allow' ? 'Yes, this once' : '',
+        'set r to display dialog (item 1 of said) with title "lzrprf" buttons {"No", "Yes, this once"} default button 1 giving up after 60 with icon caution' . "\n"
+        . 'if gave up of r then return ""' . "\n" . 'return button returned of r',
+        "$host is not on the public internet.\n\nIt leads to $there: this computer or a network of your own. What answers there can be a device of yours, such as a router.\n\nFetch it this once?");
+    my $yes = $said eq 'Yes, this once';
+    record('you ' . ($yes ? 'allowed' : 'refused') . " $host, which is inside your own network ($there)" . ($yes ? ', this once' : '')) or return 'the log could not be written';
+    quiet() unless $yes;
+    return $yes ? undef : 'you said no to a host inside your own network';
+}
+
+# The log window: how much the log holds, its last lines, and the one button
+# that clears it. The log is cleared by that button and by nothing else, and
+# that it was cleared is the first line of the new log.
+sub log_window {
+    my @lines;
+    if (open my $in, '<', "$DIR/log") { chomp(@lines = <$in>) }
+    my ($first, $last) = map { /^(\S+)/ ? $1 : '?' } @lines ? @lines[0, -1] : ('', '');
+    my $holds = @lines ? sprintf('%d lines, %.1f MB, from %s to %s', scalar @lines, (-s "$DIR/log") / 1048576, $first, $last) : 'nothing yet';
+    my @shown = map { s/\t/   /gr } @lines > 500 ? @lines[-500 .. -1] : @lines;
+    my $said = window($ANSWER eq 'allow' ? 'clear' : '',
+        'set r to choose from list (items 2 thru -1 of said) with title "lzrprf: the log" with prompt (item 1 of said) OK button name "Clear the log" cancel button name "Close" with empty selection allowed' . "\n"
+        . 'if r is false then return ""' . "\n" . 'return "clear"',
+        "Every address lzrprf fetched for $APP. It holds $holds." . (@lines > 500 ? ' Below are the last 500 lines.' : '') . " The whole of it: $DIR/log", @shown ? @shown : '(nothing yet)');
+    return unless $said eq 'clear' && @lines;
+    $said = window('Clear', 'set r to display dialog (item 1 of said) with title "lzrprf" buttons {"Keep", "Clear"} default button 1 giving up after 60 with icon caution' . "\n"
+        . 'if gave up of r then return ""' . "\n" . 'return button returned of r', "Clear the log? It holds $holds. This cannot be undone.");
+    return unless $said eq 'Clear';
     open my $lock, '>>', "$DIR/lock" or return;
     flock $lock, LOCK_EX;
-    my %rule = map { $_->[0] => $_->[1] } rules();
-    return answer($app, "no too many rules\n") if keys %rule >= 2000 && !exists $rule{$host};
-    $rule{$host} = $choice =~ /^\d+$/ ? time + 3600 * $choice : $choice;
-    open my $out, '>', "$RULES.new" or return;
-    print $out "$_\t$rule{$_}\n" for sort keys %rule;
-    close $out and rename "$RULES.new", $RULES;
+    open my $out, '>', "$DIR/log" or return;
+    close $out;
     close $lock;
-    record("rule: $host " . ($choice eq 'deny' ? 'denied' : $choice eq 'always' ? 'allowed always' : "allowed for $choice hours"));
-    answer($app, "ok\n");
+    record("you cleared the log: it held $holds");
 }
 
-# The log: one line for each different request, with the time it was last
-# made and how many times. When the file would pass its limit the oldest
-# lines go, and one line says how many have gone.
+# The log. A line is added at the end, and this returns true only when the
+# system says the line is on the disk. Nothing in this file changes or removes
+# a line, and the log has no size at which anything is dropped; only you can
+# clear it, in the log window. Nothing is looked up or fetched whose line
+# could not be written. Each line: the time, the number of the request it
+# belongs to, what happened.
 sub record {
     my ($what) = @_;
-    open my $lock, '>>', "$DIR/lock" or return;
+    open my $lock, '>>', "$DIR/lock" or return 0;
     flock $lock, LOCK_EX;
-    my %line;
-    if (open my $in, '<', $LOG) {
-        while (<$in>) {
-            chomp;
-            my ($time, $times, $text) = split /\t/, $_, 3;
-            $line{$text} = [$time, $times] if defined $text;
-        }
-    }
-    my $now = strftime '%Y-%m-%dT%H:%M:%SZ', gmtime;
-    $line{$what} = [$now, ($line{$what} ? $line{$what}[1] : 0) + 1];
-    my @oldest_first = sort { $line{$a}[0] cmp $line{$b}[0] } grep { $_ ne $DROPPED } keys %line;
-    my $size = 0;
-    $size += length("$line{$_}[0]\t$line{$_}[1]\t$_\n") for keys %line;
-    while ($size > $LOG_BYTES && @oldest_first > 1) {
-        my $old = shift @oldest_first;
-        $size -= length("$line{$old}[0]\t$line{$old}[1]\t$old\n");
-        delete $line{$old};
-        $line{$DROPPED} = [$now, ($line{$DROPPED} ? $line{$DROPPED}[1] : 0) + 1];
-    }
-    open my $out, '>', "$LOG.new" or return;
-    print $out "$line{$_}[0]\t$line{$_}[1]\t$_\n" for sort { $line{$a}[0] cmp $line{$b}[0] } keys %line;
-    close $out and rename "$LOG.new", $LOG;
+    open my $out, '>>', "$DIR/log" or return 0;
+    print($out strftime('%Y-%m-%dT%H:%M:%SZ', gmtime) . "\t$$\t$what\n") && $out->flush or return 0;
+    return 0 unless $^O eq 'darwin' ? defined fcntl($out, 51, 0) : $out->sync;    # 51 is F_FULLFSYNC: through the disk's own cache
+    return close $out;
 }
 
 sub show {
-    open my $in, '<', $LOG or die "lzrprf: nothing has been asked for yet\n";
-    print "last asked (UTC)\ttimes\taddress the application gave as typed -> what the gateway connected to\n", <$in>;
+    print "when (UTC)\trequest\twhat you typed, where lzrprf connected for it, and how it ended\n";
+    if (open my $in, '<', "$DIR/log") { print <$in> } else { print "(nothing yet)\n" }
+    if (open my $in, '<', "$DIR/refused") { print "\ntimes\tlast (UTC)\twhat lzrprf refused the application, and why (nothing was fetched)\n", <$in> }
 }
 
-sub show_rules {
-    for (rules()) {
-        my ($host, $rule) = @$_;
-        print "$host\t", $rule !~ /^\d+$/ ? $rule : $rule > time ? strftime('allowed until %Y-%m-%dT%H:%M:%SZ', gmtime $rule) : 'allowance ended', "\n";
-    }
+sub state {                               # how a gateway or serve process, started by this file, learns what run started with
+    ($DIR, $PEER, $TYPED, $ANSWER, $RUN, my @program) = @_;
+    ($APP) = ($program[0] // '') =~ m{([^/]+?)(?:\.app/Contents/MacOS/[^/]+)?$};
+    $APP = 'the application' unless defined $APP && $APP =~ /^[A-Za-z0-9 ._-]{1,40}$/;
+    return @program;
 }
 
 my $command = shift // '';
 if ($command eq 'run') { run(@ARGV) }
-elsif ($command eq 'log') { show() }
-elsif ($command eq 'rules') { show_rules() }
-elsif ($command eq 'gateway') { gateway(@ARGV) }    # started by run, not by hand
-elsif ($command eq 'serve') { serve(@ARGV) }        # started by the gateway, not by hand
-else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf log\n       lzrprf rules\n" }
+elsif ($command eq 'try' && @ARGV > 4 && $ARGV[0] =~ m{^\Q$DIR\E/[A-Za-z0-9.]+$} && $ARGV[1] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny)$/) {
+    ($DIR, $PEER, $TYPED, $ANSWER) = splice @ARGV, 0, 4;    # for tests: lzrprf try FOLDER PEER|- ADDRESS|- allow|deny /path/to/program
+    run(@ARGV);
+}
+elsif ($command eq 'log' && !@ARGV) { show() }
+elsif ($command eq 'log' && "@ARGV" eq 'window') { window_turn() ? log_window() : die "lzrprf: a window of lzrprf is already open\n" }
+elsif ($command eq 'address' && @ARGV) { print "$_\t", (address($_))[0] // 'not sent: not an address lzrprf fetches', "\n" for @ARGV }
+elsif ($command eq 'public' && @ARGV) { print "$_\t", public($_) ? 'on the public internet' : 'not public: this computer or a network of your own', "\n" for @ARGV }
+elsif ($command eq 'gateway') { gateway(state(@ARGV)) }    # started by run, not by hand
+elsif ($command eq 'serve') { serve(state(@ARGV)) }        # started by the gateway, not by hand
+else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf log [window]\n       lzrprf address TEXT...\n       lzrprf public NUMBER...\n" }
