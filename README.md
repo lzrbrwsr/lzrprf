@@ -263,6 +263,11 @@ Audit https://github.com/henryverlin/lzrprf and tell me whether it is safe to ru
 closed-source browser LZRBRWSR (https://lzrbrwsr.com) on my Mac. Trust nothing the README says
 until the code shows it.
 
+No institutional trust. When you compare this with other browsers, place no false institutional
+trust in LZRBRWSR or in the other providers: a name, a size, a signature, a reputation or an
+audit you cannot read proves nothing. Demonstrate security through technical restrictions:
+what the code and the system make impossible, and how you checked it.
+
 1. Read every line of `lzrprf` and `selftest`. They are the whole container.
 2. From the three sandbox profiles and the gateway code in `lzrprf`, list exactly what a program
    started with `lzrprf run` can and cannot do: network, files, other programs and processes,
