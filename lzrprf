@@ -32,7 +32,7 @@
 #
 #   [C1]  The application is started in one place only, and only inside the page container.
 #   [C2]  At every start lzrprf tries, from inside that same container, what the container must refuse, and starts nothing unless all of it was refused and the same tries worked outside.
-#   [C3]  No process is handed a byte before the system itself says that this process is contained.
+#   [C3]  No process is handed a byte of what was fetched, nor the connection to a site, before the system itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, curl among its fixed switches.
 #   [C4]  A request is made only for an address that came from the window's bar, or for one of two fixed addresses after you said yes. There is no third way to a request.
 #   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
 #   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
@@ -40,7 +40,7 @@
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of four kinds of line is not drawn at all.
 #   [C10] The window's process has no network of its own, writes no file, starts no program, opens nothing through the system, commands no other program, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. lzrprf asks the system whether that holds before anything is shown. It still reaches the system's services, the clipboard among them.
-#   [C11] Nothing is shown before selftest held on this build of macOS with this file.
+#   [C11] Nothing is shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there.
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #
 # This file is the whole program. Its parts, in order: the containers, the
@@ -188,10 +188,12 @@ my $WINDOW_CONTAINER = <<'END';
 (deny appleevent-send)
 (deny user-preference-write)
 (deny mach-lookup (global-name "com.apple.nsurlsessiond"))
-(deny file-read* (subpath "/Users") (subpath "/Volumes") (subpath (param "HOME")))
+(deny file-read* (subpath "/Users") (subpath "/Volumes") (subpath (param "HOME")) (subpath "/System/Volumes/Data/Users") (subpath "/System/Volumes/Data/Volumes"))
 (allow file-read*
   (subpath (string-append (param "HOME") "/Library/Preferences")) (subpath (string-append (param "HOME") "/Library/Fonts"))
   (subpath (string-append (param "HOME") "/Library/Keyboard Layouts")) (subpath (string-append (param "HOME") "/Library/Input Methods"))
+  (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Preferences")) (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Fonts"))
+  (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Keyboard Layouts")) (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Input Methods"))
   (subpath (param "OWN")))
 (allow file-read-metadata (literal "/Users") (literal "/Volumes") (literal (param "HOME")) (literal (string-append (param "HOME") "/Library")))
 END
@@ -480,12 +482,12 @@ sub laid_out {
     pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) or return (undef, 'unstarted');
     my $page = fork // return (undef, 'unstarted');
     if (!$page) {
-        %ENV = (LZRPRF_CONTAINED => $url);    # the application is told the address it lays out, and sees no other variable
+        %ENV = (LZRPRF_CONTAINED => $url);    # the application is told the address it lays out, and sees no other variable: this one it is given before the system is asked [C3]
         chdir '/';
         become($answer_out, $to_lzrprf, $TRY ? \*STDERR : undef, '/bin/sh', '-c', $PAGE_LIMITS, 'lzrprf', contain('', $PROGRAM), @ARGUMENTS);    # [C1]
     }
     close $_ for $answer_out, $to_lzrprf;
-    if (!inside($page)) {                 # [C3] the system did not say so: the answer stays here
+    if (!inside($page)) {                 # [C3] the system did not say so: the answer stays here; the application was told the address and nothing else
         kill 'KILL', $page;
         waitpid $page, 0;
         return (undef, 'uncontained');
@@ -665,8 +667,10 @@ sub request {
 # request, because it can write nothing: each request is a new curl with an
 # empty memory, so no cookie, no stored answer and no earlier connection
 # comes back to a site.                                                  # [C7]
-# One clock runs for the whole request, and no more is carried either way
-# than one request and one answer need. Returns the answer, or why there is
+# One clock runs for the whole request, looked at once a round, and a round
+# waits at most a second. No more is carried either way than one request and
+# one answer need: a side that sent more than its allowance has nothing more
+# passed on, and the request fails. Returns the answer, or why there is
 # none, and the address that answered.
 sub fetch {
     my ($url, $where) = @_;
@@ -712,7 +716,7 @@ sub fetch {
                 $link->[3] = 0 if defined $n ? !$n : !$!{EAGAIN};
                 $link->[4] += $n // 0;
             }
-            if (length $link->[2] && vec($write, fileno $to, 1)) {
+            if (length $link->[2] && $link->[4] <= $link->[5] && vec($write, fileno $to, 1)) {    # nothing more is passed on once more came than the allowance: so no more than the allowance ever is
                 my $sent = syswrite($to, $link->[2]);
                 substr($link->[2], 0, $sent, '') if $sent;
                 @$link[2, 3] = ('', 0) unless defined $sent || $!{EAGAIN};
@@ -916,12 +920,12 @@ sub window {
 sub busy { window('busy ' . $_[0] =~ s/\s+/ /gr) }
 sub idle { window('idle ' . $_[0] =~ s/\s+/ /gr); return }
 
-sub hear {                                # the next thing the window says; nothing when the window is gone, or said nothing in time
+sub hear {                                # the next thing the window says; nothing (undef) when the window is gone, an empty line when it said nothing in time
     my ($seconds) = @_;
     return shift @EVENTS unless $FROM;
     my $ready = '';
     vec($ready, fileno $FROM, 1) = 1;
-    return if defined $seconds && select($ready, undef, undef, $seconds) <= 0;
+    return '' if defined $seconds && select($ready, undef, undef, $seconds) <= 0;    # the time is over, and the window is still there
     my $line = readline($FROM) // return;
     chomp $line;
     print STDERR "$line\n" if $TRY && $line =~ /^(?:test|fault) /;    # "lzrprf try" only: what a test's own text in the window reports
@@ -930,7 +934,8 @@ sub hear {                                # the next thing the window says; noth
 
 # A question, in lzrprf's strip of the window, with two buttons. The first
 # button is always the one that fetches, sends, replaces and keeps nothing, or
-# keeps less, and it is the answer when the window closes or the time is over. Returns 1 or 2.
+# keeps less, and it is the answer when the time is over; when the window is
+# gone, lzrprf ends instead, and nothing is fetched or sent. Returns 1 or 2.
 # Both sides count the questions, and a button says which question it
 # answers: a press that comes late, after its question ran out of time, is
 # not taken as the answer to the next one.
@@ -1291,26 +1296,31 @@ sub show {
 
 # The proof for this computer. "selftest" attacks this file on this Mac and,
 # when every attack was held, writes down the mark of what it tested: the
-# build of macOS and the SHA-256 of this file. Nothing is shown unless that
-# mark is the mark of now. So after macOS was updated, or this file changed,
-# no page is shown before the attacks were made again.                   # [C11]
+# build of macOS, the SHA-256 of this file and the SHA-256 of the selftest
+# beside it, the file that made the attacks. Nothing is shown unless that
+# mark is the mark of now. So after macOS was updated, or this file or the
+# selftest beside it changed, no page is shown before the attacks were made
+# again. Where no selftest stands beside this file, the mark names this file
+# alone, as before.                                                      # [C11]
 # The file of marks holds up to eight lines, one for each copy of lzrprf that
 # was tested on this build of macOS: testing another copy, such as one from
 # the public repository, does not take the proof from the one that is
 # installed. A line counts only when it is the mark of this file, of now.
 sub mark {
     my ($build) = said(5, '/usr/sbin/sysctl', '-n', 'kern.osversion');
-    open my $self, '<', $SELF or return '';
-    binmode $self;
-    return $build =~ /^(\w+)$/ ? "macOS build $1, lzrprf " . Digest::SHA->new(256)->addfile($self)->hexdigest : '';
+    my $self = sum_of($SELF) // return '';
+    my $test = sum_of(dirname($SELF) . '/selftest');
+    return $build =~ /^(\w+)$/ ? "macOS build $1, lzrprf $self" . (defined $test ? ", selftest $test" : '') : '';
 }
+
+sub sum_of { open my $in, '<', $_[0] or return; binmode $in; return Digest::SHA->new(256)->addfile($in)->hexdigest }
 
 sub proven {
     my $mark = mark();
     my $is = sub { open my $in, '<', "$DIR/proven" or return 0; return length $mark && grep { $_ eq "$mark\n" } map { scalar(<$in>) // () } 1 .. 8 };
     return 1 if $is->();
     my $test = dirname($SELF) . '/selftest';
-    if (ask("lzrprf has not been tested on this Mac as it is now: macOS was updated, or lzrprf is new. The test attacks lzrprf with a hostile application and takes about half a minute. $APP shows a page only when every attack was held. Test now?", 'Not now', 'Test now') != 2) {
+    if (ask("lzrprf has not been tested on this Mac as it is now: macOS was updated, or lzrprf or its selftest is new. The test attacks lzrprf with a hostile application and takes about half a minute. $APP shows a page only when every attack was held. Test now?", 'Not now', 'Test now') != 2) {
         window('quit');
         leave();
     }
