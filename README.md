@@ -448,7 +448,7 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 9
+    release 10
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -752,7 +752,9 @@ prints 0.
 From release 8 on the download is also packed the same way every time: its entries in one
 order, one fixed time and one set of rights on each, no owner, and no time in the gzip header.
 The same six files give the same bytes. So you can see that the archive holds the files you
-see in it and nothing beside them: unpack it, pack it again, and compare.
+see in it and nothing beside them: unpack it, pack it again, and compare. From release 10 on
+the program inside it holds no path of the computer it was built on (`strings` shows none
+under `/Users`), and the same source gives the same program whichever folder it is built from.
 
     mkdir again && tar -xpzf lzrbrwsr-macos-arm64.tar.gz -C again
     (cd again && COPYFILE_DISABLE=1 TZ=UTC tar --no-xattrs --no-mac-metadata --format ustar --uid 0 --gid 0 --uname '' --gname '' --options 'gzip:!timestamp' -n -czf ../again.tar.gz $(tar -tzf ../lzrbrwsr-macos-arm64.tar.gz))
