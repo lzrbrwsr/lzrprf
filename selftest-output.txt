@@ -1,7 +1,7 @@
 now    A test site is built on this computer: nothing outside this computer is used.
-now    64 runs of lzrprf, a hostile application in each: all of them are judged below.
+now    68 runs of lzrprf, a hostile application in each: all of them are judged below.
 now    Three runs never end by themselves: lzrprf's limits must end them, after 30 seconds.
-selftest of lzrprf: macOS build 26B123, lzrprf d5063087f8cb7665cf3260a3bcd3272cca9bff09d921fe19d61d4d14a648fb09
+selftest of lzrprf: macOS build 26B123, lzrprf 6226e42365d66b0e7e731d1cc3f65132e5b42aeb8d87a695155863fb86f1dfb3
 
 1. The application, in its container. Each attempt was first made outside every container, where it worked.
 works  outside every container: use a file that was open in whoever started lzrprf (open)
@@ -123,12 +123,12 @@ held   in text, a control code, an invisible mark, a mark that turns the reading
 held   an application that does not read the answer changes nothing (its list was drawn)
 
 4. What a site is sent: by the test site's own record.
-held   the site was asked for what was typed, and for the two fixed addresses after a yes: each once, and nothing else (60 requests)
-held   every request is the address and nothing else: no cookie, no name of a browser, no language, no number of this computer (60 requests, each of the same 4 lines)
+held   the site was asked for what was typed, and for the two fixed addresses after a yes: each once, and nothing else (64 requests)
+held   every request is the address and nothing else: no cookie, no name of a browser, no language, no number of this computer (64 requests, each of the same 4 lines)
 held   "lzrprf request" prints the bytes the site received, byte for byte (180 bytes)
 held   the second request of a run carries nothing of the first: the site set a cookie, and it did not come back (the site sent Set-Cookie: kept=never with every answer)
-held   in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk (49 of 49; 11 more from runs that keep nothing)
-held   the bytes that open the encryption are the same for every request, apart from the random values the protocol requires; no earlier connection is taken up again (60 requests from 64 starts, 312 bytes each)
+held   in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk (52 of 52; 12 more from runs that keep nothing)
+held   the bytes that open the encryption are the same for every request, apart from the random values the protocol requires; no earlier connection is taken up again (64 requests from 68 starts, 312 bytes each)
 held   a site without encryption is sent the opening of an encryption and nothing readable (312 bytes)
 held   and nothing of it is shown (Nothing is shown: no secure connection could be made.)
 held   a certificate that does not prove the host: no request is sent, nothing is shown (Nothing is shown: the certificate does not prove the host.)
@@ -144,7 +144,7 @@ held   a request is four lines: what you typed, your yes, where lzrprf connects,
 held   a log that cannot be written (no permission): nothing is looked up, nothing is fetched (Nothing was fetched: the log could not be written.)
 held   a log that cannot be written (a link that leads elsewhere): nothing is looked up, nothing is fetched (Nothing was fetched: the log could not be written.)
 held   the log is only added to, and has no size at which a line is dropped (30003 lines after 30000)
-held   the log is shown in the window, where a page stands: this window's lines, and under them the last of the log on this computer (Every address lzrprf fetched for perl in this window is below. Kept on this computer until you clear it: full addresses. The log on this computer holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.54657.logkeep/log	Keep the log	Clear the log)
+held   the log is shown in the window, where a page stands: this window's lines, and under them the last of the log on this computer (Every address lzrprf fetched for perl in this window is below. Kept on this computer until you clear it: full addresses. The log on this computer holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.4465.logkeep/log	Keep the log	Clear the log)
 held   the log is cleared by your button, after you were asked twice, and its first line then says so (you cleared the log: it held 3 lines, 0.0 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z)
 held   the log is not cleared while a request is between its first line and its last (The log was not cleared: an address is being fetched right now, or the log could not be written. Nothing was removed.)
 held   nothing kept, as when nobody chose: after a window fetched an address with a path and a query, no file in its folder holds the host, the numeric address, the path or the query; nor in the folder of any other run that keeps nothing (searched every file of 9 folders)
@@ -177,15 +177,16 @@ held   "lzrprf log" prints what the disk holds, and says that the lines of an op
 6. What lzrprf asks you, and what it does without a yes.
 held   a host inside your own network, and a no: nothing is fetched, and the no is in the log (Nothing is shown: you said no to a host inside your own network.)
 held   a newer release: you are asked once whether lzrprf may look at each start, and again before anything is installed (2 questions)
-held   the look is one request for one fixed address, written in the log like every other (lzrprf looks for a newer release: https://site.test/latest-yes)
-held   the installer is fetched into a file you can read, its SHA-256 is shown, and it runs after you press Return: nothing is piped into a shell (618 bytes written, nothing started)
+held   the look is one request for one fixed address, written in the log like every other, and the yes that allows it at each start is a line before it (lzrprf looks for a newer release: https://site.test/latest-yes)
+held   the installer is fetched into a file you can read, its SHA-256 is shown, and it runs after you press Return: nothing is piped into a shell (833 bytes written, nothing started)
+held   the file for Terminal says where the installer comes from and waits for a first Return: before it there is nothing but words, so a press of "Install it" alone fetches nothing (words only before the first Return)
 held   lzrprf itself never fetches the installer (the site was not asked for it)
-held   a release that names a second place for its installer: the file fetches both copies and stops unless they are the same byte for byte, before it asks you to run anything (1098 bytes written, nothing started)
+held   a release that names a second place for its installer: the file fetches both copies and stops unless they are the same byte for byte, before it asks you to run anything (1358 bytes written, nothing started)
 held   a release that names one place says so in the file (one place)
 held   what Terminal will fetch after "Install it" is written in the log before the file exists: those fetches are Terminal's, not lzrprf's, and the log still says that you asked for them (you chose to install release 7: Terminal fetches the installer from https://site.test/install.sh and from https://site.test/second/install.sh)
 held   a second place whose address is no address, or would end the quote it stands in: no file is written, and the installer does not quietly come from one place (no file)
 held   an installer address that would end the quote it stands in, to run a command of its own in Terminal: no file is written, and nothing runs (no file)
-held   a no to looking: nothing is fetched, at this start or a later one (the site was not asked)
+held   a no to looking: nothing is fetched, at this start or a later one, and the no is the one line (the site was not asked)
 held   the same release is published: nothing is asked (one request, no question)
 held   a yes that was given for another address, or for no address, is no yes for this one: you are asked again, and nothing is fetched before (asked again, twice)
 held   an answer that is not one number counts for nothing (one request, no question)
@@ -193,6 +194,11 @@ held   a fixed address that is not a host by its name is never fetched (no reque
 held   a report is sent only after a yes, and is what you were shown: one of two words, the release, the build of macOS. Not the address, nothing of the page, and not which of four ways the application failed (121 bytes)
 held   and it is written in the log (found its line)
 held   a no to a report: nothing is sent (Test did not show this page: the window could not draw what it wrote.)
+held   the window says twice that it could not draw one page: the question about a report comes once (2 questions)
+held   the window says that it could not draw a page when none was handed to it: no question comes of that, so the window cannot open the question about a report whenever it likes (1 question, the one of the page that failed)
+held   the window says that it could not draw while it shows the log, after a page: that is lzrprf's own view, and no report about the application is offered (0 questions about a report)
+held   a yes to looking that cannot be kept: the log says so, and nothing is fetched (that answer could not be kept: no newer release is looked for now, and you are asked again at the next start)
+held   a yes to looking whose line cannot be written is not kept: nothing is fetched, at this start or a later one (no yes kept)
 held   no mark of a test, a mark from another build of macOS, a mark of another lzrprf: you are asked to test, and after a no nothing is shown, looked up or fetched (3 starts, 3 questions)
 held   the mark of this build of macOS and this lzrprf, standing after the mark of another copy that was tested here: no question, and the page is shown (one request)
 
@@ -233,5 +239,5 @@ held   an application that never stops is ended (after 31 seconds: perl did not 
 held   an application that does nothing is ended (after 31 seconds)
 held   a site that never answers is given up on (after 30 seconds)
 
-208 held or worked.
-Nothing failed. lzrprf holds on this Mac as it is now: macOS build 26B123, lzrprf d5063087f8cb7665cf3260a3bcd3272cca9bff09d921fe19d61d4d14a648fb09
+214 held or worked.
+Nothing failed. lzrprf holds on this Mac as it is now: macOS build 26B123, lzrprf 6226e42365d66b0e7e731d1cc3f65132e5b42aeb8d87a695155863fb86f1dfb3

@@ -73,12 +73,12 @@ TESTING="${LZRBRWSR_BASE:-}${LZRBRWSR_SECOND:-}${LZRPRF_BASE:-}${LZRBRWSR_DEST:-
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="59d54f2abd005a33d680401695f3d57d65b2dffe680cbbd286d5ca83cbba5b34"
-RELEASE="7"
-LZRPRF_COMMIT="063303d475e117927af0115c97776139d6612372"
+SHA256="340c8b74e48a959b00ff31465f1bb3d912f639b683f09152d14f327ece6f02cb"
+RELEASE="8"
+LZRPRF_COMMIT="e28d57d0fcc8a252d8044a732ffd2efa19924793"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="d5063087f8cb7665cf3260a3bcd3272cca9bff09d921fe19d61d4d14a648fb09"
-SELFTEST_SHA256="a73d93f26cab16337ae3958a6399906595ac9c660e61bd85d55e44e6c4372eef"
+LZRPRF_SHA256="6226e42365d66b0e7e731d1cc3f65132e5b42aeb8d87a695155863fb86f1dfb3"
+SELFTEST_SHA256="83cafb0bcdfef996db69eef213b31b18fe48922e02d9e350f9576b420389c2b9"
 
 # Outside the tests, files come over https and nothing else, also when an
 # address sends on to another. In a test they come from files on this computer
@@ -322,7 +322,7 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 7
+release 8
 newest https://raw.githubusercontent.com/henryverlin/lzrprf/main/latest
 installer https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
