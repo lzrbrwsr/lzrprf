@@ -2,8 +2,8 @@ LZRBRWSR for macOS on Apple silicon: the SHA-256 of everything https://lzrbrwsr.
 lzrprf and selftest are the files of this repository at commit ae7eafcc9b70c49ea59f445a3f64ffa7b124b80b.
 Check a file with: shasum -a 256 FILE
 
-4eef3622a8acf16fc360cba050e434c49441022cd667d041c60c56a720b57599  install.sh
-1d09219e1696293a4a043a335716f813b1659b62998d0ff06c515551e918e061  lzrbrwsr-macos-arm64.tar.gz
+1d50001f8b9e66a77b335fb03e7cdd577c042054a8bf24cfc3ba090dd1e74ac9  install.sh
+60e31410912833652952a434ec70c96e6c05a062af47e3d9f58b9cd50b124df2  lzrbrwsr-macos-arm64.tar.gz
 b93212ae6d321e77456446381b4f537cf59f21563d926f7c205e405684f5dabc  LZRBRWSR.app/Contents/Info.plist
 acaf5bf267f354376a6c2272e7a008edc5c19a61a2544fbc743f12f97a3370b0  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
 2fe87c36c3d1f440e1e2ed975b8ec25a2650f8a1459084562df1a12dddb01e94  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin

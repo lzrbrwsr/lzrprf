@@ -49,7 +49,7 @@ umask 022
 
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="1d09219e1696293a4a043a335716f813b1659b62998d0ff06c515551e918e061"
+SHA256="60e31410912833652952a434ec70c96e6c05a062af47e3d9f58b9cd50b124df2"
 LZRPRF_COMMIT="ae7eafcc9b70c49ea59f445a3f64ffa7b124b80b"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/$LZRPRF_COMMIT}"
 LZRPRF_SHA256="60544518abf175300888fadbde21caf1f56b236d79c0cc545b00905fea9e1d75"
@@ -100,7 +100,8 @@ cat <<ART
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
- ${G}┃${B}  EVERY BROWSER PROMISES YOU PRIVACY.  WE HAND YOU THE PROOF.               ${N}${G}┃${N}
+ ${G}┃${B}  OTHER BROWSERS PROTECT YOU FROM THE WEB.  NOT FROM THEMSELVES.            ${N}${G}┃${N}
+ ${G}┃${B}  THIS ONE PROTECTS YOU FROM ITSELF, TOO.  AND GIVES YOU THE PROOF.         ${N}${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃${N}  Your browser sees everything: what you read, what you type, where         ${G}┃${N}
  ${G}┃${N}  you go. Until now you could only believe what it does with that.          ${G}┃${N}
