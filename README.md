@@ -99,7 +99,8 @@ One visit, in order (`sub visit`):
 
 1. You type an address into the bar and press Return. The window tells lzrprf.
 2. lzrprf checks that it is an https address of a host by its name (`sub address`), and writes
-   "you typed ADDRESS" into the log, through to the disk `[C5]`.
+   "you typed ADDRESS" into the log `[C5]` (`sub record`): into the memory of the process behind
+   the window, and through to the disk as well when you chose to keep a log (see "What is kept").
 3. It looks the host up, in a process of its own that is given 10 seconds, and takes at most
    8 addresses (`sub find`).
 4. If the host leads into your own network, it asks you, for this one request `[C8]`.
@@ -122,14 +123,14 @@ One visit, in order (`sub visit`):
 | `[C2]` | At every start lzrprf tries, inside that same container, what the container must refuse. Nothing starts unless all of it was refused and the same tries worked outside. | `sub holds` | A copy whose container refuses nothing: nothing is started. |
 | `[C3]` | No process is handed a byte before macOS itself says that this process is contained. | `sub inside`, asked in `sub laid_out` and `sub fetch` | Copies without `[C1]` and `[C2]`: the system says "not contained", and the answer, or the connection, is withheld. |
 | `[C4]` | A request is made only for an address from the window's bar, or for one of two fixed addresses after you said yes. | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has three roads and no fourth. |
-| `[C5]` | Nothing is looked up or fetched before its line is in the log, on the disk. | `sub visit`, `sub fixed`, `sub record` | A log that cannot be written: nothing is fetched. For every request the site received, the line was on the disk first. That the lookup comes after the line is read in `sub visit`, not attacked: the test's site is on this computer. |
+| `[C5]` | Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded. | `sub visit`, `sub fixed`, `sub record` | A kept log that cannot be written: nothing is fetched. For every request the site received in a run that keeps a log, full or hosts only, the line was on the disk first. In a run that keeps nothing, the Log button shows the lines afterwards; that each was in memory before its request is read in `sub record`, not attacked: no test looks into that memory while a request is open. That the lookup comes after the line is read in `sub visit`, not attacked: the test's site is on this computer. |
 | `[C6]` | One place connects to a site, and it connects to a numeric address that was checked and written down. | `sub reach` | Reads the text: two `connect` lines, this one and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
 | `[C7]` | What a site is sent is made from the address alone: the same bytes from every computer, nothing kept from an earlier request. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
 | `[C8]` | A host inside your own network is fetched only after your yes to exactly that, once. | `sub own_network` | A no: nothing is fetched, and the no is in the log. |
 | `[C9]` | Every line the application writes is checked, and a list with anything but the four kinds of line is not drawn at all. | `sub checked` | Hostile lists (a script, lzrprf's own words to the window, too large, not text): none is drawn. |
 | `[C10]` | The window's process has no network of its own, writes no file, starts no program, opens nothing through the system, commands no other program, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. macOS is asked whether that holds before anything is shown. It still reaches the system's services, the clipboard among them. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. |
 | `[C11]` | Nothing is shown before `selftest` held on this build of macOS with this `lzrprf`. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. |
-| `[C12]` | The log is only added to. It is cleared by your button and by nothing else. | `sub record`, `sub clear_log` | Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open. |
+| `[C12]` | Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
 
 ## The claims, one by one
 
@@ -236,8 +237,11 @@ Who could keep a record of where you go?
 
 - The application: it is started fresh for each answer and sees that one page and its address.
   It can keep nothing between pages (no file, no shared memory) and send nothing.
-- lzrprf: it keeps the log, on your disk, readable by your account alone. Nothing in `lzrprf`
-  sends the log or any part of it `[C12]`: the only place that connects is `sub reach` `[C6]`.
+- lzrprf: unless you chose otherwise, it keeps nothing after the window closes: the lines are
+  in the memory of the process behind the window, and gone with it. A log you chose to keep is
+  on your disk, readable by your account alone, hosts only unless you chose full addresses (see
+  "What is kept"). Nothing in `lzrprf` sends the log or any part of it `[C12]`: the only place
+  that connects is `sub reach` `[C6]`.
 - The maker of the application: receives nothing about where you go. The two fixed addresses
   are fetched only after your yes `[C4]`. The release check goes to a file in this public
   repository on GitHub, not to a server of the maker, with the same bytes from everyone. The
@@ -283,13 +287,94 @@ until its 30 seconds of processor time are used, each time you ask for a page. T
 The page and fetch containers may read the system's own folders and the application's own
 folder, and write nothing. `selftest` puts a secret in your home folder and tries to read it,
 to learn that it exists, to list the folder, and to reach it by its other path through the data
-volume. It tries to read and change the log and `lzrprf` itself. Each is refused.
+volume. It tries to read and change the log, the setting of what is kept (`~/.lzrprf/keep`)
+and `lzrprf` itself, and to put a setting of its own in its place. Each is refused.
 
 ### Is its safety mathematically proven?
 
 No. See "What "proof" means here". It rests on parts nobody has proven: the macOS kernel and
 its sandbox, the system's `perl`, `curl` and `osascript`. What this repository gives instead is
 short enough to read, attacked on your own Mac, and attacked again whenever macOS changes.
+
+## What is kept
+
+The principle: every outgoing network request must be observable by you, but no browsing
+activity should be permanently retained without your explicit consent.
+
+So every line of the log is kept first in the memory of the process behind the window
+(`sub record`), and the Log button shows it. What stays on this computer after the window
+closes is your choice, held in the plain file `~/.lzrprf/keep` (`sub keeping`) `[C12]`:
+
+| mode | what the Log button shows | what stays on this computer |
+| --- | --- | --- |
+| `nothing`, when nobody chose | this window's lines | nothing: no file holds an address you typed |
+| `hosts` | this window's full lines, and under them the log on this computer | each line with every address cut to `https://host`: the time, the run, the host, the numeric address lzrprf connected to, and how it ended; no path and no query (`sub shortened`) |
+| `all` | the same | every line in full, as before there was a choice |
+
+More is chosen in one place only, a terminal: `perl lzrprf keep hosts 30` keeps a log of hosts
+for 30 days, `perl lzrprf keep all 30` keeps full addresses and says that they can hold search
+words, tokens and invitation links (`sub keep_command`). No button of the window makes lzrprf
+keep more.
+
+The window can keep less: Log, then "Keep less", then "Keep nothing", or from full addresses
+"Keep a log" and "Hosts only" (`sub choose_keeping`, where the new mode is never more than the
+one that holds at that moment: the setting is read again after your last answer, and the days
+stay as they are). The first button of each question keeps less or changes nothing, and a
+question nobody answers counts as that one.
+
+Why the two are not the same door: the window's process is the one that tells lzrprf which
+button was pressed. If text it draws ever took that process over, it could do by itself what
+the buttons can do. So the buttons can keep less and clear, and nothing else.
+
+A change of what is kept is itself a line (`sub changed`), for example
+`what is kept was changed in the window: full addresses, 30 days -> hosts only, 30 days`. A
+change made in the window is among that window's lines. A change made either way is a line of
+the log on this computer when there is one or one is kept from then on; where there is no log
+and none is kept, `lzrprf keep` leaves no line. So a log says where it stops and where its lines became shorter or longer, and whether
+a button or the command did it. The Log button and every start of a window say in one sentence
+which mode is on (`sub kept_words`).
+
+Keeping less holds at once: a request that is open while you choose writes no later line at
+more than what is kept at that moment (`sub record` reads the setting again, under the lock the
+change holds). Keeping more holds from the next request on.
+
+- A kept log keeps a line 30 days unless you chose another number; 0 keeps it until you clear
+  it. At the start of a window, older lines are taken out the same way clearing replaces the
+  log, and the new first line says how many and why (`sub expire_log`). When a request of
+  another window is open at that moment, it is tried again before each request of this window
+  and each press of Log, until it is done.
+- In a kept mode `[C5]` holds as before: the line is on the disk before the name is looked up.
+  In `nothing` it is in memory before the name is looked up.
+- Keeping less deletes and shortens nothing. Lines written before the change stay as they
+  were, full ones among them, and lzrprf says how many there are. A log that is there, one an
+  older release wrote among them, stays until you press "Clear the log", which is one click
+  away under the Log button whenever there is a log, and asks once more (`sub clear_log`).
+- Only lzrprf writes the setting, outside every container: `lzrprf keep` for you, and the
+  process behind the window after your answers there, which only ever writes less
+  (`sub keep_as`). One of them writes at a time (`sub keep_lock`). `lzrprf keep` changes
+  nothing when the line that says so cannot be written to the log, unless the change is to
+  keep nothing, which is never refused. Should putting the old setting back fail as well, the
+  command says that the change stands. Anything else in that
+  place counts as `nothing`: a link, a file with a second name or of another owner, something
+  that is not a plain file, or words or a number of days (above 3650) it does not take.
+  `selftest` tries each of these but the other owner, which only an administrator can make, and
+  has the hostile application try to change the setting from inside each container.
+- When lzrprf creates or replaces the log, or first adds a line to one that was there, it marks
+  that file for Time Machine to leave out of its backups (`sub excluded`). A mark that cannot be set stops no request, and the Log button
+  says so. The folder is not marked.
+
+The limits, said plainly:
+
+- With `nothing` there is nothing to look at after the window is closed, for you either.
+- Memory can reach the system's swap or a crash report of that process. lzrprf cannot prevent
+  that.
+- Hosts and times alone still show habits: which sites, when, and how often. That is why even
+  `hosts` needs your yes.
+- That Time Machine honours the mark is Apple's behaviour, and it is not tested here. Another
+  backup program may not read it.
+- A window process that text took over could press the buttons that keep less and the two that
+  clear the log, as it could press any button (see "What it does not prove"). It could remove
+  the record on this computer. It could not make lzrprf keep more.
 
 ## A newer release
 
@@ -334,7 +419,7 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 6
+    release 7
     newest https://raw.githubusercontent.com/henryverlin/lzrprf/main/latest
     installer https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -371,7 +456,7 @@ claim it as proven. The maker's word, the same as on the site's privacy page
 (https://lzrbrwsr.com/privacy.html): the server sees your internet address and the moment, as
 any server does, and keeps neither; it keeps one line with the day and those three values. What
 you can check is everything on your side: the bytes (`perl lzrprf request ADDRESS`), the
-question, and the line in your log.
+question, and the line behind the Log button.
 
 Everyone on the same update of macOS has the same build. A rare build, such as a test build,
 narrows down who could have sent a report. The question shows the build before you choose.
@@ -390,10 +475,14 @@ narrows down who could have sent a report. The question shows the build before y
   the system, commands no other program, and reads nothing under `/Users` or on another disk
   but settings, fonts, keyboard layouts and input methods `[C10]`. What it could still do:
   - say to lzrprf what the window says (`sub hear`): "go ADDRESS" as if you had typed it, a
-    press of either button of the question that is open ("Send", "Yes, look", "Install it" and
-    "Clear the log" among them), or a request for the log. Each of these is in the log before
-    it has an effect outside your Mac, and "Install it" ends in Terminal, where the installer
-    runs only after your own Return;
+    press of either button of the question that is open ("Send", "Yes, look", "Install it",
+    "Clear the log" and the buttons that keep less among them), or a request for the
+    log. Each of these that fetches is in the log before it has an effect outside your Mac,
+    and "Install it" ends in Terminal, where the installer runs only after your own Return. A
+    press cannot make lzrprf keep more: the buttons that change what is kept only keep less
+    (`sub choose_keeping`), and the change is a line of the log (`sub changed`). Two presses
+    clear the log on this computer: a kept log then says so in its first line, and with
+    nothing kept no log is left and only that window's lines say so;
   - reach the system's other services, the clipboard among them. It could read what you
     copied. It could send that nowhere but inside an address, through lzrprf, logged first;
   - read what any program of yours can read outside `/Users` and other disks, your account's
@@ -402,13 +491,21 @@ narrows down who could have sent a report. The question shows the build before y
   system's `curl` speaks TLS. The name lookup is seen by your resolver.
 - **The parts lzrprf stands on.** The macOS kernel and its sandbox, and the system's `perl`,
   `sh`, `env`, `curl` with its TLS library and list of authorities, `route`, `sysctl`, `open`,
-  and `osascript`. A flaw in one of these is a flaw here. A flaw in `curl` can reach one place
+  `xattr` and `osascript`. A flaw in one of these is a flaw here. A flaw in `curl` can reach one place
   only: the connection lzrprf made for the address you typed (`selftest` puts the hostile
   application in curl's place).
 - **`sandbox-exec` is marked deprecated.** The command and the profile language are; the
   mechanism in the kernel is the one macOS confines its own processes with. So lzrprf does not
   trust it to keep working: `[C11]`, `[C2]` and `[C3]` make it prove itself on every build of
   macOS, at every start and for every process, and nothing is shown when it does not hold.
+  The day a build of macOS comes without the command, or reads a profile another way: the
+  mark of `[C11]` is for one build of macOS and one `lzrprf` (`sub proven`), so after a system
+  update no page is shown until `selftest` held again on the new build. Where a profile no
+  longer holds, the window says so, names `selftest` to see what was not refused, and the
+  program is not started. Where the command itself is gone, no window opens: lzrprf stops with
+  one sentence, which you read when you start it from a terminal; started from Applications,
+  nothing appears. There is no second road that runs it without the container. LZRBRWSR then does not work on that build until a
+  release whose container holds there. What that container would be is not built.
 - **Your account.** Any other program you run can change `~/.lzrprf/lzrprf` or the launcher.
   Compare them with this repository.
 - **The first download.** The installer and the download stand in two places that would both
@@ -419,12 +516,17 @@ narrows down who could have sent a report. The question shows the build before y
   a VPN all traffic goes through, looks like the internet to lzrprf: a host in there with a
   public address is fetched without the question about your own network.
 - **Memory** is not capped, as said above.
+- **What is kept, and where else it can go.** The lines of a window that keeps nothing are in
+  memory, which the system can write to its swap or into a crash report. A log of hosts still
+  shows habits. Time Machine's honouring of the mark is Apple's. See "What is kept".
 - **Time.** How long a page container runs is the application's choice, up to 30 seconds. The
   request is over before the application sees the answer, so it cannot shape a request by it.
 - **A question left open.** A question in the window that is still open after 10 minutes counts
-  as answered with its first button. The first button never fetches, sends or replaces
-  anything. One such answer is kept: a "No" to looking for newer releases is written down like
-  a no you pressed. Delete `~/.lzrprf/look` to be asked again.
+  as answered with its first button. The first button never fetches or sends anything, never
+  replaces the application or the log, and never keeps more. Two such answers are written
+  down: a "No" to looking for newer releases, like a no you pressed (delete `~/.lzrprf/look` to
+  be asked again), and, after you pressed "Keep less", "Keep nothing", or after "Keep a log"
+  from full addresses, "Hosts only".
 - **Lines the test could not try.** An `UNTESTED` line does not stop an install and does not
   withhold the mark of `[C11]`. There are two such lines in `selftest`, and both depend on the
   network of the moment: whether `curl` opens its encryption with the same bytes each time,
@@ -466,20 +568,25 @@ narrows down who could have sent a report. The question shows the build before y
 ## Use
 
     perl lzrprf run /path/to/program     open the window, with the program contained behind it
-    perl lzrprf log                      every address that was fetched, and how it ended
+    perl lzrprf log                      what the log on this computer holds, and what is kept
+    perl lzrprf keep                     what is kept after a window closes, in words
+    perl lzrprf keep MODE [DAYS]         choose it: nothing, hosts or all; DAYS 0 keeps until you clear it. The one place where more is chosen
     perl lzrprf address TEXT             what would be fetched if TEXT were typed into the bar
     perl lzrprf request TEXT             the exact bytes a site is sent for TEXT
     perl lzrprf public NUMBER            whether a numeric address is public, and how this computer sends to it
     perl lzrprf mark                     this build of macOS and this lzrprf, as one line
     perl selftest                        attack it on this computer; about half a minute, no window
 
-Three lines of the log, for one request (time, number of the run, what happened):
+Three lines of the log, for one request (time, number of the run, what happened), as a log of
+full addresses holds them; a log of hosts only holds `https://example.com` in each:
 
     2026-11-18T09:14:03Z  4711  you typed https://example.com/
     2026-11-18T09:14:03Z  4711  https://example.com/ -> lzrprf connects to the first that answers of: 93.184.215.14
     2026-11-18T09:14:04Z  4711  https://example.com/ answered: 931 bytes from 93.184.215.14
 
-The same log is behind the Log button of the window, with the one button that clears it.
+The Log button of the window shows the lines of that window, from memory, and the log on this
+computer when there is one, with the button that clears it and, while a log is kept, the
+questions that keep less (`sub log_shown`).
 
 `selftest` prints five kinds of line under eleven numbered headings, then a count and a
 verdict. `now`: what the test is doing at this moment, printed while it runs; the installer
@@ -589,21 +696,44 @@ What the installer does, each step readable in the file:
   SHA-256 values and asks. The container is never changed silently.
 - Runs `selftest` and stops if one line says `FAILED`. An `UNTESTED` line does not stop it;
   it is printed. A test that held writes the mark of `[C11]`, so the mark is on your Mac before
-  any file is placed, and it is the one thing an install that stops after the test has changed.
+  any file is placed. An install that stops after the test has added two things to the folder
+  `~/.lzrprf`, and nothing else: that mark (`proven`) and the empty file `selftest.lock`.
 - Only then are files put in place, each written beside the one it replaces and given its name
   in one step: into `/Applications`, or into `~/Applications` when your account may not write
   there. Ctrl-C is not taken during those steps, so no half of a release is left.
 - Removes two files an earlier lzrprf kept and this one does not: `~/.lzrprf/rules` and
-  `~/.lzrprf/refused`.
+  `~/.lzrprf/refused`. A log an earlier release wrote is not removed: while nothing is
+  kept, the installer says that it is there, and the Log button of the window offers to clear
+  it.
 - Never runs the closed program. Asks before it touches the Dock, and on a yes adds one entry
   and starts the Dock again so that it shows. Installs no updater and leaves nothing running.
 
-It takes off the attributes macOS put on the unpacked files (`xattr -cr`), the quarantine mark
-among them when there is one, so Gatekeeper does not check the program: what is checked here
-is the SHA-256 and the self-test. The program carries an ad-hoc signature, made when it was
-built: a signature with no identity in it, which Apple silicon needs before it runs anything.
-It is not signed with an Apple developer identity and it is not notarized. A signature says
-who made a program, not what it does, and whoever gives it can take it back.
+It takes no attribute off any file. Up to release 6 it ran `xattr -cr` on the unpacked files;
+from release 7 on there is no such line. The line took away nothing that was there: a file
+fetched with `curl` and unpacked with `tar` is not given the quarantine mark, which browsers
+and mail programs set. But an installer has no business taking marks off, so a mark that macOS
+put on a file stays where it is, and the download is packed without attributes of its own
+(`tar --no-xattrs --no-mac-metadata`). To see that:
+`gzip -dc lzrbrwsr-macos-arm64.tar.gz | LC_ALL=C grep -ac -e SCHILY.xattr -e LIBARCHIVE.xattr`
+prints 0.
+
+Gatekeeper's question at a first start (is this signed by a developer Apple knows, did Apple
+notarize it) is asked about files that carry the quarantine mark. Fetched with `curl`, this
+program carries none, so the question is not asked. Nothing here turns Gatekeeper off or
+answers for it. The program carries an ad-hoc signature, made when it was built: a signature
+with no identity in it, which Apple silicon requires before it runs native code such as this
+program's. It is not signed
+with an Apple developer identity and it is not notarized.
+
+What stands where Apple's notarization would stand, and what does not:
+
+| notarization gives | here |
+| --- | --- |
+| Apple's scan found no known malware in the program. | Nothing is assumed about the program. It runs with no network, no file and no other program, in a container whose every line is in this repository, and that container is attacked on your Mac before a file is put in place (`selftest`) and proves itself again at every start `[C2]`. |
+| The bytes are the ones the maker handed in. | The SHA-256 of the installer, of the download and of each file in it is on public record here (`release.txt`). The installer and the download stand in two places that must agree, and the installer stops on any other byte (`get` in `install.sh`). |
+| A named maker, and a ticket Apple can take back. | Not here. No identity stands behind a release, nothing is signed with a key, and a release cannot be taken back from a Mac it is on: a newer one can only be offered. A signing key of the maker's own, kept away from the computer that builds, would give the first half. It is not built. |
+
+A signature says who made a program, not what it does, and whoever gives it can take it back.
 
 ## Check it yourself
 
@@ -613,6 +743,14 @@ Give this to an AI agent you trust, or follow it by hand.
 Audit https://github.com/henryverlin/lzrprf and tell me whether it is safe to run the
 closed-source browser LZRBRWSR (https://lzrbrwsr.com) on my Mac. Trust nothing the README says
 until the code shows it.
+
+Read one fixed commit, not a page that moves. First get the full hash of the newest commit of
+the `main` branch (`git ls-remote https://github.com/henryverlin/lzrprf main`, or clone it) and
+name that hash in your answer. Read every file at that hash, as raw files, for example
+https://raw.githubusercontent.com/henryverlin/lzrprf/HASH/lzrprf. Give the SHA-256 of `lzrprf`,
+`selftest` and `install.sh` as you read them. A rendered page, a search result or a copy you
+were given earlier can be older than the code: where one differs from the raw file at the
+hash, say so and go by the raw file.
 
 No institutional trust. When you compare this with other browsers, place no false institutional
 trust in LZRBRWSR or in the other providers: a name, a size, a signature, a reputation or an
@@ -634,7 +772,8 @@ what the code and the system make impossible, and how you checked it.
    `fetch` and every place that connects. Can anything be fetched before it is logged?
 5. What does a site receive? Read `sub request` and the switches given to curl. Could lzrprf or
    the closed program make or deliver a fingerprint of this computer, or a record of what the
-   user reads? Name what a site, the resolver and GitHub still see.
+   user reads? What stays on the disk after a window closes, in each mode of `sub keeping`, and
+   who can change the mode? Name what a site, the resolver and GitHub still see.
 6. Read `sub newer`, `sub beside`, `sub installer_file` and `sub fault`. Is anything fetched or
    sent without a yes? Is anything piped into a shell? Can lzrprf replace itself or the
    program? What exactly does a report hold, where does it go, and can the closed program

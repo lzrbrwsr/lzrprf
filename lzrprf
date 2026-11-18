@@ -4,7 +4,8 @@
 # done: fetch the https address that you typed into the bar of that window.
 #
 #   lzrprf run /path/to/program [arguments]     open the window, with the program contained behind it
-#   lzrprf log                                  print every address that was fetched
+#   lzrprf log                                  print what the log on this computer holds
+#   lzrprf keep [nothing|hosts|all [DAYS]]      say, or choose, what is kept after a window closes
 #   lzrprf address TEXT...                      say what would be fetched if TEXT were typed into the bar
 #   lzrprf request TEXT...                      print the exact bytes a site is sent for TEXT
 #   lzrprf public NUMBER...                     say whether a numeric address is on the public internet, and how this computer would send to it
@@ -33,14 +34,14 @@
 #   [C2]  At every start lzrprf tries, from inside that same container, what the container must refuse, and starts nothing unless all of it was refused and the same tries worked outside.
 #   [C3]  No process is handed a byte before the system itself says that this process is contained.
 #   [C4]  A request is made only for an address that came from the window's bar, or for one of two fixed addresses after you said yes. There is no third way to a request.
-#   [C5]  Nothing is looked up or fetched before its line is in the log, on the disk.
+#   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
 #   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
 #   [C7]  What a site is sent is made from the address alone: the same bytes from every computer, with nothing kept from an earlier request.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of four kinds of line is not drawn at all.
 #   [C10] The window's process has no network of its own, writes no file, starts no program, opens nothing through the system, commands no other program, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. lzrprf asks the system whether that holds before anything is shown. It still reaches the system's services, the clipboard among them.
 #   [C11] Nothing is shown before selftest held on this build of macOS with this file.
-#   [C12] The log is only added to. It is cleared by your button and by nothing else.
+#   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #
 # This file is the whole program. Its parts, in order: the containers, the
 # proof that they hold, one visit, the fetch, the window's side, the log, the
@@ -49,7 +50,7 @@ use strict;
 use warnings;
 use Cwd 'abs_path';
 use Digest::SHA;
-use Fcntl qw(:flock O_RDWR O_WRONLY O_APPEND O_CREAT O_EXCL O_NOFOLLOW);
+use Fcntl qw(:flock O_RDONLY O_RDWR O_WRONLY O_APPEND O_CREAT O_EXCL O_NOFOLLOW O_NONBLOCK);
 use File::Basename 'dirname';
 use File::Glob 'bsd_glob';
 use IO::Handle;
@@ -83,18 +84,25 @@ my $BOXES = 2000;                         # the most grey boxes among them
 my $ANSWER_SECONDS = 600;                 # a question that is still open then counts as answered with its first button
 my $NAME = qr/(?:[A-Za-z0-9-]{1,63}\.)+[A-Za-z][A-Za-z0-9-]{0,62}/;    # a host name: never a bare number, never one word
 my $UNWRITTEN = 'Nothing was fetched: the log could not be written.';
+my $KEPT_DAYS = 30;                       # how long a kept log keeps a line, when you chose a kept log and no number of days
+my $KEPT_MOST = 3650;                     # a setting of more days than this is no setting: nothing is kept
 
 # "lzrprf try" is the same program for tests (selftest, and nothing else):
 # its state is in a folder of its own, every name leads to one listener on
 # this computer, whose certificate must be signed by the test's own
 # authority, and with "allow" or "deny" there is no window: what the window
 # would be told is printed, what would be typed is the test's text, and every
-# question gets that one answer. With "ask" the real window runs, and the
+# question gets that one answer; with a row of the digits 1 and 2 instead,
+# each question in turn gets the next one, and once the row is used up every
+# question is answered as nobody answering would. With "ask" the real window runs, and the
 # test may add text of its own to the window's. A test that puts a file
 # "prove" into its folder gets the question of [C11] as well, against a mark
 # in that folder. "lzrprf run" has none of this.
 my ($TRY, $PEER, $TYPED, $ANSWER, $RUN, $APP, $PROGRAM, @ARGUMENTS) = (0, '-', '-', 'ask', 0, 'the application', '');
 my ($FROM, @EVENTS);                      # what the window says; or, without a window, what a test has typed
+my %MORE = (nothing => 0, hosts => 1, all => 2);    # what is kept, from less to more
+my $HALF;                                 # the line of a change reached the log, and the system did not say that it is on the disk
+my (@SESSION, $UNMARKED, $MARKED, $UNEXPIRED);    # this window's lines, in the memory of the process behind it and nowhere else; whether a log could not be marked for Time Machine; whether this process marked it; whether the days you chose still wait for another window's request to end
 
 sub now { Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) }    # a clock nobody can set: seconds since the computer started
 
@@ -404,8 +412,9 @@ sub behind {
     return closed("lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e "$DIR/prove") || proven();    # [C11]
     return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless holds();    # [C2]
     return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
+    $UNEXPIRED = !expire_log();           # [C12] the days you chose, at the start of a window; when a request of another window is open just then, it is tried again before each request of this window and each press of Log, until it is done
     newer();
-    idle("$APP is contained: no network, no file, no other program. lzrprf fetches what you type above, and writes it in the log first.");
+    idle("$APP is contained: no network, no file, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
     while (defined(my $event = hear())) {
         if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { visit($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window
         elsif ($event eq 'log') { log_shown() }
@@ -434,19 +443,21 @@ sub visit {
     my ($url, $host) = address($typed);
     return idle('lzrprf does not fetch that. An address must be https, a host by its name, port 443, in plain characters without a space.') unless $url;
     window("address $url");                 # the bar shows what will be sent, exactly
+    $UNEXPIRED = !expire_log() if $UNEXPIRED;
     open my $request, '>>', "$DIR/busy" or return idle($UNWRITTEN);
     flock $request, LOCK_SH or return idle($UNWRITTEN);    # from "you typed" until its last line is written, a request keeps the log from being cleared under it
-    record("you typed $url") or return idle($UNWRITTEN);  # [C5] before the name is even looked up
+    my ($kept) = keeping();                 # read once: no line of one request is kept at more than this, whatever is chosen while it runs; when less is chosen meanwhile, its later lines are kept at that (sub record)
+    record("you typed $url", $kept) or return idle($UNWRITTEN);  # [C5] before the name is even looked up
     busy("Looking up $host.");
     my ($where, $why) = find($host);
-    $why = own_network($host, $where) if $where && grep { $_->{own} } @$where;    # [C8]
+    $why = own_network($host, $where, $kept) if $where && grep { $_->{own} } @$where;    # [C8]
     my ($got, $from);
     if (!$why) {
-        record("$url -> lzrprf connects to the first that answers of: " . join ', ', map { $_->{text} } @$where) or return idle($UNWRITTEN);    # [C5] written down first, connected second
+        record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return idle($UNWRITTEN);    # [C5] written down first, connected second
         busy("Fetching $url");
         ($got, $why, $from) = fetch($url, $where);
     }
-    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from")) or return idle($UNWRITTEN);    # an answer whose line is not on the disk is not shown
+    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return idle($UNWRITTEN);    # an answer whose line could not be recorded is not shown
     close $request;
     return idle("Nothing is shown: $why.") if $why;
     busy("$APP lays the page out, in its container.");
@@ -770,15 +781,16 @@ sub fixed {
     my ($line, $url, $host) = @_;
     open my $request, '>>', "$DIR/busy" or return;
     flock $request, LOCK_SH or return;
-    record($line) or return;              # [C5]
+    my ($kept) = keeping();
+    record($line, $kept) or return;       # [C5]
     my ($where, $why) = find($host);
     $why = 'that host is not on the public internet' if $where && $PEER eq '-' && grep { $_->{own} } @$where;
     my ($got, $from);
     if (!$why) {
-        record("$url -> lzrprf connects to the first that answers of: " . join ', ', map { $_->{text} } @$where) or return;    # [C5]
+        record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return;    # [C5]
         ($got, $why, $from) = fetch($url, $where);
     }
-    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from")) or return;
+    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;
     return $why ? undef : $got;
 }
 
@@ -901,8 +913,8 @@ sub hear {                                # the next thing the window says; noth
 }
 
 # A question, in lzrprf's strip of the window, with two buttons. The first
-# button is always the one that fetches, sends and replaces nothing, and it
-# is the answer when the window closes or the time is over. Returns 1 or 2.
+# button is always the one that fetches, sends, replaces and keeps nothing, or
+# keeps less, and it is the answer when the window closes or the time is over. Returns 1 or 2.
 # Both sides count the questions, and a button says which question it
 # answers: a press that comes late, after its question ran out of time, is
 # not taken as the answer to the next one.
@@ -911,9 +923,10 @@ sub ask {
     my ($words, @buttons) = @_;
     $ASKED++;
     window(join "\t", 'ask ' . $words =~ s/\s+/ /gr, @buttons);
-    if (!$FROM) {
-        window('answered ' . ($ANSWER eq 'allow' ? 2 : 1));
-        return $ANSWER eq 'allow' ? 2 : 1;
+    if (!$FROM) {                         # "lzrprf try" only: the test's answer
+        my $press = $ANSWER eq 'allow' ? 2 : $ANSWER =~ s/^([12])// ? $1 : 1;
+        window("answered $press");
+        return $press;
     }
     my $until = now() + $ANSWER_SECONDS;
     while ((my $left = $until - now()) > 0) {
@@ -945,31 +958,108 @@ sub address {
 # lzrprf's strip of the window, and the yes holds for that one request.
 # Returns nothing after a yes, and the reason after a no.                # [C8]
 sub own_network {
-    my ($host, $where) = @_;
+    my ($host, $where, $kept) = @_;
     my $there = join ', ', map { $_->{text} } @$where;
     my $yes = ask("$host is not on the public internet. It leads to $there: this computer, a network of your own, or a place this computer reaches by a route of its own, such as a VPN. What answers there can be a device of yours, such as a router. Fetch it this once?", 'No', 'Yes, this once') == 2;
-    record('you ' . ($yes ? 'allowed' : 'refused') . " $host, which is inside your own network ($there)" . ($yes ? ', this once' : '')) or return 'the log could not be written';
+    record('you ' . ($yes ? 'allowed' : 'refused') . " $host, which is inside your own network ($there)" . ($yes ? ', this once' : ''), $kept) or return 'the log could not be written';
     return $yes ? undef : 'you said no to a host inside your own network';
 }
 
-# The log in the window: its last lines where a page stands, how much it
-# holds, and the one button that clears it. The log is cleared by that button
-# and by nothing else, and that it was cleared is the first line of the new
-# log.                                                                   # [C12]
+# The log in the window: this window's lines where a page stands, and under
+# them the log on this computer when there is one; one sentence on what is
+# kept; the button that clears the log whenever there is one; and, while a
+# log is kept, the questions that keep less. The log is cleared by that
+# button, and that it was cleared is the first line of the new log.     # [C12]
+# No button of the window makes lzrprf keep more: a log is chosen, and full
+# addresses are chosen, with "lzrprf keep" in a terminal and in no other
+# way. The window's process is the one that tells lzrprf which button was
+# pressed, so what it could do by itself, if text it draws took it over, is
+# what the buttons can do: keep less, and clear.
+# Every question here has the button that keeps less, or changes nothing,
+# first, and a question nobody answers counts as that one.
 sub log_shown {
+    $UNEXPIRED = !expire_log() if $UNEXPIRED;
+    my ($mode, $days, $unread) = keeping();
     my ($holds, $count, @lines) = holds_log();
-    window('page', 'Pc0', (map { ('T@' . (length > 300 ? substr($_, 0, 300) . ' ...' : $_), 'B') } map { s/\t/   /gr =~ s/[^\x20-\x7e]/?/gr } @lines ? @lines : '(nothing yet)'), '.');
-    my $says = "Every address lzrprf fetched for $APP. The log holds $holds." . ($count > @lines ? ' Below are its last ' . @lines . ' lines.' : '') . " The whole of it: $DIR/log";
-    return idle($says) unless $count && ask($says, 'Close', 'Clear the log') == 2;
-    return idle('The log was kept.') unless ask("Clear the log? It holds $holds. This cannot be undone.", 'Keep', 'Clear') == 2;
-    my $cleared = clear_log();
-    window('page', '.');
-    idle($cleared ? 'The log was cleared. Its first line now says so.' : 'The log was not cleared: an address is being fetched right now, or the log could not be written. Nothing was removed.');
+    my $plain = sub { map { ('T@' . (length > 300 ? substr($_, 0, 300) . ' ...' : $_), 'B') } map { s/\t/   /gr =~ s/[^\x20-\x7e]/?/gr } @_ };
+    my @mine = @SESSION > 200 ? @SESSION[-200 .. -1] : @SESSION;
+    window('page', 'P30', 'T@This window', 'Pc0', $plain->(@mine ? @mine : '(nothing yet)'), $count ? ('P30', 'T@On this computer', 'Pc0', $plain->(@lines)) : (), '.');
+    my $says = "Every address lzrprf fetched for $APP in this window is below" . (@SESSION > @mine ? ', its last ' . @mine . ' lines' : '') . '. ' . kept_words($mode, $days, $unread)
+        . ($count ? " The log on this computer holds $holds." . ($count > @lines ? ' Below are its last ' . @lines . ' lines.' : '') . " The whole of it: $DIR/log" . ($mode eq 'nothing' ? ' It was written earlier, and nothing more is added to it.' : '') : '')
+        . ($UNMARKED ? ' The log could not be marked for Time Machine to leave it out of backups.' : '');
+    undef $UNMARKED;                      # said once
+    if ($count) {                         # the clear, one click away whenever there is a log on this computer
+        if (ask($says, 'Keep the log', 'Clear the log') == 2) {
+            return idle('The log was kept.') unless ask("Clear the log? It holds $holds. This cannot be undone.", 'Keep', 'Clear') == 2;
+            my $cleared = clear_log();
+            window('page', '.');
+            return idle(!$cleared ? 'The log was not cleared: an address is being fetched right now, or the log could not be written. Nothing was removed.' : $mode eq 'nothing' ? 'The log was cleared: there is no log on this computer now.' : 'The log was cleared. Its first line now says so.');
+        }
+        $says = 'The log is as it was. ' . kept_words($mode, $days, $unread);
+    }
+    return idle("$says To keep a log, type in Terminal: perl $SELF keep hosts. No button of this window makes lzrprf keep more.") if $mode eq 'nothing';
+    return idle($says) unless ask($says, 'Close', 'Keep less') == 2;
+    choose_keeping($mode, $days);
 }
 
-sub holds_log {                           # what the log holds, in words; the number of its lines; the last 200 of them
+# Keeping less, in the window: full addresses can become hosts only, and
+# either can become nothing. Each first button keeps less. What is chosen
+# holds from the next request on, and deletes and shortens nothing that is
+# on the disk already: that is the button "Clear the log".
+sub choose_keeping {
+    my ($was, $days) = @_;
+    my $log = ask('What is kept after this window closes? A log on this computer lets you look back at what was fetched, and so can anyone who reads your files.', 'Keep nothing', $was eq 'all' ? 'Keep a log' : 'Hosts only, as now') == 2;
+    my $full = $log && $was eq 'all' && ask('A log of hosts only holds, for each request, the time, the host, the numeric address and how it ended: no path and no query. Full addresses can hold search words, tokens and invitation links.', 'Hosts only', 'Full addresses, as now') == 2;
+    my $mode = !$log ? 'nothing' : $full ? 'all' : 'hosts';    # never more than $was: "all" only from "all", "hosts" only from "all" or "hosts"
+    my $lock = keep_lock() or return idle("What is kept was not changed: $DIR/keep.lock could not be taken.");
+    my ($now, $left) = keeping();         # read again, under the lock: a question can stand open for minutes, and "lzrprf keep" may have run in that time
+    if ($MORE{$mode} >= $MORE{$now}) {    # nothing is written that is not less than what is kept at this moment
+        return idle('What is kept is as it was. ' . kept_words($now, $left)) if $now eq $was && $left == $days;
+        return idle('What is kept was changed elsewhere while this question was open. Nothing was written here. ' . kept_words($now, $left));
+    }
+    my (undef, $count) = holds_log();
+    my $writing = log_lock() or return idle("What is kept was not changed: $DIR/lock could not be taken.");
+    return idle("What is kept was not changed: $DIR/keep could not be written.") unless keep_as($mode, $left);    # the days as they are now: never more of them
+    my $told = changed('in the window', $now, $left, $writing);
+    idle('From the next request on: ' . kept_words(keeping()) . ($count ? " The log on this computer still holds $count lines written before this choice. They are not deleted or shortened: the Log button offers to clear it." : '')
+        . ($told ? '' : ' The log on this computer could not be given the line that says so.'));
+}
+
+# A change of what is kept is written down itself: among this window's
+# lines, and as a line of the log on this computer when there is one or one
+# is kept from now on. So a log says where it stops, or where its lines
+# became shorter or longer, and whether a button or the command did it.
+sub changed {
+    my ($how, $was, $before, $lock) = @_;
+    my ($mode, $days) = keeping();
+    my $named = sub { $_[0] eq 'nothing' ? 'nothing' : ($_[0] eq 'hosts' ? 'hosts only' : 'full addresses') . ($_[1] ? ", $_[1] days" : ', until cleared') };
+    my $line = line("what is kept was changed $how: " . $named->($was, $before) . ' -> ' . $named->($mode, $days));
+    push @SESSION, $line;
+    return 1 if $mode eq 'nothing' && !-e "$DIR/log";
+    $lock //= log_lock() or return 0;
+    my $new = !-e "$DIR/log";
+    my $size = (-s "$DIR/log") // 0;
+    if (!put("$DIR/log", O_APPEND, $line)) { $HALF = ((-s "$DIR/log") // 0) > $size; return 0 }
+    excluded("$DIR/log") if $new || !$MARKED++;
+    return 1;
+}
+
+sub log_lock {                            # one writer of the log at a time. A change of what is kept holds it from the setting to its line, so no line of a request falls between the two
+    open my $lock, '>>', "$DIR/lock" or return;
+    flock $lock, LOCK_EX or return;
+    return $lock;
+}
+
+sub keep_lock {                           # one writer of the setting at a time: a window's answers, or "lzrprf keep". Held from reading the setting to the line that says it changed
+    open my $lock, '>>', "$DIR/keep.lock" or return;
+    flock $lock, LOCK_EX or return;
+    return $lock;
+}
+
+sub holds_log {                           # what the log on the disk holds, in words; the number of its lines; the last 200 of them
     my ($count, $first, $last, @tail) = (0, '', '');
-    if (open my $in, '<', "$DIR/log") {
+    my $in;
+    if (sysopen($in, "$DIR/log", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) && -f $in) {    # a plain file and no link; a pipe put in its place is not waited for
         while (my $line = <$in>) {
             chomp $line;
             $first = $line unless $count++;
@@ -982,52 +1072,204 @@ sub holds_log {                           # what the log holds, in words; the nu
     return (sprintf('%d lines, %.1f MB, from %s to %s', $count, (-s "$DIR/log") / 1048576, map { /^(\S+)/ ? $1 : '?' } $first, $last), $count, @tail);
 }
 
-# The log. A line is added at the end, and this returns true only when the
-# system says the line is on the disk. Nothing in this file changes or removes
-# a line, and the log has no size at which anything is dropped; only you can
-# clear it, in the window. Nothing is looked up or fetched whose line could
-# not be written, and no answer is shown whose line could not.
-# Each line: the time, the number of the run it belongs to, what happened.
-# The log stays on this computer. Nothing in this file sends it, or any part
-# of it, anywhere.                                                       # [C12]
-sub record {
-    my ($what) = @_;
-    open my $lock, '>>', "$DIR/lock" or return 0;
-    flock $lock, LOCK_EX or return 0;
-    return put("$DIR/log", O_APPEND, $what);
+# What is kept, in a plain settings file of yours, "$DIR/keep": "nothing";
+# "hosts" or "all" with a number of days, 0 for until you clear it. Only
+# lzrprf writes it, outside every container: "lzrprf keep" for you, and the
+# process behind the window after an answer there that keeps less (sub
+# choose_keeping, sub keep_as). No container can write a file, and no button
+# of the window keeps more. Anything else in that place counts as
+# "nothing": no file, a link, a file of another owner or with a second name,
+# a file that is not plain, more than one short line, a word or a number
+# lzrprf does not take. Returns the mode, the days, and whether the file was
+# there and not read.                                                   # [C12]
+sub keeping {
+    sysopen(my $in, "$DIR/keep", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return ('nothing', 0, -l "$DIR/keep" || -e _);
+    my @is = stat $in;
+    return ('nothing', 0, 1) unless @is && -f _ && $is[3] == 1 && $is[4] == $< && $is[7] <= 64;
+    my $text = '';
+    sysread($in, $text, 65) // return ('nothing', 0, 1);
+    my ($mode, $days) = $text =~ /^(nothing|hosts|all)(?: ([0-9]{1,4}))?\n?\z/ or return ('nothing', 0, 1);
+    return ('nothing', 0, defined $days) if $mode eq 'nothing';
+    $days //= $KEPT_DAYS;
+    return $days <= $KEPT_MOST ? ($mode, $days + 0, 0) : ('nothing', 0, 1);
 }
 
-sub put {                                 # one line into a plain file of yours that no link leads elsewhere, and through to the disk
-    my ($file, $how, $what) = @_;
+sub kept_words {                          # what is kept, in one sentence
+    my ($mode, $days, $unread) = @_;
+    return ($unread ? "$DIR/keep is not a setting lzrprf takes, so: " : '') . 'Nothing is kept after this window closes.' if $mode eq 'nothing';
+    return 'Kept on this computer ' . ($days ? "for $days days" : 'until you clear it') . ': ' . ($mode eq 'hosts' ? 'hosts only.' : 'full addresses.');
+}
+
+sub keep_as {                             # the settings file, written beside the old one and through to the disk, then given its name in one step
+    my ($mode, $days) = @_;
+    unlink "$DIR/keep.new";
+    sysopen(my $out, "$DIR/keep.new", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) or return 0;
+    print($out $mode eq 'nothing' ? "nothing\n" : "$mode $days\n") && $out->flush or return 0;
+    return 0 unless ($^O eq 'darwin' ? defined fcntl($out, 51, 0) : $out->sync) && close $out;
+    rename "$DIR/keep.new", "$DIR/keep" or return 0;
+    synced();
+    return 1;
+}
+
+sub keep_command {                        # "lzrprf keep": what is kept, in words; or a new setting. The one place where more is chosen
+    my ($mode, $days) = @_;
+    mkdir $DIR, 0700;
+    my @folder = lstat $DIR;
+    die "lzrprf: $DIR is not a folder of yours\n" unless @folder && -d _ && $folder[4] == $<;
+    my $choices = "lzrprf keep nothing\n       lzrprf keep hosts|all [DAYS]     DAYS from 0 (until you clear it) to $KEPT_MOST, $KEPT_DAYS when it is left out\n";
+    my $lock = keep_lock() or die "lzrprf: $DIR/keep.lock could not be taken. Nothing was changed.\n";
+    my ($was, $before) = keeping();
+    my (undef, $count) = holds_log();
+    my $untold;
+    if (defined $mode) {
+        die "usage: $choices" unless $mode =~ /^(?:nothing|hosts|all)\z/ && (!defined $days || $mode ne 'nothing' && $days =~ /^[0-9]{1,4}\z/ && $days <= $KEPT_MOST);
+        my $writing = log_lock() or die "lzrprf: $DIR/lock could not be taken. Nothing was changed.\n";
+        keep_as($mode, $days // $KEPT_DAYS) or die "lzrprf: $DIR/keep could not be written. Nothing was changed.\n";
+        my ($now, $after) = keeping();
+        if (($now ne $was || $after != $before) && !changed('by "lzrprf keep"', $was, $before, $writing)) {    # the line that says so could not be written
+            if ($now eq 'nothing') { $untold = 1 }    # keeping nothing is never refused
+            else {
+                my $half = $HALF;
+                my $back = keep_as($was, $before);
+                my $noted = $back && $half && changed('back by "lzrprf keep", as the line before this one could not be confirmed on the disk', $now, $after, $writing);
+                die "lzrprf: the line that says what was changed could not be " . ($half ? 'confirmed on the disk' : 'written') . " in $DIR/log, so "
+                    . (!$back ? "the old setting was to be put back, and that failed too: the change stands unsaid. Look at $DIR/keep"
+                        : !$half ? 'nothing was changed'
+                        : 'the old setting was put back. The log holds the line of the change' . ($noted ? ', and after it the line that it was put back' : ', and not that it was put back')) . ".\n";
+            }
+        }
+        print 'From the next request on: ';
+    }
+    my ($now) = keeping();
+    print kept_words(keeping()) =~ s/this window closes/a window closes/r, "\n";
+    print "Full addresses can hold search words, tokens and invitation links.\n" if $now eq 'all';
+    print "The log on this computer still holds $count lines written before this choice. They are not deleted or shortened: the Log button of the window offers to clear it.\n" if defined $mode && $count && $now ne 'all' && $now ne $was;
+    print "A log written earlier is still on this computer, $count lines. Nothing more is added to it: the Log button of the window offers to clear it.\n" if !defined $mode && $count && $now eq 'nothing';
+    print "The log on this computer could not be given the line that says so.\n" if $untold;
+    print "To choose: $choices" unless defined $mode;
+}
+
+# The log. Every line is kept in the memory of the process behind the window,
+# and there only, unless you chose a kept log: then it is added at the end of
+# the log on the disk too, cut to its hosts unless you chose full addresses,
+# and this returns true only when the system says the line is on the disk.
+# Nothing is looked up or fetched whose line could not be recorded, and no
+# answer is shown whose line could not.                                  # [C5]
+# Nothing in this file changes or removes a line of the log on the disk but
+# your button and the days you chose, and the log has no size at which
+# anything is dropped. Each line: the time, the number of the run it belongs
+# to, what happened. The log stays on this computer. Nothing in this file
+# sends it, or any part of it, anywhere.                                 # [C12]
+sub record {
+    my ($what, $mode) = @_;
+    my $line = line($what);
+    ($mode) = keeping() unless defined $mode;    # a request reads it once and hands it in: none of its lines is kept at more than that
+    my $lock;
+    if ($mode ne 'nothing') {
+        $lock = log_lock() or return 0;
+        my ($now) = keeping();            # read again, under the lock a change of what is kept holds: when less was chosen while this request is open, no line follows the line of that change at more
+        $mode = $now if $MORE{$now} < $MORE{$mode};
+    }
+    if ($mode ne 'nothing') {
+        my $new = !-e "$DIR/log";
+        put("$DIR/log", O_APPEND, $mode eq 'hosts' ? shortened($line) : $line) or return 0;
+        excluded("$DIR/log") if $new || !$MARKED++;    # a new log, and once in each window a log that was there already, such as one an earlier release wrote
+    }
+    push @SESSION, $line;
+    return 1;
+}
+
+sub line { strftime('%Y-%m-%dT%H:%M:%SZ', gmtime) . "\t$$\t$_[0]" }    # the time, the run, what happened
+
+# A line of a log of hosts only: every address in it cut to https://host. So
+# the disk holds the time, the run, the host, the numeric addresses lzrprf
+# connected to and how it ended; no path, no query, no name before an @.
+sub shortened { $_[0] =~ s{https://(?:[^/?#\s\@]*\@)?([A-Za-z0-9.-]+)\S*}{https://$1}gr }
+
+# Time Machine leaves out of its backups a file with this mark. That it does
+# is Apple's doing and is not tested here. A mark that could not be set
+# stops nothing, and the Log button says so once.
+sub excluded {
+    my ($file) = @_;
+    my (undef, $done) = said(5, '/usr/bin/xattr', '-w', '-s', 'com.apple.metadata:com_apple_backup_excludeItem', 'com.apple.backupd', $file);
+    $UNMARKED = 1 unless $done;
+    return $done;
+}
+
+sub put {                                 # lines into a plain file of yours that no link leads elsewhere, and through to the disk
+    my ($file, $how, @lines) = @_;
     sysopen(my $out, $file, O_WRONLY | O_CREAT | O_NOFOLLOW | $how, 0600) or return 0;
     my @is = stat $out;
     return 0 unless -f _ && $is[3] == 1 && $is[4] == $<;
-    print($out strftime('%Y-%m-%dT%H:%M:%SZ', gmtime) . "\t$$\t$what\n") && $out->flush or return 0;
+    print($out map { /\n\z/ ? $_ : "$_\n" } @lines) && $out->flush or return 0;
     return 0 unless $^O eq 'darwin' ? defined fcntl($out, 51, 0) : $out->sync;    # 51 is F_FULLFSYNC: through the disk's own cache
     return close $out;
 }
 
-# Clearing: the new log, whose first line says what the old one held, is
-# written beside the old one and through to the disk, and then takes its
-# name in one step. So at no moment is there a log that was emptied without
-# saying so. It is not cleared while a request is between its first line and
-# its last.
+sub synced { if (open my $folder, '<', $DIR) { $^O eq 'darwin' ? fcntl($folder, 51, 0) : $folder->sync } }    # a change of name, through to the disk too
+
+# Replacing the log: the new log, whose first line says why, is written
+# beside the old one and through to the disk, marked for Time Machine, and
+# then takes its name in one step. So at no moment is there a log that was
+# emptied or shortened without saying so.                                # [C12]
+sub replace_log {
+    unlink "$DIR/log.new";
+    unless (put("$DIR/log.new", O_EXCL, @_)) { unlink "$DIR/log.new"; return 0 }    # what could not be written whole is not left beside the log
+    excluded("$DIR/log.new");
+    unless (rename "$DIR/log.new", "$DIR/log") { unlink "$DIR/log.new"; return 0 }
+    synced();
+    return 1;
+}
+
+# Clearing: by your button only, and not while a request is between its
+# first line and its last. With a kept log the new log's first line says what
+# the old one held. When nothing is kept, the log an earlier window or an
+# earlier release left is taken away whole.
 sub clear_log {
     open my $requests, '>>', "$DIR/busy" or return 0;
     flock $requests, LOCK_EX | LOCK_NB or return 0;
     open my $lock, '>>', "$DIR/lock" or return 0;
     flock $lock, LOCK_EX or return 0;
     my ($holds) = holds_log();
-    unlink "$DIR/log.new";
-    put("$DIR/log.new", O_EXCL, "you cleared the log: it held $holds") or return 0;
-    rename "$DIR/log.new", "$DIR/log" or return 0;
-    if (open my $folder, '<', $DIR) { $^O eq 'darwin' ? fcntl($folder, 51, 0) : $folder->sync }    # the change of name, through to the disk too
-    return 1;
+    if ((keeping())[0] eq 'nothing') {
+        unlink "$DIR/log.new";            # and what a replacing that failed may have left beside it
+        unlink "$DIR/log" or return 0;
+        synced();
+        push @SESSION, line("you cleared the log: it held $holds");    # no log is left to say so: this window's lines do
+        return 1;
+    }
+    return replace_log(line("you cleared the log: it held $holds"));
+}
+
+# The days you chose. At the start of a window, the lines of a kept log that
+# are older than that are taken out, the way clearing replaces the log, and
+# the new first line says how many and why. With 0 days, or when nothing is
+# kept, no line is taken out: a log an earlier release left stays as it is
+# until you clear it.                                                    # [C12]
+sub expire_log {
+    my ($mode, $days) = keeping();
+    return 1 if $mode eq 'nothing' || !$days || !-e "$DIR/log";
+    open my $requests, '>>', "$DIR/busy" or return 0;
+    flock $requests, LOCK_EX | LOCK_NB or return 0;
+    open my $lock, '>>', "$DIR/lock" or return 0;
+    flock $lock, LOCK_EX or return 0;
+    my $before = strftime('%Y-%m-%dT%H:%M:%SZ', gmtime(time - $days * 86400));
+    my ($old, @kept) = (0);
+    sysopen(my $in, "$DIR/log", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 0;
+    return 0 unless -f $in;                # a plain file and no link; a pipe put in its place is not waited for
+    while (my $one = <$in>) {
+        if ($one =~ /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)\t/ && $1 lt $before) { $old++ } else { push @kept, $one }    # a line without a time is kept
+    }
+    close $in;
+    return 1 unless $old;
+    return replace_log(line("lzrprf took out $old lines older than $days days, as you chose"), @kept);
 }
 
 sub show {
+    my ($mode, $days, $unread) = keeping();
+    print 'What is kept: ', kept_words($mode, $days, $unread) =~ s/this window closes/a window closes/r, $mode eq 'all' ? '' : ' The full lines of a window that is open now are in that window only: press its Log button.', "\n";
     print "when (UTC)\trun\twhat you typed, where lzrprf connected for it, and how it ended\n";
-    if (open my $in, '<', "$DIR/log") { print <$in> } else { print "(nothing yet)\n" }
+    if (open my $in, '<', "$DIR/log") { print <$in> } else { print "(nothing on this computer)\n" }
 }
 
 # The proof for this computer. "selftest" attacks this file on this Mac and,
@@ -1340,12 +1582,14 @@ END
 }
 
 my $command = shift // '';
+die "lzrprf: this macOS has no /usr/bin/sandbox-exec. lzrprf contains with that command and with nothing else, so nothing was started.\n" if $command =~ /^(?:run|try)\z/ && !-x '/usr/bin/sandbox-exec';
 if ($command eq 'run') { run(@ARGV) }
-elsif ($command eq 'try' && @ARGV > 4 && $ARGV[0] =~ m{^\Q$DIR\E/[A-Za-z0-9.]+$} && $ARGV[1] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask)$/) {
-    ($TRY, $DIR, $PEER, $TYPED, $ANSWER) = (1, splice @ARGV, 0, 4);    # for tests: lzrprf try FOLDER PEER|- TYPED|- allow|deny|ask /path/to/program
+elsif ($command eq 'try' && @ARGV > 4 && $ARGV[0] =~ m{^\Q$DIR\E/[A-Za-z0-9][A-Za-z0-9.]*\z} && $ARGV[1] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask|[12]{1,9})$/) {
+    ($TRY, $DIR, $PEER, $TYPED, $ANSWER) = (1, splice @ARGV, 0, 4);    # for tests: lzrprf try FOLDER PEER|- TYPED|- allow|deny|ask|DIGITS /path/to/program
     run(@ARGV);
 }
 elsif ($command eq 'log' && !@ARGV) { show() }
+elsif ($command eq 'keep' && @ARGV <= 2) { keep_command(@ARGV) }
 elsif ($command eq 'address' && @ARGV) { print "$_\t", (address($_))[0] // 'not fetched: not an address lzrprf fetches', "\n" for @ARGV }
 elsif ($command eq 'request' && @ARGV) { print request((address($_))[0] // '') for @ARGV }
 elsif ($command eq 'public' && @ARGV) {
@@ -1366,4 +1610,4 @@ elsif ($command eq 'behind' && @ARGV > 5 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ 
     behind();
 }
 elsif ($command eq 'lookup' && @ARGV == 1 && $ARGV[0] =~ /^$NAME$/) { lookup(@ARGV) }    # started for one address that was typed, not by hand
-else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf log\n       lzrprf address TEXT...\n       lzrprf request TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }
+else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf log\n       lzrprf keep [nothing|hosts|all [DAYS]]\n       lzrprf address TEXT...\n       lzrprf request TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }
