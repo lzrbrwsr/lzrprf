@@ -2,11 +2,11 @@ LZRBRWSR for macOS on Apple silicon: the SHA-256 of everything https://lzrbrwsr.
 lzrprf and selftest are the files of this repository at commit ae7eafcc9b70c49ea59f445a3f64ffa7b124b80b.
 Check a file with: shasum -a 256 FILE
 
-1d50001f8b9e66a77b335fb03e7cdd577c042054a8bf24cfc3ba090dd1e74ac9  install.sh
-60e31410912833652952a434ec70c96e6c05a062af47e3d9f58b9cd50b124df2  lzrbrwsr-macos-arm64.tar.gz
+93585f0ea4fbec1fde588fe980b6b05cec33a5e556415edbc20ec37146c473fa  install.sh
+6ca9ab49e1cab13c33712a062cd9f2528f24b22bf7e2fa4ba0552eff9168af10  lzrbrwsr-macos-arm64.tar.gz
 b93212ae6d321e77456446381b4f537cf59f21563d926f7c205e405684f5dabc  LZRBRWSR.app/Contents/Info.plist
 acaf5bf267f354376a6c2272e7a008edc5c19a61a2544fbc743f12f97a3370b0  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
-2fe87c36c3d1f440e1e2ed975b8ec25a2650f8a1459084562df1a12dddb01e94  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
+60812dafba087860257de8e9b87018da4825214370720aab7d25336b45f0b90a  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
 5ae2fbe1e861b1e4dc9c289088fbbfdb7e83f85d1ad3c33f309e794703d1951c  LZRBRWSR.app/Contents/Resources/LICENSE.txt
 d538134742fe1726d098d7c7a351edcb100d7900e2ee285cb1a55050de5064dc  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
 60544518abf175300888fadbde21caf1f56b236d79c0cc545b00905fea9e1d75  lzrprf

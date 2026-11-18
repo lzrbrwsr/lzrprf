@@ -49,7 +49,7 @@ umask 022
 
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="60e31410912833652952a434ec70c96e6c05a062af47e3d9f58b9cd50b124df2"
+SHA256="6ca9ab49e1cab13c33712a062cd9f2528f24b22bf7e2fa4ba0552eff9168af10"
 LZRPRF_COMMIT="ae7eafcc9b70c49ea59f445a3f64ffa7b124b80b"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/henryverlin/lzrprf/$LZRPRF_COMMIT}"
 LZRPRF_SHA256="60544518abf175300888fadbde21caf1f56b236d79c0cc545b00905fea9e1d75"
@@ -120,8 +120,8 @@ cat <<ART
  ${G}┃${N}     box of its own, and the box is thrown away.                            ${G}┃${N}
  ${G}┃${N}   ▸ The browser keeps nothing: no cookies, no account, no                  ${G}┃${N}
  ${G}┃${N}     telemetry. The one record is that log, on your computer.               ${G}┃${N}
- ${G}┃${N}   ▸ Version one shows a page as its source text. Nothing a page            ${G}┃${N}
- ${G}┃${N}     sends is ever run.                                                     ${G}┃${N}
+ ${G}┃${N}   ▸ Version one lays a page out as text, with a grey box where             ${G}┃${N}
+ ${G}┃${N}     a picture stands. Nothing a page sends is ever run.                    ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃${N}  You do not have to take our word for any of it.                           ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
