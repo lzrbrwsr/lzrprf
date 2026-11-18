@@ -4,11 +4,11 @@ https://github.com/lzrbrwsr/lzrprf. Compare them: a difference means one place w
 lzrprf and selftest are the files of that repository at commit e28d57d0fcc8a252d8044a732ffd2efa19924793.
 Check a file with: shasum -a 256 FILE
 
-968654ff37dce7d79083340ed93e3121a6790358793582d2ef43aa1fc666393d  install.sh
-336c77f45bcc40b482b927aa4f9b8cc480a9c536e163746172d21214a9ffc5f3  lzrbrwsr-macos-arm64.tar.gz
+31994ef49698beaaf9edb3556f8181bf89f3f927bc784b257759648205536262  install.sh
+0cf91caa4bdfab02404fd9f2c72adf6412a431049b08f62f7435b17cb1d7373b  lzrbrwsr-macos-arm64.tar.gz
 e90b0a714519f5959185152fa2acfd4cac03662896ab77a86392e988f87d30b4  LZRBRWSR.app/Contents/Info.plist
 187f2b92e79623c95112a651cd469ef39afb86392b50e88d403b90c114094657  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
-d02999f58b3e8c893d420540c3e39fded4ea5cf1e9789141cd588d0efba0f749  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
+221c9ba1e8b21d0b5501a2fdf54be0bdbf28eee839987bef42a8cd42315ec7c8  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
 54dbcf635e61885963239b5dbcd1e1ba5b663aeffc39da17487f6cd66416ad38  LZRBRWSR.app/Contents/Resources/LICENSE.txt
 d538134742fe1726d098d7c7a351edcb100d7900e2ee285cb1a55050de5064dc  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
 b037d61ec76af8eb81d0fcf22322dc0ca12e8abed036e5ee7a952ddc776e5a34  LZRBRWSR.app/Contents/Resources/release

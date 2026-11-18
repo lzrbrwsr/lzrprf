@@ -73,7 +73,7 @@ TESTING="${LZRBRWSR_BASE:-}${LZRBRWSR_SECOND:-}${LZRPRF_BASE:-}${LZRBRWSR_DEST:-
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="336c77f45bcc40b482b927aa4f9b8cc480a9c536e163746172d21214a9ffc5f3"
+SHA256="0cf91caa4bdfab02404fd9f2c72adf6412a431049b08f62f7435b17cb1d7373b"
 RELEASE="9"
 LZRPRF_COMMIT="e28d57d0fcc8a252d8044a732ffd2efa19924793"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
@@ -117,15 +117,15 @@ cat <<ART
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
- ${G}┃${B}  OTHER BROWSERS PROTECT YOU FROM THE WEB.  NOT FROM THEMSELVES.            ${N}${G}┃${N}
- ${G}┃${B}  THIS ONE PROTECTS YOU FROM ITSELF, TOO.  AND GIVES YOU THE PROOF.         ${N}${G}┃${N}
+ ${G}┃${B}  BROWSE WITH ZERO TRUST.                                                   ${N}${G}┃${N}
+ ${G}┃${B}  PROOF OVER PROMISES.                                                      ${N}${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃${N}  Your browser sees everything: what you read, what you type, where         ${G}┃${N}
  ${G}┃${N}  you go. Until now you could only believe what it does with that.          ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
- ${G}┃${N}  LZRBRWSR runs locked inside lzrprf, an open container that you or         ${G}┃${N}
- ${G}┃${N}  an AI can audit. The browser is closed to protect our innovations.        ${G}┃${N}
- ${G}┃${N}  The cage is open so you can verify its safety.                            ${G}┃${N}
+ ${G}┃${N}  LZRBRWSR runs inside lzrprf, an open-source security container you or     ${G}┃${N}
+ ${G}┃${N}  an AI can audit. Built for clean, minimal and transparent browsing.       ${G}┃${N}
+ ${G}┃${N}  No bloatware. No spyware. No telemetry. No hidden background processes.   ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃${N}   ▸ The browser has no network and no window. lzrprf owns the one          ${G}┃${N}
  ${G}┃${N}     window, and fetches the address you type into its bar.                 ${G}┃${N}
@@ -142,7 +142,7 @@ cat <<ART
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃${N}  You do not have to take our word for any of it.                           ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
- ${G}┃${N}  Read the container   https://github.com/lzrbrwsr/lzrprf                ${G}┃${N}
+ ${G}┃${N}  Read the container   https://github.com/lzrbrwsr/lzrprf                   ${G}┃${N}
  ${G}┃${N}  Get the browser      https://lzrbrwsr.com                                 ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${N}
