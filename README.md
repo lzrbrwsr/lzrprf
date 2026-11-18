@@ -790,12 +790,22 @@ closed-source browser LZRBRWSR (https://lzrbrwsr.com) on my Mac. Trust nothing t
 until the code shows it.
 
 Read one fixed commit, not a page that moves. First get the full hash of the newest commit of
-the `main` branch (`git ls-remote https://github.com/lzrbrwsr/lzrprf main`, or clone it) and
-name that hash in your answer. Read every file at that hash, as raw files, for example
+the `main` branch and name that hash in your answer. Any one of these gives it:
+`git ls-remote https://github.com/lzrbrwsr/lzrprf main`, a clone, or the first "sha" in
+https://api.github.com/repos/lzrbrwsr/lzrprf/commits/main read with a web tool. Read every
+file at that hash, as raw files, for example
 https://raw.githubusercontent.com/lzrbrwsr/lzrprf/HASH/lzrprf. Give the SHA-256 of `lzrprf`,
 `selftest` and `install.sh` as you read them. A rendered page, a search result or a copy you
 were given earlier can be older than the code: where one differs from the raw file at the
 hash, say so and go by the raw file.
+
+What your tools cannot do is not a finding about lzrprf. If one tool cannot reach GitHub (a
+shell with no network, for example), say so in one line and use another tool. If none of your
+tools can read the raw files, stop and ask me for `lzrprf`, `selftest`, `install.sh` and
+`release.txt` as files. Never audit from memory or from a summary. Before you report that two
+copies of a file differ, fetch both again, past any cache of your own, and compare their
+SHA-256: lzrbrwsr.com sends `install.sh`, `release.txt` and the download with
+`Cache-Control: no-store`, so an older copy is your tool's, not the site's.
 
 No institutional trust. When you compare this with other browsers, place no false institutional
 trust in LZRBRWSR or in the other providers: a name, a size, a signature, a reputation or an
@@ -834,6 +844,12 @@ what the code and the system make impossible, and how you checked it.
    https://lzrbrwsr.com/release.txt and https://lzrbrwsr.com/lzrbrwsr-macos-arm64.tar.gz byte
    for byte with the three files here. The README says what two places are worth and what they
    are not: is that account complete and honest?
+   The commit the installer names is the newest one that changed `lzrprf` or `selftest`, so it
+   can be older than the newest commit of `main`. The other files at that older commit
+   (`install.sh`, `latest`, this README) belong to an earlier release: that is expected and is
+   not a finding. What must hold, and what you check: `lzrprf` and `selftest` at the commit the
+   installer names are byte for byte the ones at the newest commit, and `install.sh`,
+   `release.txt` and `latest` at the newest commit name one and the same release.
 8. Check each claim and each limit in the README against the code. Say which hold, which do
    not, and which you cannot decide. The README says it is not a mathematical proof: say what
    kind of evidence it is, and what it rests on.
