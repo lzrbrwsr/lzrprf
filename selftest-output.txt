@@ -129,7 +129,7 @@ held   a request is four lines: what you typed, your yes, where lzrprf connects,
 held   a log that cannot be written (no permission): nothing is looked up, nothing is fetched (Nothing was fetched: the log could not be written.)
 held   a log that cannot be written (a link that leads elsewhere): nothing is looked up, nothing is fetched (Nothing was fetched: the log could not be written.)
 held   the log is only added to, and has no size at which a line is dropped (30003 lines after 30000)
-held   the log is shown in the window, where a page stands (Every address lzrprf fetched for perl. The log holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.57460.logkeep/log	Close	Clear the log)
+held   the log is shown in the window, where a page stands (Every address lzrprf fetched for perl. The log holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.22805.logkeep/log	Close	Clear the log)
 held   the log is cleared by your button, after you were asked twice, and its first line then says so (you cleared the log: it held 3 lines, 0.0 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z)
 held   the log is not cleared while a request is between its first line and its last (The log was not cleared: an address is being fetched right now, or the log could not be written. Nothing was removed.)
 
@@ -167,7 +167,7 @@ held   there is one window, it carries the application's name, and the bar on to
 held   a question stands in lzrprf's strip of that window, and the bar takes nothing while it is open (No|Yes, this once|bar=false|site.test is not on the public internet. It leads to 127.0.0)
 held   the page is drawn in the same window; the bar shows the address that was sent; a link is a colour and leads nowhere (title=Test visible=false drawn=1 links=0 editable=false menu=1 bar=https://site.test/window?q=1 words=site.test answered 133 bytes. The page names 2 o)
 held   what was typed into the bar is what the site was asked, once (compared the bytes)
-held   the log is shown in the same window (Close|Clear the log|2026-11-18T18:21:44Z   58241   you typed https://site.test/w)
+held   the log is shown in the same window (Close|Clear the log|2026-11-18T18:51:11Z   23469   you typed https://site.test/w)
 
 9. The text of lzrprf, read by the test.
 held   the application is started on one line, and that line puts it in the page container (1 line)
@@ -186,8 +186,8 @@ held   an address on the internet is seen as sent that way (1.1.1.1 is sent the 
 held   what is typed is sent as typed, or not at all: https only, a host by its name, port 443, no name and password, no space, no control character (29 texts)
 
 11. The time limits.
-held   an application that never stops is ended (after 30 seconds: perl did not show this page: what it wrote is not a page.)
-held   an application that does nothing is ended (after 30 seconds)
+held   an application that never stops is ended (after 31 seconds: perl did not show this page: what it wrote is not a page.)
+held   an application that does nothing is ended (after 31 seconds)
 held   a site that never answers is given up on (after 30 seconds)
 
 165 held or worked.
