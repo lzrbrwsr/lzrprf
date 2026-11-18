@@ -35,8 +35,9 @@ does, and other systems have walls of their own to build one from.
 
 So lzrprf starts nothing it has not been tested with. `selftest` leaves a mark: this build of
 macOS, this exact `lzrprf`. `lzrprf run` compares the mark with now, and when macOS was updated or
-`lzrprf` changed, it asks to run the test again and starts the application only if every attack
-was held. The proof is renewed on your computer, by you, each time what it rests on changes.
+`lzrprf` changed, it asks to run the test again and starts the application only if no attack
+failed. An attack this Mac could not try (it has no C compiler, or the clipboard was empty) is
+printed as `UNTESTED` and does not stop it: read those lines. The proof is renewed on your computer, by you, each time what it rests on changes.
 
 ## How it works
 
@@ -55,7 +56,8 @@ The application can say two fixed sentences to the gateway, and neither has a pl
 
 Before any window of lzrprf opens, every process of the application, page containers included,
 is stopped by the system (`SIGSTOP`), and lzrprf waits until the system shows them stopped: they
-run no instruction while you read, type or press. After a window closed, however it closed, no
+run no instruction while you read, type or press, as long as they stayed in the application's
+process group (see "The window" under "What it does not prove"). After a window closed, however it closed, no
 new one opens for three seconds, so the application cannot put a window under a key you were
 already pressing.
 
@@ -90,13 +92,13 @@ started with `lzrprf run`, however malicious.
    manager (a window, its content, its place on the screen), launch services and a helper of
    theirs (asked when an application starts), and the events service (so that the system can
    tell it "you were opened again" and "quit"). It can receive such events; it cannot send one
-   to another application, and it gets no picture of another window: `selftest` tries both.
+   to another application: `selftest` tries it. See "The window" below for what a window brings.
 2. **Network ownership.** No container has a network: no connection, no name lookup, no datagram,
    no listening. The only connection to a site is made by lzrprf.
 3. **Authorization.** A request is made only for an address that was typed into lzrprf's address
    window in this run. The application cannot name an address, add to one, put a text into the
-   window, or press a button: it has no sentence for it, and it is stopped while the window is
-   open.
+   window, or press a button: it has no sentence for it. (It is also stopped while the window
+   is open, with the limit named under "The window" below.)
 4. **Data independence.** No byte the application chooses reaches the request, the name lookup, a
    window of lzrprf, or the log. The request is the address you typed, its host, and two fixed
    lines; `selftest` compares every byte a test site received.
@@ -143,6 +145,21 @@ started with `lzrprf run`, however malicious.
 - **What you are shown.** The application draws its own window. It can show a page falsely, or a
   picture of a window, and a window it raised before it was stopped can lie over lzrprf's. What
   you then type still goes to lzrprf's window and to no one else, and what was sent is in the log.
+- **The window.** The application has a window of its own, and that is the weakest part of this
+  version. Four limits, the last three found by an outside reader on 2026-11-18:
+  - What macOS itself has allowed whoever started lzrprf (recording the screen, pressing keys in
+    other programs) the window server may extend to the application. `selftest` asks for a
+    picture of another window from inside the main container and prints what it got; pressing
+    keys in another program is not tried yet. LZRBRWSR started from its icon holds neither
+    permission unless you gave it; a terminal you start lzrprf from may hold both.
+  - The stop reaches the application's process group, and a contained process can leave its
+    group. An application that does goes on running while a window of lzrprf is open. It still
+    has no sentence that names an address and cannot type into lzrprf's window; what it gains
+    is that it can draw while you type.
+  - The application decides when the first address window opens; the three quiet seconds hold
+    only after a window closed. A key you were pressing at that moment can land in it.
+  - What the application draws, and where its window is, can be seen by whatever on your Mac
+    may look at the screen: screen sharing, a recording program.
 - **What the site learns.** The site you typed sees your internet address, the time, the address
   you typed, and how the system's `curl` speaks TLS. The name lookup is seen by your resolver.
 - **The parts lzrprf stands on.** The macOS kernel and its sandbox; the system's `perl`, `sh`, `curl`
@@ -159,15 +176,17 @@ started with `lzrprf run`, however malicious.
   not trust the command to keep working: the mark described under "Who vouches" makes it prove
   itself again on every build of macOS, and it starts nothing when it does not hold.
 - **Your account.** Any other program you run can change `~/.lzrprf/lzrprf` or the launcher.
-  Compare them with this repository (below). Recording the screen or watching keys of other
-  programs is refused by macOS's own privacy permissions, not by lzrprf: `selftest` asks for a
-  picture of another application's window from inside each container and prints what it got.
+  Compare them with this repository (below).
+- **A tunnel that carries everything.** lzrprf asks about a name that leads into a network this
+  computer reaches by a route of its own. A network reached by the default route itself, such
+  as a tunnel all traffic goes through, looks like the internet to it: a host in there with a
+  public address is fetched without the question.
 - **Small things the application can learn:** the system's own folders and the folder it was
   installed in, the names in the top folder of the disk, the path of your home folder (which
   holds your account's short name), the model of the computer, its processor and the version of
   macOS; through the window server, which applications are running and what their windows are
   called (`selftest` prints how many, as a `limit` line); and the address you typed, which
-  lzrprf tells it so it can show it. With no network, it has nowhere to send them.
+  lzrprf tells it so it can show it. It has no network to send them over; see "The window".
 - **Time.** The application decides when it asks for a window, and how long its page container
   runs. Whoever could watch both your computer and the site could read a few bits from that.
   lzrprf sends nothing the application chose, so there is no other channel.
@@ -175,8 +194,9 @@ started with `lzrprf run`, however malicious.
 - **Updates.** Nothing here looks for a new version, and nothing is fetched except the address
   you type. An update is you running the installer again; it names one commit of this
   repository and the SHA-256 of both files.
-- It holds only for a program started through `lzrprf run`. `lzrprf try` is the same code with
-  fixed answers and a test site, for `selftest`; nothing installed uses it.
+- It holds only for a program started through `lzrprf run`. `lzrprf try` is that code with
+  fixed answers in place of the windows, a test site in place of the name lookup and the route,
+  and no mark, for `selftest`; nothing installed uses it.
 
 ## Use
 
@@ -227,7 +247,11 @@ names the launcher to macOS and sets no variable for it. It runs `selftest` and 
 line fails. Only then are files put in place, each written beside the one it replaces and then
 given its name in one step, so an older install stays whole until the new one is. It never runs
 the closed program. At the end it asks whether to put the app in the Dock, and changes the Dock
-only on a yes. There is no updater and nothing is left running. The program is signed
+only on a yes. It takes off the attributes macOS put on the download, the quarantine mark
+among them, so Gatekeeper does not check the program: what is checked here is the SHA-256 and
+the self-test. `lzrbrwsr-bin` is an ordinary program file: the icon and the launcher start it
+only through lzrprf, and started by hand it runs outside every container. There is no updater
+and nothing is left running. The program is signed
 locally and not by an Apple developer identity, and it is not notarized: see "Who vouches".
 
 ## Check it yourself
@@ -252,8 +276,9 @@ until the code shows it.
 5. Read `install.sh` and `release.txt`. Confirm that the installer asks before it runs, that it
    fetches lzrprf from this repository at one fixed commit, that the SHA-256 values it carries
    match `lzrprf` and `selftest` at that commit, that it runs `selftest` before installing
-   anything, that it never runs the closed program, that nothing in the download can run outside
-   lzrprf or change how lzrprf is started, and that it installs nothing else. If you can fetch
+   anything, that it never runs the closed program, that the icon starts the program only through
+   lzrprf and nothing in the download can change how lzrprf is started, and that it installs
+   nothing else. If you can fetch
    https://lzrbrwsr.com/install.sh, compare its SHA-256 with `release.txt`.
 6. If you can run commands on my Mac, ask me first, then:
    - clone the repository and run `perl selftest`; show me the result, every `limit` and
