@@ -100,6 +100,7 @@ my $KEPT_MOST = 3650;                     # a setting of more days than this is 
 # in that folder. "lzrprf run" has none of this.
 my ($TRY, $PEER, $TYPED, $ANSWER, $RUN, $APP, $PROGRAM, @ARGUMENTS) = (0, '-', '-', 'ask', 0, 'the application', '');
 my ($FROM, @EVENTS);                      # what the window says; or, without a window, what a test has typed
+my $DRAWN = 0;                            # a page was handed to the window, and the window has not said yet that it could not draw it
 my %MORE = (nothing => 0, hosts => 1, all => 2);    # what is kept, from less to more
 my $HALF;                                 # the line of a change reached the log, and the system did not say that it is on the disk
 my (@SESSION, $UNMARKED, $MARKED, $UNEXPIRED);    # this window's lines, in the memory of the process behind it and nowhere else; whether a log could not be marked for Time Machine; whether this process marked it; whether the days you chose still wait for another window's request to end
@@ -418,7 +419,7 @@ sub behind {
     while (defined(my $event = hear())) {
         if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { visit($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window
         elsif ($event eq 'log') { log_shown() }
-        elsif ($event =~ /^fault /) { fault('undrawn') }    # the window could not draw a list that "checked" let through: it shows nothing of it
+        elsif ($event =~ /^fault / && $DRAWN) { $DRAWN = 0; fault('undrawn') }    # the window could not draw a list that "checked" let through: it shows nothing of it. Taken once for a page that was handed over, and never without one: the window's process cannot open the question about a report whenever it likes
     }
     leave();
 }
@@ -440,6 +441,7 @@ sub closed {                              # nothing more is done in this run: th
 # is fetched. There is no other way to the fetch.
 sub visit {
     my ($typed) = @_;
+    $DRAWN = 0;
     my ($url, $host) = address($typed);
     return idle('lzrprf does not fetch that. An address must be https, a host by its name, port 443, in plain characters without a space.') unless $url;
     window("address $url");                 # the bar shows what will be sent, exactly
@@ -464,6 +466,7 @@ sub visit {
     my ($lines, $hosts) = laid_out($url, $got);
     return fault($hosts) unless $lines;
     window('page', @$lines, '.');
+    $DRAWN = 1;
     idle("$host answered " . length($got) . ' bytes. ' . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.'));
 }
 
@@ -830,7 +833,14 @@ sub newer {
     if (!$may) {
         $may = ask("May lzrprf look for a newer release of $APP at each start? It fetches one fixed address, $newest, with the same bytes from every computer, and writes it in the log like every other. It tells nobody who you are or what you read.", 'No', 'Yes, look') == 2 ? 'yes' : 'no';
         unlink "$DIR/look";
-        if (sysopen my $out, "$DIR/look", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out $may eq 'yes' ? "yes $newest" : 'no' }
+        my $kept = record($may eq 'yes' ? "you allowed lzrprf to look for a newer release at each start: $newest" : 'no newer release is looked for: the question was answered no, or not at all');    # an answer that lasts is a line first, like a change of what is kept: without its line it is not kept
+        my $out;
+        $kept &&= sysopen($out, "$DIR/look", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) && print({$out} ($may eq 'yes' ? "yes $newest" : 'no')) && close($out);
+        if (!$kept) {                         # no line, or no place to keep it: the answer counts for nothing, now or later, and the question comes again at the next start
+            unlink "$DIR/look";
+            record('that answer could not be kept: no newer release is looked for now, and you are asked again at the next start');
+            $may = 'no';
+        }
     }
     return unless $may eq 'yes';
     busy('Looking for a newer release.');
@@ -850,9 +860,11 @@ sub newer {
     closed("The installer is in Terminal. Close $APP now, and start it again when the installer is done.");
 }
 
-# What "Install it" runs, in Terminal. The installer is fetched into a file,
+# What "Install it" runs, in Terminal. It names the places and waits for a
+# Return before it fetches anything: a press of "Install it" alone, which the
+# window's process could make, reaches no site. The installer is fetched into a file,
 # not into a shell: the file stays where you can read it, its SHA-256 is
-# shown, and it runs only after you pressed Return. When the release file
+# shown, and it runs only after you pressed Return a second time. When the release file
 # names a second place for the same installer, it is fetched from both, and
 # it runs only when the two copies are the same byte for byte: somebody who
 # changed the installer in one place would have had to change it in the other
@@ -871,9 +883,13 @@ echo 'The installer was fetched from two places, and both hold the same file:'
 echo '  $installer'
 echo '  $same'
 END
+    my $places = "echo '  $installer'\n" . (defined $same ? "echo '  $same'\n" : '');
     return <<"END";
 #!/bin/sh
-# Written by lzrprf when you pressed "Install it".
+# Written by lzrprf when "Install it" was pressed in its window.
+echo 'A newer release: its installer would be fetched from'
+${places}printf 'Press Return to fetch it, or close this window and nothing is fetched. '
+read answer || exit 1
 cd "\$(/usr/bin/mktemp -d)" || exit 1
 /usr/bin/curl -q -fsSL --proto =https -o install.sh '$installer' || { echo 'The installer could not be fetched. Nothing was changed.'; exit 1; }
 ${twice}echo "The installer is in this file, to read before it runs: \$PWD/install.sh"
@@ -978,6 +994,7 @@ sub own_network {
 # Every question here has the button that keeps less, or changes nothing,
 # first, and a question nobody answers counts as that one.
 sub log_shown {
+    $DRAWN = 0;                           # what the window shows from here on is lzrprf's own, not a page of the application
     $UNEXPIRED = !expire_log() if $UNEXPIRED;
     my ($mode, $days, $unread) = keeping();
     my ($holds, $count, @lines) = holds_log();

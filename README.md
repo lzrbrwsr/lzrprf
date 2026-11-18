@@ -188,7 +188,7 @@ One more thing fetches, and it is not lzrprf. After you pressed "Install it" for
 lzrprf writes a short file that Terminal runs (`sub installer_file`), and that file fetches the
 installer with the system's `curl`, from the two places the release names. `curl` is started
 with `-q` there, so that no settings file of yours changes how it checks a site. Those fetches do not
-go through `sub fetch`. They happen after your click, in a window where you see them, and lzrprf
+go through `sub fetch`. They happen after your click and your Return in Terminal, in a window where you see them, and lzrprf
 writes into the log that you asked for them, and from where, before the file exists
 (`sub newer`). See "A newer release".
 
@@ -376,11 +376,38 @@ The limits, said plainly:
   clear the log, as it could press any button (see "What it does not prove"). It could remove
   the record on this computer. It could not make lzrprf keep more.
 
+## Which choices cost you, and where they are made
+
+Each choice has one direction that costs you something. The window's process draws text the
+application chose, so it is the part to trust least (see "What it does not prove"): if such
+text ever took it over, it could say that a button was pressed. This is what that is worth,
+choice by choice.
+
+| choice | the direction that costs you | where it is made | what a taken-over window process could do |
+| --- | --- | --- | --- |
+| what is kept | more kept: a log, full addresses, more days | a terminal only (`sub keep_command`) | keep less, and clear the log (`sub choose_keeping`, `sub clear_log`) |
+| an address | fetching it: the site sees your internet address and the address you typed | the bar of the window (`sub visit`) | say "go ADDRESS" as if you had typed it, as often as it likes. Each one is a line before it is fetched `[C5]` |
+| a host inside your own network | yes: this computer, your router or another device of yours is asked, this once | the window, each time such an address is typed (`sub own_network`) | say such an address and answer "Yes, this once" itself. The address and the yes are lines before anything is fetched |
+| looking for a newer release | yes: GitHub sees your internet address at each start | the window, when lzrprf asks: at a first start, and again when a release names another address or `~/.lzrprf/look` was deleted (`sub newer`) | answer yes while that question is open. It cannot open the question. The yes is a line of the log before it is kept, and each look is a line before it is made |
+| installing a newer release | "Install it", then two Returns of your own | the window, then Terminal (`sub installer_file`) | press "Install it" when a newer release is published, which brings a file up in Terminal. That file fetches nothing before your first Return, and runs nothing it fetched before your second |
+| a report after a failure | "Send": the maker's server sees your internet address and three values | the window, when a page was not shown (`sub fault`) | say that a page it was handed could not be drawn, once for each page (`sub behind`), and press "Send" to the question that follows: the three values, written in the log first |
+
+Only the first row can be closed entirely, and it is: nothing in the window keeps more. In the
+other rows the window is where you answer, so a taken-over window process could answer too.
+Installing ends outside the window: what "Install it" starts waits in Terminal for a Return,
+and the window's process commands no other program `[C10]`. What holds in the other rows is `[C5]`: nothing leaves this computer before its line exists, and with
+nothing kept that line is in the memory of lzrprf's process, which the window's process
+cannot write.
+
 ## A newer release
 
 lzrprf looks for a newer release only if you said yes, once, in the window (`sub newer`). The
 yes is kept together with the address it was given for (`~/.lzrprf/look`), so a release that
-names another address has no yes and asks again. A no is kept for every address.
+names another address has no yes and asks again. A no is kept for every address. The answer is
+a line of the log before it is kept, like a change of what is kept: `you allowed lzrprf to look
+for a newer release at each start: ADDRESS`, or that none is looked for. When that line cannot
+be written, or the answer cannot be kept, it counts for nothing: no look is made, and you are
+asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you are asked again.
 
 - The look is one request for one fixed address: the file `latest` in this repository, which
   holds one number. It is sent like any address you type, the same bytes from every computer
@@ -395,11 +422,13 @@ names another address has no yes and asks again. A no is kept for every address.
 - That file runs as an ordinary program of your account, outside every container, with the
   variables of your shell. It leaves two things behind: itself (`~/.lzrprf/install.command`,
   replaced the next time) and a temporary folder that holds the installer it fetched.
-- It fetches the installer from two places, when the release names a second one (the line
+- It first says where the installer comes from and waits for your Return. Before that it
+  fetches nothing, so a press of "Install it" alone reaches no site.
+- Then it fetches the installer from two places, when the release names a second one (the line
   `same`; the release on record here does): `install.sh` in this repository, and the site. It
   stops, with nothing changed, unless the two copies are the same byte for byte
   (`/usr/bin/cmp -s install.sh second`). Then it says where the file is, so that you can read
-  it, shows its SHA-256, and runs it only after you press Return. Nothing is piped into a shell.
+  it, shows its SHA-256, and runs it only after you press Return again. Nothing is piped into a shell.
   This is the one moment on this road when the maker's site is asked for anything: it sees your
   internet address then, as GitHub does.
 - The installer then asks its own questions, refuses to put an older release over a newer one,
@@ -419,7 +448,7 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 7
+    release 8
     newest https://raw.githubusercontent.com/henryverlin/lzrprf/main/latest
     installer https://raw.githubusercontent.com/henryverlin/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -478,11 +507,14 @@ narrows down who could have sent a report. The question shows the build before y
     press of either button of the question that is open ("Send", "Yes, look", "Install it",
     "Clear the log" and the buttons that keep less among them), or a request for the
     log. Each of these that fetches is in the log before it has an effect outside your Mac,
-    and "Install it" ends in Terminal, where the installer runs only after your own Return. A
+    and "Install it" ends in Terminal, where nothing is fetched before a Return of your own and
+    the installer runs only after a second one. A
     press cannot make lzrprf keep more: the buttons that change what is kept only keep less
     (`sub choose_keeping`), and the change is a line of the log (`sub changed`). Two presses
     clear the log on this computer: a kept log then says so in its first line, and with
     nothing kept no log is left and only that window's lines say so;
+  - say that a page it was handed could not be drawn. That opens the question about a report,
+    once for each page (`sub behind`), and "Send" is one of the presses above;
   - reach the system's other services, the clipboard among them. It could read what you
     copied. It could send that nowhere but inside an address, through lzrprf, logged first;
   - read what any program of yours can read outside `/Users` and other disks, your account's
@@ -716,6 +748,19 @@ put on a file stays where it is, and the download is packed without attributes o
 (`tar --no-xattrs --no-mac-metadata`). To see that:
 `gzip -dc lzrbrwsr-macos-arm64.tar.gz | LC_ALL=C grep -ac -e SCHILY.xattr -e LIBARCHIVE.xattr`
 prints 0.
+
+From release 8 on the download is also packed the same way every time: its entries in one
+order, one fixed time and one set of rights on each, no owner, and no time in the gzip header.
+The same six files give the same bytes. So you can see that the archive holds the files you
+see in it and nothing beside them: unpack it, pack it again, and compare.
+
+    mkdir again && tar -xpzf lzrbrwsr-macos-arm64.tar.gz -C again
+    (cd again && COPYFILE_DISABLE=1 TZ=UTC tar --no-xattrs --no-mac-metadata --format ustar --uid 0 --gid 0 --uname '' --gname '' --options 'gzip:!timestamp' -n -czf ../again.tar.gz $(tar -tzf ../lzrbrwsr-macos-arm64.tar.gz))
+    shasum -a 256 lzrbrwsr-macos-arm64.tar.gz again.tar.gz
+
+The two values are the same with the `tar` of the macOS it was packed on. A `tar` of another
+version may compress otherwise; then compare what `gzip -dc` gives for each. This says nothing
+about what the program does. It says that the download is those six files.
 
 Gatekeeper's question at a first start (is this signed by a developer Apple knows, did Apple
 notarize it) is asked about files that carry the quarantine mark. Fetched with `curl`, this
