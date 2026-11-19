@@ -1,16 +1,18 @@
 LZRBRWSR for macOS on Apple silicon: the SHA-256 of everything https://lzrbrwsr.com/install.sh installs.
 This record, the installer and the download each stand in two places: https://lzrbrwsr.com and
-https://github.com/lzrbrwsr/lzrprf. Compare them: a difference means one place was changed.
-lzrprf and selftest are the files of that repository at commit 43a545de66110c86e683b3c3fcaf42157a5816c7.
+https://github.com/lzrbrwsr/lzrprf. Compare them. A difference means one place does not hold this
+release: a copy that was changed, an older answer from a cache, or a release on its way. Fetch both again
+before you conclude, and install nothing while they differ.
+lzrprf and selftest are the files of that repository at commit 847aafa5074b4c6ba85d263845bc603f0f9db5bd.
 Check a file with: shasum -a 256 FILE
 
-178166ad0a61f6f0b779bcb28418e7f24076896768c1c85f059bb5c69be0a985  install.sh
-a8e8a15be4a281de5c5355574e2d1f33916fe4f6bb0b0c495a9651bea25e6266  lzrbrwsr-macos-arm64.tar.gz
+34f6038c8f0c4c82166009af542e84839ea3c5b73f3c986d78755879ef360d27  install.sh
+2df86c7ed483e154815de3aa455933967ba56d0a038a23cd61458b45e5712404  lzrbrwsr-macos-arm64.tar.gz
 e90b0a714519f5959185152fa2acfd4cac03662896ab77a86392e988f87d30b4  LZRBRWSR.app/Contents/Info.plist
-187f2b92e79623c95112a651cd469ef39afb86392b50e88d403b90c114094657  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
+604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
 8aa6df5bb4c29924782c20c9b7b95e5cc21cd39a2190ac9011d1cda27029307c  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
 54dbcf635e61885963239b5dbcd1e1ba5b663aeffc39da17487f6cd66416ad38  LZRBRWSR.app/Contents/Resources/LICENSE.txt
 d538134742fe1726d098d7c7a351edcb100d7900e2ee285cb1a55050de5064dc  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
-5a86fb30b78f368d513cb804245c0fd42ad925e249ae9e8903f589448d37f79b  LZRBRWSR.app/Contents/Resources/release
-b02c2e25749d055a0e1fed0f5cb780786270646d3e9ef6c85315548393cee18b  lzrprf
-19ee3a0326a4c3cc6966f7e6651c8e16c901d5d0728106fbd0769de2ce79c38d  selftest
+c08cd75ce2bc7ba9de53726bef179edafbbd466092bccabb6065c75b9b2c62ef  LZRBRWSR.app/Contents/Resources/release
+a8c2f22005f5ee698df10a8e5be5b3708e704d258ed380d372826c5190aadc17  lzrprf
+27f3e19fe57492d6b0bc265ebbe36d80b8ad67a2a50388a63d5d1963214b2fd3  selftest

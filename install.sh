@@ -111,12 +111,12 @@ unset LZRBRWSR_CLEAN
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="a8e8a15be4a281de5c5355574e2d1f33916fe4f6bb0b0c495a9651bea25e6266"
-RELEASE="13"
-LZRPRF_COMMIT="43a545de66110c86e683b3c3fcaf42157a5816c7"
+SHA256="2df86c7ed483e154815de3aa455933967ba56d0a038a23cd61458b45e5712404"
+RELEASE="14"
+LZRPRF_COMMIT="847aafa5074b4c6ba85d263845bc603f0f9db5bd"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="b02c2e25749d055a0e1fed0f5cb780786270646d3e9ef6c85315548393cee18b"
-SELFTEST_SHA256="19ee3a0326a4c3cc6966f7e6651c8e16c901d5d0728106fbd0769de2ce79c38d"
+LZRPRF_SHA256="a8c2f22005f5ee698df10a8e5be5b3708e704d258ed380d372826c5190aadc17"
+SELFTEST_SHA256="27f3e19fe57492d6b0bc265ebbe36d80b8ad67a2a50388a63d5d1963214b2fd3"
 
 # Outside the tests, files come over https and nothing else, also when an
 # address sends on to another. In a test they come from files on this computer
@@ -360,14 +360,26 @@ cat >"$tmp/launcher" <<'LAUNCHER'
 #     perl ~/.lzrprf/lzrprf log
 #
 # Without lzrprf the program is not started at all.
-here="$(cd "$(dirname "$0")" && pwd -P)"
-lzrprf="$HOME/.lzrprf/lzrprf"
-if [ ! -f "$lzrprf" ]; then
-	/usr/bin/osascript -e 'display alert "LZRBRWSR needs lzrprf" message "lzrprf, the open container LZRBRWSR runs in, is not on this computer, and LZRBRWSR does not start without it. Install it again: how is on https://lzrbrwsr.com"' >/dev/null 2>&1
-	exit 1
-fi
-# env -i: lzrprf is started with no variable of whoever started this, so none can change how perl reads it.
-exec /usr/bin/env -i /usr/bin/perl "$lzrprf" run "$here/lzrbrwsr-bin" "$@"
+#
+# This file reads no variable of whoever started it. Its one command starts
+# perl with no variable at all (env -i), and the few lines of perl below find
+# your home folder in this Mac's list of accounts, as lzrprf does, and the
+# folder this file is in. So nothing set around it chooses which lzrprf runs.
+# What is left of the starter's is how /bin/sh itself starts, before this line.
+exec /usr/bin/env -i /usr/bin/perl -e '
+use Cwd qw(abs_path getcwd); use File::Basename "dirname";
+my $lzrprf = ((getpwuid $<)[7] // "") . "/.lzrprf/lzrprf";
+if (!-f $lzrprf) {
+	system "/usr/bin/osascript", "-e", q{display alert "LZRBRWSR needs lzrprf" message "lzrprf, the open container LZRBRWSR runs in, is not on this computer, and LZRBRWSR does not start without it. Install it again: how is on https://lzrbrwsr.com"};
+	exit 1;
+}
+my $self = abs_path(shift) // exit 1;
+my $from = getcwd();
+chdir dirname($self) or exit 1;
+my $here = getcwd() // exit 1;
+chdir $from if defined $from;
+exec "/usr/bin/perl", $lzrprf, "run", "$here/lzrbrwsr-bin", @ARGV;
+' -- "$0" "$@"
 LAUNCHER
 cmp -s "$tmp/launcher" "$tmp/unpacked/LZRBRWSR.app/Contents/MacOS/lzrbrwsr" || stop "the icon would not start LZRBRWSR through lzrprf."
 # The property list tells macOS which file the icon runs, and it could also set
@@ -418,12 +430,12 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 13
+release 14
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
-lzrprf b02c2e25749d055a0e1fed0f5cb780786270646d3e9ef6c85315548393cee18b
+lzrprf a8c2f22005f5ee698df10a8e5be5b3708e704d258ed380d372826c5190aadc17
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
