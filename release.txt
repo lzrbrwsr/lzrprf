@@ -3,16 +3,16 @@ This record, the installer and the download each stand in two places: https://lz
 https://github.com/lzrbrwsr/lzrprf. Compare them. A difference means one place does not hold this
 release: a copy that was changed, an older answer from a cache, or a release on its way. Fetch both again
 before you conclude, and install nothing while they differ.
-lzrprf and selftest are the files of that repository at commit c59ae840d8fe154e1f419b6f1b9dc06a4542ca2c.
+lzrprf and selftest are the files of that repository at commit b1dbe7bf0e1a108e9bd44767aa727c7c9f46683c.
 Check a file with: shasum -a 256 FILE
 
-edbc10402e658433ca449d49625ee589aea89dc7e10bd07b530e48ada72e5396  install.sh
-09c1498e9a742674996bfbf279b549d2cf139d33ffe3d15bda2ffa1c1e423162  lzrbrwsr-macos-arm64.tar.gz
+98680bf39c3b98ebc45dce2fd75dad308e53d7f447e0430b96a1898192a29e1e  install.sh
+37ac17e282b4b82055a9e1eee77ef11cbb8df7fe0376783d6d6f5215ef2800a3  lzrbrwsr-macos-arm64.tar.gz
 e90b0a714519f5959185152fa2acfd4cac03662896ab77a86392e988f87d30b4  LZRBRWSR.app/Contents/Info.plist
 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
-f49a4338b25f04376eb26c2df3ab6bfb5fb7cf0ac03fd33d3affdb2ed411aca5  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
+0e652d43df5af7af221ecf0bd8a7825e47f77e80f274d86ddf1b5d3423d3589d  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
 54dbcf635e61885963239b5dbcd1e1ba5b663aeffc39da17487f6cd66416ad38  LZRBRWSR.app/Contents/Resources/LICENSE.txt
 d538134742fe1726d098d7c7a351edcb100d7900e2ee285cb1a55050de5064dc  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
-9275314161299641306b3e5567d881d91e7cbdec2f3e78a4c6ea645173f30707  LZRBRWSR.app/Contents/Resources/release
-b9bf4e5b79e7eee09162e89b2bc2ba652259b3eb98ef4c0de7c6b47c9708bdb3  lzrprf
+e2926866a25f63adcf9482ec80812e49761969f52ff4f042b94bb1692957452e  LZRBRWSR.app/Contents/Resources/release
+3fd5f6d52ebf34b910a78d50252309f33bbdcc644cdbad5040d7a6e4ebac3f0a  lzrprf
 af21b864efc5cc452f7a7fdfb011cf592e22691254ecbe12e66a3071c4841b5b  selftest
