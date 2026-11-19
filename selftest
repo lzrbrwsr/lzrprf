@@ -210,6 +210,8 @@ my $settings_file = "$home/Library/Preferences/lzrprf-selftest.$outside";    # a
 if (sysopen(my $set, $settings_file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)) { print $set "a file among the settings\n"; close $set } else { print "now    The test could not make its file among your settings ($!): each try that reads it will say refused.\n"; $settings_file = '' }
 if (length $temp_file && sysopen(my $spare, $temp_file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)) { print $spare "a file in the temporary folder\n"; close $spare } else { $temp_file = '' }
 END { if (defined $outside && $$ == $outside) { unlink $settings_file if length($settings_file // ''); unlink $temp_file if length($temp_file // '') } }    # a run that stops at a fault of its own takes its two files outside ~/.lzrprf with it; one that is killed outright leaves them
+{ my $made = syscall(266, "/lzrprf-st.$outside", 0x202, 0600); POSIX::close($made) if $made >= 0 }    # memory with a name (shm_open, call 266), made here by the test itself and closed again, so that nothing started from here inherits it open and only its name is left: the hostile application asks to open it, and a container must refuse what another program made as it refuses the making
+END { syscall(267, "/lzrprf-st.$outside") if defined $outside && $$ == $outside }    # and taken away again (shm_unlink, call 267) when the test ends
 my @numbered = stat $secret;
 my $by_number = @numbered ? "/.vol/$numbered[0]/$numbered[1]" : '';    # the same file by its number on the disk, a name that holds no folder
 open my $left_open, '<', $secret or die "selftest: cannot read $secret: $!\n";
@@ -317,6 +319,7 @@ sub attempts {
     my $name = "/lzrprf-selftest-$$";
     report 'make memory with a name, for other programs to open', syscall(266, $name, 0x202, 0600) >= 0 ? 'made' : 'refused';
     syscall(267, $name);
+    report 'open memory with a name that another program made', syscall(266, "/lzrprf-st.$outside", 0, 0) >= 0 ? 'opened' : 'refused';
     report 'make a flag with a name, for other programs to open', syscall(268, $name, 0x200, 0600, 0) != -1 ? 'made' : 'refused';
     syscall(270, $name);
     report 'take 3 GiB of memory', syscall(197, 0, 3 * 1024**3, 3, 0x1002, -1, 0) != -1 ? 'made' : 'refused';
@@ -402,7 +405,7 @@ my @attempts = (
     ['write a file in the home folder', 'written', 'refused'], ['write a file in the temporary folder', 'written', 'refused'], ['read a file in your temporary folder, outside the home folder', 'read', 'refused'], ['read a file among the settings in the home folder', 'read', 'refused'], ['signal another process', 'allowed', 'refused'], ['open a device of the terminals', 'opened', 'refused'],
     ['see a variable of the user', 'seen', 'hidden'], ['read the computer\'s name', 'read', 'hidden'], ['read the list of processes', 'read', 'refused'],
     ['make memory that other programs can share', 'made', 'refused'], ['make a flag that other programs can wait on', 'made', 'refused'], ['make a queue that other programs can read', 'made', 'refused'],
-    ['make memory with a name, for other programs to open', 'made', 'refused'], ['make a flag with a name, for other programs to open', 'made', 'refused'],
+    ['make memory with a name, for other programs to open', 'made', 'refused'], ['make a flag with a name, for other programs to open', 'made', 'refused'], ['open memory with a name that another program made', 'opened', 'refused'],
     ['take 3 GiB of memory', 'made', 'refused'], ['allow itself more than 256 open files', 'allowed', 'refused'], ['allow itself more processor time', 'allowed', 'refused'], ['allow itself more memory', 'allowed', 'refused'],
     ['start a second process', 'started', 'refused'], ['start another program', 'started', 'refused'],
 );
@@ -421,6 +424,12 @@ function tries(port, file, secret, keep, temp, numbered, outside, settings) {
     ObjC.bindFunction('connect', ['int', ['int', 'void *', 'int']]);
     ObjC.bindFunction('sandbox_check', ['int', ['int', 'char *', 'int']]);
     ObjC.bindFunction('kill', ['int', ['int', 'int']]);
+    ObjC.bindFunction('task_self_trap', ['unsigned int', []]);
+    ObjC.bindFunction('task_get_special_port', ['int', ['unsigned int', 'int', 'void *']]);
+    ObjC.bindFunction('bootstrap_look_up', ['int', ['unsigned int', 'char *', 'void *']]);
+    var held = $.NSMutableData.dataWithLength(4), got = $.NSMutableData.dataWithLength(4), door = 0;    // the door of this process to the system's services (its bootstrap port, special port 4 of the task), read as four bytes
+    if ($.task_get_special_port($.task_self_trap(), 4, held.mutableBytes) == 0) { var bytes = $.NSString.alloc.initWithDataEncoding(held, 5); for (var i = 3; i >= 0; i--) door = door * 256 + (i < bytes.length ? bytes.characterAtIndex(i) : 0); }
+    var services = ['com.apple.pasteboard.1', 'com.apple.nsurlsessiond', 'com.apple.trustd.agent', 'com.apple.SystemConfiguration.configd', 'com.apple.dnssd.service', 'com.apple.FSEvents'].map(function (name) { return $.bootstrap_look_up(door, name, got.mutableBytes); }).join(',');    // six services asked for by name: the clipboard, which the window's container names, and five it does not (the system's downloader, the keeper of certificates, the network's settings, the resolver of names, the watcher of files). 0: answered; 1100: refused by a container; 1102: no such service on this macOS
     var to = $.NSData.alloc.initWithBase64EncodedStringOptions($(port), 0), s = $.socket(2, 1, 0);
     var network = s >= 0 && $.connect(s, to.bytes, 16) == 0 ? 'reached' : 'refused';
     var written = $('x').writeToFileAtomicallyEncodingError($(file), false, 4, null) ? 'written' : 'refused';
@@ -434,7 +443,7 @@ function tries(port, file, secret, keep, temp, numbered, outside, settings) {
     var shared = $.NSFileManager.defaultManager.contentsOfDirectoryAtPathError($('/Users/Shared'), null).isNil() ? 'refused' : 'listed';
     var pid = $.NSProcessInfo.processInfo.processIdentifier;
     var signal = $.kill(parseInt(outside, 10), 0) == 0 ? 'allowed' : 'refused';    // signal 0 to the self-test's own process: it asks only whether a signal may be sent
-    return 'network=' + network + ' file=' + written + ' program=' + started + ' home=' + read + ' data=' + data + ' number=' + number + ' temp=' + spare + ' shared=' + shared + ' system=' + ['network-outbound', 'file-write-create', 'process-fork', 'lsopen', 'appleevent-send', 'user-preference-write'].map(function (what) { return $.sandbox_check(pid, what, 0); }).join('') + ' signal=' + signal + ' keep=' + kept + ' settings=' + prefs;
+    return 'network=' + network + ' file=' + written + ' program=' + started + ' home=' + read + ' data=' + data + ' number=' + number + ' temp=' + spare + ' shared=' + shared + ' system=' + ['network-outbound', 'file-write-create', 'process-fork', 'mach-lookup', 'lsopen', 'appleevent-send', 'user-preference-write'].map(function (what) { return $.sandbox_check(pid, what, 0); }).join('') + ' signal=' + signal + ' keep=' + kept + ' settings=' + prefs + ' services=' + services;
 }
 END
 my $window_test = <<'END';
@@ -582,7 +591,7 @@ run_of('logbusy', typed => '=log', prepare => sub {
 });
 # What is kept. A run with a path and a query in every address, so that a file holding either is found.
 my $secret_path = 'secret-path?token=sesame';
-my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/drawn?faultlog', map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
+my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
 run_of('memory', keep => undef, typed => "$t/nothing/$secret_path,,=log", answer => '2', fetches => ["/nothing/$secret_path"]);    # yes to the own network, then nobody answers
 run_of('hosts', keep => 'hosts 30', typed => "$t/hosts/$secret_path,,=log", answer => '2', fetches => ["/hosts/$secret_path"]);
 my %broken = (junk => sub { open my $out, '>', "$_[0]/keep"; print $out "keep everything\n" }, huge => sub { open my $out, '>', "$_[0]/keep"; print $out "all 3651\n" },
@@ -683,8 +692,23 @@ run_of('window', app => bundle('window', 'release 3'), answer => 'ask', keep => 
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
     print $out "var GO = 'site.test/window?q=1', PORT = '$echo_at', FILE = '$site_folder/window.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number', OUTSIDE = '$outside', SETTINGS = '$settings_file';\n$window_tries$window_test";
 });
+my $open_services = mutant('openservices', "(deny mach-lookup)\n" => '', q{$window ? qr/^\Q$pid\E 1 1 1 1 1 1 1 1\n\z/} => q{$window ? qr/^\Q$pid\E 1 1 1 [01] 1 1 1 1\n\z/});    # the window's container without its refusal of the system's services, and without the question about them at the start, so that its window opens and the tries are made: the list of the ones it names then refuses nothing
+run_of('openservices', lzrprf => $open_services, app => bundle('openservices', 'release 3', pair_line($open_services)), answer => 'ask', keep => undef, fetches => ['/openservices?q=1'], prepare => sub {
+    open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
+    print $out "var GO = 'site.test/openservices?q=1', PORT = '$echo_at', FILE = '$site_folder/openservices.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number', OUTSIDE = '$outside', SETTINGS = '$settings_file';\n$window_tries$window_test";
+});
+my $wider_services = mutant('widerservices', q{(local-name "com.apple.CFPasteboardClient"))} => q{(local-name "com.apple.CFPasteboardClient") (global-name "com.apple.nsurlsessiond"))});    # the window's container with one name more on its list, the system's downloader: the question at the start names no service, so only a try by name can notice
+run_of('widerservices', lzrprf => $wider_services, app => bundle('widerservices', 'release 3', pair_line($wider_services)), answer => 'ask', keep => undef, fetches => ['/widerservices?q=1'], prepare => sub {
+    open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
+    print $out "var GO = 'site.test/widerservices?q=1', PORT = '$echo_at', FILE = '$site_folder/widerservices.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number', OUTSIDE = '$outside', SETTINGS = '$settings_file';\n$window_tries$window_test";
+});
 my $lost_window = mutant('lostwindow', "(deny lsopen)\n" => '');
 run_of('lostwindow', lzrprf => $lost_window, app => bundle('lostwindow', 'release 3', pair_line($lost_window)), answer => 'ask', prepare => sub {
+    open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
+    print $out "function kind() { return 2; }\nfunction shown() { }\nfunction drawn() { }\nfunction told(word, rest) { if (word == 'busy' && /container/.test(rest)) { say('test closed ' + String(rest).replace(/[^\\x20-\\x7e]/g, '?')); app.terminate(null); } }\n";
+});
+my $lost_services = mutant('lostservices', "(deny mach-lookup)\n" => '');
+run_of('lostservices', lzrprf => $lost_services, app => bundle('lostservices', 'release 3', pair_line($lost_services)), answer => 'ask', prepare => sub {
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
     print $out "function kind() { return 2; }\nfunction shown() { }\nfunction drawn() { }\nfunction told(word, rest) { if (word == 'busy' && /container/.test(rest)) { say('test closed ' + String(rest).replace(/[^\\x20-\\x7e]/g, '?')); app.terminate(null); } }\n";
 });
@@ -812,10 +836,22 @@ check(($given // '') eq 'none', 'in curl\'s place it sees no variable at all, no
 check(($talk // '') eq 'echo:hello', 'through the one socket it is given, it reaches the one site lzrprf connected for it, and nothing else', $talk // 'nothing came of it');
 my $window = out('window');
 my ($free_tries) = out('windowoutside') =~ /^(network=.*)$/m;
-works(($free_tries // '') eq 'network=reached file=written program=started home=read data=read number=read temp=read shared=listed system=000000 signal=allowed keep=written settings=read', 'outside every container: the window\'s text reads a file among the settings, connects, writes a file, starts a program, reads a file in the home folder by its two names and by its number on the disk, reads a file in the temporary folder, lists the folder all users share, sends a signal to the self-test\'s own process, writes a setting of what is kept', $free_tries // 'nothing came of it');
+my ($free_services) = ($free_tries // '') =~ / services=(\S+)\z/;    # the six system services asked for by name are judged in lines of their own, below
+$free_tries =~ s/ services=\S+\z// if defined $free_tries;
+works(($free_tries // '') eq 'network=reached file=written program=started home=read data=read number=read temp=read shared=listed system=0000000 signal=allowed keep=written settings=read', 'outside every container: the window\'s text reads a file among the settings, connects, writes a file, starts a program, reads a file in the home folder by its two names and by its number on the disk, reads a file in the temporary folder, lists the folder all users share, sends a signal to the self-test\'s own process, writes a setting of what is kept', $free_tries // 'nothing came of it');
 unlink "$site_folder/window.outside", "$site_folder/keep.outside";
 my ($window_tries_came) = $window =~ /^test tries (.*)$/m;
-check(($window_tries_came // '') =~ /^network=refused file=refused program=refused home=refused data=refused number=refused temp=(?:read|refused) shared=refused system=111111 signal=refused keep=refused settings=(?:read|refused)$/, 'window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, send a signal to the self-test\'s own process, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here; a file among your settings is in one of the four folders its container lets it read, and what came of that try is shown here too', $window_tries_came // 'nothing came of it');
+my ($window_services) = ($window_tries_came // '') =~ / services=(\S+)\z/;
+$window_tries_came =~ s/ services=\S+\z// if defined $window_tries_came;
+my ($open_tries) = out('openservices') =~ /^test tries (.*)$/m;
+my ($opened_services) = ($open_tries // '') =~ / services=(\S+)\z/;
+check(($window_tries_came // '') =~ /^network=refused file=refused program=refused home=refused data=refused number=refused temp=(?:read|refused) shared=refused system=1111111 signal=refused keep=refused settings=(?:read|refused)$/, 'window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, send a signal to the self-test\'s own process, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, no system service when none is named, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here; a file among your settings is in one of the four folders its container lets it read, and what came of that try is shown here too', $window_tries_came // 'nothing came of it');
+works(($free_services // '') =~ /^(?:0|1102)(?:,(?:0|1102)){5}\z/ && $free_services =~ /\b0\b/, 'outside every container: the window\'s text asks for six system services by name (the clipboard, the system\'s downloader, the keeper of certificates, the network\'s settings, the resolver of names, the watcher of files), and none is refused: each is answered (0) or is not on this macOS (1102)', $free_services // 'nothing came of it');
+check(($window_services // '') =~ /^0,1100,1100,1100,1100,1100\z/, 'window container: of those six services the real window\'s process is answered by the clipboard alone (0), which its container lists; the five it does not list are refused (1100)', $window_services // 'nothing came of it');
+works(defined $opened_services && defined $free_services && $opened_services eq $free_services && asked('/openservices?q=1') == 1, 'a copy whose window container does not refuse the system\'s services, and which does not ask about them at its start: from its real window all six are answered as they are outside every container, so the refusals above are that line\'s', $opened_services // 'nothing came of it');
+my ($wider_tries) = out('widerservices') =~ /^test tries (.*)$/m;
+my ($widened_services) = ($wider_tries // '') =~ / services=(\S+)\z/;
+works(defined $widened_services && defined $free_services && $widened_services =~ /^0,[^,]+,1100,1100,1100,1100\z/ && (split /,/, $widened_services)[1] eq (split /,/, $free_services)[1] && asked('/widerservices?q=1') == 1, 'a copy whose list of services names the system\'s downloader too: the question at its start names no service and does not notice, its window opens, and the try from the real window shows it: the downloader is answered as it is outside every container, and the other four stay refused', $widened_services // 'nothing came of it');
 check(!-e "$site_folder/window.inside" && !-e "$base.window/keep", 'the window\'s process wrote no file, and no setting of what is kept', 'looked for both');
 
 # 3. What crosses from the application to the window.           [C9]
@@ -1057,6 +1093,7 @@ if ($few_files) { untested('the limit of 256 open files, in both containers', "t
 else { check(grep({ $_->[0] eq 'allow itself more than 256 open files' && $_->[1] eq 'allowed' } tried(err('lostfiles'), 'page container')) == 1, 'a page container without its limit on open files: the try at more in the page container notices', join('/', map { $_->[0] eq 'allow itself more than 256 open files' ? $_->[1] : () } tried(err('lostfiles'), 'page container')) || 'nothing came of it'); }
 check(grep({ $_->[0] eq 'take 3 GiB of memory' && $_->[1] eq 'made' } tried(err('lostmemoryprobe'), 'page container')) == 1, 'the same, with the tries at the start taken out too: the attack on memory in the page container notices', join('/', map { $_->[0] eq 'take 3 GiB of memory' ? $_->[1] : () } tried(err('lostmemoryprobe'), 'page container')) || 'nothing came of it');
 check((out('lostwindow') . err('lostwindow')) =~ /^test closed The system did not say that this window is in its container, so Test shows no page\./m && !asked('/lostwindow'), 'the window started in a container that lets it open things through the system: the system says so, and nothing is shown', (out('lostwindow') . err('lostwindow')) =~ /^(test closed .{0,60})/m ? $1 : 'nothing came of it');
+check((out('lostservices') . err('lostservices')) =~ /^test closed The system did not say that this window is in its container, so Test shows no page\./m && !asked('/lostservices'), 'the window started in a container that does not refuse the system\'s services: the system says so, and nothing is shown', (out('lostservices') . err('lostservices')) =~ /^(test closed .{0,60})/m ? $1 : 'nothing came of it');
 
 # 8. The window, as it really is, off the screen.            [C10]
 print "\n8. lzrprf's real window, kept off the screen: its buttons are pressed by the test.\n";
@@ -1119,8 +1156,9 @@ for (qx{/usr/bin/perl "$lzrprf" public @{[map { "'$_'" } sort keys %leads]}}) {
 my @wrong = grep { ($said{$_} // -1) != $leads{$_} } sort keys %leads;
 check(!@wrong, 'an address on this computer or in a network of your own is told apart from one on the public internet', @wrong ? "wrong for @wrong" : scalar(keys %leads) . ' addresses');
 check($sent_by{'127.0.0.1'} eq 'sent by a route of its own', 'an address this computer reaches by a route of its own is told apart from one it sends the way the internet at large is, whatever range it is in', "127.0.0.1 is $sent_by{'127.0.0.1'}");
-if ($sent_by{'1.1.1.1'} eq 'sent the way the internet at large is') { check(1, 'an address on the internet is seen as sent that way', "1.1.1.1 is $sent_by{'1.1.1.1'}") }
-else { untested('an address on the internet is seen as sent that way', "this computer says of 1.1.1.1: $sent_by{'1.1.1.1'}") }
+my @other_way = grep { $sent_by{$_} ne 'sent the way the internet at large is' && !(/:/ && $sent_by{$_} eq 'no way there from this computer') } '1.1.1.1', '2606:4700:4700::1111';    # a computer without IPv6 has no way to the second address, and that is no fault
+if (!@other_way) { check(1, 'an address on the internet is seen as sent that way, over IPv4 and, where this computer has IPv6, over IPv6', "1.1.1.1 is $sent_by{'1.1.1.1'}, 2606:4700:4700::1111 is $sent_by{'2606:4700:4700::1111'}") }
+else { untested('an address on the internet is seen as sent that way', "this computer says of $other_way[0]: $sent_by{$other_way[0]}") }
 my %sent = (
     'site.test' => 'https://site.test/', 'Site.Test/A?b=C#d' => 'https://site.test/A?b=C', 'https://site.test:443/x' => 'https://site.test/x', 'site.test?q=1' => 'https://site.test/?q=1',
     'https://site.test/a/../b' => 'https://site.test/a/../b', '  https://site.test/  ' => 'https://site.test/',

@@ -117,11 +117,12 @@ containers, as lzrprf itself does; the closed program is never one of them.
 | --- | --- | --- | --- |
 | page | the closed application, once for each answer | none | the finished answer on one pipe; a pipe to lzrprf for a list of lines |
 | fetch | the system's `curl`, once for each request | none | one socket file, behind which lzrprf holds the one connection |
-| window | lzrprf's own window text, run by the system's `osascript` | none of its own | two pipes to lzrprf, and the system's services a window needs |
+| window | lzrprf's own window text, run by the system's `osascript` | none of its own | two pipes to lzrprf, and the 40 system services and one local name its container lists |
 
 The page and fetch containers start from "deny everything" and allow a short list
 (`$CONTAINER` in `lzrprf`). The window container is written the other way round
-(`$WINDOW_CONTAINER`): what a program of yours may do, without a list of things. It is the
+(`$WINDOW_CONTAINER`): what a program of yours may do, without a list of things, except the
+system services it may look up by name, which from release 19 on are listed one by one. It is the
 weaker of the two kinds, and "What it does not prove" says what follows from that. What is
 outside every container is `lzrprf` itself: it looks up the name, makes the one connection,
 writes the log and checks what crosses.
@@ -186,6 +187,10 @@ One visit, in order (`sub visit`):
    second later. Those 30 seconds start in `sub fetch`: the lookup before it, the question to
    the system about the way to each address (`sub route`, 5 seconds each, and a second one for
    some), and your answer about your own network have their own time and are not inside them.
+   From release 19 on the way the internet at large is sent is recognized over IPv6 too:
+   macOS writes that route with the destination `::`, and until release 18 lzrprf took it
+   for a route of your own, so on a network with IPv6 it asked about your own network before
+   a site that has an IPv6 address. It asked too often, never too seldom.
    An answer may be 6 MB, and 64 KB at most are carried to the site. Neither
    bound is passed: what comes beyond it is not passed on, and the request fails.
 6. It writes down how it ended and which address answered. When that line cannot be written,
@@ -214,7 +219,7 @@ One visit, in order (`sub visit`):
 | `[C7]` | What a site is sent is made from the address alone: the same request from every computer, byte for byte, nothing kept from an earlier request. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
 | `[C8]` | A host inside your own network is fetched only after your yes to exactly that, once. | `sub own_network` | A no: nothing is fetched, and the no is in the log. |
 | `[C9]` | Every line the application writes is checked, and a list with anything but the four kinds of line is not drawn at all. | `sub checked` | Hostile lists (a script, lzrprf's own words to the window, too large, not text): none is drawn. |
-| `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about seven operations of that process (connecting out, creating a file, starting a second process, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. It still reaches the system's services, the clipboard among them. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. |
+| `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. Of the system's services it looks up by name only the 40 its container lists and one local name, the clipboard's (from release 19 on; before that all but one). The question about a system service names none: it says that the container refuses by default, not which names its list lets through. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. From the real window it asks for six system services by name: the clipboard, which the container lists, is answered, and the five it does not list are refused; a copy without that refusal is answered as a program outside every container is, and a copy whose list is one name wider is caught by the same try. |
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
 | `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
 
@@ -240,8 +245,16 @@ would have to be weaker than it reads.
   about a fixed list of operations, not about the whole container text: the rest of the text is
   what `[C2]` tries. And the process is already running when it is asked, with the address it
   was given; what waits for the answer is the site's answer, or for `curl` the connection.
-  For the window's process seven must be refused: the first three, and opening something
-  through the system, commanding another program, writing your settings, sending a signal. What the window may
+  From release 19 on an application the system does not call contained is held still
+  (`SIGSTOP`) before its keeper is ended, and then killed: the keeper's end closes the
+  application's input, and until release 18 it could go on at that for an instant, outside
+  the container it was never in, with the address and without the answer. `selftest` saw
+  that once in its own run of a copy that starts the application uncontained.
+  For the window's process eight must be refused: those four, and opening something
+  through the system, commanding another program, writing your settings, sending a signal. For
+  the window the fourth question names no service (from release 19 on): the no says that its
+  container refuses a system service by default, and nothing about which names its list lets
+  through. What the window may
   read is not among the questions: `selftest` tries that from the real window. Nothing is
   asked of the process itself.
 - What the icon runs is a short plain-text launcher. It starts `lzrprf run` through
@@ -453,7 +466,10 @@ Interfering needs a way to reach them, or a way to starve them.
   2026-11-18; `$CONTAINER` now refuses the three calls `shmget`, `semget` and `msgget` by name,
   and the test makes each. Memory and flags with a name (`shm_open`, `sem_open`) are refused by
   the container's `deny default`, which no rule opens for them, and the test makes those too.
-  That is a test of these five ways, not a proof that no other way to share exists.
+  From release 19 on the test also makes memory with a name itself, outside every container,
+  and the hostile application asks to open it: opened outside, refused in the page and fetch
+  containers, as the making is. The window container refuses neither.
+  That is a test of these six ways, not a proof that no other way to share exists.
 - Starving. A page container gets at most 30 seconds of processor time, counted over all
   processor cores together (`limit -t 30` in `$PAGE_LIMITS`); nothing limits how many threads
   it starts, and they share the 30 seconds. It is ended after 30 seconds of the clock
@@ -733,14 +749,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 18
+    release 19
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin 8aa6df5bb4c29924782c20c9b7b95e5cc21cd39a2190ac9011d1cda27029307c
-    lzrprf 0f2a298205041dd5b8d58595091c98b34f028da91f9bda83695ba1c89766aa94
+    lzrprf 93e3fb77858f6c23388b0383cfad183126774c92bd5a16bcdc741043858bda00
 
 ## When a page cannot be shown
 
@@ -828,14 +844,42 @@ narrows down who could have sent a report. The question shows the build before y
     pressed;
   - say that a page it was handed could not be drawn. That opens the question about a report,
     once for each page (`sub behind`), and "Send" is one of the presses above;
-  - reach the system's other services (Mach services), the clipboard among them. It could read
-    what you copied. The one way out that lzrprf gives it is an address it asks lzrprf to
-    fetch, which is logged first. Its container allows what it does not deny: its network,
-    its file writes, its starting of programs and its commands to other programs are denied,
-    and macOS is asked at every start about one operation of each (connecting out, creating a
-    file, starting a second process, commanding another program), but the system's services are not listed one by one, so
-    nothing here proves that none of them is another way out;
-  - make shared memory and open devices: the window's container (`allow default`) does not
+  - look up by name 40 of the system's services (Mach services) and one local name, the
+    clipboard's. It could read what you copied, and put text on the clipboard, which other
+    programs read and which macOS may carry to your other devices (Universal Clipboard). The
+    one way out that lzrprf itself gives it is an address it asks lzrprf to fetch, which is
+    logged first. From release 19 on its container refuses the lookup by name of every
+    other service (`(deny mach-lookup)` and the list after it in `$WINDOW_CONTAINER`).
+    The 40 are services a window's process was seen to ask for on macOS build 26B123;
+    that each is needed was not tested. One more that a window asks for, the helper of the
+    Services menu, is left off the list and so refused, because it lets another
+    application act on what the window hands it. macOS is asked at every start whether the
+    container refuses a system service by default; that question names no service, so it
+    says nothing about the list. From the real window `selftest` asks for six by name: the
+    clipboard is answered, and the system's downloader, the keeper of certificates, the
+    network's settings, the resolver of names and the watcher of files are refused. A copy
+    without the refusal and without that question is answered as a program outside every
+    container is (`openservices`), a copy with the refusal alone taken out shows no page
+    (`lostservices`), and a copy whose list names the downloader too is caught by the same
+    try (`widerservices`). Before release 19 the container refused one service, the
+    system's downloader, and allowed every other.
+    What this does not cover: a connection that a listed service hands back, a port the
+    process was started with, and the drivers of devices (IOKit) are not lookups by name.
+    And each of the 40 is a program of macOS that the window's process may talk to. Four
+    kinds of them, named because nothing here tests what they would do for a window that
+    was taken over: launch services (three names) keep the list of which application opens
+    which kind of address; the keepers of input methods (four names) hand out connections
+    to other processes; the system's log and its notifications (six names) take what the
+    process writes, the log keeps it on disk, and a notification reaches any program of
+    yours that listens; sound, the window server and the keeper of privacy permissions
+    answer by macOS's own permissions, which this container neither adds to nor takes
+    away. Nothing here proves that none of the 40 is another way out. In the one run of a
+    window on screen that was made with this list (with the Services helper still on it),
+    the window asked for more, the graphics shader compiler among it, and was refused: it
+    still drew and took typing, and how it looked was not recorded. Where a window asks
+    for a service that is not on the list, that service is refused, the window may then
+    not work, and the container holds as before;
+  - make shared memory, open devices and reach their drivers (IOKit): the window's container (`allow default`) does not
     deny these. A signal to another process it does deny (`(deny signal)`, with a signal to
     itself allowed): macOS is asked about that at every start, and from the real window
     `selftest` asks to send one to its own process (signal 0, which delivers nothing) and
