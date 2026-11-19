@@ -820,14 +820,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 22
+    release 23
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin f49a4338b25f04376eb26c2df3ab6bfb5fb7cf0ac03fd33d3affdb2ed411aca5
-    lzrprf b9bf4e5b79e7eee09162e89b2bc2ba652259b3eb98ef4c0de7c6b47c9708bdb3
+    file lzrbrwsr-bin 0e652d43df5af7af221ecf0bd8a7825e47f77e80f274d86ddf1b5d3423d3589d
+    lzrprf 3fd5f6d52ebf34b910a78d50252309f33bbdcc644cdbad5040d7a6e4ebac3f0a
 
 ## When a page cannot be shown
 

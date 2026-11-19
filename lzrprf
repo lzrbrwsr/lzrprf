@@ -1890,7 +1890,7 @@ function face(flags, size, hex) {
         var how = $.NSMutableDictionary.alloc.init, one = $.NSFont.fontWithNameSize($(named(flags & 1, flags & 2, flags & 4)), size);
         if (one.isNil()) one = $.NSFont.systemFontOfSize(size);
         how.setObjectForKey(one, $.NSFontAttributeName);
-        how.setObjectForKey(flags & 8 ? $.NSColor.linkColor : colour(hex), $.NSForegroundColorAttributeName);
+        how.setObjectForKey(colour(hex), $.NSForegroundColorAttributeName);    // a link too: the page chose its colour, and a white link on a blue button stays white
         if (flags & 8) how.setObjectForKey($.NSNumber.numberWithInt(1), $.NSUnderlineStyleAttributeName);
         typefaces[key] = [how, one.ascender];
     }
