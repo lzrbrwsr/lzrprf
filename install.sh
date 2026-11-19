@@ -34,8 +34,8 @@
 #      another one, says so and asks: the container is never changed silently;
 #   7. runs lzrprf's own self-test on this computer, and stops if one attack
 #      was not held (a line FAILED). A line UNTESTED, something this Mac gave
-#      no way to try, is counted and said, and does not stop it. When all held,
-#      the test writes the mark of what it tested into ~/.lzrprf/proven;
+#      no way to try, does not stop it: each is printed again with its reason.
+#      When all held, the test writes its mark, those checks named in it;
 #   8. only then puts lzrprf into ~/.lzrprf and LZRBRWSR.app into Applications,
 #      or into your own Applications folder when that one is not yours to write.
 #      Both new parts are first written whole beside the ones they replace and
@@ -111,12 +111,12 @@ unset LZRBRWSR_CLEAN
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="ca4357a5b921da7b64396cf4d945c575eb4362be8ae3f462826d8b305b524030"
-RELEASE="12"
-LZRPRF_COMMIT="d0de09ee5882d1175ffa71fb34647656747c8f16"
+SHA256="a8e8a15be4a281de5c5355574e2d1f33916fe4f6bb0b0c495a9651bea25e6266"
+RELEASE="13"
+LZRPRF_COMMIT="43a545de66110c86e683b3c3fcaf42157a5816c7"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="88b098c2c7162fb740b8dffdb50221267c5e79a64f735262a3423ea0c1776d9d"
-SELFTEST_SHA256="30f81358b02728aa2ba70cd74fb633314ff72a4a4f1c912ca666bccc7fb7162a"
+LZRPRF_SHA256="b02c2e25749d055a0e1fed0f5cb780786270646d3e9ef6c85315548393cee18b"
+SELFTEST_SHA256="19ee3a0326a4c3cc6966f7e6651c8e16c901d5d0728106fbd0769de2ce79c38d"
 
 # Outside the tests, files come over https and nothing else, also when an
 # address sends on to another. In a test they come from files on this computer
@@ -418,12 +418,12 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 12
+release 13
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
-lzrprf 88b098c2c7162fb740b8dffdb50221267c5e79a64f735262a3423ea0c1776d9d
+lzrprf b02c2e25749d055a0e1fed0f5cb780786270646d3e9ef6c85315548393cee18b
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
@@ -500,7 +500,11 @@ shown "$printed" 0 0 1 || true
 if [ "$held" = yes ]; then
 	untested="$(grep -c '^UNTESTED' "$tmp/selftest.out" || true)"
 	step "lzrprf self-test on this computer: all $(grep -c '^held' "$tmp/selftest.out") attacks held"
-	[ "$untested" = 0 ] || step "$untested could not be tried on this Mac; why is in: perl ~/.lzrprf/selftest"
+	if [ "$untested" != 0 ]; then
+		step "$untested of its checks could not be tried on this Mac. Each one, and why:"
+		grep '^UNTESTED' "$tmp/selftest.out" | LC_ALL=C tr -c '\n\040-\176' '?' | cut -c1-300 | sed 's/^/      /'
+		step "the mark of this test names them, and LZRBRWSR shows them and asks before it starts"
+	fi
 else
 	grep '^FAILED' "$tmp/selftest.out" >&2 || true
 	stop "lzrprf's self-test did not hold on this computer."
