@@ -153,12 +153,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="28241dc9c66940c4c91b297bcc608669e23da904244783dbcf78162cc16c5481"
-RELEASE="16"
-LZRPRF_COMMIT="519814b3f2685e161a07686362e50839ba692990"
+SHA256="020fd0bcd801f070c13c9023a8e56e563ad825556a1409e429bee2222f524415"
+RELEASE="17"
+LZRPRF_COMMIT="6e7725dc42f533763911f5f4148e5ce3b6ebc504"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="5e125c65fcaebb3f9e1ece4efa457da0582a8275f30ebd168683f31f71545e78"
-SELFTEST_SHA256="c4802c3081fc853a370d1d32f6dbe7344ccd2c056402d3a17f138f751ce9e8a8"
+LZRPRF_SHA256="201b4968e23e61b20c9706364cc1aee638444f1492ad048d86e158f6b378ecc1"
+SELFTEST_SHA256="8c7c9f6bb6936c43d57442ea78c3deb6c9f7ec08261bb01e8bd10b3cedd3f8fd"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -473,14 +473,14 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 16
+release 17
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
 file lzrbrwsr-bin 8aa6df5bb4c29924782c20c9b7b95e5cc21cd39a2190ac9011d1cda27029307c
-lzrprf 5e125c65fcaebb3f9e1ece4efa457da0582a8275f30ebd168683f31f71545e78
+lzrprf 201b4968e23e61b20c9706364cc1aee638444f1492ad048d86e158f6b378ecc1
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
@@ -758,8 +758,8 @@ cat <<DONE
   no network. Type an address into the bar. lzrprf writes it down, fetches
   it, and only then hands the answer to the browser, in its container. What
   it wrote down is behind the Log button of the window. Unless you chose to
-  keep a log, it is gone when the window closes: nothing is kept on your
-  disk unless you choose it, in Terminal and nowhere else. This says what
+  keep a log, it is gone when the window closes: lzrprf keeps nothing on
+  your disk unless you choose it, in Terminal and nowhere else. This says what
   is kept and how to choose:
 
       ${B}perl ~/.lzrprf/lzrprf keep${N}
