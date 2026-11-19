@@ -1,7 +1,6 @@
 now    A test site is built on this computer: no host outside this computer is used.
-now    112 runs of lzrprf, a hostile application in each: all of them are judged below.
-now    Three runs never end by themselves: lzrprf's limits must end them, after 30 seconds.
-selftest of lzrprf: macOS build 26B123, lzrprf 5def33f35e3bcd93d51c48326b9215347867c23ca777b1c7b05c6ff964666f72, selftest c76b6e0acddefd1852134ede0a5ce6578c4d937f82ac674cf4a8daab3f318844
+now    113 runs of lzrprf, a hostile application in each: all of them are judged below.
+selftest of lzrprf: macOS build 26B123, lzrprf 0623d65a417e605e287ad6ececc6c4cbb839b92def0c38a089e2beb979692897, selftest fe49488b5cb77761a87ec0cf6af62fd92475de230a28eb6cee80ab49f8af8e0f
 
 1. The application, in its container. Each attempt was first made outside every container, where it worked.
 works  outside every container: use a file that was open in whoever started lzrprf (open)
@@ -158,19 +157,24 @@ held   the window's process wrote no file, and no setting of what is kept (looke
 3. What the application writes to the window: it is checked before the window is given it.
 held   a list of the five kinds of line is passed on as it is, the five things the page is said to be made of first, one of them with a name of one character that is itself a mark (13 lines)
 held   the other hosts a page names are said in lzrprf's strip, and none of them is asked (site.test answered 133 bytes. The page names 2 other hosts (other.test, third.test). lzrprf asked none of them.)
-held   a list with anything else in it is not drawn at all: an unknown line, a line of lzrprf's own talk with the window ("ask", "quit", "address", "."), a line that would choose what is kept, a line of what the window says to lzrprf ("go", "log", a press of a button), a script, a box too large, a box whose size is written in the digits of another script, too many boxes, too many lines, a thing the page is said to be made of that comes after the page began, is of no kind, stands out of the order of the kinds or of the names, stands twice, is one of more than 120, has a name or a version too long, a second tab, a character that is not plain, a space in front or no name, no mark of whether the application supports it or another mark than the two, a space at the end of a name or at either end of a version, a tab with no version, a host that is not a name, bytes that are no text (43 lists, none drawn)
+held   a list with anything else in it is not drawn at all: an unknown line, a line of lzrprf's own talk with the window ("ask", "quit", "address", "."), a line that would choose what is kept, a line of what the window says to lzrprf ("go", "log", a press of a button), a script, a box too large, a box whose size is written in the digits of another script, too many boxes, too many lines, a block that holds more than 20,000 (in text, in line breaks, in boxes and text, or before the first block begins), a thing the page is said to be made of that comes after the page began, is of no kind, stands out of the order of the kinds or of the names, stands twice, is one of more than 120, has a name or a version too long, a second tab, a character that is not plain, a space in front or no name, no mark of whether the application supports it or another mark than the two, a space at the end of a name or at either end of a version, a tab with no version, a host that is not a name, bytes that are no text (47 lists, none drawn)
 held   more than lzrprf takes is not drawn (perl did not show this page: it wrote more than lzrprf takes.)
 held   in text, a control code, an invisible mark, a mark that turns the reading direction, a line break of another kind, a number that is no character and one above every character are each replaced by the replacement mark (13 characters replaced)
 held   the most that may be said of what a page is made of is passed on: 120 things, each name 60 characters and each version 30, supported or not (122 lines)
+held   the most lines and the most boxes a page may have are passed on, where one more of either is not drawn: 50,000 lines, 2000 boxes (50000 lines, 2000 boxes)
+held   a block that holds exactly the most is passed on as it is, where one character more is not drawn: 20,000 in text, in boxes that count 400 each, in text and line breaks that count 1 each (83 lines)
+held   in text, no more than 30 characters in a row hang on the one before them: the 31st mark on a letter, and the 31st in a chain of letters joined by a joining sign, becomes the replacement mark, and the row is counted over the end of a line of text and begins again after a line break (8 lines, 4 characters replaced)
+held   in text, no more than 1000 characters stand in a row with no white space: there lzrprf puts in a space of no width, after the marks that hang on the last letter, and a word is counted over the end of a line of text (6 lines, 3 spaces of no width put in)
+held   what hangs on a letter is more than marks, and a space that does not break is no place to end a line: the 31st of marks and joining characters of other kinds in turn, of a chain joined by a sign and a dot, of Hangul initials over two lines of text, becomes the replacement mark; no space of no width is put among the marks that end a word, at the end of a line of text or before a space, nor between a joining sign and the letter it joins on the next line; words parted only by no-break spaces get it as one word does (17 lines)
 held   an application that does not read the answer changes nothing (its list was drawn)
 
 4. What a site is sent: by the test site's own record.
-held   the site was asked for what was typed, and for the two fixed addresses after a yes: each once, and nothing else (113 requests)
-held   every request is the address and nothing else: no cookie, no name of a browser, no language, no number of this computer (113 requests, each of the same 4 lines)
+held   the site was asked for what was typed, and for the two fixed addresses after a yes: each once, and nothing else (131 requests)
+held   every request is the address and nothing else: no cookie, no name of a browser, no language, no number of this computer (131 requests, each of the same 4 lines)
 held   "lzrprf request" prints the bytes the site received, byte for byte (180 bytes)
 held   the second request of a run carries nothing of the first: the site set a cookie, and it did not come back (the site sent Set-Cookie: kept=never with every answer)
-held   in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk (99 of 99; 14 more from runs that keep nothing)
-held   the bytes that open the encryption are the same for every request, apart from the random values the protocol requires; no earlier connection is taken up again (113 requests from 112 starts, 312 bytes each)
+held   in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk (109 of 109; 22 more from runs that keep nothing)
+held   the bytes that open the encryption are the same for every request, apart from the random values the protocol requires; no earlier connection is taken up again (131 requests from 113 starts, 312 bytes each)
 held   a site without encryption is sent the opening of an encryption and nothing readable (312 bytes)
 held   and nothing of it is shown (Nothing is shown: no secure connection could be made.)
 held   a certificate that does not prove the host: no request is sent, nothing is shown (Nothing is shown: the certificate does not prove the host.)
@@ -187,7 +191,7 @@ held   a log that cannot be written (no permission): nothing is looked up, nothi
 held   a log that cannot be written (a link that leads elsewhere): nothing is looked up, nothing is fetched (Nothing was fetched: the log could not be written.)
 held   a log that cannot be written any more when the answer is there: the answer is not shown, and the window says the fetch was tried and not that nothing was fetched (lzrprf tried the fetch. Nothing of its answer is shown: the line that says how it ended could not be written to the log. (6 lines))
 held   the log is only added to, and has no size at which a line is dropped (30003 lines after 30000)
-held   the log is shown in the window, where a page stands: this window's lines, and under them the last of the log on this computer (Every address lzrprf fetched for perl in this window is below. Kept on this computer until you clear it: full addresses. The log on this computer holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.62634.logkeep/log	Keep the log	Clear the log)
+held   the log is shown in the window, where a page stands: this window's lines, and under them the last of the log on this computer (Every address lzrprf fetched for perl in this window is below. Kept on this computer until you clear it: full addresses. The log on this computer holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.9238.logkeep/log	Keep the log	Clear the log)
 held   the log is cleared by your button, after you were asked twice, and its first line then says so (you cleared the log: it held 3 lines, 0.0 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z)
 held   the log is not cleared while a request is between its first line and its last (The log was not cleared: an address is being fetched right now, or the log could not be written. Nothing was removed.)
 held   nothing kept, as when nobody chose: after a window fetched an address with a path and a query, no file in its folder holds the host, the numeric address, the path or the query; nor in the folder of any other run that keeps nothing (searched every file of 9 folders)
@@ -247,7 +251,7 @@ held   a yes to looking whose line cannot be written is not kept: nothing is fet
 held   no mark of a test, a mark from another build of macOS, a mark of another lzrprf, a mark made by another selftest, a mark that names no selftest: you are asked to test, and after a no nothing is shown, looked up or fetched (5 starts, 5 questions)
 held   the mark of this build of macOS and this lzrprf, standing after the mark of another copy that was tested here: no question, and the page is shown (one request)
 held   a mark of now that names a check the test could not try, and no yes to it: the window names the check and asks, and after Quit nothing is shown, looked up or fetched, and no yes is kept (The self-test held on this Mac, but it could not try every check here: a check (no way to try it here). What it could not try is not shown to hold on this Mac as it is now. Start perl without it?	Quit	Start)
-held   the same mark, and the answer Start: the yes is kept as that whole line, and the page is shown (macOS build 26B123, lzrprf 5def33f35e3bcd93d51c48326b9215347867c23ca777b1c7b05c6ff964666f72, selftest c76b6e0acddefd1852134ede0a5ce6578c4d937f82ac674cf4a8daab3f318844, untested: a check (no way to try it here) )
+held   the same mark, and the answer Start: the yes is kept as that whole line, and the page is shown (macOS build 26B123, lzrprf 0623d65a417e605e287ad6ececc6c4cbb839b92def0c38a089e2beb979692897, selftest fe49488b5cb77761a87ec0cf6af62fd92475de230a28eb6cee80ab49f8af8e0f, untested: a check (no way to try it here) )
 held   the same mark, with a yes kept for other checks that could not be tried: that yes is not a yes to this line, the question comes again, and after Quit nothing is shown, looked up or fetched (The self-test held on this Mac, but it could not try every check here: a check (no way to try it here). What it could not try is not shown to hold on this Mac as it is now. Start perl without it?	Quit	Start)
 held   the same mark, with a yes kept for exactly that line: no question, and the page is shown (1 request)
 held   a copy of lzrprf that counts a mark with an untested check without a yes: it asks nothing and fetches, so the runs above would see that weakening (1 request)
@@ -295,6 +299,7 @@ held   what was typed into the bar is what the site was asked, once (compared th
 held   under the page the same window lists what the application says the page is made of, a row for each thing under the name of its kind: its name, its version, and true or false for whether the application says it supports it; and it says that lzrprf checked the form only (What Test says this page is made of: 5 things, 2 of them supported by Test itself, as it says. lzrprf checked the form of this list, not whether it is true.?Document?-   supported by Test: true??HTML 5   supported by Test: true?CSS?Grid Level 1   supported by Test: false??Subgrid   supported by Test: false?Libraries?A library of the hostile application 1.2.3   supported by Test: false)
 held   when the log stands where the page stood, that list is empty and says so (Here Test lists what it says a page is made of. Nothing is listed for what is shown now.)
 held   the log is shown in the same window: this window's lines, with nothing kept on the disk and no question that keeps anything (Every address lzrprf fetched for Test in this window is below. Nothing is kept a)
+held   the heaviest pages the limits allow of each kind that was measured slow are each fetched, checked, drawn by the real window and set to their last line in under 30 seconds on this Mac, and the window answers a press after them: the most lines, the most blocks, and full blocks of text in two other scripts, of marks on one letter, of one word, of words parted by no-break spaces, of marks and joining characters of another kind in turn, of eight scripts in turn (heavylines 3700 ms, heavyblocks 4576 ms, heavytext 4463 ms, heavymarks 1837 ms, heavyword 2958 ms, heavyspaced 2813 ms, heavyjoined 3449 ms, heavymixed 6428 ms)
 
 9. The text of lzrprf, read by the test.
 held   the application is started on one line, and that line puts it in the page container (1 line)
@@ -307,7 +312,7 @@ held   the two ends of a question are told apart: "sub hear" of lzrprf, run agai
 held   the door for tests takes no folder named ".", ".." or with a dot first, so it cannot be pointed at the folder lzrprf itself keeps its state in (usage, three times)
 held   each of the 12 conditions in lzrprf's first lines is marked at the line that holds it (12 marks in the code)
 held   the README cites the same conditions, all of them and no other (12 cited)
-held   the numbers the README states are the numbers in lzrprf (7 numbers)
+held   the numbers the README states are the numbers in lzrprf (11 numbers)
 held   every part of lzrprf the README names is in lzrprf (looked each up)
 
 10. What counts as an address, and as the public internet: asked of lzrprf itself.
@@ -317,13 +322,13 @@ held   an address on the internet is seen as sent that way, over IPv4 and, where
 held   what is typed is sent as typed, or not at all: https only, a host by its name, port 443, no name and password, no space, no control character (29 texts)
 
 11. The time limits.
-held   an application that never stops is ended (after 31 seconds: perl did not show this page: what it wrote is not a page.)
+held   an application that never stops is ended (after 30 seconds: perl did not show this page: it did not finish in time.)
 held   a copy of lzrprf that gets no second process to hand the answer over: the application, running by then, is ended there and not left to itself (perl did not show this page: its container could not be started.)
 held   the same copy without the line that ends it: the application goes on running after lzrprf gave up, so the run above would see that weakening (it went on running)
 held   lzrprf itself is killed while the application sleeps in its container: the keeper of that page ends the application, which is not left to itself (ended with lzrprf)
 held   the same with a keeper that ends nothing: the application goes on running after lzrprf was killed, so the run above would see that weakening (it went on running)
-held   an application that does nothing is ended (after 31 seconds)
+held   an application that does nothing is ended (after 30 seconds)
 held   a site that never answers is given up on (after 30 seconds)
 
-300 held or worked.
-Nothing failed. lzrprf holds on this Mac as it is now: macOS build 26B123, lzrprf 5def33f35e3bcd93d51c48326b9215347867c23ca777b1c7b05c6ff964666f72, selftest c76b6e0acddefd1852134ede0a5ce6578c4d937f82ac674cf4a8daab3f318844
+306 held or worked.
+Nothing failed. lzrprf holds on this Mac as it is now: macOS build 26B123, lzrprf 0623d65a417e605e287ad6ececc6c4cbb839b92def0c38a089e2beb979692897, selftest fe49488b5cb77761a87ec0cf6af62fd92475de230a28eb6cee80ab49f8af8e0f
