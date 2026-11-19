@@ -40,7 +40,7 @@
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of four kinds of line is not drawn at all.
 #   [C10] The window's process has no network of its own, writes no file, starts no program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. lzrprf asks the system before anything is shown whether all of that but the reading is refused. It still reaches the system's services, the clipboard among them.
-#   [C11] Nothing is shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. A check the test could not try there is named in its mark, and then nothing is shown before you said yes to starting without exactly those checks.
+#   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #
 # This file is the whole program. Its parts, in order: the containers, the
@@ -76,7 +76,8 @@ my $FETCH_SECONDS = 30;                   # the most one request may take, from 
 my $WIRE_BYTES = $FETCH_BYTES + 1024 * 1024;    # the most that is carried from the site to curl: the answer, and what encryption adds
 my $SENT_BYTES = 64 * 1024;               # the most that is carried from curl to the site: one request is far smaller
 my $FIND_SECONDS = 10;                    # the most a name lookup may take
-my $FOUND = 8;                            # the most addresses of one name that are looked at
+my $FOUND = 8;                            # the most addresses of one name that are taken: the first eight this computer has a way to
+my $LOOKED = 16;                          # the most addresses of one name that are looked at for that: what the lookup gave beyond them is left out
 my $PAGE_BYTES = 6 * 1024 * 1024;         # the most one page container may write
 my $PAGE_SECONDS = 30;                    # a page container is ended after this, whatever it is doing
 my $PAGE_ROOM = 2097152;                 # the address space, in KiB, a page container may take on top of what the shell that starts it holds: 2 GiB. What the application itself holds at its start is not measured
@@ -85,6 +86,8 @@ my $BOXES = 2000;                         # the most grey boxes among them
 my $ANSWER_SECONDS = 600;                 # a question that is still open then counts as answered with its first button
 my $NAME = qr/(?:[A-Za-z0-9-]{1,63}\.)+[A-Za-z][A-Za-z0-9-]{0,62}/;    # a host name: never a bare number, never one word
 my $UNWRITTEN = 'Nothing was fetched: the log could not be written.';
+my $UNENDED = 'lzrprf tried the fetch. Nothing of its answer is shown: the line that says how it ended could not be written to the log.';    # not the words above: by then the site was connected to, or was tried
+my $UNSAID = 0;                           # set while a fixed request (sub fixed) was tried and the line of how it ended is not in the log yet
 my $KEPT_DAYS = 30;                       # how long a kept log keeps a line, when you chose a kept log and no number of days
 my $KEPT_MOST = 3650;                     # a setting of more days than this is no setting: nothing is kept
 
@@ -477,13 +480,14 @@ sub visit {
     busy("Looking up $host.");
     my ($where, $why) = find($host);
     $why = own_network($host, $where, $kept) if $where && grep { $_->{own} } @$where;    # [C8]
-    my ($got, $from);
+    my ($got, $from, $tried);
     if (!$why) {
         record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return idle($UNWRITTEN);    # [C5] written down first, connected second
         busy("Fetching $url");
+        $tried = 1;
         ($got, $why, $from) = fetch($url, $where);
     }
-    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return idle($UNWRITTEN);    # an answer whose line could not be recorded is not shown
+    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return idle($tried ? $UNENDED : $UNWRITTEN);    # an answer whose line could not be recorded is not shown, and the window says the fetch was tried
     close $request;
     return idle("Nothing is shown: $why.") if $why;
     busy("$APP lays the page out, in its container.");
@@ -605,13 +609,16 @@ sub fault {
     my ($url, $host) = $to && $build ? address("$to?fault=$word&release=$release&macos=$build") : ();
     return idle($says) unless $url;
     return idle($says) unless ask("$says Send a report to its developer? It holds one of two words, the number of the release and this Mac's build of macOS, and nothing else. The server that receives it sees your internet address and the time, as every site does. This is all of it, and it is written in the log: $url", "Don't send", 'Send') == 2;    # [C4]
-    idle("$says " . (fixed("you sent a report: $url", $url, $host) ? 'The report was sent.' : 'The report could not be sent.'));
+    idle("$says " . (fixed("you sent a report: $url", $url, $host) ? 'The report was sent.' : $UNSAID ? 'lzrprf tried to send the report. Whether it arrived is not shown: the line that says how it ended could not be written to the log.' : 'The report could not be sent.'));
 }
 
 # Where a host is. The name is looked up outside every container, after the
 # address is in the log, by a fresh copy of this file that is given ten seconds.
-# Returns the addresses the name leads to, at most eight, each with whether
-# it is "own": not on the public internet, or reached by a route of its own.
+# Returns the addresses the name leads to, each with whether it is "own":
+# not on the public internet, or reached by a route of its own. At most eight
+# are returned: the first eight this computer has a way to. An address it has
+# no way to is passed over and is not one of the eight. The first sixteen the
+# lookup gave are looked at, and no more.
 sub find {
     my ($host) = @_;
     if ($PEER ne '-') {                   # "lzrprf try" only: every name leads to the test's listener
@@ -619,9 +626,9 @@ sub find {
         return [{ family => AF_INET, addr => pack_sockaddr_in($port, inet_aton($to)), text => $to, own => !public($to) }];
     }
     my ($found) = said($FIND_SECONDS, '/usr/bin/perl', $SELF, 'lookup', $host);
-    my (@where, %had);
+    my (@where, %had, $looked);
     for my $text (grep { /^[0-9A-Fa-f:.]+(?:%[A-Za-z0-9]+)?$/ && !$had{$_}++ } split /\n/, $found) {
-        last if @where >= $FOUND;
+        last if @where >= $FOUND || ++$looked > $LOOKED;
         my ($failed, $one) = getaddrinfo($text, 443, { socktype => SOCK_STREAM, flags => AI_NUMERICHOST });    # a number is turned into a number: nothing is looked up
         next if $failed || !$one;
         my $route = route($one->{family}, $text) or next;    # this computer has no way there at all
@@ -814,6 +821,7 @@ sub answer {
 # into a file that runs in Terminal, in front of you.                    # [C4]
 sub fixed {
     my ($line, $url, $host) = @_;
+    $UNSAID = 0;
     open my $request, '>>', "$DIR/busy" or return;
     flock $request, LOCK_SH or return;
     my ($kept) = keeping();
@@ -823,9 +831,11 @@ sub fixed {
     my ($got, $from);
     if (!$why) {
         record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return;    # [C5]
+        $UNSAID = 1;
         ($got, $why, $from) = fetch($url, $where);
     }
-    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;
+    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;    # nothing of the answer is used, and "sub fault" says the report was tried
+    $UNSAID = 0;
     return $why ? undef : $got;
 }
 

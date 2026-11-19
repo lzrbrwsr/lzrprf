@@ -5,11 +5,13 @@
 #
 #   perl selftest            about half a minute
 #
-# It connects to nothing outside this computer, shows no window and asks you
+# It uses no host outside this computer, shows no window and asks you
 # nothing. Its tries at an address outside go to 192.0.2.1, an address kept for
 # documentation that no host answers: inside a container the try counts as
 # refused only when the sandbox itself refuses it, and outside every container
-# it must not be refused. It starts lzrprf with "try": the same program, with its state in a
+# it must not be refused. So the tries made outside every container can put the
+# opening packet of a connection to 192.0.2.1 on your network: it holds
+# nothing of yours, and nothing answers it. It starts lzrprf with "try": the same program, with its state in a
 # folder of its own, every name leading to a test site on this computer whose
 # certificate is signed by an authority made here a moment ago, and the
 # window's part played by the test. One run uses lzrprf's real window, kept
@@ -185,6 +187,7 @@ if (!$site) {
             $path //= '';
             seen($kind, $got, $hello, logged($path));
             sleep 600 if $path eq '/slow';
+            chmod 0400, "$base.logend/log" if $path eq '/logend';    # the log loses its permission between the line "connects to" and the line of how it ended
             $client->print(answer_for($path));
             $client->close;
             exit 0;
@@ -228,11 +231,11 @@ my $computer = (POSIX::uname())[1] // '';
 # lines are joined into one, and a comment would take the rest with it.
 my $hostile = <<'END';
 use IO::Socket::IP; use IO::Socket::UNIX; use Socket; use POSIX ();
-my ($port, $secret, $home, $outside, $lzrprf, $folder, $computer, $part) = @ARGV;
+my ($port, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $spare) = @ARGV;
 $| = 1; $SIG{PIPE} = 'IGNORE';
 my $address = $ENV{LZRPRF_CONTAINED} // '';
 exit 0 if $part eq 'page' && $address =~ m{/out/quick};
-my $where = $part eq 'outside' ? 'outside' : $part eq 'curl' ? 'fetch container' : 'page container';
+my $where = $part eq 'outside' || $part eq 'link' ? 'outside' : $part eq 'curl' ? 'fetch container' : 'page container';
 my $to = $part eq 'curl' ? \*STDOUT : \*STDERR;
 sub report { print $to "tried\t$where: $_[0]\t$_[1]\n" }
 sub direct { IO::Socket::IP->new(PeerHost => $_[0], PeerPort => $_[1], Timeout => 3) ? 'reached' : 'refused' }
@@ -245,6 +248,11 @@ sub computer_name { my $name = eval { (POSIX::uname())[1] } // ''; return $name 
 sub process_list {
     my ($names, $size) = (pack('i4', 1, 14, 0, 0), pack('Q', 0));
     return eval { syscall(202, $names, 4, 0, $size, 0, 0) } == 0 && unpack('Q', $size) > 0;
+}
+sub by_link {
+    my ($own) = $^X =~ m{^(.*\.app)/Contents/MacOS/[^/]+$};
+    report 'read a file of its own, beside that link', open(my $beside, '<', "$own/Contents/Resources/release") ? 'read' : 'refused' if defined $own;
+    report 'read a file in the home folder through a link in its own folder', open(my $linked, '<', "$own/Contents/Resources/alias") ? 'read' : 'refused' if defined $own;
 }
 sub attempts {
     report 'use a file that was open in whoever started lzrprf', POSIX::fstat(19) ? 'open' : 'closed';
@@ -270,7 +278,10 @@ sub attempts {
     report 'change lzrprf itself', open(my $self, '>>', $lzrprf) ? 'opened' : 'refused';
     report 'write a file in the home folder', open(my $out, '>', "$secret.written.$part") ? 'written' : 'refused';
     report 'write a file in the temporary folder', open(my $tmp, '>', "/tmp/lzrprf-selftest.$outside") ? 'written' : 'refused';
+    report 'read a file in your temporary folder, outside the home folder', open(my $spared, '<', $spare // '') ? 'read' : 'refused';
     report 'signal another process', kill(0, $outside) ? 'allowed' : 'refused';
+    report 'open a device of the terminals', open(my $terminal, '+<', '/dev/ptmx') ? 'opened' : 'refused';
+    by_link();
     report 'see a variable of the user', exists $ENV{LZRPRF_SELFTEST_MARK} ? 'seen' : 'hidden';
     report 'read the computer\'s name', length $computer && computer_name() eq $computer ? 'read' : 'hidden';
     report 'read the list of processes', process_list() ? 'read' : 'refused';
@@ -295,6 +306,7 @@ sub attempts {
     report 'start another program', 'refused';
 }
 if ($part eq 'outside') { attempts(); exit 0 }
+if ($part eq 'link') { by_link(); exit 0 }
 if ($part eq 'curl') {
     my $way = IO::Socket::UNIX->new(Peer => "$folder/way." . getppid());
     my $back = '';
@@ -358,7 +370,7 @@ my @attempts = (
     ['learn whether a file exists in the home folder', 'found', 'hidden'], ['list the home folder', 'listed', 'refused'], ['list the folder of all users', 'listed', 'refused'],
     ['read the log', 'read', 'refused'], ['change the log', 'opened', 'refused'], ['empty the log', 'opened', 'refused'], ['give the log another name', 'renamed', 'refused'], ['remove the log', 'removed', 'refused'], ['change what is kept', 'opened', 'refused'], ['remove the setting of what is kept', 'removed', 'refused'], ['put a setting of its own in its place', 'written', 'refused'],
     ['change lzrprf itself', 'opened', 'refused'],
-    ['write a file in the home folder', 'written', 'refused'], ['write a file in the temporary folder', 'written', 'refused'], ['signal another process', 'allowed', 'refused'],
+    ['write a file in the home folder', 'written', 'refused'], ['write a file in the temporary folder', 'written', 'refused'], ['read a file in your temporary folder, outside the home folder', 'read', 'refused'], ['signal another process', 'allowed', 'refused'], ['open a device of the terminals', 'opened', 'refused'],
     ['see a variable of the user', 'seen', 'hidden'], ['read the computer\'s name', 'read', 'hidden'], ['read the list of processes', 'read', 'refused'],
     ['make memory that other programs can share', 'made', 'refused'], ['make a flag that other programs can wait on', 'made', 'refused'], ['make a queue that other programs can read', 'made', 'refused'],
     ['make memory with a name, for other programs to open', 'made', 'refused'], ['make a flag with a name, for other programs to open', 'made', 'refused'],
@@ -419,7 +431,7 @@ END
 # with the hostile application in it. They run beside each other, and all
 # of them are judged afterwards. What each is for is said where it is judged.
 my (%run, @order, @expected, @kept_open);
-sub hostile_args { my ($folder, $part) = @_; return ($port{echo}, $secret, $home, $outside, $lzrprf, $folder, $computer, $part) }
+sub hostile_args { my ($folder, $part) = @_; return ($port{echo}, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $temp_file) }
 sub run_of {
     my ($name, %how) = @_;
     my $folder = "$base.$name";
@@ -445,6 +457,7 @@ sub bundle {                              # an application of the test's own, wi
     my $in = "$base.$name" . 'app/Test.app/Contents';
     make_path("$in/MacOS", "$in/Resources");
     system('/bin/cp', '/usr/bin/perl', "$in/MacOS/app") == 0 or die "selftest: cannot copy a program\n";
+    symlink $secret, "$in/Resources/alias" or die "selftest: cannot make a link in $in/Resources: $!\n";    # a name in the application's own folder for the file in the home folder: see the run "alias"
     open my $out, '>', "$in/Resources/release" or die "selftest: cannot write $in/Resources/release: $!\n";
     print $out map { "$_\n" } @lines;
     close $out;
@@ -472,6 +485,8 @@ run_of('spin', typed => "$t/out/spin", fetches => ['/out/spin']);
 run_of('sleep', typed => "$t/out/sleep", fetches => ['/out/sleep']);
 run_of('outside', command => ['/usr/bin/perl', '-e', $hostile, hostile_args("$base.outside", 'outside')], prepare => sub { write_log($_[0], 3) });
 run_of('page', typed => "$t/selftest?q=1,,$t/second", fetches => ['/selftest?q=1', '/second']);
+run_of('aliasoutside', command => [bundle('aliasoutside', 'release 3'), '-e', $hostile, hostile_args("$base.aliasoutside", 'link')]);    # the hostile application as a program in a folder of its own, outside every container: this one try and no other
+run_of('alias', app => bundle('alias', 'release 3'), typed => "$t/alias", fetches => ['/alias']);    # the same program in the page container: its own folder is the one place in your account it may read
 run_of('deny', typed => "$t/denied", answer => 'deny');
 run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, 'big', 'control', 'noread'), fetches => [map { "/out/$_" } @unfit, 'big', 'control', 'noread']);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large", fetches => ['/elsewhere', '/pieces', '/large']);
@@ -488,6 +503,7 @@ my @refused = ('http://site.test/plain', 'https://127.0.0.1/number', 'ftp://site
 run_of('typed', typed => join ',,', @refused);
 run_of('logro', typed => "$t/logro", prepare => sub { write_log($_[0], 3); chmod 0400, "$_[0]/log" });
 run_of('loglink', typed => "$t/loglink", prepare => sub { symlink "$secret.linked", "$_[0]/log" });
+run_of('logend', typed => "$t/logend", fetches => ['/logend'], prepare => sub { write_log($_[0], 3) });    # the site takes the log's permission away while it answers
 run_of('logkeep', typed => "=log,,$t/after", answer => 'deny', prepare => sub { write_log($_[0], 30000) });
 run_of('logclear', typed => '=log', prepare => sub { write_log($_[0], 3) });
 run_of('logbusy', typed => '=log', prepare => sub {
@@ -671,6 +687,12 @@ print "1. The application, in its container. Each attempt was first made outside
 judge('outside', tried(err('outside'), 'outside'));
 my @in_page = tried(err('page'), 'page container');
 judge('page container', @in_page);
+my ($by_link) = ('read a file in the home folder through a link in its own folder');
+my @link_free = map { $_->[0] eq $by_link ? $_->[1] : () } tried(err('aliasoutside'), 'outside');
+my @link_held = map { $_->[0] eq $by_link ? $_->[1] : () } tried(err('alias'), 'page container');
+works("@link_free" eq 'read', "outside every container: $by_link", @link_free ? join('/', @link_free) : 'nothing came of it');
+my @own_read = map { $_->[0] eq 'read a file of its own, beside that link' ? $_->[1] : () } tried(err('alias'), 'page container');
+check("@link_held" eq 'refused' && "@own_read" eq 'read' && asked('/alias') == 1, "page container: $by_link (the application's own folder is the one place in your account it may read; a name there for a file elsewhere opens nothing, while the file beside that name is read, so the rule goes by where the file is)", (@link_held ? join('/', @link_held) : 'nothing came of it') . '; the file beside it: ' . (@own_read ? join('/', @own_read) : 'nothing came of it'));
 my %once = map { $_->[0] => $_->[1] } @in_page;
 check(($once{'what it is given'} // '') eq 'a pipe that holds a finished answer' && ($once{'the answer of the site'} // '') eq 'whole', 'the application is given the finished answer, after the connection to the site is closed', "$once{'what it is given'}; the answer is $once{'the answer of the site'}");
 check(($once{'what it writes to'} // '') eq 'a pipe, which cannot hand over a connection', 'what it writes goes to lzrprf through a pipe', $once{'what it writes to'} // 'nothing came of it');
@@ -749,6 +771,9 @@ check("@page_log[0 .. 3]" eq "@must" && @page_log == 8, 'a request is four lines
 for my $name ('logro', 'loglink') {
     check(last_said($name) eq 'Nothing was fetched: the log could not be written.' && !asked("/$name"), 'a log that cannot be written (' . ($name eq 'logro' ? 'no permission' : 'a link that leads elsewhere') . '): nothing is looked up, nothing is fetched', last_said($name));
 }
+my @ended = log_of('logend');
+check(last_said('logend') eq 'lzrprf tried the fetch. Nothing of its answer is shown: the line that says how it ended could not be written to the log.' && asked('/logend') == 1 && !grep({ $_->[0] eq 'page' } told('logend')) && @ended == 6 && $ended[-1] =~ /-> lzrprf connects to/,
+    'a log that cannot be written any more when the answer is there: the answer is not shown, and the window says the fetch was tried and not that nothing was fetched', last_said('logend') . ' (' . @ended . ' lines)');
 unlink "$secret.linked";
 my @kept = log_of('logkeep');
 my @log_page = map { $_->[0] eq 'page' ? $_->[1] : () } told('logkeep');
