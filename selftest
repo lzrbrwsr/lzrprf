@@ -54,6 +54,7 @@ use File::Path qw(make_path remove_tree);
 use IO::Select;
 use IO::Socket::IP;
 use MIME::Base64 'encode_base64';
+use MIME::Base64 'encode_base64';
 use POSIX ();
 use Socket qw(MSG_PEEK inet_aton);
 use Time::HiRes;
@@ -349,6 +350,12 @@ if ($part eq 'curl') {
 my ($kind) = $address =~ m{/out/(\w+)};
 $kind //= '';
 if ($kind eq 'spin') { 1 while 1 }
+if ($ENV{LZRPRF_PICTURE}) {
+    my $picture = do { local $/; <STDIN> } // '';
+    my %pixels = (pixgood => "P2,2\npff0000ff00ff00ff\np0000ff80ffffff00\n", pixrow => "P2,1\npff0000ff00ff00\n", pixhex => "P1,1\npff00zzff\n", pixnone => "P0,0\n");
+    print $pixels{$kind} // '';
+    exit 0;
+}
 if ($kind eq 'sleep') { sleep 1000 }
 if ($kind eq 'nap') { 1 while sysread(STDIN, my $read, 65536); print STDERR "napping\n"; sleep 5; print STDERR "woke\n"; exit 0 }
 my $answer = $kind eq 'noread' ? '' : do { local $/; <STDIN> } // '';
@@ -443,6 +450,10 @@ my %list = (
     laidbase64 => "=page\nL960x400\nM0,0,10,10,2,1\nm/wAA/wAA/4!=\n",
     laidpad => "=page\nL960x400\nM0,0,10,10,2,1\nm/wAA/wAA/4B=\n",
     laidpixels => "=page\nL960x400\nM0,0,10,10,1024,257\n",
+    pictured => "=page\n=pictures /out/pixgood /out/pixrow /out/pixhex /out/pixnone\nUd+HTML\t5\nL960x400\nI0,0,20,20,0\nI30,0,20,20,1\nI60,0,20,20,2\nI90,0,20,20,3\nG120,0,5,5\n",
+    picturesbad => "=page\n=pictures out/pixgood\nL960x400\nG0,0,5,5\n",
+    picturesmany => "=page\n=pictures" . join('', map { " /p$_" } 1 .. 9) . "\nL960x400\nG0,0,5,5\n",
+    picturesrange => "=page\n=pictures /out/pixgood\nL960x400\nI0,0,20,20,1\n",
 );
 if (exists $heavy{$kind}) { my $whole = $heavy{$kind}->(); utf8::encode($whole); print $whole }
 else { print exists $list{$kind} ? $list{$kind} : $good }
@@ -473,8 +484,9 @@ my @attempts = (
 my @good = ('Ud+-', "Ud+HTML\t5", "Uc-Grid\tLevel 1", 'Uc-Subgrid', "Ul-A library of the hostile application\t1.2.3", 'P10', 'T@A page by the hostile application', 'Pp0', 'THa link that is only a colour', 'B', 'I200x100', 'Pc1', 'TDfixed');
 my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 bigbox smallbox otherdigit boxes blocklong blockbreak blockbox blockfirst hosts hostpath hostnumber emptytext style depth looks many noend nothing madelate madekind madeorder madename madetwice mademany madelong madeversion madetabs madecontrol madeother madespace madeempty madeflag madesign madetrail madebare madeblank madeversionspace);
 my @fit = qw(big control noread madefull manyfull boxesfull blockfull hung long joined);    # each is judged by itself below; "big" is the one of them that is not drawn
-my @laid_unfit = qw(laidrange laidzero laidnarrow laidmany laidmix laidflow laidrows laidrowlong laidbase64 laidpad laidpixels);    # laid pages, each broken in one way
-my @laid_fit = qw(laidgood laidcontrol);
+my @laid_unfit = qw(laidrange laidzero laidnarrow laidmany laidmix laidflow laidrows laidrowlong laidbase64 laidpad laidpixels picturesbad picturesmany picturesrange);    # laid pages, each broken in one way
+my @laid_fit = qw(laidgood laidcontrol pictured);
+my @pixel_paths = map { "/out/$_" } qw(pixgood pixrow pixhex pixnone);    # the pictures "pictured" names on its own host, each fetched once
 my @heavy = qw(heavylines heavyblocks heavytext heavymarks heavyword heavyspaced heavyjoined heavymixed);    # the heaviest pages the limits allow of each kind that was measured slow, drawn by the real window in a run of their own
 my $t = 'https://site.test';
 
@@ -630,7 +642,7 @@ my $lost_code = mutant('lostcode', qq{(deny file-map-executable)\n} => '');    #
 run_of('lostcode', lzrprf => $lost_code, app => bundle('lostcode', 'release 3', pair_line($lost_code)), typed => "$t/lostcode", fetches => ['/lostcode']);
 run_of('alias', app => bundle('alias', 'release 3'), typed => "$t/alias", fetches => ['/alias']);    # the same program in the page container: its own folder is the one place in your account it may read
 run_of('deny', typed => "$t/denied", answer => 'deny');
-run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit), fetches => [map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit]);
+run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit), fetches => [(map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit), @pixel_paths]);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large", fetches => ['/elsewhere', '/pieces', '/large']);
 run_of('untrusted', peer => 'untrusted', typed => "$t/untrusted");
 run_of('plain', peer => 'plain', typed => "$t/plain");
@@ -979,11 +991,15 @@ my @laid_good = ("Ud+HTML\t5", 'L960x400', 'R0,0,960,400,ffffffff', 'R10,10,100,
 my $laid = visit('output', "$t/out/laidgood");
 check($laid->{page} && "@{ $laid->{page} }" eq "@laid_good", 'a laid page is passed on as it is: rectangles, runs of text with a comma in them, a grey box and a picture of 2 by 2 pixels in base64, each inside the page', $laid->{page} ? scalar(@{ $laid->{page} }) . ' lines' : $laid->{said});
 my @laid_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @laid_unfit;
-check(!@laid_passed, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels', @laid_passed ? "passed: @laid_passed" : scalar(@laid_unfit) . ' pages, none drawn');
+check(!@laid_passed, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels, a line =pictures with a path that does not begin with / or with nine paths, a place I for a picture the line does not name', @laid_passed ? "passed: @laid_passed" : scalar(@laid_unfit) . ' pages, none drawn');
 my $laid_clean = "X10,40,16,\@,333333,a\x{fffd}[2Jb\x{fffd}c\x{fffd}d" . "\x{301}" x 30 . "\x{fffd}e";
 utf8::encode($laid_clean);
 my $laid_marked = visit('output', "$t/out/laidcontrol");
 check($laid_marked->{page} && "@{ $laid_marked->{page} }" eq "L960x400 $laid_clean", 'in a run of text of a laid page, a control code, a mark that turns the reading direction and a space of no width are replaced by the replacement mark, and so is the 31st mark on a letter; the page is drawn, not refused, and no space of no width is put in', $laid_marked->{page} ? '4 characters replaced' : $laid_marked->{said});
+
+my @pictured = ("Ud+HTML\t5", 'L960x400', 'M0,0,20,20,2,2', 'm' . encode_base64(pack('H*', 'ff0000ff00ff00ff'), ''), 'm' . encode_base64(pack('H*', '0000ff80ffffff00'), ''), 'G30,0,20,20', 'G60,0,20,20', 'G90,0,20,20', 'G120,0,5,5');
+my $pictured = visit('output', "$t/out/pictured");
+check($pictured->{page} && "@{ $pictured->{page} }" eq "@pictured" && $pictured->{said} =~ /\b1 of the 4 pictures the page draws from site\.test itself was fetched and shown\. The page names no other host\.$/, 'a picture the page names on its own host is fetched, decoded by the application in a container of its own, and given to the window as pixels lzrprf wrote; a picture with a row of the wrong length, with a character that is not hex, or none at all is drawn as the grey box', $pictured->{page} ? scalar(@{ $pictured->{page} }) . " lines; $pictured->{said}" : $pictured->{said});
 
 # 4. What a site is sent.                                [C4] [C5] [C6] [C7]
 print "\n4. What a site is sent: by the test site's own record.\n";
@@ -995,6 +1011,9 @@ check(!@other, 'every request is the address and nothing else: no cookie, no nam
 my $says = qx{/usr/bin/perl "$lzrprf" request "$t/selftest?q=1" "$t/second"};
 my ($one, $two) = map { (asked($_))[0] } '/selftest?q=1', '/second';
 check($one && $two && $says eq $one->{bytes} . $two->{bytes}, '"lzrprf request" prints the bytes the site received, byte for byte', length($says) . ' bytes');
+my @pictures_asked = map { (asked($_))[0] } @pixel_paths;
+my $picture_says = qx{/usr/bin/perl "$lzrprf" request "$t$pixel_paths[0]"};
+check(@pixel_paths == grep({ $_ && $_->{bytes} eq request_for($_->{bytes} =~ /^GET (\S+) / ? $1 : '') } @pictures_asked) && $pictures_asked[0] && $picture_says eq $pictures_asked[0]{bytes}, 'a picture of the page is asked for with the request of its own address and nothing else: the bytes "lzrprf request" prints for that address', scalar(grep { $_ } @pictures_asked) . ' of ' . @pixel_paths . ' pictures asked for');
 check($two && $two->{bytes} !~ /cookie/i, 'the second request of a run carries nothing of the first: the site set a cookie, and it did not come back', 'the site sent Set-Cookie: kept=never with every answer');
 my @on_disk = grep { !$in_memory{ $_->{bytes} =~ /^GET (\S+) / ? $1 : '' } } @https;
 check(@on_disk > 10 && !grep({ !$_->{logged} } @on_disk), 'in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk', scalar(grep { $_->{logged} } @on_disk) . ' of ' . @on_disk . '; ' . (@https - @on_disk) . ' more from runs that keep nothing');
@@ -1234,9 +1253,9 @@ my ($written) = $text_of_lzrprf =~ /^sub installer_file \{(.*?)^\}/ms;    # the 
 my %programs = map { $_ => 1 } ($text_of_lzrprf =~ s/^sub installer_file \{.*?^\}//msr) =~ m{(?<![\w/.])(/(?:usr/)?s?bin/[a-z-]+)}g;
 my @known = qw(/bin/ps /bin/sh /sbin/route /usr/bin/curl /usr/bin/env /usr/bin/open /usr/bin/osascript /usr/bin/perl /usr/bin/sandbox-exec /usr/bin/true /usr/bin/xattr /usr/sbin/sysctl);
 check(defined $written && join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these twelve: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
-my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out';
-check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out'}" eq '2 1 2 1 1' && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ visit\(\$1\) \}}m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n.*\n.*\n    my \$got = fixed\(/m,
-    'a request has three roads and no fourth: "visit" for what came from the bar, and "fixed" twice, each behind a yes; "fetch" is called from those two and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
+my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured';
+check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured'}" eq '3 1 2 1 1 1' && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ visit\(\$1\) \}}m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n.*\n.*\n    my \$got = fixed\(/m,
+    'a request has four roads and no fifth: "visit" for what came from the bar, "pictured" from "visit" alone for the pictures of that page on its own host, and "fixed" twice, each behind a yes; "fetch" is called from those three and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
 my %marks = map { $_ => 1 } $text_of_lzrprf =~ /^#   \[(C\d+)\]/mg;
 my ($head, $body) = split /^use strict;$/m, $text_of_lzrprf, 2;
 my %marked = map { $_ => 1 } ($body // '') =~ /\[(C\d+)\]/g;

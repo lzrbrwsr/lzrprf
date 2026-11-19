@@ -272,7 +272,7 @@ One visit, in order (`sub visit`):
 | `[C1]` | The application is started in one place only, and only inside the page container. | `sub laid_out`, through `sub contain` | Reads the text: the program is started on one line. A copy that starts it uncontained is stopped by `[C3]`. |
 | `[C2]` | At every start lzrprf tries, inside that same container, what the container must refuse. Nothing starts unless all of it was refused and the same tries worked outside. | `sub holds` | A copy whose container refuses nothing: nothing is started. |
 | `[C3]` | No process is handed a byte of what was fetched, nor the connection to a site, before macOS itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, `curl` among its fixed switches. | `sub inside`, asked in `sub laid_out` and `sub fetch` | Copies without `[C1]` and `[C2]`: the system says "not contained", and the answer, or the connection, is withheld. |
-| `[C4]` | A request is made only for an address from the window's bar, or for one of two fixed addresses after you said yes: a report, after you pressed "Send" for it, and the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`). | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has three roads and no fourth. |
+| `[C4]` | A request is made only for an address from the window's bar, for at most eight pictures the page laid out from it names on that same host (`sub pictured`), or for one of two fixed addresses after you said yes: a report, after you pressed "Send" for it, and the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`). | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has four roads and no fifth. |
 | `[C5]` | Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded. | `sub visit`, `sub fixed`, `sub record` | A kept log that cannot be written: nothing is fetched. For every request the site received in a run that keeps a log, full or hosts only, the line was on the disk first. In a run that keeps nothing, the Log button shows the lines afterwards; that each was in memory before its request is read in `sub record`, not attacked: no test looks into that memory while a request is open. That the lookup comes after the line is read in `sub visit`, not attacked: the test's site is on this computer. |
 | `[C6]` | One place connects to a site, and it connects to a numeric address that was checked and written down. | `sub reach` | Reads the text: two `connect` lines, this one and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
 | `[C7]` | What a site is sent is made from the address alone: the same request from every computer, byte for byte, nothing kept from an earlier request. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
@@ -345,11 +345,27 @@ connection to lzrprf's own socket file, the question to the system's routing tab
 (`/sbin/route` in `sub route`), and `selftest`, which `sub proven` starts after your yes:
 it opens listeners on this computer and tries 192.0.2.1, an address no host answers. Outside lzrprf, the `curl` of the installer and of
 the file that `sub installer_file` writes fetch too (below, and "The installer"). `fetch` is
-called from two places, and `selftest` reads `lzrprf` and counts them:
+called from three places, and `selftest` reads `lzrprf` and counts them:
 
 - `sub visit`, which runs only for a line `go TEXT` from the window `[C4]`. The window writes
   that line when Return is pressed in the bar, and at no other time. The application cannot
   write it: it has no pipe to that side, and nothing it writes is passed on as words to lzrprf.
+- `sub pictured`, called from `sub visit` alone, after the page you typed was laid out. A laid
+  page may name up to eight pictures on its own host, by path, in a second line
+  `=pictures /path /path ...`, and place them with `I` lines. Each picture placed is fetched
+  once, one after the other, from `https://` the page's own host and that path: never another
+  host. It goes the way the page went: its line `<address> -> lzrprf connects to ...` is in the
+  log first, then `fetch` connects to the same addresses the page came from, and the site is
+  sent `request` of the picture's address, the same four lines as for any address typed
+  `[C7]`, and its result is written as a second line. The application then decodes the picture
+  in a page container of its own, started exactly as a page's is, with one variable more
+  (`LZRPRF_PICTURE=1`), and writes only pixels: `P<w>,<h>` and one line of hex per row.
+  lzrprf checks every byte of that; anything else is no picture. The window is never given a
+  byte the site sent: lzrprf writes the pixels into the form of picture a laid page already
+  has, rows of red, green, blue and how opaque, and a picture that is missing, late (all of
+  them share one clock of 20 seconds) or wrong is the grey box it was before. The line under
+  the bar says how many of the pictures were fetched and shown, and it still says that no
+  other host was asked.
 - `sub fixed`, which runs for two fixed addresses, each only after your yes in the window: the
   newest release number (`sub newer`) and a report you chose to send (`sub fault`). For the
   newest release number the yes is given once and kept with its address in `~/.lzrprf/look`:
@@ -820,14 +836,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 24
+    release 25
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin e24ff6f75faa919d6f3a0ca899a376cd07636bf4396e33c34b764d156a0a980e
-    lzrprf 3fd5f6d52ebf34b910a78d50252309f33bbdcc644cdbad5040d7a6e4ebac3f0a
+    file lzrbrwsr-bin b3959cc9b9485a6cae609a1953b2e94a4a717cee98a55e00ea7368b966903e18
+    lzrprf 69bd85540338b09722032a6085095ec1ef8a36d366ff6b49b4159c2712ee4ae1
 
 ## When a page cannot be shown
 

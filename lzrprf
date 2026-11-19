@@ -33,7 +33,7 @@
 #   [C1]  The application is started in one place only, and only inside the page container.
 #   [C2]  At every start lzrprf tries, from inside that same container, what the container must refuse, and starts nothing unless all of it was refused and the same tries worked outside.
 #   [C3]  No process is handed a byte of what was fetched, nor the connection to a site, before the system itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, curl among its fixed switches.
-#   [C4]  A request is made only for an address that came from the window's bar, or for one of two fixed addresses after you said yes. There is no third way to a request.
+#   [C4]  A request is made only for an address that came from the window's bar, or for one of two fixed addresses after you said yes, or for a picture that the page laid out from such an address names on that same host, at most eight of them, by a path lzrprf checked. There is no fourth way to a request.
 #   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
 #   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
 #   [C7]  What a site is sent is made from the address alone: the same request from every computer, byte for byte, with nothing kept from an earlier request.
@@ -92,10 +92,14 @@ my $JOINER = qr/(?!\x{103a})\p{Ccc=9}/;    # a sign that joins the letter after 
 my $HANGS = qr/[\p{M}\p{GCB=Extend}\p{GCB=SpacingMark}\p{GCB=Prepend}\p{GCB=V}\p{GCB=T}]|(?<=\p{GCB=L})\p{GCB=L}|(?<=\p{GCB=Prepend})[^\x{fffd}]|(?<=$JOINER)[^\x{fffd}]|(?<=$JOINER\p{M})[^\x{fffd}]/;    # a character that hangs on the one before it: see "What the window is spared"
 my $SOLID = qr/[^\x{20}\x{1680}\x{2000}-\x{2006}\x{2008}-\x{200a}\x{205f}\x{3000}\x{200b}]/;    # a character where no line may end: all but the spaces that let one end (a no-break space does not)
 my $MADE = 120;                           # the most lines that say what the page is made of
-my %LAID = (R => 20_000, X => 30_000, G => 1000, M => 64);    # a laid page: the most rectangles, runs of text, grey boxes and pictures
+my %LAID = (R => 20_000, X => 30_000, G => 1000, M => 64, I => 1000);    # a laid page: the most rectangles, runs of text, grey boxes, pictures and places for a fetched picture
 my $RUN_TEXT = 2000;                      # the most characters in one run of text of a laid page
 my $ALL_TEXT = 1_000_000;                 # the most characters in all its runs together
 my $PIXELS = 262_144;                     # the most pixels in all its pictures together: one picture of 512 by 512
+my $PICTURES = 8;                         # the most pictures one page may name on its own host, each fetched by a run of its own
+my $PICTURE_SECONDS = 20;                 # one clock for all of a page's pictures: a picture not begun by then stays a grey box
+my $PICTURE_PIXELS = 200_000;             # the most pixels in one fetched picture
+my $DRAWN_PIXELS = 8 * $PICTURE_PIXELS;   # the most pixels the window is given for fetched pictures on one page, however often one is placed: a place beyond that stays a grey box
 my $ANSWER_SECONDS = 600;                 # a question that is still open then counts as answered with its first button
 my $NAME = qr/(?:[A-Za-z0-9-]{1,63}\.)+[A-Za-z][A-Za-z0-9-]{0,62}/;    # a host name: never a bare number, never one word
 my $UNWRITTEN = 'Nothing was fetched: the log could not be written.';
@@ -181,7 +185,7 @@ END
 # which of the two a bare "ulimit" sets differs between the shells macOS can
 # use as /bin/sh, and with one of them the program could have raised its
 # limits again (found before release 17 went out; said here from then on).
-my $PAGE_LIMITS = 'limit() { ulimit -S "$@" && ulimit -H "$@"; } && v=$(/bin/ps -o vsz= -p $$) && limit -t 30 && limit -f 0 && limit -c 0 && { limit -n 256 2>/dev/null || [ "$(ulimit -H -n)" -le 256 ] 2>/dev/null; } && limit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" "$@"';
+my $PAGE_LIMITS = 'limit() { ulimit -S "$@" && ulimit -H "$@"; } && v=$(/bin/ps -o vsz= -p $$) && limit -t 30 && limit -f 0 && limit -c 0 && { limit -n 256 2>/dev/null || [ "$(ulimit -H -n)" -le 256 ] 2>/dev/null; } && limit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" ${LZRPRF_PICTURE:+"LZRPRF_PICTURE=$LZRPRF_PICTURE"} "$@"';
 
 # What curl's container is allowed on top of it: one socket file, behind which
 # lzrprf holds the connection to the site, and the list of certificate
@@ -614,25 +618,40 @@ sub visit {
     close $request;
     return idle("Nothing is shown: $why.") if $why;
     busy("$APP lays the page out, in its container.");
-    my ($lines, $hosts) = laid_out($url, $got);
+    my ($lines, $hosts, $paths) = laid_out($url, $got);
     return fault($hosts) unless $lines;
-    window('page', @$lines, '.');
+    my ($shown, $fetched, $wanted) = pictured($lines, $paths, $host, $where, $kept);
+    return idle($UNWRITTEN) unless $shown;
+    window('page', @$shown, '.');
     $DRAWN = 1;
-    idle("$host answered " . length($got) . ' bytes. ' . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.'));
+    idle("$host answered " . length($got) . ' bytes. ' . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.'));
 }
 
 # The request is over and the connection to the site is closed. Only now does
 # the application see the answer, in a page container, and only after the
-# system said that this very process is contained. Returns the checked lines
-# and the other hosts the page names; or nothing, and one word for what went
-# wrong.
+# system said that this very process is contained. Returns the checked lines,
+# the other hosts the page names and the paths of the pictures it names on its
+# own host; or nothing, and one word for what went wrong.
 sub laid_out {
     my ($url, $got) = @_;
-    return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # read again before every page: the program on the disk is the file this window began with, or no page is laid out
+    my ($wrote, $why) = contained($url, $got);
+    return (undef, $why) unless defined $wrote;
+    my ($lines, $hosts, $paths) = checked($wrote) or return (undef, 'unfit');    # [C9]
+    return ($lines, $hosts, $paths);
+}
+
+# One run of the application in a page container, for a page or for one
+# picture: it is given what was fetched on descriptor 0, under the same
+# limits, the same keeper and the same clock. Returns what it wrote, not yet
+# checked; or nothing, and one word for what went wrong. A picture run is
+# told one thing more, LZRPRF_PICTURE=1, and nothing else.
+sub contained {
+    my ($url, $got, @picture) = @_;
+    return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # read again before every run: the program on the disk is the file this window began with, or nothing is laid out
     pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) && pipe(my $held, my $hold) or return (undef, 'unstarted');
     my $page = fork // return (undef, 'unstarted');
     if (!$page) {
-        %ENV = (LZRPRF_CONTAINED => $url);    # the application is told the address it lays out, and sees no other variable: this one it is given before the system is asked [C3]
+        %ENV = (LZRPRF_CONTAINED => $url, @picture ? (LZRPRF_PICTURE => '1') : ());    # the application is told the address it lays out, and for a picture that it is one, and sees no other variable: these it is given before the system is asked [C3]
         chdir '/';
         become($answer_out, $to_lzrprf, $TRY ? \*STDERR : undef, '/bin/sh', '-c', $PAGE_LIMITS, 'lzrprf', contain('', $PROGRAM), @ARGUMENTS);    # [C1]
     }
@@ -674,8 +693,7 @@ sub laid_out {
     waitpid $_, 0 for $feeder, $page;
     return (undef, 'late') if $open && length $wrote <= $PAGE_BYTES;
     return (undef, 'large') if length $wrote > $PAGE_BYTES;
-    my ($lines, $hosts) = checked($wrote) or return (undef, 'unfit');    # [C9]
-    return ($lines, $hosts);
+    return ($wrote);
 }
 
 # The keeper: the second process of a page, a copy of lzrprf itself. It
@@ -798,6 +816,11 @@ sub checked {
     my ($first, @lines) = split /\n/, $wrote, -1;
     return unless defined $first && $first =~ /^=page((?: $NAME){0,200})$/ && @lines <= $PIECES;
     my @hosts = split ' ', $1;
+    my @paths;
+    if (@lines && $lines[0] =~ /^=pictures/) {    # the pictures the page names on its own host, by path alone [C9]
+        return unless shift(@lines) =~ m{^=pictures((?: /[A-Za-z0-9._~/%?=&-]{0,511}){1,$PICTURES})$};
+        @paths = split ' ', $1;
+    }
     my ($boxes, $made, $block, $row, $word, $tail, $before, $begun) = (0, 0, 0, '', 0, '');
     for (@lines) {
         if (!$begun && /^U([dcjlmasx])[+-]([\x21-\x7e](?:[\x20-\x7e]{0,58}[\x21-\x7e])?)(?:\t[\x21-\x7e](?:[\x20-\x7e]{0,28}[\x21-\x7e])?)?$/) {    # only plain characters, so nothing in such a line acts on the display
@@ -806,7 +829,7 @@ sub checked {
             $before = $key;
             next;
         }
-        return laid(\@lines, \@hosts, $made) if !$begun++ && /^L/;    # from the first line of another kind on, a line that begins with U is no line at all; and that first line says whether the page is laid
+        return laid(\@lines, \@hosts, $made, \@paths) if !$begun++ && /^L/;    # from the first line of another kind on, a line that begins with U is no line at all; and that first line says whether the page is laid
         if (/^T[\@-O]./s) {
             s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/\x{fffd}/g;    # the last: a number above every character there is, which Perl would pass on and the window could not read
             return unless ($block += length($_) - 2) <= $BLOCK;    # counted as the application wrote it, before anything is put in below
@@ -820,7 +843,7 @@ sub checked {
         else { return unless /^P[p123lqcr][0-9]$/; $block = 0 }
     }
     utf8::encode($_) for @lines;
-    return (\@lines, \@hosts);
+    return (\@lines, \@hosts, \@paths);
 }
 
 # A laid page. The application has laid the page out itself and says where
@@ -834,6 +857,9 @@ sub checked {
 #   M<x>,<y>,<w>,<h>,<pw>,<ph>              a picture of pw by ph pixels shown in that box, given by
 #   m<base64>                               exactly ph lines after it, one row each: pw times four
 #                                           bytes, red, green, blue and how opaque, as pixels already
+#   I<x>,<y>,<w>,<h>,<n>                    the picture of the nth path in =pictures (from 0), scaled
+#                                           into that box; lzrprf fetches it and gives the window an M
+#                                           in its place, or a G when there is no picture (sub pictured)
 #
 # Numbers are written in one way only, without a sign or a 0 in front, and
 # everything stands inside the page. A page is laid or flowing, never both.
@@ -846,7 +872,7 @@ sub checked {
 # to give it to, it puts the bytes into the pixels as they are.
 my $N = qr/(0|[1-9][0-9]{0,5})/;          # a number in its one form
 sub laid {
-    my ($lines, $hosts, $from) = @_;
+    my ($lines, $hosts, $from, $paths) = @_;
     no warnings 'utf8';
     my ($wide, $high) = $lines->[$from] =~ /^L${N}x$N$/ or return;
     return unless $wide >= 320 && $wide <= 2400 && $high >= 1 && $high <= 200_000;
@@ -860,10 +886,11 @@ sub laid {
             $rows--;
             next;
         }
-        my ($kind) = /^([RXGM])/ or return;
+        my ($kind) = /^([RXGMI])/ or return;
         return unless ++$count{$kind} <= $LAID{$kind};
         if ($kind eq 'R') { return unless /^R$N,$N,$N,$N,[0-9a-f]{8}$/ && $inside->($1, $2, $3, $4) }
         elsif ($kind eq 'G') { return unless /^G$N,$N,$N,$N$/ && $inside->($1, $2, $3, $4) }
+        elsif ($kind eq 'I') { return unless /^I$N,$N,$N,$N,$N$/ && $inside->($1, $2, $3, $4) && $5 < @$paths }
         elsif ($kind eq 'M') {
             return unless /^M$N,$N,$N,$N,$N,$N$/ && $inside->($1, $2, $3, $4) && $5 >= 1 && $5 <= 1024 && $6 >= 1 && $6 <= 1024 && ($pixels += $5 * $6) <= $PIXELS;
             ($rows, $row_bytes) = ($6, $5 * 4);
@@ -877,7 +904,67 @@ sub laid {
     }
     return if $rows;                      # a picture with rows missing
     utf8::encode($_) for @$lines;
-    return ($lines, $hosts);
+    return ($lines, $hosts, $paths);
+}
+
+# The pictures of a laid page. A page may name up to eight paths on its own
+# host; each path a place I of the page draws is fetched once, one after the
+# other, the way the page was: its line in the log first, then "fetch" to the
+# same checked addresses the page came from, so a site is sent "request" of
+# the picture's address and nothing else. The application decodes it, in a
+# page container of its own started as a page's is, and writes pixels:
+#
+#   P<w>,<h>      then exactly h lines p<hex>, 8 times w lowercase hex characters each:
+#                 red, green, blue and how opaque, a byte each, not multiplied by it;
+#                 1 to 1024 wide and high, 200,000 pixels at most; or P0,0 for none
+#
+# Anything else is no picture, and so is a picture not begun within one clock
+# of $PICTURE_SECONDS for them all. Each place I becomes, for the window, an M
+# with its rows in base64, the form of a picture a laid page already has, or
+# the G it would be without one. This does not widen what the window reads:
+# the window has no decoder for a file of a site, and every byte of an M and
+# its rows was written by lzrprf from numbers and hex it checked here, so the
+# window is given nothing it was not given before. Returns the lines for the
+# window, how many pictures were fetched and how many were asked for; or
+# nothing when a line of the log could not be written.
+sub pictured {
+    my ($lines, $paths, $host, $where, $kept) = @_;
+    my %wanted = map { /^I\d+,\d+,\d+,\d+,(\d+)$/ ? ($1 => 1) : () } @$lines;
+    return ($lines, 0, 0) unless %wanted;
+    open my $request, '>>', "$DIR/busy" or return;
+    flock $request, LOCK_SH or return;    # as in visit: no line of these requests falls into a clearing of the log
+    my ($until, %picture) = (now() + $PICTURE_SECONDS);
+    for my $n (sort { $a <=> $b } keys %wanted) {
+        last unless now() < $until && alive();
+        my $url = "https://$host$paths->[$n]";
+        record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return;    # [C5] written down first, connected second
+        busy("Fetching picture " . ($n + 1) . " of the page: $url");
+        my ($got, $why, $from) = fetch($url, $where);    # [C6] [C7]
+        record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;
+        next if $why;
+        busy("$APP decodes picture " . ($n + 1) . ', in its container.');
+        my ($wrote) = contained($url, $got, 'picture');    # [C1] [C3]
+        $picture{$n} = pixels($wrote) if defined $wrote;    # [C9]
+    }
+    close $request;
+    my ($drawn, @shown) = (0);
+    for (@$lines) {
+        my ($x, $y, $w, $h, $n) = /^I(\d+),(\d+),(\d+),(\d+),(\d+)$/ or (push(@shown, $_), next);
+        my $one = $picture{$n};
+        if ($one && ($drawn += $one->[0] * $one->[1]) <= $DRAWN_PIXELS) { push @shown, "M$x,$y,$w,$h,$one->[0],$one->[1]", map { "m$_" } @$one[2 .. $#$one] }
+        else { push @shown, "G$x,$y,$w,$h" }
+    }
+    return (\@shown, scalar(grep { $picture{$_} } keys %picture), scalar(keys %wanted));
+}
+
+sub pixels {                              # what a picture run wrote: [wide, high, each row in base64], or nothing when it is not exactly a picture
+    my ($wrote) = @_;
+    return unless $wrote =~ s/\n\z//;
+    my ($head, @rows) = split /\n/, $wrote, -1;
+    my ($w, $h) = ($head // '') =~ /^P$N,$N$/ or return;
+    return unless $w >= 1 && $h >= 1 && $w <= 1024 && $h <= 1024 && $w * $h <= $PICTURE_PIXELS && @rows == $h;
+    return if grep { !/^p[0-9a-f]+$/ || length != 8 * $w + 1 } @rows;
+    return [$w, $h, map { encode_base64(pack('H*', substr($_, 1)), '') } @rows];
 }
 
 # The application did not give a page. What is said is one of the fixed
@@ -1924,6 +2011,7 @@ function paint(dirty) {
     $.NSRectFill(dirty);
     if (!sheet) return;
     try {
+        $.NSGraphicsContext.currentContext.imageInterpolation = 3;    // high: a picture scaled into its box is smoothed, not blocky
         sheet.ops.forEach(function (op) {
             if (op[0] > bottom || op[0] + op[1] < top) return;
             if (op[2] == 'X') return op[5].drawAtPointWithAttributes($.NSMakePoint(op[3], op[7]), op[6]);
