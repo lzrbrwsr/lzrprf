@@ -153,12 +153,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="bc6028dce7d35e44506c04701811ed8ebc2386d3a3e1a358f93e40c090b5dd15"
-RELEASE="15"
-LZRPRF_COMMIT="2493f4fa461fc48a1a72a1af7eed0d0eaddb43bd"
+SHA256="28241dc9c66940c4c91b297bcc608669e23da904244783dbcf78162cc16c5481"
+RELEASE="16"
+LZRPRF_COMMIT="519814b3f2685e161a07686362e50839ba692990"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="7522d036977e8e61670c02c710729948c54284da6493e79a78cf2bec85d7f96d"
-SELFTEST_SHA256="ea893acae1883187faf233d21f5875d01d496b66cc14c4c0629cd327103c962c"
+LZRPRF_SHA256="5e125c65fcaebb3f9e1ece4efa457da0582a8275f30ebd168683f31f71545e78"
+SELFTEST_SHA256="c4802c3081fc853a370d1d32f6dbe7344ccd2c056402d3a17f138f751ce9e8a8"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -466,21 +466,27 @@ cat >"$tmp/plist" <<'PLIST'
 PLIST
 cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "the app's property list is not the one written out in the installer."
 # The release file is what lzrprf reads beside the program: the number of this release, four fixed
-# addresses, and the SHA-256 of the lzrprf this app is installed with, which lzrprf compares with
-# itself at every start. This is all of it. "newest" is the one address lzrprf fetches by itself, and only
+# addresses, the SHA-256 of the launcher and of the program (the two lines "file"), which lzrprf
+# compares with those two files at every start, and the SHA-256 of the lzrprf this app is installed
+# with, which lzrprf compares with itself at every start. This is all of it. "newest" is the one address lzrprf fetches by itself, and only
 # after you said yes in its window. "installer" and "same" are the two places a newer release's
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 15
+release 16
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
-lzrprf 7522d036977e8e61670c02c710729948c54284da6493e79a78cf2bec85d7f96d
+file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
+file lzrbrwsr-bin 8aa6df5bb4c29924782c20c9b7b95e5cc21cd39a2190ac9011d1cda27029307c
+lzrprf 5e125c65fcaebb3f9e1ece4efa457da0582a8275f30ebd168683f31f71545e78
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
+for name in lzrbrwsr-bin lzrbrwsr; do
+	grep -qx "file $name $(sum "$tmp/unpacked/LZRBRWSR.app/Contents/MacOS/$name")" "$tmp/release" || stop "the app's release file does not name the file $name as it was unpacked."
+done
 step "the icon runs one thing: lzrprf, and inside it LZRBRWSR (release $RELEASE)"
 
 # lzrprf is what holds LZRBRWSR in. A release of the browser never changes its own container
