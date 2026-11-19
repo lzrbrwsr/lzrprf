@@ -360,7 +360,9 @@ my ($mark, $ki, $deva) = ("\x{301}", "\x{915}\x{93f}", "\x{915}\x{94d}\x{937}\x{
 my $hung = "=page\nPp0\nT\@a" . $mark x 31 . "b\nT\@c" . $mark x 20 . "\nTA" . $mark x 20 . "d\nB\nT\@" . $mark x 31 . "\nPp0\nT\@\x{915}" . "\x{94d}\x{915}" x 20 . "\n";
 my $long = "=page\nPp0\nT\@" . 'x' x 1001 . "\nT\@" . 'y' x 600 . "\nTA" . 'y' x 600 . " z\nB\nT\@" . $ki x 500 . $mark x 5 . "\x{915}\n";
 my $joined = "=page\nPp0\nT\@" . 'a' x 1000 . $mark x 2 . " z\nB\nT\@" . 'a' x 1000 . $mark . "\nT\@ b\nB\nT\@" . 'a' x 998 . "\x{915}\x{94d}\nT\@\x{915}zz\nB\nT\@" . join("\x{a0}", ('a' x 600) x 3) . "\nB\nT\@a" . ($mark x 29 . "\x{1f3fb}") x 2 . "\nB\nT\@\x{915}" . "\x{94d}\x{93c}\x{915}" x 12 . "\nB\nT\@" . "\x{1100}" x 20 . "\nT\@" . "\x{1100}" x 20 . "\n";
+my $laidcontrol = "=page\nL960x400\nX10,40,16,\@,333333,a\e[2Jb\x{202e}c\x{200b}d" . "\x{301}" x 31 . "e\n";
 utf8::encode($_) for $hung, $long, $joined;
+utf8::encode($laidcontrol);
 my %heavy = (
     heavylines => sub { "=page\n" . join('', map { ($_ % 600 ? '' : "Pp0\n") . 'T' . chr(64 + $_ % 16) . 'x' x 30 . "\n" } 0 .. 48_999) },
     heavyblocks => sub { "=page\n" . "Pp0\nT\@x\n" x 24_999 },
@@ -428,6 +430,19 @@ my %list = (
     madeblank => "=page\nUd-   \n",
     madeversionspace => "=page\nUd-HTML\t 5\n",
     madefull => "=page\n" . join('', map { sprintf "Ud%s%03d%s\t%s\n", $_ % 2 ? '+' : '-', $_, 'n' x 57, 'v' x 30 } 1 .. 120) . "Pp0\nT\@x\n",
+    laidgood => "=page\nUd+HTML\t5\nL960x400\nR0,0,960,400,ffffffff\nR10,10,100,2,00000080\nX10,40,16,H,333333,a link, with a comma\nX10,60,14,D,000000,x\nG300,10,50,50\nM400,10,64,64,2,2\nm/wAA/wAA/4A=\nmAIAA////AEA=\nX0,400,96,O,0000ff,on top\n",
+    laidcontrol => $laidcontrol,
+    laidrange => "=page\nL960x400\nR900,0,61,10,ffffffff\n",
+    laidzero => "=page\nL960x400\nR01,0,1,10,ffffffff\n",
+    laidnarrow => "=page\nL319x400\nR0,0,1,1,ffffffff\n",
+    laidmany => "=page\nL960x400\n" . "R0,0,1,1,000000ff\n" x 20_001,
+    laidmix => "=page\nL960x400\nR0,0,1,1,000000ff\nPp0\nT\@x\n",
+    laidflow => "=page\nPp0\nT\@x\nR0,0,1,1,000000ff\n",
+    laidrows => "=page\nL960x400\nM0,0,10,10,2,2\nm/wAA/wAA/4A=\nR0,0,1,1,000000ff\n",
+    laidrowlong => "=page\nL960x400\nM0,0,10,10,2,1\nmAQIDBAUGBwgJCgsM\n",
+    laidbase64 => "=page\nL960x400\nM0,0,10,10,2,1\nm/wAA/wAA/4!=\n",
+    laidpad => "=page\nL960x400\nM0,0,10,10,2,1\nm/wAA/wAA/4B=\n",
+    laidpixels => "=page\nL960x400\nM0,0,10,10,1024,257\n",
 );
 if (exists $heavy{$kind}) { my $whole = $heavy{$kind}->(); utf8::encode($whole); print $whole }
 else { print exists $list{$kind} ? $list{$kind} : $good }
@@ -458,6 +473,8 @@ my @attempts = (
 my @good = ('Ud+-', "Ud+HTML\t5", "Uc-Grid\tLevel 1", 'Uc-Subgrid', "Ul-A library of the hostile application\t1.2.3", 'P10', 'T@A page by the hostile application', 'Pp0', 'THa link that is only a colour', 'B', 'I200x100', 'Pc1', 'TDfixed');
 my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 bigbox smallbox otherdigit boxes blocklong blockbreak blockbox blockfirst hosts hostpath hostnumber emptytext style depth looks many noend nothing madelate madekind madeorder madename madetwice mademany madelong madeversion madetabs madecontrol madeother madespace madeempty madeflag madesign madetrail madebare madeblank madeversionspace);
 my @fit = qw(big control noread madefull manyfull boxesfull blockfull hung long joined);    # each is judged by itself below; "big" is the one of them that is not drawn
+my @laid_unfit = qw(laidrange laidzero laidnarrow laidmany laidmix laidflow laidrows laidrowlong laidbase64 laidpad laidpixels);    # laid pages, each broken in one way
+my @laid_fit = qw(laidgood laidcontrol);
 my @heavy = qw(heavylines heavyblocks heavytext heavymarks heavyword heavyspaced heavyjoined heavymixed);    # the heaviest pages the limits allow of each kind that was measured slow, drawn by the real window in a run of their own
 my $t = 'https://site.test';
 
@@ -613,7 +630,7 @@ my $lost_code = mutant('lostcode', qq{(deny file-map-executable)\n} => '');    #
 run_of('lostcode', lzrprf => $lost_code, app => bundle('lostcode', 'release 3', pair_line($lost_code)), typed => "$t/lostcode", fetches => ['/lostcode']);
 run_of('alias', app => bundle('alias', 'release 3'), typed => "$t/alias", fetches => ['/alias']);    # the same program in the page container: its own folder is the one place in your account it may read
 run_of('deny', typed => "$t/denied", answer => 'deny');
-run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit), fetches => [map { "/out/$_" } @unfit, @fit]);
+run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit), fetches => [map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit]);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large", fetches => ['/elsewhere', '/pieces', '/large']);
 run_of('untrusted', peer => 'untrusted', typed => "$t/untrusted");
 run_of('plain', peer => 'plain', typed => "$t/plain");
@@ -958,6 +975,15 @@ check($long && "@$long" eq "@parted", 'in text, no more than 1000 characters sta
 check($joined && "@$joined" eq "@joined", 'what hangs on a letter is more than marks, and a space that does not break is no place to end a line: the 31st of marks and joining characters of other kinds in turn, of a chain joined by a sign and a dot, of Hangul initials over two lines of text, becomes the replacement mark; no space of no width is put among the marks that end a word, at the end of a line of text or before a space, nor between a joining sign and the letter it joins on the next line; words parted only by no-break spaces get it as one word does', $joined ? scalar(@$joined) . ' lines' : 'no page');
 my $unread = visit('output', "$t/out/noread");
 check($unread->{page} && "@{ $unread->{page} }" eq "@good", 'an application that does not read the answer changes nothing', $unread->{page} ? 'its list was drawn' : 'no page');
+my @laid_good = ("Ud+HTML\t5", 'L960x400', 'R0,0,960,400,ffffffff', 'R10,10,100,2,00000080', 'X10,40,16,H,333333,a link, with a comma', 'X10,60,14,D,000000,x', 'G300,10,50,50', 'M400,10,64,64,2,2', 'm/wAA/wAA/4A=', 'mAIAA////AEA=', 'X0,400,96,O,0000ff,on top');
+my $laid = visit('output', "$t/out/laidgood");
+check($laid->{page} && "@{ $laid->{page} }" eq "@laid_good", 'a laid page is passed on as it is: rectangles, runs of text with a comma in them, a grey box and a picture of 2 by 2 pixels in base64, each inside the page', $laid->{page} ? scalar(@{ $laid->{page} }) . ' lines' : $laid->{said});
+my @laid_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @laid_unfit;
+check(!@laid_passed, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels', @laid_passed ? "passed: @laid_passed" : scalar(@laid_unfit) . ' pages, none drawn');
+my $laid_clean = "X10,40,16,\@,333333,a\x{fffd}[2Jb\x{fffd}c\x{fffd}d" . "\x{301}" x 30 . "\x{fffd}e";
+utf8::encode($laid_clean);
+my $laid_marked = visit('output', "$t/out/laidcontrol");
+check($laid_marked->{page} && "@{ $laid_marked->{page} }" eq "L960x400 $laid_clean", 'in a run of text of a laid page, a control code, a mark that turns the reading direction and a space of no width are replaced by the replacement mark, and so is the 31st mark on a letter; the page is drawn, not refused, and no space of no width is put in', $laid_marked->{page} ? '4 characters replaced' : $laid_marked->{said});
 
 # 4. What a site is sent.                                [C4] [C5] [C6] [C7]
 print "\n4. What a site is sent: by the test site's own record.\n";

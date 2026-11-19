@@ -38,7 +38,7 @@
 #   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
 #   [C7]  What a site is sent is made from the address alone: the same request from every computer, byte for byte, with nothing kept from an earlier request.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
-#   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line is not drawn at all.
+#   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line, or a laid page, is not drawn at all.
 #   [C10] The window's process has no network of its own, writes no file, starts no other program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, lzrprf asks the system about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of that container's text, its list of services among it, is not asked about, and selftest makes its own tries from the real window. Of the system's services it looks up by name only the 40 its container lists and one local name, the clipboard's.
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
@@ -56,6 +56,7 @@ use File::Glob 'bsd_glob';
 use IO::Handle;
 use IO::Socket::INET;
 use IO::Socket::UNIX;
+use MIME::Base64 qw(decode_base64 encode_base64);
 use POSIX 'strftime';
 use Socket qw(AF_INET AF_INET6 SOCK_STREAM SOL_SOCKET SO_ERROR NI_NUMERICHOST NI_NUMERICSERV AI_NUMERICHOST inet_aton inet_pton pack_sockaddr_in getaddrinfo getnameinfo);
 use Time::HiRes;
@@ -91,6 +92,10 @@ my $JOINER = qr/(?!\x{103a})\p{Ccc=9}/;    # a sign that joins the letter after 
 my $HANGS = qr/[\p{M}\p{GCB=Extend}\p{GCB=SpacingMark}\p{GCB=Prepend}\p{GCB=V}\p{GCB=T}]|(?<=\p{GCB=L})\p{GCB=L}|(?<=\p{GCB=Prepend})[^\x{fffd}]|(?<=$JOINER)[^\x{fffd}]|(?<=$JOINER\p{M})[^\x{fffd}]/;    # a character that hangs on the one before it: see "What the window is spared"
 my $SOLID = qr/[^\x{20}\x{1680}\x{2000}-\x{2006}\x{2008}-\x{200a}\x{205f}\x{3000}\x{200b}]/;    # a character where no line may end: all but the spaces that let one end (a no-break space does not)
 my $MADE = 120;                           # the most lines that say what the page is made of
+my %LAID = (R => 20_000, X => 30_000, G => 1000, M => 64);    # a laid page: the most rectangles, runs of text, grey boxes and pictures
+my $RUN_TEXT = 2000;                      # the most characters in one run of text of a laid page
+my $ALL_TEXT = 1_000_000;                 # the most characters in all its runs together
+my $PIXELS = 262_144;                     # the most pixels in all its pictures together: one picture of 512 by 512
 my $ANSWER_SECONDS = 600;                 # a question that is still open then counts as answered with its first button
 my $NAME = qr/(?:[A-Za-z0-9-]{1,63}\.)+[A-Za-z][A-Za-z0-9-]{0,62}/;    # a host name: never a bare number, never one word
 my $UNWRITTEN = 'Nothing was fetched: the log could not be written.';
@@ -713,7 +718,7 @@ sub keeper {
 }
 
 # What the application may write, and nothing else: a first line that names
-# the other hosts the page asks for, and then lines of five kinds.
+# the other hosts the page asks for, and then lines of five kinds, or a laid page.
 #
 #   U<kind><s><name>   a thing the application says the page is made of; <s> is + when it says its own code supports the thing and - when not; a tab and a version may follow
 #   P<style><depth>    a paragraph begins: plain, heading 1 2 3, list item, quote, code, rule; how far it is set in, 0 to 9
@@ -734,6 +739,10 @@ sub keeper {
 # application says, of the page and of itself: lzrprf checks their form, not
 # whether they are true, and the window shows them as text in a pane of
 # their own under the page.
+# Or, after the first kind, a laid page: one line L and then rectangles, runs
+# of text, grey boxes and pictures where the application laid them out (see
+# "sub laid"). A picture there is pixels, checked to be exactly as many bytes
+# as it says; it carries no address and no command either.
 # In the text, every character that would
 # act on the display instead of being displayed (a control code, an invisible
 # mark, a mark that turns the reading direction) is replaced by the
@@ -797,7 +806,7 @@ sub checked {
             $before = $key;
             next;
         }
-        $begun = 1;                           # from the first line of another kind on, a line that begins with U is no line at all
+        return laid(\@lines, \@hosts, $made) if !$begun++ && /^L/;    # from the first line of another kind on, a line that begins with U is no line at all; and that first line says whether the page is laid
         if (/^T[\@-O]./s) {
             s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/\x{fffd}/g;    # the last: a number above every character there is, which Perl would pass on and the window could not read
             return unless ($block += length($_) - 2) <= $BLOCK;    # counted as the application wrote it, before anything is put in below
@@ -812,6 +821,63 @@ sub checked {
     }
     utf8::encode($_) for @lines;
     return (\@lines, \@hosts);
+}
+
+# A laid page. The application has laid the page out itself and says where
+# everything stands, in CSS pixels, on a page of a width and a height it
+# names in one line L<width>x<height> right after what the page is made of.
+# Then, in the order they are painted:
+#
+#   R<x>,<y>,<w>,<h>,<rrggbbaa>             a filled rectangle in that colour
+#   X<x>,<y>,<size>,<looks>,<rrggbb>,<text> a run of text whose baseline begins at x,y; <looks> as in T
+#   G<x>,<y>,<w>,<h>                        a grey box where a picture would stand
+#   M<x>,<y>,<w>,<h>,<pw>,<ph>              a picture of pw by ph pixels shown in that box, given by
+#   m<base64>                               exactly ph lines after it, one row each: pw times four
+#                                           bytes, red, green, blue and how opaque, as pixels already
+#
+# Numbers are written in one way only, without a sign or a 0 in front, and
+# everything stands inside the page. A page is laid or flowing, never both.
+# A run of text gets the changes a text gets: a control or format character
+# becomes U+FFFD, and so does the 31st character in a row that hangs on the
+# one before it, counted in that run alone, since each run is set by itself.
+# No space of no width is put in: a run is drawn on one line, where no line
+# ends, and it is 2000 characters at most, a tenth of the word that was
+# measured slow. A picture is bytes and no file: the window has no decoder
+# to give it to, it puts the bytes into the pixels as they are.
+my $N = qr/(0|[1-9][0-9]{0,5})/;          # a number in its one form
+sub laid {
+    my ($lines, $hosts, $from) = @_;
+    no warnings 'utf8';
+    my ($wide, $high) = $lines->[$from] =~ /^L${N}x$N$/ or return;
+    return unless $wide >= 320 && $wide <= 2400 && $high >= 1 && $high <= 200_000;
+    my ($text, $pixels, $rows, $row_bytes, %count) = (0, 0, 0, 0);
+    my $inside = sub { my ($x, $y, $w, $h) = @_; return $w >= 1 && $h >= 1 && $x + $w <= $wide && $y + $h <= $high };
+    for (@$lines[$from + 1 .. $#$lines]) {
+        if ($rows) {                      # a row of the picture above: in base64, exactly as long as the picture is wide
+            my ($code) = /^m([A-Za-z0-9+\/]+={0,2})$/ or return;
+            my $bytes = decode_base64($code);
+            return unless length($bytes) == $row_bytes && encode_base64($bytes, '') eq $code;    # written back the same: one form only, no byte more or less
+            $rows--;
+            next;
+        }
+        my ($kind) = /^([RXGM])/ or return;
+        return unless ++$count{$kind} <= $LAID{$kind};
+        if ($kind eq 'R') { return unless /^R$N,$N,$N,$N,[0-9a-f]{8}$/ && $inside->($1, $2, $3, $4) }
+        elsif ($kind eq 'G') { return unless /^G$N,$N,$N,$N$/ && $inside->($1, $2, $3, $4) }
+        elsif ($kind eq 'M') {
+            return unless /^M$N,$N,$N,$N,$N,$N$/ && $inside->($1, $2, $3, $4) && $5 >= 1 && $5 <= 1024 && $6 >= 1 && $6 <= 1024 && ($pixels += $5 * $6) <= $PIXELS;
+            ($rows, $row_bytes) = ($6, $5 * 4);
+        } else {
+            my ($head, $x, $y, $size, $chars) = /^(X$N,$N,$N,[\@-O],[0-9a-f]{6},)(.{1,$RUN_TEXT})\z/s or return;
+            return unless $x < $wide && $y <= $high && $size >= 6 && $size <= 96 && ($text += length $chars) <= $ALL_TEXT;
+            $chars =~ s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/\x{fffd}/g if $chars =~ /[^\x20-\x7e]/;    # as in T; printable ASCII is never replaced, so it is not searched
+            $chars = substr((unhung('', "  $chars"))[0], 2) if $chars =~ /[^\x20-\x7e]/ && $chars =~ /$HANGS/;    # no printable ASCII character hangs
+            $_ = $head . $chars;
+        }
+    }
+    return if $rows;                      # a picture with rows missing
+    utf8::encode($_) for @$lines;
+    return ($lines, $hosts);
 }
 
 # The application did not give a page. What is said is one of the fixed
@@ -1676,15 +1742,19 @@ sub lookup {                              # every address a name leads to, as nu
 # of spaces on grey as large as a picture would be, and in the pane a row
 # for each thing: the name of its kind before the first of that kind, then
 # its name, its version, and whether the application says it supports it.
-# No picture is loaded and no address is
-# followed. A link is coloured text that does nothing when it is clicked, and
-# the page's own menu holds "Copy" and nothing that opens anything.
+# Or a laid page, in a view of its own in the place of the text: rectangles,
+# runs of text and pictures made from their pixels where the application
+# laid them out (see "sub laid" and "function laid").
+# No picture file is read or decoded and no address is followed. A link is
+# coloured text that does nothing when it is clicked, and the page's own menu
+# holds "Copy" and nothing that opens anything; a laid page has no menu.
 sub window_text {
     return <<'END';
 ObjC.import('Cocoa');
 var NAME = 'lzrprf', app, win, bar, logs, words, first, second, scroll, page, under, made, hand, asking = false, asked = 0, list = null;
 var to = $.NSFileHandle.fileHandleWithStandardOutput, from = $.NSFileHandle.fileHandleWithStandardInput, held = $.NSMutableData.data;
 var looks = {}, paragraphs = {};
+var canvas, sheet = null, inks = {}, typefaces = {}, space = null;    // the view of a laid page, the laid page it shows, and what drawing it needs more than once
 
 function say(line) { to.writeData($(line + '\n').dataUsingEncoding(4)); }
 
@@ -1694,7 +1764,7 @@ function heard(line) {
         if (line != '.') return list.push(line);
         var lines = list;
         list = null;
-        try { draw(lines); } catch (fault) { page.string = $(''); listed([]); say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); }
+        try { draw(lines); } catch (fault) { unlaid(); page.string = $(''); listed([]); say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); }
         return;
     }
     var at = line.indexOf(' '), word = at < 0 ? line : line.slice(0, at), rest = at < 0 ? '' : line.slice(at + 1);
@@ -1731,6 +1801,7 @@ function place() {
     second.frame = $.NSMakeRect(wide - 148, high - 42 - 62, 138, 30);
     scroll.frame = $.NSMakeRect(0, low, wide, high - 48 - tall - low);
     under.frame = $.NSMakeRect(0, 0, wide, low);
+    fit();
 }
 
 function look(font, size, kind) {
@@ -1759,8 +1830,121 @@ function paragraph(style, depth) {
     return paragraphs[key];
 }
 
+function named(bold, italic, fixed) {
+    return fixed ? (bold ? (italic ? 'Menlo-BoldItalic' : 'Menlo-Bold') : italic ? 'Menlo-Italic' : 'Menlo-Regular')
+        : (bold ? (italic ? 'Arial-BoldItalicMT' : 'Arial-BoldMT') : italic ? 'Arial-ItalicMT' : 'ArialMT');
+}
+
+// A laid page: the application said where every rectangle, run of text and picture stands.
+// It is drawn in a view of its own in the place of the text, one CSS pixel to one point of
+// the page and the whole scaled to the width of the window: smaller when the window is
+// narrower, never larger until the window is half as wide again as the page. Each line is
+// made ready here, and only drawn when the view draws, where what is outside what it draws
+// is passed over. A picture is made from its bytes as they are: they are pixels already.
+function laid(lines, first) {
+    inks = {}; typefaces = {};    // what the page before needed is not kept: a page names its own colours and faces; named so that no text added to the window (a test's) is overwritten
+    var size = /^L(\d+)x(\d+)$/.exec(lines[first]), next = { wide: +size[1], high: +size[2], ops: [] }, characters = 0;
+    var grey = $.NSColor.colorWithWhiteAlpha(0.55, 0.4);
+    for (var at = first + 1; at < lines.length; at++) {
+        var line = lines[at], kind = line.charAt(0), n = line.slice(1).split(',').map(Number);
+        if (kind == 'R') next.ops.push([n[1], n[3], 'R', n[0], n[2], colour(line.split(',')[4])]);    // [top, height, kind, left, width, what draws it, ...]
+        else if (kind == 'G') next.ops.push([n[1], n[3], 'G', n[0], n[2], grey]);
+        else if (kind == 'M') { next.ops.push([n[1], n[3], 'M', n[0], n[2], picture(n[4], n[5], lines.slice(at + 1, at + 1 + n[5]))]); at += n[5]; }
+        else if (kind == 'X') {
+            var parts = line.slice(1).split(','), text = parts.slice(5).join(','), high = n[2], look = face(parts[3].charCodeAt(0) - 64, high, parts[4]);
+            characters += text.length;
+            next.ops.push([n[1] - high * 1.25, high * 1.75, 'X', n[0], 0, $(text), look[0], n[1] - look[1]]);    // drawn from its top: its baseline is the font's ascent below that
+        } else throw 'a laid page holds a line of another kind';
+    }
+    sheet = next;
+    if (!scroll.documentView.isEqual(canvas)) scroll.documentView = canvas;
+    fit();
+    canvas.scrollPoint($.NSMakePoint(0, 0));
+    listed(lines.slice(0, first));
+    drawn(lines.length, characters);
+}
+
+function unlaid() {
+    sheet = null;
+    if (canvas && !scroll.documentView.isEqual(page)) scroll.documentView = page;
+}
+
+function fit() {
+    if (!sheet) return;
+    var room = scroll.contentSize.width, scale = room / sheet.wide;
+    if (scale > 1 && room <= sheet.wide * 1.5) scale = 1;
+    canvas.setFrameSize($.NSMakeSize(sheet.wide * scale, sheet.high * scale));
+    canvas.setBoundsSize($.NSMakeSize(sheet.wide, sheet.high));
+    canvas.needsDisplay = true;
+}
+
+function colour(hex) {
+    if (!inks[hex]) inks[hex] = $.NSColor.colorWithSRGBRedGreenBlueAlpha(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255,
+        parseInt(hex.slice(4, 6), 16) / 255, hex.length > 6 ? parseInt(hex.slice(6, 8), 16) / 255 : 1);
+    return inks[hex];
+}
+
+function face(flags, size, hex) {
+    var key = flags + ' ' + size + ' ' + hex;
+    if (!typefaces[key]) {
+        var how = $.NSMutableDictionary.alloc.init, one = $.NSFont.fontWithNameSize($(named(flags & 1, flags & 2, flags & 4)), size);
+        if (one.isNil()) one = $.NSFont.systemFontOfSize(size);
+        how.setObjectForKey(one, $.NSFontAttributeName);
+        how.setObjectForKey(flags & 8 ? $.NSColor.linkColor : colour(hex), $.NSForegroundColorAttributeName);
+        if (flags & 8) how.setObjectForKey($.NSNumber.numberWithInt(1), $.NSUnderlineStyleAttributeName);
+        typefaces[key] = [how, one.ascender];
+    }
+    return typefaces[key];
+}
+
+// Red, green, blue and how opaque, a byte each, not multiplied by how opaque (alpha last in
+// Core Graphics' words, 3): the rows are joined and given to the system as an image of that many
+// pixels. No decoder reads them.
+function picture(wide, high, rows) {
+    var all = $.NSMutableData.dataWithCapacity(wide * high * 4);
+    rows.forEach(function (row) {
+        var bytes = $.NSData.alloc.initWithBase64EncodedStringOptions($(row.slice(1)), 0);
+        if (bytes.isNil()) throw 'a row of a picture is not base64';
+        all.appendData(bytes);
+    });
+    if (rows.length != high || all.length != wide * high * 4) throw 'a picture is not as large as it says';
+    if (!space) space = $.CGColorSpaceCreateWithName($.kCGColorSpaceSRGB);
+    var given = $.CGDataProviderCreateWithCFData(all), image = $.CGImageCreate(wide, high, 8, 32, wide * 4, space, 3, given, null, false, 0), made = $.NSBitmapImageRep.alloc.initWithCGImage(image);
+    $.CGImageRelease(image);
+    $.CGDataProviderRelease(given);
+    if (made.isNil()) throw 'a picture could not be made';
+    return made;
+}
+
+// What the view draws of a laid page: white, then in their order the lines that reach into
+// what it draws. A fault here is said as one in "draw" is, and the page goes.
+function paint(dirty) {
+    var top = dirty.origin.y, bottom = top + dirty.size.height;
+    $.NSColor.whiteColor.setFill;
+    $.NSRectFill(dirty);
+    if (!sheet) return;
+    try {
+        sheet.ops.forEach(function (op) {
+            if (op[0] > bottom || op[0] + op[1] < top) return;
+            if (op[2] == 'X') return op[5].drawAtPointWithAttributes($.NSMakePoint(op[3], op[7]), op[6]);
+            var box = $.NSMakeRect(op[3], op[0], op[4], op[1]);
+            if (op[2] == 'M') return op[5].drawInRectFromRectOperationFractionRespectFlippedHints(box, $.NSZeroRect, 2, 1, true, $());
+            op[5].setFill;
+            $.NSRectFillUsingOperation(box, 2);    // over what is under it, so a colour that is partly clear shows the page through it
+        });
+    } catch (fault) {
+        sheet = null;
+        hand.performSelectorWithObjectAfterDelay('unlaid:', null, 0);    // the view is not taken away while it draws
+        say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200));
+    }
+}
+
 // The page: the lines lzrprf let through, as characters with a look.
 function draw(lines) {
+    var first = 0;
+    while (first < lines.length && lines[first].charAt(0) == 'U') first++;
+    if (first < lines.length && lines[first].charAt(0) == 'L') return laid(lines, first);
+    unlaid();
     var text = '', runs = [], blocks = [], block = null, style = 'p', of = [];
     function put(chars, font, size, kind) { runs.push([text.length, chars.length, font, size, kind]); text += chars; }
     function begin(next, depth) {
@@ -1780,8 +1964,7 @@ function draw(lines) {
             var flags = line.charCodeAt(1) - 64, head = style == '1' || style == '2' || style == '3';
             var size = style == '1' ? 24 : style == '2' ? 19 : style == '3' ? 16 : 14, fixed = (flags & 4) || style == 'c';
             var bold = (flags & 1) || head, italic = flags & 2;
-            var font = fixed ? (bold ? (italic ? 'Menlo-BoldItalic' : 'Menlo-Bold') : italic ? 'Menlo-Italic' : 'Menlo-Regular')
-                : (bold ? (italic ? 'Arial-BoldItalicMT' : 'Arial-BoldMT') : italic ? 'Arial-ItalicMT' : 'ArialMT');
+            var font = named(bold, italic, fixed);
             put(line.slice(2), font, fixed ? size - 1.5 : size, flags & 8 ? 1 : 0);
         } else if (kind == 'B') put(' ', 'ArialMT', 14, 0);
         else if (kind == 'I') {
@@ -1850,7 +2033,15 @@ ObjC.registerSubclass({ name: 'LzrprfPage', superclass: 'NSTextView', methods: {
     } }
 } });
 
+ObjC.registerSubclass({ name: 'LzrprfLaid', superclass: 'NSView', methods: {
+    // A laid page is measured from its top, as the application laid it out. It has no menu of its own.
+    'isFlipped': { implementation: function () { return true; } },
+    'drawRect:': { implementation: function (dirty) { paint(dirty); } }
+} });
+
 ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
+    'windowDidResize:': { types: ['void', ['id']], implementation: function (note) { fit(); } },
+    'unlaid:': { types: ['void', ['id']], implementation: function (sender) { unlaid(); page.string = $(''); listed([]); } },
     // Return was pressed in the bar. What was typed goes to lzrprf as it is. A character that is not
     // plain is sent as one that no address may hold, so lzrprf refuses the whole of it.
     'go:': { types: ['void', ['id']], implementation: function (sender) {
@@ -1938,11 +2129,13 @@ function run(argv) {
     app.applicationIconImage = icon(256);
     hand = $.LzrprfHand.alloc.init;
     app.delegate = hand;
+    canvas = $.LzrprfLaid.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 640));
     win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer($.NSMakeRect(0, 0, 960, 720), 15, 2, false);
     win.title = $(NAME);
     win.releasedWhenClosed = false;
     win.minSize = $.NSMakeSize(520, 320);
     win.center;
+    win.delegate = hand;
     bar = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 24));
     bar.placeholderString = $('Type an https address and press Return');
     bar.font = $.NSFont.systemFontOfSize(14);

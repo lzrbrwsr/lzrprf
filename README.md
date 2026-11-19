@@ -207,7 +207,8 @@ One visit, in order (`sub visit`):
 8. The application writes a list of what to draw. lzrprf checks every line `[C9]`
    (`sub checked`) and gives the window only lines of five kinds: a paragraph begins, text, a
    line ends, a grey box where a picture would stand, and before all of these, from release 20
-   on, a thing the application says the page is made of. The window draws them.
+   on, a thing the application says the page is made of; or a laid page. The window draws them.
+   The application sends no picture pixels yet: every picture is a grey box.
    Those first lines are what the application says the page is made of: a kind (one of eight
    letters: document, CSS, JavaScript, libraries, media and formats, web APIs, security and
    transport, metadata), a `+` or a `-` for whether the application says its own code
@@ -241,6 +242,28 @@ One visit, in order (`sub visit`):
    was written on the slowest took about 7. That is a measurement on one Mac and one build
    of macOS, not a bound on the system's code: a text of a kind nobody tried may still be
    slow.
+   From release 22 on a page may instead be laid: the application has laid it out itself and
+   says where everything stands (`sub laid`). After the lines of what the page is made of
+   comes one line with the page's width, 320 to 2400, and height, 1 to 200000, in CSS pixels.
+   Then, in the order they are painted: filled rectangles in a colour, runs of text whose
+   baseline begins at a point, in a size of 6 to 96 and with the same letter of looks as a
+   text, grey boxes where a picture would stand, and pictures. A picture is given as its
+   pixels, at most 1024 by 1024, one line of base64 for each row: red, green, blue and how
+   opaque, a byte each. All the pictures of a page hold 262144 pixels at most. Every number
+   is written in one way only, everything stands inside the page, and a page is laid or
+   flowing, never both. A laid page holds at most 20000 rectangles, 30000 runs of text, 1000
+   grey boxes and 64 pictures, a run 2000 characters and all its runs 1000000, within the
+   2 MB and 50000 lines of every list. A page over any of these, a picture whose rows are
+   not as many as it says, a row that is not exactly as long as the picture is wide, or
+   base64 in any other form than the one it is written in, is not drawn at all. A run of
+   text gets the changes a text gets: a control or format character becomes U+FFFD, and so
+   does the 31st character in a row that hangs, counted in each run by itself. No space of
+   no width is put in, since a run is drawn on one line. The window draws a laid page in a
+   view of its own in the place of the text: white, scaled to the window's width and never
+   larger until the window is half as wide again as the page, the rectangles over what is
+   under them, the text in Arial and Menlo, and each picture from its bytes as they are,
+   handed to the system as pixels, with no image decoder. A laid page has no menu, and its
+   text cannot be selected or copied.
 
 ## The conditions
 
@@ -254,7 +277,7 @@ One visit, in order (`sub visit`):
 | `[C6]` | One place connects to a site, and it connects to a numeric address that was checked and written down. | `sub reach` | Reads the text: two `connect` lines, this one and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
 | `[C7]` | What a site is sent is made from the address alone: the same request from every computer, byte for byte, nothing kept from an earlier request. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
 | `[C8]` | A host inside your own network is fetched only after your yes to exactly that, once. | `sub own_network` | A no: nothing is fetched, and the no is in the log. |
-| `[C9]` | Every line the application writes is checked, and a list with anything but the five kinds of line, or with more than the window is given to set, is not drawn at all. | `sub checked` | Hostile lists (a script, lzrprf's own words to the window, too large, a block that holds too much, not text, a thing the page is said to be made of in a wrong form or place): none is drawn. The fullest list of such things that is allowed is passed on, and the real window's pane is read. The most lines, the most boxes and a block that is exactly full are passed on; a row of hanging characters and a word with no white space come out changed at the 31st and after the 1000th; the heaviest pages the limits allow are drawn by the real window and timed. |
+| `[C9]` | Every line the application writes is checked, and a list with anything but the five kinds of line (from release 22 on, or the lines of a laid page), or with more than the window is given to set, is not drawn at all. | `sub checked`, `sub laid` | Hostile lists (a script, lzrprf's own words to the window, too large, a block that holds too much, not text, a thing the page is said to be made of in a wrong form or place): none is drawn. The fullest list of such things that is allowed is passed on, and the real window's pane is read. The most lines, the most boxes and a block that is exactly full are passed on; a row of hanging characters and a word with no white space come out changed at the 31st and after the 1000th; the heaviest pages the limits allow are drawn by the real window and timed. Laid pages broken in eleven ways (out of the page, a number in a second form, too narrow, too many rectangles, mixed with a flowing page either way, a row of a picture missing or too long, not base64 or base64 in a second form, too many pixels): none is drawn. A laid page that is fit is passed on as it is, and in its text a control character is replaced, not refused. |
 | `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. Of the system's services it looks up by name only the 40 its container lists and one local name, the clipboard's (from release 19 on; before that all but one). The question about a system service names none: it says that the container refuses by default, not which names its list lets through. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. From the real window it asks for six system services by name: the clipboard, which the container lists, is answered, and the five it does not list are refused; a copy without that refusal is answered as a program outside every container is, and a copy whose list is one name wider is caught by the same try. |
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
 | `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
@@ -394,7 +417,10 @@ application can do the first in part. The second is what the container refuses.
   screen, or other processes.
 - Delivering. It has no way out by the ways its page container gives it. No network, no file
   to write, no shared memory by the ways the test tries, no second process, no window. The one thing that leaves it is the list of lines, and `sub checked` lets through
-  only lines that cannot carry an address, a picture or a command `[C9]`. From release 20 on
+  only lines that cannot carry an address or a command `[C9]`. Until release 22 they could
+  carry no picture either; from then on a laid page may hold pictures, as pixels that the
+  window draws as they are, never as a file that is decoded. The application sends no picture
+  pixels yet: every picture is a grey box. From release 20 on
   the list may begin with up to 120 lines that say what the page is made of. They are plain
   characters, shown as text in the pane under the page, and they are the application's own
   words as much as the text of the page is: what stands there is whatever it wrote. The true
@@ -794,14 +820,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 21
+    release 22
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin 73e8b84f5a16840c44bd299ea684e855d8014db818eda41debc21431499ae9c7
-    lzrprf 0623d65a417e605e287ad6ececc6c4cbb839b92def0c38a089e2beb979692897
+    file lzrbrwsr-bin f49a4338b25f04376eb26c2df3ab6bfb5fb7cf0ac03fd33d3affdb2ed411aca5
+    lzrprf b9bf4e5b79e7eee09162e89b2bc2ba652259b3eb98ef4c0de7c6b47c9708bdb3
 
 ## When a page cannot be shown
 
