@@ -4,8 +4,8 @@
 # It runs from a file and never from a pipe, so that what runs is something
 # you can read and check first. In Terminal:
 #
-#     curl -q -fsSLO https://lzrbrwsr.com/install.sh &&
-#     curl -q -fsSL https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&
+#     curl -q -fsSO https://lzrbrwsr.com/install.sh &&
+#     curl -q -fsS https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&
 #     sh install.sh
 #
 # The first line saves this file. The second compares it, byte for byte, with
@@ -57,9 +57,12 @@
 # published, and offers to fetch that release's installer into a file and run
 # it in Terminal, with the same steps and the same questions.
 #
-# It takes no variable of your shell: it starts itself again at once through env -i, with only your
-# home folder (as this Mac's list of accounts gives it), the system's PATH and the kind of terminal,
-# so nothing set in your shell reaches curl, perl or lzrprf's self-test.
+# It hands no variable of your shell on: it goes on only when what it would give to a program it
+# starts is nothing but your home folder (as this Mac's list of accounts gives it), the system's
+# PATH, the kind of terminal and a few names a shell sets for itself, and otherwise starts itself
+# once more through env -i with those three, so nothing
+# set in your shell reaches curl, perl or lzrprf's self-test. It follows no redirect: each file
+# comes from the address written in this file, or not at all.
 #
 # For tests, six variables change what it does: LZRBRWSR_BASE, LZRBRWSR_SECOND
 # and LZRPRF_BASE (where the files come from; the checksums below must still match),
@@ -74,55 +77,94 @@
 # LZRBRWSR is proprietary software: free to use, never to resell or pass on.
 # All rights reserved. The licence: https://lzrbrwsr.com/terms.html
 set -eu
+unset IFS ARGV0	# two names a shell may have read for itself at its start; see the lines before the first case below
 PATH=/usr/bin:/bin:/usr/sbin:/sbin	# the system's own tools, whatever your shell was set to find first
 export PATH
-umask 022
 
 # Is one of the tests' six variables set? This is asked before any of them is given its usual value.
 TESTING="${LZRBRWSR_BASE:-}${LZRBRWSR_SECOND:-}${LZRPRF_BASE:-}${LZRBRWSR_DEST:-}${LZRBRWSR_DOCK:-}${LZRBRWSR_UNATTENDED:-}"
 
 # This script, curl and lzrprf's self-test take no variable of your shell: a variable can change
 # what perl loads (PERL5OPT, PERL5LIB), which certificates curl trusts (SSL_CERT_FILE), or even
-# what a command name means to the shell. So the script starts itself once more, at once, through
-# env -i, with only these: your home folder as this Mac's list of accounts gives it for you (not
-# as the shell says), the system's own PATH, the kind of terminal, and a mark that it was done,
-# which holds this process's number and so cannot be carried over from your shell. In a test, the
-# six test settings and the test's home folder are kept too, and nothing else. Until then only the
-# shell's own words and tools named by their full path run.
-if [ "${LZRBRWSR_CLEAN:-}" != "$$" ] && [ -f "$0" ] && [ "$(/usr/bin/sed -n 2p "$0" 2>/dev/null)" = "# LZRBRWSR installer." ]; then
-	if [ -n "$TESTING" ]; then
-		home="${HOME:-}"
-	else
-		home="$(/usr/bin/env -i /usr/bin/perl -e 'print((getpwuid $<)[7])')"
-	fi
-	if [ -z "$home" ] || [ ! -d "$home" ]; then
-		printf '\n  LZRBRWSR: this Mac gives no home folder for your account, and lzrprf keeps its files there. Nothing was installed.\n\n' >&2
-		exit 1
-	fi
-	set -- HOME="$home" PATH="$PATH" LZRBRWSR_CLEAN="$$"
-	[ -z "${TERM:-}" ] || set -- "$@" TERM="$TERM"
-	for name in LZRBRWSR_BASE LZRBRWSR_SECOND LZRPRF_BASE LZRBRWSR_DEST LZRBRWSR_DOCK LZRBRWSR_UNATTENDED; do
-		eval "value=\${$name:-}"
-		[ -z "$value" ] || set -- "$@" "$name=$value"
-	done
-	exec /usr/bin/env -i "$@" /bin/sh "$0"
-fi
-unset LZRBRWSR_CLEAN
+# what a command name means to the shell. So before anything else the script looks at what it
+# would hand on to a program it starts (what /usr/bin/env prints), and goes on only when that
+# is these and nothing else: your home folder as this Mac's list of accounts gives it for you
+# (not as the shell says), the system's own PATH, the kind of terminal as one plain word, and
+# names a shell sets for itself, each in its plain shape only (PWD, SHLVL, _; zsh also OLDPWD,
+# the same folder, and LOGNAME, your account's name). With anything else there, the script
+# starts itself once more through env -i with the first three (a kind of terminal that is not
+# one plain word is left out; a test keeps its six settings and its home folder). No mark says
+# "already clean" that a starter could set: what counts is what is there. It is read line by
+# line by a perl that is itself started through env -i, and a line break or another control
+# character in the value of one of these names counts as something else before that (the first
+# case below), so one value cannot pass for several lines. The lines up to there name their
+# tools by full path and use words of the shell that no function can give another meaning
+# (case, set, unset, exec, exit, eval, for, export).
+# What this cannot see or undo is what /bin/sh took in for itself at its own start and does
+# not hand on. On macOS /bin/sh is bash: it reads SHELLOPTS and PS4, and with those a command
+# written into PS4 runs before each of these lines, as the starter's own program; the second
+# start has neither. Where an administrator made zsh the /bin/sh, it reads more for itself:
+# the one found to act here (ARGV0, the name it gives the programs it starts) is unset at the
+# top, and IFS with it. (With System Integrity Protection switched off, a DYLD_ variable would
+# reach that first env and perl too.) What stays from the starter to the end and is no
+# variable: the current folder, open files, limits, and signals set to be ignored.
+case "${PATH-}${TERM-}${SHLVL-}${LOGNAME-}${HOME-}${OLDPWD-}${PWD-}${_-}" in *[[:cntrl:]]*) plain= ;; *) plain=one ;; esac
+case "$plain$(/usr/bin/env | /usr/bin/env -i /usr/bin/perl -e '
+	my ($testing) = @ARGV; my ($user, $home) = (getpwuid $<)[0, 7]; my $login = getlogin; my ($seen, %at) = (0);
+	while (defined(my $line = <STDIN>)) {
+		chomp $line;
+		next if $line eq "PATH=/usr/bin:/bin:/usr/sbin:/sbin" || $line =~ m{^(?:TERM=[A-Za-z0-9._+-]+|SHLVL=[0-9]+|_=/[A-Za-z0-9._/+-]*)\z};
+		if ($line =~ m{^(PWD|OLDPWD)=(/.*)\z}) { $at{$1} = $2; next }
+		next if grep { defined($_) && $line eq "LOGNAME=$_" } $user, $login;
+		if ($testing ne "") { next if $line =~ /^(?:HOME|LZRBRWSR_BASE|LZRBRWSR_SECOND|LZRPRF_BASE|LZRBRWSR_DEST|LZRBRWSR_DOCK|LZRBRWSR_UNATTENDED)=/ }
+		elsif (defined $home && length $home && $line eq "HOME=$home") { $seen = 1; next }
+		print "other"; exit;
+	}
+	print exists $at{OLDPWD} && $at{OLDPWD} ne ($at{PWD} // "") ? "other" : $testing ne "" || $seen ? "only" : "other";
+' "$TESTING")" in
+oneonly) ;;
+*)
+	case "$(/usr/bin/sed -n 2p "$0" 2>/dev/null)" in
+	"# LZRBRWSR installer.")	# from a pipe there is no file to start again: nothing runs, as the lines further down say
+		case "${1:-}" in
+		again)
+			/usr/bin/printf '\n  LZRBRWSR: this installer could not be started with only your home folder, the PATH of the system\n  and the kind of terminal. Nothing was installed. Start it from a folder with a plain name.\n\n' >&2
+			exit 1 ;;
+		esac
+		case "$TESTING" in
+		'') home="$(/usr/bin/env -i /usr/bin/perl -e 'print((getpwuid $<)[7])')" ;;
+		*) home="${HOME:-}" ;;
+		esac
+		/bin/test -n "$home" && /bin/test -d "$home" || {
+			/usr/bin/printf '\n  LZRBRWSR: this Mac gives no home folder for your account, and lzrprf keeps its files there. Nothing was installed.\n\n' >&2
+			exit 1
+		}
+		set -- HOME="$home" PATH="$PATH"
+		case "${TERM:-}" in '' | *[!A-Za-z0-9._+-]*) ;; *) set -- "$@" TERM="$TERM" ;; esac
+		for name in LZRBRWSR_BASE LZRBRWSR_SECOND LZRPRF_BASE LZRBRWSR_DEST LZRBRWSR_DOCK LZRBRWSR_UNATTENDED; do
+			eval "value=\${$name:-}"
+			case "$value" in '') ;; *) set -- "$@" "$name=$value" ;; esac
+		done
+		exec /usr/bin/env -i "$@" /bin/sh "$0" again ;;
+	esac ;;
+esac
+set --
+umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="2df86c7ed483e154815de3aa455933967ba56d0a038a23cd61458b45e5712404"
-RELEASE="14"
-LZRPRF_COMMIT="847aafa5074b4c6ba85d263845bc603f0f9db5bd"
+SHA256="bc6028dce7d35e44506c04701811ed8ebc2386d3a3e1a358f93e40c090b5dd15"
+RELEASE="15"
+LZRPRF_COMMIT="2493f4fa461fc48a1a72a1af7eed0d0eaddb43bd"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="a8c2f22005f5ee698df10a8e5be5b3708e704d258ed380d372826c5190aadc17"
-SELFTEST_SHA256="27f3e19fe57492d6b0bc265ebbe36d80b8ad67a2a50388a63d5d1963214b2fd3"
+LZRPRF_SHA256="7522d036977e8e61670c02c710729948c54284da6493e79a78cf2bec85d7f96d"
+SELFTEST_SHA256="ea893acae1883187faf233d21f5875d01d496b66cc14c4c0629cd327103c962c"
 
-# Outside the tests, files come over https and nothing else, also when an
-# address sends on to another. In a test they come from files on this computer
-# and nothing else. curl reads no settings file of yours (-q).
+# Outside the tests, files come over https and nothing else, and an address
+# that sends on to another is not followed. In a test they come from files on
+# this computer and nothing else. curl reads no settings file of yours (-q).
 if [ -z "$TESTING" ]; then
-	fetch() { /usr/bin/curl -q -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 30 --max-time 900 --max-filesize 209715200 "$1" -o "$2"; }
+	fetch() { /usr/bin/curl -q -fsS --proto '=https' --tlsv1.2 --connect-timeout 30 --max-time 900 --max-filesize 209715200 "$1" -o "$2"; }
 else
 	fetch() { /usr/bin/curl -q -fsS --proto '=file' --max-time 900 "$1" -o "$2"; }
 fi
@@ -131,7 +173,7 @@ fi
 # nothing runs, and it says how to get the file.
 if [ ! -f "$0" ] || [ "$(/usr/bin/sed -n 2p "$0" 2>/dev/null)" != "# LZRBRWSR installer." ]; then
 	/bin/cat >/dev/null 2>&1 || true	# what is left of the pipe is not read as a script
-	printf '\n  LZRBRWSR: this installer runs from a file, not from a pipe, so that you can\n  read and check what runs. Nothing was installed. In Terminal:\n\n      curl -q -fsSLO https://lzrbrwsr.com/install.sh &&\n      curl -q -fsSL https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&\n      sh install.sh\n\n  What the middle line checks: https://github.com/lzrbrwsr/lzrprf#the-installer\n\n' >&2
+	printf '\n  LZRBRWSR: this installer runs from a file, not from a pipe, so that you can\n  read and check what runs. Nothing was installed. In Terminal:\n\n      curl -q -fsSO https://lzrbrwsr.com/install.sh &&\n      curl -q -fsS https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&\n      sh install.sh\n\n  What the middle line checks: https://github.com/lzrbrwsr/lzrprf#the-installer\n\n' >&2
 	exit 1
 fi
 
@@ -430,12 +472,12 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 14
+release 15
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
-lzrprf a8c2f22005f5ee698df10a8e5be5b3708e704d258ed380d372826c5190aadc17
+lzrprf 7522d036977e8e61670c02c710729948c54284da6493e79a78cf2bec85d7f96d
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
