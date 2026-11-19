@@ -153,8 +153,8 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="37ac17e282b4b82055a9e1eee77ef11cbb8df7fe0376783d6d6f5215ef2800a3"
-RELEASE="23"
+SHA256="c6eb37793c2bd1bb072252b6e1c769f150a1ba4029566b35e4bbd1d82f829375"
+RELEASE="24"
 LZRPRF_COMMIT="b1dbe7bf0e1a108e9bd44767aa727c7c9f46683c"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
 LZRPRF_SHA256="3fd5f6d52ebf34b910a78d50252309f33bbdcc644cdbad5040d7a6e4ebac3f0a"
@@ -473,13 +473,13 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 23
+release 24
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-file lzrbrwsr-bin 0e652d43df5af7af221ecf0bd8a7825e47f77e80f274d86ddf1b5d3423d3589d
+file lzrbrwsr-bin e24ff6f75faa919d6f3a0ca899a376cd07636bf4396e33c34b764d156a0a980e
 lzrprf 3fd5f6d52ebf34b910a78d50252309f33bbdcc644cdbad5040d7a6e4ebac3f0a
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
