@@ -103,6 +103,7 @@ my $KEPT_MOST = 3650;                     # a setting of more days than this is 
 # "prove" into its folder gets the question of [C11] as well, against a mark
 # in that folder. "lzrprf run" has none of this.
 my ($TRY, $PEER, $TYPED, $ANSWER, $RUN, $APP, $PROGRAM, @ARGUMENTS) = (0, '-', '-', 'ask', 0, 'the application', '');
+my $BEGAN;                                # the SHA-256 of the program when this window began: see "sub laid_out"
 my ($FROM, @EVENTS);                      # what the window says; or, without a window, what a test has typed
 my $DRAWN = 0;                            # a page was handed to the window, and the window has not said yet that it could not draw it
 my %MORE = (nothing => 0, hosts => 1, all => 2);    # what is kept, from less to more
@@ -117,8 +118,13 @@ sub now { Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) }    # a cl
 # folders and the application's own folder, starting any other program, starting a second process, signalling
 # another process, asking another program to open something, every system
 # service (so: no window, no key, no clipboard, no other application), and
-# every fact about the computer that is not in the short list of names below
-# (so: not its name, not its other processes, not its network).
+# every fact about the computer that is not under the three prefixes or among
+# the single names below (so: not its name, not its other processes, not its
+# network). As code it may load itself and the system's own libraries; from
+# release 17 on no other file, also not one in its own folder. That takes a
+# refusal of its own: macOS lets a contained program load as code whatever
+# file it may read, unless a line says no, so before release 17 the line that
+# allows was all there was and it refused nothing.
 # One thing macOS does not refuse by itself inside a container: making (not
 # using) memory, flags and queues of the old "System V" kind, of which the
 # whole computer has only a few. The three calls that make them are refused
@@ -128,7 +134,8 @@ my $CONTAINER = <<'END';
 (deny default)
 (deny syscall-unix (syscall-number SYS_shmget SYS_semget SYS_msgget))
 (allow process-exec (literal (param "APP")))
-(allow file-map-executable (subpath "/System") (subpath "/usr/lib") (subpath (param "OWN")))
+(deny file-map-executable)
+(allow file-map-executable (subpath "/System") (subpath "/usr/lib") (literal (param "APP")))
 (allow sysctl-read
   (sysctl-name-prefix "hw.") (sysctl-name-prefix "machdep.cpu.") (sysctl-name-prefix "kern.osvariant")
   (sysctl-name "kern.ostype") (sysctl-name "kern.osrelease") (sysctl-name "kern.osversion")
@@ -151,11 +158,17 @@ END
 
 # The page container is allowed nothing on top of that. It also gets at most
 # 30 seconds of processor time, may write no byte into a file and no memory dump, may
+# hold no more than 256 open files (where lzrprf itself was started with a
+# lower limit that no process may raise, that lower limit stands), may
 # take no more memory than the shell that starts it holds plus 2 GiB
 # ($PAGE_ROOM), and is told one thing: the address it lays out. It sees no
 # other variable. Each limit is set before the next step, and a limit the
-# system will not set starts nothing.
-my $PAGE_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -t 30 && ulimit -f 0 && ulimit -c 0 && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" "$@"';
+# system will not set starts nothing. Each is set twice, as the limit that
+# counts now and as the limit that may not be raised again ("limit" below):
+# which of the two a bare "ulimit" sets differs between the shells macOS can
+# use as /bin/sh, and with one of them the program could have raised its
+# limits again (found before release 17 went out; said here from then on).
+my $PAGE_LIMITS = 'limit() { ulimit -S "$@" && ulimit -H "$@"; } && v=$(/bin/ps -o vsz= -p $$) && limit -t 30 && limit -f 0 && limit -c 0 && { limit -n 256 2>/dev/null || [ "$(ulimit -H -n)" -le 256 ] 2>/dev/null; } && limit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" "$@"';
 
 # What curl's container is allowed on top of it: one socket file, behind which
 # lzrprf holds the connection to the site, and the list of certificate
@@ -167,11 +180,11 @@ my $FETCH = <<'END';
 (allow file-read* (literal (param "ROOTS")))
 END
 # curl too gets at most 30 seconds of processor time, may write no byte into a
-# file and no memory dump, and may take no more memory than the shell that starts it
-# holds plus 2 GiB. When the system will not set one of these limits, curl
+# file and no memory dump, may hold no more than 256 open files, and may take no
+# more memory than the shell that starts it holds plus 2 GiB. When the system will not set one of these limits, curl
 # is not started. It is started through "env -i", so it sees no variable at
 # all, not one the shell that sets the limits made for itself either.
-my $FETCH_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -t 30 && ulimit -f 0 && ulimit -c 0 && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "$@"';
+my $FETCH_LIMITS = 'limit() { ulimit -S "$@" && ulimit -H "$@"; } && v=$(/bin/ps -o vsz= -p $$) && limit -t 30 && limit -f 0 && limit -c 0 && { limit -n 256 2>/dev/null || [ "$(ulimit -H -n)" -le 256 ] 2>/dev/null; } && limit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "$@"';
 
 # The window's container. A window needs the system's services, so this one
 # is written the other way round: what a program of yours may do, without
@@ -426,6 +439,7 @@ sub named {                               # the program of this run, and the nam
 # Behind the window: everything lzrprf does for one run, one thing at a time.
 sub behind {
     leave() unless (hear(60) // '') eq 'ready';
+    $BEGAN = sum_of($PROGRAM);            # read before it is compared below, so the program that is compared is the one every page is held to
     paired();                             # before anything else: an application and an lzrprf that were not installed together are noticed
     return closed("lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e "$DIR/prove") || proven();    # [C11]
     return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless holds();    # [C2]
@@ -455,10 +469,16 @@ sub behind {
 # of the program: the program lzrprf starts in the page container, and the
 # launcher. From release 16 on each named file must be the file that is
 # there, and the program itself must be named, or the application does not
-# start. This is looked at once, at the start, and it is measured by a file
-# of the application's own: it finds a program that was changed and a file
-# that was not, as a damaged disk or a copy that did not finish leaves them.
-# Whoever can change both is not found by it. A name is one plain word of
+# start. From release 17 on nothing stands beside the program in an
+# application folder that the file does not name: so the launcher must be
+# named too, and a file that was put there later stops the start. A name that
+# begins with a dot is passed over: the Finder writes such a file into a
+# folder it showed, and nothing starts one. The named files are looked at
+# once, at the start; the program is read again before every page (sub
+# laid_out). All of it is measured by a file of the application's own: it
+# finds a program that was changed and a file that was not, as a damaged disk
+# or a copy that did not finish leaves them. Whoever can change both is not
+# found by it. A name is one plain word of
 # letters, digits, dot, hyphen and underscore, so a program of another name
 # cannot be named and does not start from an application folder. Only a plain
 # file is read: a folder, a pipe or a device of that name counts as another
@@ -471,11 +491,19 @@ sub paired {
     my @files = map { /^file ([A-Za-z0-9_][A-Za-z0-9._-]*) ([0-9a-f]{64})$/ ? [$1, $2] : () } @lines;    # a name is one plain word, so it is a file in the program's own folder and nowhere else
     my ($other) = map { $_->[0] } grep { my $file = dirname($PROGRAM) . "/$_->[0]"; !-f $file || $_->[1] ne (sum_of($file) // '') } @files;
     $other //= basename($PROGRAM) =~ s/[^A-Za-z0-9._-]/?/gr unless grep { $_->[0] eq basename($PROGRAM) } @files;
+    $other //= unnamed(map { $_->[0] } @files) if $PROGRAM =~ m{\.app/Contents/MacOS/[^/]+$};
     my $what = @files < grep({ /^file\b/ } @lines) ? 'a line "file" there is not as the installer writes it' : defined $other ? "the file \"$other\" is another one than that file names, or is not named there" : undef;
     return if defined $pair && $pair eq (sum_of($SELF) // '') && !defined $what;
     ask(defined $pair && $pair eq (sum_of($SELF) // '') ? "$APP is not as it was installed, so it does not start. The installer writes the SHA-256 of the program and of the launcher into the application's release file: here $what. Installing again mends it." : defined $pair ? "$APP was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it." : "$APP does not say which lzrprf it was installed with, so it does not start. The installer puts the two in place as a pair and writes lzrprf's SHA-256 into the application's release file: here that line is missing, as in an application older than release 12 or one that was changed by hand. Installing again mends it.", 'Quit');    # whatever comes back, the run ends here
     window('quit');
     leave();
+}
+
+sub unnamed {                             # the first thing in the program's folder that is none of these names and does not begin with a dot; a folder that cannot be listed is itself the answer
+    my %named = map { $_ => 1 } @_;
+    opendir my $folder, dirname($PROGRAM) or return 'Contents/MacOS';
+    my ($first) = sort grep { !/^\./ && !$named{$_} } readdir $folder;
+    return defined $first ? $first =~ s/[^A-Za-z0-9._-]/?/gr : undef;
 }
 
 sub leave {
@@ -499,6 +527,7 @@ sub visit {
     my ($url, $host) = address($typed);
     return idle('lzrprf does not fetch that. An address must be https, a host by its name, port 443, in plain characters without a space.') unless $url;
     window("address $url");                 # the bar shows what will be sent, exactly
+    return fault('changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # before a site is asked: a program that is no longer the file this window began with is given no page, so none is fetched for it
     $UNEXPIRED = !expire_log() if $UNEXPIRED;
     open my $request, '>>', "$DIR/busy" or return idle($UNWRITTEN);
     flock $request, LOCK_SH or return idle($UNWRITTEN);    # from "you typed" until its last line is written, a request keeps the log from being cleared under it
@@ -532,7 +561,8 @@ sub visit {
 # wrong.
 sub laid_out {
     my ($url, $got) = @_;
-    pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) or return (undef, 'unstarted');
+    return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # read again before every page: the program on the disk is the file this window began with, or no page is laid out
+    pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) && pipe(my $held, my $hold) or return (undef, 'unstarted');
     my $page = fork // return (undef, 'unstarted');
     if (!$page) {
         %ENV = (LZRPRF_CONTAINED => $url);    # the application is told the address it lays out, and sees no other variable: this one it is given before the system is asked [C3]
@@ -540,24 +570,31 @@ sub laid_out {
         become($answer_out, $to_lzrprf, $TRY ? \*STDERR : undef, '/bin/sh', '-c', $PAGE_LIMITS, 'lzrprf', contain('', $PROGRAM), @ARGUMENTS);    # [C1]
     }
     close $_ for $answer_out, $to_lzrprf;
-    if (!inside($page)) {                 # [C3] the system did not say so: the answer stays here; the application was told the address and nothing else
-        my $gone = waitpid($page, POSIX::WNOHANG()) == $page;    # it ended by itself: of a process that is gone the system has nothing to say
-        kill 'KILL', $page unless $gone;
-        waitpid $page, 0 unless $gone;
-        return (undef, $gone ? 'ended' : 'uncontained');    # only a process still running, of which the system does not say that it is contained, is the container's fault
-    }
     my $feeder = fork;
     if (!defined $feeder) {               # no second process to be had: the application is running by now, so it is ended here and not left to end by itself
         kill 'KILL', $page;
         waitpid $page, 0;
         return (undef, 'unstarted');
     }
-    if (!$feeder) {                       # hands the answer over and ends; an application that does not read it changes nothing
-        close $from_page;
-        answer($answer_in, $got);
-        exit 0;
+    if (!$feeder) {                       # the keeper of this page
+        close $_ for $from_page, $hold;
+        keeper($held, $answer_in, $got, $page);
+        POSIX::_exit(0);                  # the keeper never returns; were it ever to, it ends here and does not go on as a second lzrprf
     }
-    close $answer_in;
+    close $_ for $answer_in, $held;
+    if (!inside($page)) {                 # [C3] the system did not say so: the answer stays here; the application was told the address and nothing else
+        kill 'KILL', $feeder;             # the keeper first, here and below: it acts on the application's number, and is gone before the system may give that number to another process
+        waitpid $feeder, 0;
+        my $gone = waitpid($page, POSIX::WNOHANG()) == $page;    # it ended by itself: of a process that is gone the system has nothing to say
+        kill 'KILL', $page unless $gone;
+        waitpid $page, 0 unless $gone;
+        return (undef, $gone ? 'ended' : 'uncontained');    # only a process still running, of which the system does not say that it is contained, is the container's fault
+    }
+    if ((syswrite($hold, 'g') // 0) != 1) {    # the keeper cannot be told that the system said so: nothing is handed over
+        kill 'KILL', $feeder, $page;
+        waitpid $_, 0 for $feeder, $page;
+        return (undef, 'unstarted');
+    }
     my ($wrote, $until, $open) = ('', now() + $PAGE_SECONDS, 1);
     while ($open && now() < $until && length $wrote <= $PAGE_BYTES && alive()) {
         my $ready = '';
@@ -565,12 +602,51 @@ sub laid_out {
         select($ready, undef, undef, 1) > 0 or next;
         $open = sysread($from_page, $wrote, 65536, length $wrote) // $!{EINTR};
     }
-    kill 'KILL', $page, $feeder;
-    waitpid $_, 0 for $page, $feeder;
+    kill 'KILL', $feeder, $page;
+    waitpid $_, 0 for $feeder, $page;
     return (undef, 'late') if $open && length $wrote <= $PAGE_BYTES;
     return (undef, 'large') if length $wrote > $PAGE_BYTES;
     my ($lines, $hosts) = checked($wrote) or return (undef, 'unfit');    # [C9]
     return ($lines, $hosts);
+}
+
+# The keeper: the second process of a page, a copy of lzrprf itself. It
+# waits for one byte, lzrprf's word that the system called the application
+# contained, and only then hands the answer over. After that, and while it
+# hands over, it waits for one thing more: the end of lzrprf. The pipe it
+# reads has its other end in lzrprf alone, so it runs dry when lzrprf ends,
+# by whatever way, also when lzrprf is killed and can end nothing itself.
+# Then the keeper ends the application and itself. Without it an application
+# that sleeps would stay, in its container, after lzrprf was killed. While
+# lzrprf lives, lzrprf ends the keeper before it lets go of the application's
+# number, so the keeper never acts on a number the system gave to another
+# process; after lzrprf's end it acts at once, on a number the system gives
+# away only once the application has ended and been cleared away, which is
+# the one moment this cannot rule out. An application that does not read
+# changes nothing: the keeper never waits in a write.
+sub keeper {
+    my ($held, $to, $data, $page) = @_;
+    $SIG{PIPE} = 'IGNORE';                # an application that closes what it reads does not end its keeper
+    my $over = sub { kill 'KILL', $page; POSIX::_exit(0) };
+    my ($word, $go, $sent) = ('', undef, 0);
+    do { $go = sysread($held, $word, 1) } until defined $go || !$!{EINTR};
+    $over->() unless $go;                 # lzrprf ended, or ended this page, before the system said that the application is contained
+    fcntl($to, POSIX::F_SETFL(), O_NONBLOCK) or $over->();
+    while (1) {
+        if ($to && $sent >= length $data) { close $to; undef $to }    # all of the answer is handed over: what the application reads ends here
+        my ($read, $write) = ('', '');
+        vec($read, fileno $held, 1) = 1;
+        vec($write, fileno $to, 1) = 1 if $to;
+        select($read, $to ? $write : undef, undef, undef) > 0 or next;
+        if (vec($read, fileno $held, 1)) {
+            my $more = sysread($held, $word, 1);
+            $over->() if defined $more ? !$more : !$!{EINTR};    # nothing more to read: lzrprf is gone
+        }
+        next unless $to && vec($write, fileno $to, 1);
+        my $left = length($data) - $sent;
+        my $took = syswrite($to, $data, $left > 65536 ? 65536 : $left, $sent);
+        if (defined $took) { $sent += $took } elsif (!$!{EINTR} && !$!{EAGAIN}) { $sent = length $data }    # the application reads no more: the rest is not handed over
+    }
 }
 
 # What the application may write, and nothing else: a first line that names
@@ -630,11 +706,13 @@ my %FAULT = (
     large => 'it wrote more than lzrprf takes',
     unfit => 'what it wrote is not a page',
     undrawn => 'the window could not draw what it wrote',
+    changed => 'its program on the disk is another file than when this window opened, as after an update, so it was not started. Quit, and start it again',
 );
 
 sub fault {
     my ($which) = @_;
     my $says = "$APP did not show this page: $FAULT{$which}.";
+    return idle($says) if $which eq 'changed';    # nothing of the application ran: there is nothing to report
     my ($release, undef, $to) = beside();
     my ($build) = mark() =~ /^macOS build (\w+)/;
     my $word = $which =~ /^un(?:started|contained)$/ ? 'container' : 'page';
@@ -831,15 +909,6 @@ sub public4 {
             192.88.99.0/24 192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/3)) {
         my ($net, $bits) = split m{/};
         return 0 if ($number & (0xffffffff << (32 - $bits) & 0xffffffff)) == unpack 'N', inet_aton($net);
-    }
-    return 1;
-}
-
-sub answer {
-    my ($to, $data) = @_;
-    my $sent = 0;
-    while ($sent < length $data) {
-        $sent += syswrite($to, $data, length($data) - $sent, $sent) // return 0;
     }
     return 1;
 }
@@ -1413,7 +1482,7 @@ sub mark {
     return $build =~ /^(\w+)$/ ? "macOS build $1, lzrprf $self, selftest $test" : '';
 }
 
-sub sum_of { open my $in, '<', $_[0] or return; binmode $in; return eval { Digest::SHA->new(256)->addfile($in)->hexdigest } }    # what cannot be read to its end has no sum
+sub sum_of { sysopen my $in, $_[0], O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return; -f $in or return; binmode $in; return eval { Digest::SHA->new(256)->addfile($in)->hexdigest } }    # what cannot be read to its end has no sum; a plain file and no link, and a pipe put in its place is not waited for
 
 sub proven {
     my $mark = mark();

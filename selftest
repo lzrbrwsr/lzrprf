@@ -192,6 +192,7 @@ if (!$site) {
             seen($kind, $got, $hello, logged($path));
             sleep 600 if $path eq '/slow';
             chmod 0400, "$base.logend/log" if $path eq '/logend';    # the log loses its permission between the line "connects to" and the line of how it ended
+            rename "$base.$1app/other", "$base.$1app/Test.app/Contents/MacOS/app" if $path =~ m{^/out/shown\?(swapped|lostswap|lostlook)2$};    # the program of that run's application becomes another file while its window is open, between its first page and its second
             $client->print(answer_for($path));
             $client->close;
             exit 0;
@@ -210,6 +211,13 @@ my @numbered = stat $secret;
 my $by_number = @numbered ? "/.vol/$numbered[0]/$numbered[1]" : '';    # the same file by its number on the disk, a name that holds no folder
 open my $left_open, '<', $secret or die "selftest: cannot read $secret: $!\n";
 POSIX::dup2(fileno $left_open, 19) // die "selftest: cannot keep a file open: $!\n";    # every program started from here on inherits this open file as descriptor 19
+my $files = pack('QQ', 0, 0);             # this test's own limit of open files (getrlimit, call 194; setrlimit, call 195; the limit of open files is number 8) is raised to 1024 when the system lets it: so a file can be left open under a high number, and what the test starts outside every container is not held to 256 by the test itself
+syscall(194, 8, $files);
+my ($soft_files, $hard_files) = unpack('QQ', $files);
+my $more_files = pack('QQ', $hard_files < 1024 ? $hard_files : 1024, $hard_files);
+syscall(195, 8, $more_files) if $soft_files < 1024;
+my $few_files = $hard_files < 300;        # this test was itself started with a limit no process may raise: then nothing it starts can allow itself 300 open files, with or without a container, and the limit of 256 cannot be shown here
+my $high = POSIX::dup2(fileno $left_open, 700) // 19;    # and as descriptor 700, a number above the 255 a careless closing would stop at; where the system gives no such number, this try repeats the one with 19
 $ENV{LZRPRF_SELFTEST_MARK} = 'a variable of the user';
 my $computer = (POSIX::uname())[1] // '';
 
@@ -233,9 +241,10 @@ my $computer = (POSIX::uname())[1] // '';
 # large would be filled, and would end the program where eval cannot catch it.
 # No comment stands in its text before the part for curl's place: there its
 # lines are joined into one, and a comment would take the rest with it.
+# In it the limit of processor time is number 0 and the limit of memory number 5 (setrlimit, call 195): outside every container neither try is a raise, in a container both are. No line of it holds a comment: in curl's place it is handed over as one line.
 my $hostile = <<'END';
 use IO::Socket::IP; use IO::Socket::UNIX; use Socket; use POSIX ();
-my ($port, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $spare, $numbered) = @ARGV;
+my ($port, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $spare, $numbered, $high) = @ARGV;
 $| = 1; $SIG{PIPE} = 'IGNORE';
 my $address = $ENV{LZRPRF_CONTAINED} // '';
 exit 0 if $part eq 'page' && $address =~ m{/out/quick};
@@ -257,9 +266,11 @@ sub by_link {
     my ($own) = $^X =~ m{^(.*\.app)/Contents/MacOS/[^/]+$};
     report 'read a file of its own, beside that link', open(my $beside, '<', "$own/Contents/Resources/release") ? 'read' : 'refused' if defined $own;
     report 'read a file in the home folder through a link in its own folder', open(my $linked, '<', "$own/Contents/Resources/alias") ? 'read' : 'refused' if defined $own;
+    report 'load code from another file of its own folder', eval { require DynaLoader; DynaLoader::dl_load_file("$own/Contents/Resources/code.bundle", 0) } ? 'loaded' : 'refused' if defined $own && -e "$own/Contents/Resources/code.bundle";
 }
 sub attempts {
     report 'use a file that was open in whoever started lzrprf', POSIX::fstat(19) ? 'open' : 'closed';
+    report 'use a file that was open there under a high number', POSIX::fstat($high) ? 'open' : 'closed';
     report 'connect straight to a listener on this computer', direct('127.0.0.1', $port);
     report 'connect straight to an address outside this computer', nowhere();
     report 'look up a name', gethostbyname('localhost') ? 'resolved' : 'refused';
@@ -305,6 +316,13 @@ sub attempts {
     report 'make a flag with a name, for other programs to open', syscall(268, $name, 0x200, 0600, 0) != -1 ? 'made' : 'refused';
     syscall(270, $name);
     report 'take 3 GiB of memory', syscall(197, 0, 3 * 1024**3, 3, 0x1002, -1, 0) != -1 ? 'made' : 'refused';
+    my ($files, $more) = (pack('QQ', 0, 0), pack('QQ', 300, 300));
+    syscall(195, 8, $more);
+    syscall(194, 8, $files);
+    report 'allow itself more than 256 open files', unpack('Q', $files) > 256 ? 'allowed' : 'refused';
+    my ($time, $room) = (pack('QQ', 60, 60), pack('QQ', ~0 >> 1, ~0 >> 1));
+    report 'allow itself more processor time', syscall(195, 0, $time) == 0 ? 'allowed' : 'refused';
+    report 'allow itself more memory', syscall(195, 5, $room) == 0 ? 'allowed' : 'refused';
     report 'start a second process', defined(my $pid = fork) ? 'started' : 'refused';
     exit 0 if defined $pid && !$pid;
     { no warnings; exec '/bin/sh', '-c', "printf 'tried\t$where: start another program\tstarted\n' >&2"; }
@@ -325,7 +343,7 @@ my ($kind) = $address =~ m{/out/(\w+)};
 $kind //= '';
 if ($kind eq 'spin') { 1 while 1 }
 if ($kind eq 'sleep') { sleep 1000 }
-if ($kind eq 'nap') { sleep 5; print STDERR "woke\n"; exit 0 }
+if ($kind eq 'nap') { 1 while sysread(STDIN, my $read, 65536); print STDERR "napping\n"; sleep 5; print STDERR "woke\n"; exit 0 }
 my $answer = $kind eq 'noread' ? '' : do { local $/; <STDIN> } // '';
 my $good = "=page other.test third.test\nP10\nT\@A page by the hostile application\nPp0\nTHa link that is only a colour\nB\nI200x100\nPc1\nTDfixed\n";
 my $marks = "a\e[2Jb\tc\x{202e}d\x{200b}e\x{2028}f\x{feff}g\x{e000}h\x00i\x7fj\x{85}k\rl\x{1fffe}m";
@@ -366,12 +384,12 @@ report 'what it is given', -p STDIN ? 'a pipe that holds a finished answer' : 's
 report 'the answer of the site', $answer =~ m{^HTTP/1\.1 200 OK\r\n.*\r\n\r\nthe page of the test site\n$}s ? 'whole' : 'not whole';
 report 'what it writes to', -p STDOUT ? 'a pipe, which cannot hand over a connection' : 'something else';
 report 'the variables it is given', join(' ', sort keys %ENV) eq 'LZRPRF_CONTAINED' ? 'the address it lays out, and no other' : join(' ', sort keys %ENV);
-report 'descriptors it holds besides its three', join(' ', grep { POSIX::fstat($_) } 3 .. 255) || 'none';
+report 'descriptors it holds besides its three', join(' ', grep { POSIX::fstat($_) } 3 .. 1023) || 'none';
 attempts();
 END
 
 my @attempts = (
-    ['use a file that was open in whoever started lzrprf', 'open', 'closed'], ['connect straight to a listener on this computer', 'reached', 'refused'],
+    ['use a file that was open in whoever started lzrprf', 'open', 'closed'], ['use a file that was open there under a high number', 'open', 'closed'], ['connect straight to a listener on this computer', 'reached', 'refused'],
     ['look up a name', 'resolved', 'refused'], ['send a datagram', 'sent', 'refused'], ['listen for connections', 'listening', 'refused'],
     ['read a file in the home folder', 'read', 'refused'], ['read the same file by its other path, through the data volume', 'read', 'refused'], ['read the same file by its number on the disk, a name that holds no folder', 'read', 'refused'],
     ['learn whether a file exists in the home folder', 'found', 'hidden'], ['list the home folder', 'listed', 'refused'], ['list the folder of all users', 'listed', 'refused'],
@@ -381,7 +399,7 @@ my @attempts = (
     ['see a variable of the user', 'seen', 'hidden'], ['read the computer\'s name', 'read', 'hidden'], ['read the list of processes', 'read', 'refused'],
     ['make memory that other programs can share', 'made', 'refused'], ['make a flag that other programs can wait on', 'made', 'refused'], ['make a queue that other programs can read', 'made', 'refused'],
     ['make memory with a name, for other programs to open', 'made', 'refused'], ['make a flag with a name, for other programs to open', 'made', 'refused'],
-    ['take 3 GiB of memory', 'made', 'refused'],
+    ['take 3 GiB of memory', 'made', 'refused'], ['allow itself more than 256 open files', 'allowed', 'refused'], ['allow itself more processor time', 'allowed', 'refused'], ['allow itself more memory', 'allowed', 'refused'],
     ['start a second process', 'started', 'refused'], ['start another program', 'started', 'refused'],
 );
 my @good = ('P10', 'T@A page by the hostile application', 'Pp0', 'THa link that is only a colour', 'B', 'I200x100', 'Pc1', 'TDfixed');
@@ -438,7 +456,7 @@ END
 # with the hostile application in it. They run beside each other, and all
 # of them are judged afterwards. What each is for is said where it is judged.
 my (%run, @order, @expected, @kept_open);
-sub hostile_args { my ($folder, $part) = @_; return ($port{echo}, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $temp_file, $by_number) }
+sub hostile_args { my ($folder, $part) = @_; return ($port{echo}, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $temp_file, $by_number, $high) }
 sub run_of {
     my ($name, %how) = @_;
     my $folder = "$base.$name";
@@ -448,7 +466,7 @@ sub run_of {
     if (defined $keep) { open my $out, '>', "$folder/keep" or die "selftest: cannot write $folder/keep: $!\n"; print $out "$keep\n"; close $out }
     $how{prepare}->($folder) if $how{prepare};
     my @program = ($how{app} // '/usr/bin/perl', '-e', $hostile, hostile_args($folder, $how{part} // 'page'));
-    $run{$name} = { folder => $folder, command => $how{command} // ['/usr/bin/perl', $how{lzrprf} // $lzrprf, 'try', $folder,
+    $run{$name} = { folder => $folder, ends => $how{ends}, command => $how{command} // ['/usr/bin/perl', $how{lzrprf} // $lzrprf, 'try', $folder,
         '127.0.0.1:' . $port{ $how{peer} // 'trusted' }, $how{typed} // '-', $how{answer} // 'allow', @program] };
     push @order, $name;
     push @expected, @{ $how{fetches} // [] };
@@ -459,7 +477,16 @@ sub write_log {                           # a log with this many lines in it, as
     print $out "2026-01-01T00:00:00Z\t1\tyou typed https://earlier.test/$_\n" for 1 .. $lines;
     close $out;
 }
+sub put_beside {                          # one more file in the folder of an application's program, which its release file does not name
+    my ($program, $name) = @_;
+    my $file = $program =~ s{[^/]+\z}{$name}r;
+    open my $out, '>', $file or die "selftest: cannot write $file: $!\n";
+    print $out "a file nobody named\n";
+    close $out;
+    return $program;
+}
 sub pair_line { 'lzrprf ' . Digest::SHA->new(256)->addfile($_[0])->hexdigest }    # the line of a release file that names one copy of lzrprf
+my ($code_file) = grep { -f } map { my $at = $_; map { "$at/auto/$_/$_.bundle" } 'SDBM_File', 'Storable' } @INC;    # code of the system's perl that the hostile application does not load by itself
 my $beside_text = "a file beside the program, as a launcher is\n";
 my %beside = (app => Digest::SHA->new(256)->addfile('/usr/bin/perl')->hexdigest, starter => Digest::SHA::sha256_hex($beside_text));    # the two files in the program's folder, and the SHA-256 of each
 sub bundle {                              # an application of the test's own, with a file "release" beside it as a maker would put it: it names the lzrprf under test and the two files in the program's folder, unless the run names others or none
@@ -473,7 +500,8 @@ sub bundle {                              # an application of the test's own, wi
     open my $starter, '>', "$in/MacOS/starter" or die "selftest: cannot write $in/MacOS/starter: $!\n";
     print $starter $beside_text;
     close $starter;
-    mkdir "$in/MacOS/held" or die "selftest: cannot make $in/MacOS/held: $!\n";    # a folder beside the program: see the run "filefolder"
+    mkdir "$in/MacOS/held" or die "selftest: cannot make $in/MacOS/held: $!\n" if $name eq 'filefolder';    # a folder beside the program, in the one run that names it
+    system('/bin/cp', $code_file, "$in/Resources/code.bundle") == 0 or die "selftest: cannot copy $code_file\n" if defined $code_file && $name =~ /^(?:alias|aliasoutside|lostcode)$/;    # a file of code the system's own perl can load, in the application's own folder but not its program
     symlink $secret, "$in/Resources/alias" or die "selftest: cannot make a link in $in/Resources: $!\n";    # a name in the application's own folder for the file in the home folder: see the run "alias"
     open my $out, '>', "$in/Resources/release" or die "selftest: cannot write $in/Resources/release: $!\n";
     print $out map { "$_\n" } @lines;
@@ -495,17 +523,32 @@ sub mutant {                              # a copy of lzrprf with one of its con
     return "$site_folder/$name";
 }
 my %lost = (container => { '(deny default)' => '(allow default)' }, probe => { 'unless holds();' => 'unless 1;' }, page => { q{contain('', $PROGRAM), @ARGUMENTS);} => '$PROGRAM, @ARGUMENTS);' },
-    memory => { q{&& ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env} => q{&& exec /usr/bin/env} });
+    memory => { q{&& limit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env} => q{&& exec /usr/bin/env} }, files => { q{ && { limit -n 256 2>/dev/null || [ "$(ulimit -H -n)" -le 256 ] 2>/dev/null; }} => '' },
+    soft => { q{limit() { ulimit -S "$@" && ulimit -H "$@"; }} => q{limit() { ulimit -S "$@"; }} });
 
 run_of('slow', typed => "$t/slow", fetches => ['/slow']);
 # No second process to hand the answer over: the application is running by then, and is ended there.
 run_of('nofeeder', lzrprf => mutant('nofeeder', "    my \$feeder = fork;\n" => "    my \$feeder = undef;\n"), typed => "$t/out/nap?nofeeder", fetches => ['/out/nap?nofeeder']);
 run_of('leftpage', lzrprf => mutant('leftpage', "    my \$feeder = fork;\n" => "    my \$feeder = undef;\n", "        kill 'KILL', \$page;\n        waitpid \$page, 0;\n        return (undef, 'unstarted');" => "        return (undef, 'unstarted');"), typed => "$t/out/nap?leftpage", fetches => ['/out/nap?leftpage']);    # the same, and the line that ends it taken out
+# lzrprf is killed by this test while the application sleeps: the keeper of that page ends the application.
+run_of('killed', ends => 1, typed => "$t/out/nap?killed", fetches => ['/out/nap?killed']);
+run_of('leftkilled', ends => 1, lzrprf => mutant('leftkilled', q{    my $over = sub { kill 'KILL', $page; POSIX::_exit(0) };} => q{    my $over = sub { POSIX::_exit(0) };}), typed => "$t/out/nap?leftkilled", fetches => ['/out/nap?leftkilled']);    # the same, with a keeper that ends nothing
+# The program of an application becomes another file while its window is open: the test site does that when it is asked for the second page.
+my $lost_swap = mutant('lostswap', q{    return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');} => '');
+my $lost_look = mutant('lostlook', q{    return fault('changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');} => '');    # and a copy that does not read it before a site is asked
+for (['swapped', $lzrprf], ['lostswap', $lost_swap], ['lostlook', $lost_look]) {
+    my ($name, $copy) = @$_;
+    my $app = bundle($name, 'release 3', pair_line($copy));
+    system('/bin/cp', '/usr/bin/true', "$base.${name}app/other") == 0 or die "selftest: cannot copy a program\n";
+    run_of($name, lzrprf => $copy, app => $app, typed => "$t/out/shown?${name}1,,$t/out/shown?${name}2,,$t/out/shown?${name}3", fetches => ["/out/shown?${name}1", "/out/shown?${name}2", $name eq 'lostlook' ? "/out/shown?${name}3" : ()]);    # a third address is typed after the swap
+}
 run_of('spin', typed => "$t/out/spin", fetches => ['/out/spin']);
 run_of('sleep', typed => "$t/out/sleep", fetches => ['/out/sleep']);
 run_of('outside', command => ['/usr/bin/perl', '-e', $hostile, hostile_args("$base.outside", 'outside')], prepare => sub { write_log($_[0], 3) });
 run_of('page', typed => "$t/selftest?q=1,,$t/second", fetches => ['/selftest?q=1', '/second']);
 run_of('aliasoutside', command => [bundle('aliasoutside', 'release 3'), '-e', $hostile, hostile_args("$base.aliasoutside", 'link')]);    # the hostile application as a program in a folder of its own, outside every container: this one try and no other
+my $lost_code = mutant('lostcode', qq{(deny file-map-executable)\n} => '');    # a copy of lzrprf whose page container does not refuse it: every file the application may read can be loaded as code, as before release 17
+run_of('lostcode', lzrprf => $lost_code, app => bundle('lostcode', 'release 3', pair_line($lost_code)), typed => "$t/lostcode", fetches => ['/lostcode']);
 run_of('alias', app => bundle('alias', 'release 3'), typed => "$t/alias", fetches => ['/alias']);    # the same program in the page container: its own folder is the one place in your account it may read
 run_of('deny', typed => "$t/denied", answer => 'deny');
 run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, 'big', 'control', 'noread'), fetches => [map { "/out/$_" } @unfit, 'big', 'control', 'noread']);
@@ -602,6 +645,11 @@ run_of('filenone', app => bundle('filenone', 'release 3', 'no file'), typed => "
 run_of('fileunnamed', app => bundle('fileunnamed', 'release 3', "file starter $beside{starter}"), typed => "$t/fileunnamed", answer => 'allow');    # it names the file beside the program, and not the program
 run_of('filefolder', app => bundle('filefolder', 'release 3', "file app $beside{app}", 'file held ' . ('0' x 64)), typed => "$t/filefolder", answer => 'allow');    # a named file is a folder: it is not read, and it is not the file
 run_of('filedamaged', app => bundle('filedamaged', 'release 3', "file app $beside{app}", 'file starter ' . uc $beside{starter}), typed => "$t/filedamaged", answer => 'allow');    # a line "file" that is not in its shape, here a SHA-256 in capitals, with a file that is the right one
+run_of('filelone', app => bundle('filelone', 'release 3', "file app $beside{app}"), typed => "$t/filelone", answer => 'allow');    # it names the program and not the file beside it: a release file without the launcher's line
+run_of('fileextra', app => put_beside(bundle('fileextra', 'release 3'), 'more'), typed => "$t/fileextra", answer => 'allow');    # both are named, and a third file stands beside them
+run_of('filedot', app => put_beside(bundle('filedot', 'release 3'), '.DS_Store'), typed => "$t/filedot", fetches => ['/filedot']);    # the same with a name that begins with a dot, as the Finder writes one
+my $lost_beside = mutant('lostbeside', q{    $other //= unnamed(map { $_->[0] } @files) if $PROGRAM =~ m{\.app/Contents/MacOS/[^/]+$};} => '');
+run_of('lostbeside', lzrprf => $lost_beside, app => put_beside(bundle('lostbeside', 'release 3', pair_line($lost_beside), "file app $beside{app}", "file starter $beside{starter}"), 'more'), typed => "$t/lostbeside", fetches => ['/lostbeside']);    # a copy of lzrprf that does not look at what else stands beside the program
 my $lost_file = mutant('lostfile', q{ && !defined $what;} => ';');
 run_of('lostfile', lzrprf => $lost_file, app => bundle('lostfile', 'release 3', pair_line($lost_file), 'file app ' . ('0' x 64)), typed => "$t/lostfile", fetches => ['/lostfile']);    # a copy of lzrprf that does not look at the files, with an application that names itself as the pair of that copy
 # A mark that names a check the test could not try: it counts only after a yes to exactly that line, kept in the file "untested".
@@ -623,6 +671,8 @@ my $lost_page = mutant('lostpage', %{ $lost{page} });
 run_of('lostpage', lzrprf => $lost_page, app => bundle('lostpage', 'release 3', "report $t/report", pair_line($lost_page)), typed => "$t/lostpage", fetches => ['/lostpage', $reported_container]);
 run_of('lostmemory', lzrprf => mutant('lostmemory', %{ $lost{memory} }), typed => "$t/lostmemory");
 run_of('lostmemoryprobe', lzrprf => mutant('lostmemoryprobe', %{ $lost{memory} }, %{ $lost{probe} }), typed => "$t/lostmemoryprobe", fetches => ['/lostmemoryprobe']);
+run_of('lostfiles', lzrprf => mutant('lostfiles', %{ $lost{files} }), typed => "$t/lostfiles", fetches => ['/lostfiles']);
+run_of('lostsoft', lzrprf => mutant('lostsoft', %{ $lost{soft} }), typed => "$t/lostsoft", fetches => ['/lostsoft']);    # a page container whose limits count now but may be raised again, as a shell that sets only that kind would leave them    # a page container without its limit on open files
 my $echo_at = encode_base64(pack('CCna4x8', 16, 2, $port{echo}, inet_aton('127.0.0.1')), '');
 run_of('window', app => bundle('window', 'release 3'), answer => 'ask', keep => undef, fetches => ['/window?q=1'], prepare => sub {    # nothing is kept, as when nobody chose
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
@@ -661,6 +711,9 @@ while (@waiting || %pid) {
         next;
     }
     for (grep { Time::HiRes::time() - $run{ $pid{$_} }{began} > 90 } keys %pid) { kill 'KILL', $_ }
+    for my $one (grep { $run{ $pid{$_} }{ends} && !$run{ $pid{$_} }{ended_here} } keys %pid) {    # lzrprf of such a run is killed, by the number this test's own fork gave, once its application said that it sleeps
+        $run{ $pid{$one} }{ended_here} = kill 'KILL', $one if err($pid{$one}) =~ /^napping$/m;
+    }
     if (!@waiting && !$said_waiting && !grep({ !/^(?:spin|sleep|slow)$/ } values %pid)) {
         $said_waiting = print "now    Three runs never end by themselves: lzrprf's limits must end them, after 30 seconds.\n";
     }
@@ -705,6 +758,7 @@ sub judge {                               # every attempt of the hostile applica
     my ($where, @lines) = @_;
     for my $one (@attempts, ['connect straight to an address outside this computer', undef, 'refused']) {    # outside every container this one may end any way but refused: then a refusal inside is the sandbox's, not a firewall's
         my ($what, $free, $contained) = @$one;
+        next if $few_files && $what eq 'allow itself more than 256 open files';    # said once, as UNTESTED, below
         my @came = map { $_->[1] } grep { $_->[0] eq $what } @lines;
         my $must = $where eq 'outside' ? $free : $contained;
         if ($where eq 'outside') { works(@came && !grep({ defined $must ? $_ ne $must : $_ eq 'refused' } @came), "outside every container: $what", join '/', @came ? @came : 'nothing came of it') }
@@ -713,7 +767,7 @@ sub judge {                               # every attempt of the hostile applica
 }
 
 print "selftest of lzrprf: $mark\n\n";
-for (grep { ($run{$_}{ended} // -1) != 0 } grep { !/^(?:spin|sleep|slow)$/ } @order) { check(0, "the run \"$_\" ended by itself", 'ended ' . ($run{$_}{ended} // 'never') . ': ' . substr(err($_), 0, 300) =~ s/\s+/ /gr) }
+for (grep { ($run{$_}{ended} // -1) != 0 } grep { !/^(?:spin|sleep|slow)$/ && !$run{$_}{ended_here} } @order) { check(0, "the run \"$_\" ended by itself", 'ended ' . ($run{$_}{ended} // 'never') . ': ' . substr(err($_), 0, 300) =~ s/\s+/ /gr) }
 
 # 1. The application's container.                              [C1] [C3]
 print "1. The application, in its container. Each attempt was first made outside every container, where it worked.\n";
@@ -726,6 +780,14 @@ my @link_held = map { $_->[0] eq $by_link ? $_->[1] : () } tried(err('alias'), '
 works("@link_free" eq 'read', "outside every container: $by_link", @link_free ? join('/', @link_free) : 'nothing came of it');
 my @own_read = map { $_->[0] eq 'read a file of its own, beside that link' ? $_->[1] : () } tried(err('alias'), 'page container');
 check("@link_held" eq 'refused' && "@own_read" eq 'read' && asked('/alias') == 1, "page container: $by_link (the application's own folder is the one place in your account it may read; a name there for a file elsewhere opens nothing, while the file beside that name is read, so the rule goes by where the file is)", (@link_held ? join('/', @link_held) : 'nothing came of it') . '; the file beside it: ' . (@own_read ? join('/', @own_read) : 'nothing came of it'));
+my ($by_code) = ('load code from another file of its own folder');
+my ($code_free, $code_held, $code_lost) = map { my ($run, $where) = @$_; join '/', map { $_->[0] eq $by_code ? $_->[1] : () } tried(err($run), $where) } ['aliasoutside', 'outside'], ['alias', 'page container'], ['lostcode', 'page container'];
+if (!defined $code_file) { untested("page container: $by_code", 'this macOS holds no file of code for its perl that the test could copy') }
+else {
+    works($code_free eq 'loaded', "outside every container: $by_code", $code_free || 'nothing came of it');
+    check($code_held eq 'refused', "page container: $by_code (as code it may load itself and the system's own libraries)", $code_held || 'nothing came of it');
+    check($code_lost eq 'loaded', 'a copy of lzrprf whose page container lets every file of the application\'s folder be loaded as code: the try in the page container notices', $code_lost || 'nothing came of it');
+}
 my %once = map { $_->[0] => $_->[1] } @in_page;
 check(($once{'what it is given'} // '') eq 'a pipe that holds a finished answer' && ($once{'the answer of the site'} // '') eq 'whole', 'the application is given the finished answer, after the connection to the site is closed', "$once{'what it is given'}; the answer is $once{'the answer of the site'}");
 check(($once{'what it writes to'} // '') eq 'a pipe, which cannot hand over a connection', 'what it writes goes to lzrprf through a pipe', $once{'what it writes to'} // 'nothing came of it');
@@ -963,11 +1025,19 @@ check(!grep({ $_ =~ $pair_asks } words('lostpair', 'ask')) && asked('/lostpair')
 my $file_asks = sub { my $what = $_[0] ? 'the file "' . quotemeta($_[0]) . '" is another one than that file names, or is not named there' : 'a line "file" there is not as the installer writes it'; qr/^Test is not as it was installed, so it does not start\. The installer writes the SHA-256 of the program and of the launcher into the application's release file: here $what\. Installing again mends it\.\tQuit$/ };
 for (['fileother', 'app', 'an application whose program is another file than its release file names'], ['filebeside', 'starter', 'an application with another file beside its program than its release file names'], ['filegone', 'absent', 'an application whose release file names a file that is not there'],
     ['filefolder', 'held', 'an application whose release file names a folder where a file must be'], ['filedamaged', '', 'an application whose release file holds a line "file" that is not in its shape, beside files that are the right ones'],
-    ['filenone', 'app', 'an application whose release file names no file at all, as before release 16'], ['fileunnamed', 'app', 'an application whose release file names the file beside the program and not the program']) {
+    ['filenone', 'app', 'an application whose release file names no file at all, as before release 16'], ['fileunnamed', 'app', 'an application whose release file names the file beside the program and not the program'],
+    ['filelone', 'starter', 'an application whose release file names the program and not the file beside it, as one without the launcher\'s line'], ['fileextra', 'more', 'an application with a file beside its program that its release file does not name']) {
     my ($run, $file, $what) = @$_;
     check(((words($run, 'ask'))[0] // '') =~ $file_asks->($file) && words($run, 'ask') == 1 && grep({ $_->[0] eq 'quit' } told($run)) && !words($run, 'idle') && !page_of($run) && !asked("/$run") && !-s "$base.$run/log", "$what: it does not start, the window says which file and what mends it, and nothing is shown, looked up or fetched", (words($run, 'ask'))[0] // 'no question');
 }
 check(!grep({ /is not as it was installed/ } words('pairsame', 'ask')) && visit('pairsame', "$t/pairsame")->{page}, 'an application whose release file names its program and the file beside it as they are: no question about them, and the page is shown', 'one request');
+check(!grep({ /is not as it was installed/ } words('filedot', 'ask')) && visit('filedot', "$t/filedot")->{page}, 'an application with a file beside its program whose name begins with a dot, as the Finder writes one: it is passed over, and the page is shown', 'one request');
+check(!grep({ /is not as it was installed/ } words('lostbeside', 'ask')) && asked('/lostbeside') == 1, 'a copy of lzrprf that does not look at what else stands beside the program: it says nothing and fetches, so the runs above would see that weakening', asked('/lostbeside') . ' request');
+my $swapped_says = 'Test did not show this page: its program on the disk is another file than when this window opened, as after an update, so it was not started. Quit, and start it again.';
+check(visit('swapped', "$t/out/shown?swapped1")->{page} && visit('swapped', "$t/out/shown?swapped2")->{said} eq $swapped_says && !visit('swapped', "$t/out/shown?swapped2")->{page} && !grep({ /Send a report/ } words('swapped', 'ask')) && !-e "$base.swappedapp/other", 'the program of an application becomes another file while its window is open: the page before is shown, the page after is not laid out, the window says why, and no report is offered', visit('swapped', "$t/out/shown?swapped2")->{said} || 'nothing said');
+check(visit('swapped', "$t/out/shown?swapped3")->{said} eq $swapped_says && !visit('swapped', "$t/out/shown?swapped3")->{page} && !asked('/out/shown?swapped3'), 'an address typed after that: the window says the same, and the site is not asked', asked('/out/shown?swapped3') . ' requests');
+check(!-e "$base.lostswapapp/other" && visit('lostswap', "$t/out/shown?lostswap2")->{said} eq 'Test did not show this page: what it wrote is not a page.', 'a copy of lzrprf that does not read the program again before a page: it starts the other file, which writes no page, so the run above would see that weakening', visit('lostswap', "$t/out/shown?lostswap2")->{said} || 'nothing said');
+check(!-e "$base.lostlookapp/other" && asked('/out/shown?lostlook3') == 1 && visit('lostlook', "$t/out/shown?lostlook3")->{said} eq $swapped_says, 'a copy of lzrprf that does not read the program before a site is asked: it fetches for a program that changed, so the run above would see that weakening', asked('/out/shown?lostlook3') . ' request');
 check(!grep({ /is not as it was installed/ } words('lostfile', 'ask')) && asked('/lostfile') == 1, 'a copy of lzrprf that does not look at the files: it says nothing and fetches, so the runs above would see that weakening', asked('/lostfile') . ' request');
 
 # 7. The checks are not blind.                                [C2] [C3]
@@ -977,6 +1047,9 @@ check(last_said('lostprobe') eq 'Nothing is shown: the system did not say that c
 check(last_said('lostpage') eq 'Test did not show this page: the system did not say that it was in its container, so the answer was not handed to it. The report was sent.' && !tried(err('lostpage'), 'page container'), 'an application started outside its container: the system says so, and it is not handed the answer', last_said('lostpage'));
 check(asked($reported_container) == 1, 'a report about the container says "container": the one word that is not the application\'s to choose', 'one report');
 check(out('lostmemory') =~ /^busy The container did not hold on this Mac a moment ago, so perl was not started\./m && !asked('/lostmemory') && !-s "$base.lostmemory/log", 'a page container without its limit on memory: the tries at the start notice, and nothing is started', (words('lostmemory', 'busy'))[-1] // 'nothing');
+check(grep({ $_->[0] eq 'allow itself more processor time' && $_->[1] eq 'allowed' } tried(err('lostsoft'), 'page container')) == 1, 'a page container whose limits may be raised again: the try at more processor time in the page container notices', join('/', map { $_->[0] eq 'allow itself more processor time' ? $_->[1] : () } tried(err('lostsoft'), 'page container')) || 'nothing came of it');
+if ($few_files) { untested('the limit of 256 open files, in both containers', "this test was started with a limit of $hard_files open files that no process may raise, so a try at 300 is refused with or without a container") }
+else { check(grep({ $_->[0] eq 'allow itself more than 256 open files' && $_->[1] eq 'allowed' } tried(err('lostfiles'), 'page container')) == 1, 'a page container without its limit on open files: the try at more in the page container notices', join('/', map { $_->[0] eq 'allow itself more than 256 open files' ? $_->[1] : () } tried(err('lostfiles'), 'page container')) || 'nothing came of it'); }
 check(grep({ $_->[0] eq 'take 3 GiB of memory' && $_->[1] eq 'made' } tried(err('lostmemoryprobe'), 'page container')) == 1, 'the same, with the tries at the start taken out too: the attack on memory in the page container notices', join('/', map { $_->[0] eq 'take 3 GiB of memory' ? $_->[1] : () } tried(err('lostmemoryprobe'), 'page container')) || 'nothing came of it');
 check((out('lostwindow') . err('lostwindow')) =~ /^test closed The system did not say that this window is in its container, so Test shows no page\./m && !asked('/lostwindow'), 'the window started in a container that lets it open things through the system: the system says so, and nothing is shown', (out('lostwindow') . err('lostwindow')) =~ /^(test closed .{0,60})/m ? $1 : 'nothing came of it');
 
@@ -1064,13 +1137,16 @@ check(!@unlike, 'what is typed is sent as typed, or not at all: https only, a ho
 print "\n11. The time limits.\n";
 my $spun = last_said('spin');
 check($spun =~ /^perl did not show this page: (?:it did not finish in time|what it wrote is not a page)\.$/ && $run{spin}{took} > 25 && $run{spin}{took} < 50, 'an application that never stops is ended', sprintf('after %.0f seconds: %s', $run{spin}{took}, $spun));
-for (grep { defined $run{$_}{took} } 'nofeeder', 'leftpage') {    # the application of these two runs says "woke" after 5 seconds, if it still runs then: so at least 9 seconds are let pass after each
+for (grep { defined $run{$_}{took} } 'nofeeder', 'leftpage', 'killed', 'leftkilled') {    # the application of these four runs says "woke" after 5 seconds, if it still runs then: so at least 9 seconds are let pass after each
     my $since = Time::HiRes::time() - $run{$_}{began} - $run{$_}{took};
     select undef, undef, undef, 9 - $since if $since < 9;
 }
 my ($woke_ended, $woke_left) = map { err($_) =~ /^woke$/m ? 1 : 0 } 'nofeeder', 'leftpage';
 check(last_said('nofeeder') eq 'perl did not show this page: its container could not be started.' && ($run{nofeeder}{took} // 99) < 25 && !$woke_ended, 'a copy of lzrprf that gets no second process to hand the answer over: the application, running by then, is ended there and not left to itself', $woke_ended ? 'it went on running' : last_said('nofeeder') || 'nothing said');
 check($woke_left, 'the same copy without the line that ends it: the application goes on running after lzrprf gave up, so the run above would see that weakening', $woke_left ? 'it went on running' : 'it did not');
+my ($woke_killed, $woke_unkept) = map { err($_) =~ /^woke$/m ? 1 : 0 } 'killed', 'leftkilled';
+check($run{killed}{ended_here} && err('killed') =~ /^napping$/m && !$woke_killed, 'lzrprf itself is killed while the application sleeps in its container: the keeper of that page ends the application, which is not left to itself', !$run{killed}{ended_here} ? 'the test did not get to end lzrprf' : $woke_killed ? 'it went on running' : 'ended with lzrprf');
+check($run{leftkilled}{ended_here} && $woke_unkept, 'the same with a keeper that ends nothing: the application goes on running after lzrprf was killed, so the run above would see that weakening', $woke_unkept ? 'it went on running' : 'it did not');
 check(last_said('sleep') eq 'perl did not show this page: it did not finish in time.' && $run{sleep}{took} > 25 && $run{sleep}{took} < 50, 'an application that does nothing is ended', sprintf('after %.0f seconds', $run{sleep}{took}));
 check(last_said('slow') eq 'Nothing is shown: the site did not answer in time.' && $run{slow}{took} > 25 && $run{slow}{took} < 50, 'a site that never answers is given up on', sprintf('after %.0f seconds', $run{slow}{took}));
 
