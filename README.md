@@ -120,6 +120,20 @@ is now `[C11]`. Without both, no page is shown. lzrprf also compares its own SHA
 line `lzrprf` of the installed app's `release` file; when they differ, or when the app names
 no lzrprf at all (apps before release 12 named none), it says so and does not start: that
 window has one button, Quit (`sub paired`, the runs `pairother` and `pairnone` in `selftest`).
+From release 16 on the same `release` file names the launcher and the program with their
+SHA-256 (two lines `file`), and lzrprf compares each file those lines name with the file
+that is there, at the same moment: when one is another file, or the program is not named,
+the app does not start either (the runs `fileother`, `filebeside`, `filegone`, `filenone` and
+`fileunnamed`). Only a plain file is read, so a folder, a pipe or a device of that name
+counts as another file (`filefolder`), and a line that begins with `file` and is not in its
+shape counts as a file that differs (`filedamaged`). The launcher is compared when it is named, as it is in every `release` file
+the installer puts in place: the installer stops unless both lines are there.
+This is looked at once, at the start, not again before each page, and it is measured by a
+file of the app's own: it finds a program or a launcher that was changed while that file was
+not, as a damaged disk or a copy that did not finish leaves them. Whoever can change the
+program can change that file too, so against another program of your account it is no
+defence, and it does not need to be one: the program is the part that is assumed hostile and
+kept in the container.
 A program that stands in no application and has no `release` file beside it is not asked: the
 installer places no such program, and the launcher starts none. And when the mark names checks the test could not try on this Mac,
 the window names them and asks, and no page is fetched or shown before your yes to exactly those
@@ -138,7 +152,10 @@ One visit, in order (`sub visit`):
 5. It writes down the numeric addresses, connects to one of them itself `[C6]`, and lets `curl`
    do the https over that one connection, in the fetch container (`sub fetch`). A fetch is
    given 30 seconds, looked at once a second, so a request that runs over ends at most about a
-   second later; an answer may be 6 MB, and 64 KB at most are carried to the site. Neither
+   second later. Those 30 seconds start in `sub fetch`: the lookup before it, the question to
+   the system about the way to each address (`sub route`, 5 seconds each, and a second one for
+   some), and your answer about your own network have their own time and are not inside them.
+   An answer may be 6 MB, and 64 KB at most are carried to the site. Neither
    bound is passed: what comes beyond it is not passed on, and the request fails.
 6. It writes down how it ended and which address answered. When that line cannot be written,
    the answer is not shown, and the window says that the fetch was tried, not that nothing was
@@ -157,7 +174,7 @@ One visit, in order (`sub visit`):
 | `[C1]` | The application is started in one place only, and only inside the page container. | `sub laid_out`, through `sub contain` | Reads the text: the program is started on one line. A copy that starts it uncontained is stopped by `[C3]`. |
 | `[C2]` | At every start lzrprf tries, inside that same container, what the container must refuse. Nothing starts unless all of it was refused and the same tries worked outside. | `sub holds` | A copy whose container refuses nothing: nothing is started. |
 | `[C3]` | No process is handed a byte of what was fetched, nor the connection to a site, before macOS itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, `curl` among its fixed switches. | `sub inside`, asked in `sub laid_out` and `sub fetch` | Copies without `[C1]` and `[C2]`: the system says "not contained", and the answer, or the connection, is withheld. |
-| `[C4]` | A request is made only for an address from the window's bar, or for one of two fixed addresses after you said yes. | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has three roads and no fourth. |
+| `[C4]` | A request is made only for an address from the window's bar, or for one of two fixed addresses after you said yes: a report, after you pressed "Send" for it, and the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`). | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has three roads and no fourth. |
 | `[C5]` | Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded. | `sub visit`, `sub fixed`, `sub record` | A kept log that cannot be written: nothing is fetched. For every request the site received in a run that keeps a log, full or hosts only, the line was on the disk first. In a run that keeps nothing, the Log button shows the lines afterwards; that each was in memory before its request is read in `sub record`, not attacked: no test looks into that memory while a request is open. That the lookup comes after the line is read in `sub visit`, not attacked: the test's site is on this computer. |
 | `[C6]` | One place connects to a site, and it connects to a numeric address that was checked and written down. | `sub reach` | Reads the text: two `connect` lines, this one and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
 | `[C7]` | What a site is sent is made from the address alone: the same bytes from every computer, nothing kept from an earlier request. The same bytes are the request inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
@@ -185,9 +202,12 @@ would have to be weaker than it reads.
 - For each process, macOS is asked by the number of the process about eight things
   (`$WITNESS`, `sub inside`). For a page or a fetch process four of them must be refused: using
   the network, creating a file, starting a second process, reaching a system service. The answer
-  or the connection is handed over only after those four refusals `[C3]`. For the window's
-  process seven must be refused: the first three, and opening something through the system,
-  commanding another program, writing your settings, sending a signal. What the window may
+  or the connection is handed over only after those four refusals `[C3]`. These are questions
+  about a fixed list of operations, not about the whole container text: the rest of the text is
+  what `[C2]` tries. And the process is already running when it is asked, with the address it
+  was given; what waits for the answer is the site's answer, or for `curl` the connection.
+  For the window's process seven must be refused: the first three, and opening something
+  through the system, commanding another program, writing your settings, sending a signal. What the window may
   read is not among the questions: `selftest` tries that from the real window. Nothing is
   asked of the process itself.
 - What the icon runs is a short plain-text launcher. It starts `lzrprf run` through
@@ -211,7 +231,9 @@ A request leaves this computer only through `sub fetch`. `fetch` is called from 
   that line when Return is pressed in the bar, and at no other time. The application cannot
   write it: it has no pipe to that side, and nothing it writes is passed on as words to lzrprf.
 - `sub fixed`, which runs for two fixed addresses, each only after your yes in the window: the
-  newest release number (`sub newer`) and a report you chose to send (`sub fault`).
+  newest release number (`sub newer`) and a report you chose to send (`sub fault`). For the
+  newest release number the yes is given once and kept with its address in `~/.lzrprf/look`:
+  the look is then made at each start, without a new yes, until you delete that file.
 
 Before any of them, the line is in the log `[C5]`. The connection is made by lzrprf, to a numeric
 address it wrote down `[C6]`. `curl` has no network of its own: it gets one socket file, so it
@@ -219,7 +241,13 @@ can reach that one connection and nothing else. A redirect is not followed. Othe
 names (pictures, scripts, trackers) are never asked. It is the application that reads the page,
 so it is the application that names them: lzrprf takes at most 200 names from it, shows you how
 many and the first four, and asks none. A hostile application can name fewer or other hosts
-than the page does. That changes a sentence in the window and no request.
+than the page does. That changes a sentence in the window and no request. Those up to four
+names, and how many it named, are the only text the application chooses that is shown outside
+the page: in lzrprf's words under the bar, each name in the shape of a host name (letters,
+digits, hyphens, at least one dot, each part at most 63 characters, the last part beginning
+with a letter; `$NAME`, used in `sub checked`). They are not written in the log.
+Which of five of the seven fixed phrases says why a page was not shown is its choice too; the
+other two are lzrprf's and the system's (see "When a page cannot be shown").
 The page cannot make a request by being clicked either: a link is drawn as a colour and does
 nothing.
 
@@ -250,10 +278,15 @@ application can do the first in part. The second is what the container refuses.
   process (`sysctl.proc_`) and one under `vm.`, exactly as `$CONTAINER` names them; and the
   time, and the folder it is installed in. Not the computer's name, your account's variables,
   your files, the fonts you installed, your time zone, your screen, or other processes.
-- Delivering. It has no way out. No network, no file to write, no shared memory by the ways the test
-  tries, no second process, no window. The one thing that leaves it is the list of lines, and `sub checked` lets through
+- Delivering. It has no way out by the ways its page container gives it. No network, no file
+  to write, no shared memory by the ways the test tries, no second process, no window. The one thing that leaves it is the list of lines, and `sub checked` lets through
   only lines that cannot carry an address, a picture or a command `[C9]`. The window that draws
-  them has no network `[C10]`.
+  them has no network `[C10]`. One exception: the window's process. An application
+  whose text took that process over, by a flaw in how macOS draws text, would have the ways
+  that process has, a fetch through lzrprf among them, logged first (see "The window's process"
+  under "What it does not prove").
+- What it read it can still use inside its own page: lay the page out differently, take
+  longer, fail on purpose, or put the facts into the text it shows, which you could copy.
 - lzrprf does not make one either. What a site is sent is `sub request`: the address, its host
   and two fixed lines `[C7]`. No cookie, no name of a browser, no language, no page you came
   from, no number of this computer or of this copy. Each request is a new `curl` that can write
@@ -263,7 +296,9 @@ application can do the first in part. The second is what the container refuses.
   whether it fails on a page at all. When it does, you are asked whether to send a report. A
   report says `page` for every failure of the application's own doing, and an application that
   ended by itself before macOS was asked about it counts as `page` too, so the application
-  cannot choose among words (`sub fault`). A report you send tells the maker that some page
+  cannot choose among words (`sub fault`). It chooses no field of a report; by failing it
+  chooses whether you are asked, and the word it brings about is `page`. Sending still needs
+  your "Send" in the window. A report you send tells the maker that some page
   failed, on a Mac with your build of macOS, at that moment. If you do not want that told,
   press "Don't send". See "When a page cannot be shown".
 
@@ -289,7 +324,8 @@ Who could keep a record of where you go?
 
 - The application: it is started fresh for each answer and sees that one page and its address.
   It can keep nothing between pages (no file to write, no shared memory by the ways the test tries) and
-  send nothing.
+  send nothing by the ways its container gives it (the exception: "The window's process" under
+  "What it does not prove").
 - lzrprf: unless you chose otherwise, it keeps nothing after the window closes: the lines are
   in the memory of the process behind the window, and gone with it. A log you chose to keep is
   on your disk, readable by your account alone, hosts only unless you chose full addresses (see
@@ -340,8 +376,13 @@ Interfering needs a way to reach them, or a way to starve them.
   the container's `deny default`, which no rule opens for them, and the test makes those too.
   That is a test of these five ways, not a proof that no other way to share exists.
 - Starving. A page container gets at most 30 seconds of processor time, counted over all
-  processor cores together (`ulimit -t` in `$PAGE_LIMITS`), and is ended after 30 seconds
-  whatever it does. It may write no byte into a file (`ulimit -f 0`; making a file is refused
+  processor cores together (`ulimit -t` in `$PAGE_LIMITS`); that limit does not bound how many
+  threads it starts, and they share the 30 seconds. It is ended after 30 seconds of the clock
+  whatever it does (`$PAGE_SECONDS`, looked at once a second, so up to about a second later),
+  counted from when it is handed the answer, after macOS was asked about it for about two
+  seconds at most. Before release 16, when the process that hands the answer over could not be
+  started, the page process was left to end by itself; from release 16 on it is ended there
+  (`sub laid_out`). It may write no byte into a file (`ulimit -f 0`; making a file is refused
   by the container) and leave no memory dump. It may write at most 6 MB,
   200000 lines and 2000 boxes; more is not drawn.
 - Memory. The same `/bin/sh` (`$PAGE_LIMITS`) sets, before the container starts, the system's
@@ -355,8 +396,13 @@ Interfering needs a way to reach them, or a way to starve them.
   a one it shows no page.
   The system's `curl` in the fetch container is started under the same limit on memory, and
   from release 15 also with at most 30 seconds of processor time, no byte written into a file
-  and no memory dump (`$FETCH_LIMITS`); the test asks for the 3 GiB there too.
-  The window's process (the system's `osascript`) has no such cap.
+  and no memory dump (`$FETCH_LIMITS`); the test asks for the 3 GiB there too. From release
+  16 on `curl` is started through `env -i` as the application is, so it sees no variable at
+  all, not one the shell that sets its limits made for itself (`PWD`, `SHLVL`, `_`); in
+  `curl`'s place the test's program lists what it is given, and the list must be empty.
+  The window's process (the system's `osascript`) has no such cap, and neither has lzrprf's
+  own process or the processes it starts outside the containers (the name lookup, `route`):
+  only `$PAGE_LIMITS` and `$FETCH_LIMITS` set limits.
 
 Limit, said plainly: within those limits a hostile application can still load this computer,
 each time you ask for a page: about 2 GiB of address space, as the system counts it, and every
@@ -464,8 +510,17 @@ The limits, said plainly:
   after "Install it", the file `install.command`, which holds the installer's fixed address.
 - Hosts and times alone still show habits: which sites, when, and how often. That is why even
   `hosts` needs your yes.
-- That Time Machine honours the mark is Apple's behaviour, and it is not tested here. Another
-  backup program may not read it.
+- That Time Machine honours the mark is Apple's behaviour, and it is not tested here. The mark
+  is a request to backup programs; another backup program may not read it.
+- Old lines are taken out only while lzrprf runs (`sub expire_log`, at the start of a window;
+  when another window's request kept it from that, again before each request and each press
+  of Log until it is done). Nothing runs by itself to do it: while LZRBRWSR is not started, no line
+  is taken out.
+- Clearing and taking out old lines remove them from the file: a new file takes the log's name,
+  or the log is removed. The places on the disk where the old lines stood are not overwritten,
+  and a snapshot or a backup made before still holds them.
+- What macOS itself keeps is outside lzrprf: its cache of names that were looked up, crash
+  reports, and the memory it writes to swap.
 - A window process that text took over could press the buttons that keep less and the two that
   clear the log, as it could press any button (see "What it does not prove"). It could remove
   the record on this computer. It could not make lzrprf keep more.
@@ -532,7 +587,8 @@ asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you 
   fetches nothing, so a press of "Install it" alone reaches no site.
 - Then it fetches the installer from two places, when the release names a second one (the line
   `same`; the release on record here does): `install.sh` in this repository, and the site. It
-  stops, with nothing changed, unless the two copies are the same byte for byte
+  stops, with nothing installed changed (its temporary folder with the copies stays), unless
+  the two copies are the same byte for byte
   (`/usr/bin/cmp -s install.sh second`). Then it says where the file is, so that you can read
   it, shows its SHA-256, and runs it only after you press Return again. Nothing is piped into a shell.
   This is the one moment on this road when the maker's site is asked for anything: it sees your
@@ -543,12 +599,16 @@ asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you 
   installer"), so a variable cannot point this road elsewhere.
 
 Where the addresses come from: a plain file, `release`, beside the application
-(`LZRBRWSR.app/Contents/Resources/release`), read by `sub beside`. It may hold six kinds of
-line and nothing else counts: `release` (a number), `newest` (where the number is published),
-`installer` and `same` (the two places of the installer), `report` (see the next section) and
-`lzrprf` (the SHA-256 of the lzrprf the release installs; an lzrprf of release 12 or later
-compares it with itself at every start, and from release 15 an app whose `release` file has no
-such line does not start either).
+(`LZRBRWSR.app/Contents/Resources/release`), read by `sub beside` and `sub paired`. It may
+hold seven kinds of line and nothing else counts: `release` (a number), `newest` (where the
+number is published), `installer` and `same` (the two places of the installer), `report` (see
+the next section), `lzrprf` (the SHA-256 of the lzrprf the release installs; an lzrprf of
+release 12 or later compares it with itself at every start, and from release 15 an app whose
+`release` file has no such line does not start either) and `file` (a name and the SHA-256
+of a file in the folder of the program; the installer writes two, for the launcher and for
+the program; an lzrprf of release 16 or later compares each with the file that is there at
+every start, and the installer does the same with what it unpacked before it puts anything
+in place).
 Each address must pass `sub address`, the same check as an address you type. The two installer
 addresses are written into the Terminal file between quotes, so `sub installer_file` writes no
 file at all when one of them holds a character that could end a quote; `selftest` tries exactly
@@ -557,12 +617,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 15
+    release 16
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
-    lzrprf 7522d036977e8e61670c02c710729948c54284da6493e79a78cf2bec85d7f96d
+    file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
+    file lzrbrwsr-bin 8aa6df5bb4c29924782c20c9b7b95e5cc21cd39a2190ac9011d1cda27029307c
+    lzrprf 5e125c65fcaebb3f9e1ece4efa457da0582a8275f30ebd168683f31f71545e78
 
 ## When a page cannot be shown
 
@@ -607,11 +669,15 @@ narrows down who could have sent a report. The question shows the build before y
 
 ## What it does not prove
 
-- **What you are told to type.** A hostile application cannot send anything, but it can show a
+- **What you are told to type.** A hostile application cannot send anything by the ways its
+  container gives it (the exception is "The window's process" below), but it can show a
   text that asks you to type an address that carries a secret. See "It can read a few facts
   about your computer".
 - **What you are shown.** The application decides what the page says. It can show a page
-  falsely. It cannot change the bar, the words under the bar, or the title: those are lzrprf's,
+  falsely. It cannot change the bar, the buttons, the log or the title. Of the words under
+  the bar and of the questions it can choose only up to four host names and their count (see
+  "No request you did not ask for"), and which of five fixed phrases says why a page was not
+  shown, which the question about a report repeats: the rest are lzrprf's,
   and the bar shows the address lzrprf made of what you typed and asked for (`sub address`),
   whether or not an answer came.
 - **The window's process.** It draws text the application chose, with macOS's own text drawing.
@@ -664,7 +730,9 @@ narrows down who could have sent a report. The question shows the build before y
   `sh`, `env`, `ps`, `curl` with its TLS library and list of authorities, `route`, `sysctl`,
   `open`, `xattr` and `osascript`. A flaw in one of these is a flaw here. A flaw in `curl` can reach one place
   only: the connection lzrprf made for the address you typed (`selftest` puts the hostile
-  application in curl's place).
+  application in curl's place). A `curl` taken over by a site's answer could send that one host
+  other bytes than the fixed request, through that one connection, within the 64 KB and the 30
+  seconds a fetch carries (`sub fetch`): lzrprf does not read inside the encryption `[C7]`.
 - **`sandbox-exec` is marked deprecated.** The command and the profile language are; the
   mechanism in the kernel is the one macOS confines its own processes with. So lzrprf does not
   trust it to keep working: `[C11]`, `[C2]` and `[C3]` make it prove itself on every build of
@@ -692,7 +760,8 @@ narrows down who could have sent a report. The question shows the build before y
 - **What is kept, and where else it can go.** The lines of a window that keeps nothing are in
   memory, which the system can write to its swap or into a crash report. A log of hosts still
   shows habits. Time Machine's honouring of the mark is Apple's. See "What is kept".
-- **Time.** How long a page container runs is the application's choice, up to 30 seconds. The
+- **Time.** How long a page container runs is the application's choice, up to 30 seconds after
+  it is handed the answer, and about a second more. The
   request is over before the application sees the answer, so it cannot shape a request by it.
 - **A question left open.** A question in the window that is still open after 10 minutes counts
   as answered with its first button. A window closed while it asks ends lzrprf: nothing is
@@ -815,7 +884,8 @@ that the installer is good. For that, read it: it is plain text.
 ### Two places, and exactly what they are worth
 
 Everything that is installed stands in two places: the maker's site, and this repository at
-GitHub. They are two separate systems, and this one keeps every change with its date. Three
+GitHub. They are two separate systems, and this one keeps every change with its date, as far
+as ordinary git history does (see "What "on record" is worth" below). Three
 comparisons use that. Each is a line you can read:
 
 | what is compared | who compares | the line |
@@ -835,7 +905,8 @@ What each is worth, and no more:
 - **The second comparison adds a record, not strength.** A changed installer would skip it, and
   against a changed download the checksum already stands. What it adds: the installer stops
   unless the file it is about to install is the file on record here. So every release anyone
-  installed is in this repository's history, with its date, for anyone to fetch and take apart.
+  installed is in this repository's history, with its date, for anyone to fetch and take apart,
+  as long as nobody rewrote that history (see "What "on record" is worth").
 - **The third closes the road of a newer release**, which the first comparison does not cover,
   because nobody types the three lines then.
 
@@ -873,6 +944,11 @@ What the two places do not cover:
   one release keeps two things from that reading: the full hash of the commit, and the
   SHA-256 of its `install.sh` (`release.txt` at that commit names it). Then
   `shasum -a 256 install.sh` on the file about to run must print that value.
+- **The installer's word about itself.** What the installer promises to check proves nothing
+  about the installer itself. Read it, or compare its SHA-256 with the one from somebody's
+  reading, before you run it.
+- **A hash and a branch.** A commit hash names content; a branch name such as `main` names
+  whatever is newest there. Neither says who put it there.
 - **A release in the making.** For some minutes the two places can differ, and GitHub serves a
   raw file from a cache for up to five minutes. A comparison then stops and nothing is
   installed. Try again later; if it still differs, one place was changed. `main` is what is
@@ -914,7 +990,9 @@ What the installer does, each step readable in the file:
   function `fetch` in `install.sh`).
 - Has six settings for its own test, read from variables of your shell whose names begin
   `LZRBRWSR_` or `LZRPRF_`. They are taken only when every file then comes from this computer
-  (`file:///`). With one of them set and an https address in play, it stops and says so. So a
+  (`file:///`), that is, opened through this computer's file names; a network volume mounted
+  on this Mac has such names too, and every SHA-256 must still match. With one of them set and
+  an https address in play, it stops and says so. So a
   variable somebody put into your shell cannot point a real install elsewhere or answer a
   question for you. With them in use, those six and the test's home folder are the only
   variables it keeps.
@@ -970,13 +1048,22 @@ What the installer does, each step readable in the file:
   An app of release 11 or earlier names no lzrprf: from release 15 on lzrprf does not start
   such an app either. An lzrprf of release 11 or earlier does not look, so a mixed pair with
   that older lzrprf in it, as an update from release 11 that was cut off would leave, is not
-  noticed. Installing again mends it in every case.
+  noticed. An lzrprf of release 16 or later also compares the launcher and the program, each
+  with its line `file` in the app's `release` file. Installing again mends it in every case.
 - Removes two files an earlier lzrprf kept and this one does not: `~/.lzrprf/rules` and
   `~/.lzrprf/refused`. A log an earlier release wrote is not removed: while nothing is
   kept, the installer says that it is there, and the Log button of the window offers to clear
   it.
 - Never runs the closed program. Asks before it touches the Dock, and on a yes adds one entry
-  and starts the Dock again so that it shows. Installs no updater and leaves nothing running.
+  and starts the Dock again so that it shows (`killall Dock`). Installs no updater and leaves
+  nothing running: no service, no login item, no helper, nothing that runs by itself. What it
+  leaves is the app, `~/.lzrprf/lzrprf` and `~/.lzrprf/selftest`, the mark `proven` and the
+  empty file `selftest.lock` that `selftest` writes, the folder `~/.lzrprf` with rights 700,
+  and after a yes the Dock's entry. Its lock and its temporary folder are taken away when it
+  ends; a kill no program can catch, or a power failure, leaves them, and with them the
+  folders in which it readied the new parts, beside the installed ones: the next install
+  removes those, or names them when they hold an older part. A folder that holds an older
+  part it could not put back stays, and is named.
 
 It takes no attribute off any file. Up to release 6 it ran `xattr -cr` on the unpacked files;
 from release 7 on there is no such line. The line took away nothing that was there: a file
@@ -1087,7 +1174,9 @@ what the code and the system make impossible, and how you checked it.
    Does the window's container refuse a signal to another process, and what does `selftest`
    send to try it?
    Under which limits do the closed program and curl run (processor time, memory, files,
-   processes), who sets them, and what happens when one cannot be set? By which names does
+   processes), who sets them, and what happens when one cannot be set? Which variables does
+   each of the two see? Read `sub laid_out` to its end: on every way out of it, is the page
+   process ended and waited for, also when a later step of starting fails? By which names does
    `selftest` try to read a file of the home folder in the page and fetch containers?
 3. The first lines of `lzrprf` list twelve conditions, [C1] to [C12], and each is marked again
    at the line that holds it. For each: is the line there, does it do what the condition says,
@@ -1106,7 +1195,10 @@ what the code and the system make impossible, and how you checked it.
    sent without a yes? Is anything piped into a shell? Can lzrprf replace itself or the
    program? What exactly does a report hold, where does it go, and can the closed program
    choose any part of it? What does lzrprf do at its start when the app beside it names
-   another lzrprf than the one that runs, or names none (does it start at all?). With which
+   another lzrprf than the one that runs, or names none (does it start at all?), and when
+   the launcher or the program is another file than the app's `release` file names: by what
+   is that measured, when is it looked at, and what is it worth against whoever can change
+   both? With which
    variables does the file that `sub installer_file` writes run, how does its first line
    decide that, could whoever starts it get another variable past that line, and does its
    curl follow a redirect?

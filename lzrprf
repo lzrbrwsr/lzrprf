@@ -51,7 +51,7 @@ use warnings;
 use Cwd 'abs_path';
 use Digest::SHA;
 use Fcntl qw(:flock O_RDONLY O_RDWR O_WRONLY O_APPEND O_CREAT O_EXCL O_NOFOLLOW O_NONBLOCK);
-use File::Basename 'dirname';
+use File::Basename qw(basename dirname);
 use File::Glob 'bsd_glob';
 use IO::Handle;
 use IO::Socket::INET;
@@ -169,8 +169,9 @@ END
 # curl too gets at most 30 seconds of processor time, may write no byte into a
 # file and no memory dump, and may take no more memory than the shell that starts it
 # holds plus 2 GiB. When the system will not set one of these limits, curl
-# is not started.
-my $FETCH_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -t 30 && ulimit -f 0 && ulimit -c 0 && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec "$@"';
+# is not started. It is started through "env -i", so it sees no variable at
+# all, not one the shell that sets the limits made for itself either.
+my $FETCH_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -t 30 && ulimit -f 0 && ulimit -c 0 && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "$@"';
 
 # The window's container. A window needs the system's services, so this one
 # is written the other way round: what a program of yours may do, without
@@ -449,10 +450,30 @@ sub behind {
 # Only a program that stands in no application folder and has no "release"
 # file beside it is not asked: the installer puts no such program in place,
 # and the launcher starts none.
+#
+# The same file names, in lines "file NAME SHA-256", the files in the folder
+# of the program: the program lzrprf starts in the page container, and the
+# launcher. From release 16 on each named file must be the file that is
+# there, and the program itself must be named, or the application does not
+# start. This is looked at once, at the start, and it is measured by a file
+# of the application's own: it finds a program that was changed and a file
+# that was not, as a damaged disk or a copy that did not finish leaves them.
+# Whoever can change both is not found by it. A name is one plain word of
+# letters, digits, dot, hyphen and underscore, so a program of another name
+# cannot be named and does not start from an application folder. Only a plain
+# file is read: a folder, a pipe or a device of that name counts as another
+# file. A line that begins with "file" and is not in this shape counts as a
+# file that differs, so a damaged line does not pass for no line.
 sub paired {
-    my ($pair) = map { /^lzrprf\s+(\S+)/ ? $1 : () } release_lines();    # read for itself: a file whose other lines are damaged still names its lzrprf
-    return if defined $pair ? $pair eq (sum_of($SELF) // '') : $PROGRAM !~ m{\.app/Contents/MacOS/} && !-e release_file() && !-l release_file();
-    ask(defined $pair ? "$APP was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it." : "$APP does not say which lzrprf it was installed with, so it does not start. The installer puts the two in place as a pair and writes lzrprf's SHA-256 into the application's release file: here that line is missing, as in an application older than release 12 or one that was changed by hand. Installing again mends it.", 'Quit');    # whatever comes back, the run ends here
+    my @lines = release_lines();
+    my ($pair) = map { /^lzrprf\s+(\S+)/ ? $1 : () } @lines;    # read for itself: a file whose other lines are damaged still names its lzrprf
+    return if !defined $pair && $PROGRAM !~ m{\.app/Contents/MacOS/} && !-e release_file() && !-l release_file();
+    my @files = map { /^file ([A-Za-z0-9_][A-Za-z0-9._-]*) ([0-9a-f]{64})$/ ? [$1, $2] : () } @lines;    # a name is one plain word, so it is a file in the program's own folder and nowhere else
+    my ($other) = map { $_->[0] } grep { my $file = dirname($PROGRAM) . "/$_->[0]"; !-f $file || $_->[1] ne (sum_of($file) // '') } @files;
+    $other //= basename($PROGRAM) =~ s/[^A-Za-z0-9._-]/?/gr unless grep { $_->[0] eq basename($PROGRAM) } @files;
+    my $what = @files < grep({ /^file\b/ } @lines) ? 'a line "file" there is not as the installer writes it' : defined $other ? "the file \"$other\" is another one than that file names, or is not named there" : undef;
+    return if defined $pair && $pair eq (sum_of($SELF) // '') && !defined $what;
+    ask(defined $pair && $pair eq (sum_of($SELF) // '') ? "$APP is not as it was installed, so it does not start. The installer writes the SHA-256 of the program and of the launcher into the application's release file: here $what. Installing again mends it." : defined $pair ? "$APP was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it." : "$APP does not say which lzrprf it was installed with, so it does not start. The installer puts the two in place as a pair and writes lzrprf's SHA-256 into the application's release file: here that line is missing, as in an application older than release 12 or one that was changed by hand. Installing again mends it.", 'Quit');    # whatever comes back, the run ends here
     window('quit');
     leave();
 }
@@ -525,7 +546,12 @@ sub laid_out {
         waitpid $page, 0 unless $gone;
         return (undef, $gone ? 'ended' : 'uncontained');    # only a process still running, of which the system does not say that it is contained, is the container's fault
     }
-    my $feeder = fork // return (undef, 'unstarted');
+    my $feeder = fork;
+    if (!defined $feeder) {               # no second process to be had: the application is running by now, so it is ended here and not left to end by itself
+        kill 'KILL', $page;
+        waitpid $page, 0;
+        return (undef, 'unstarted');
+    }
     if (!$feeder) {                       # hands the answer over and ends; an application that does not read it changes nothing
         close $from_page;
         answer($answer_in, $got);
@@ -931,7 +957,7 @@ sub newer {
 # and does not hand on (bash reads SHELLOPTS and PS4: a command in PS4 runs
 # before the line, as the starter's own program; the second start has
 # neither. zsh, where it was made the /bin/sh, reads ARGV0 for itself: the
-# line unsets it, and IFS with it). curl# starter's own program); the second start has neither. curl
+# line unsets it, and IFS with it). curl
 # is started with -q, so it reads no settings file of yours that could switch
 # off its checking of the site, and it follows no redirect: the installer
 # comes from the address you read, or not at all. lzrprf itself replaces nothing: not the application, and not this
@@ -973,7 +999,10 @@ END
 # it, and nothing the application wrote is among them: that it is ready, what
 # you typed into the bar when you pressed Return, which of two buttons you
 # pressed, that you asked for the log, and that it could not draw a list. The words lzrprf says are in a
-# strip of their own between the bar and the page, where no page can write.
+# strip of their own between the bar and the page, where no page can write:
+# the one thing of the application's that lzrprf says there is up to four of
+# the other hosts its page names, each in the shape of a host name, and how
+# many there are (the last line of "sub visit").
 sub window {
     for my $line (@_) {
         print "$line\n" or leave();       # without a window ("lzrprf try" only) this is printed for the test to read
@@ -1384,7 +1413,7 @@ sub mark {
     return $build =~ /^(\w+)$/ ? "macOS build $1, lzrprf $self, selftest $test" : '';
 }
 
-sub sum_of { open my $in, '<', $_[0] or return; binmode $in; return Digest::SHA->new(256)->addfile($in)->hexdigest }
+sub sum_of { open my $in, '<', $_[0] or return; binmode $in; return eval { Digest::SHA->new(256)->addfile($in)->hexdigest } }    # what cannot be read to its end has no sum
 
 sub proven {
     my $mark = mark();

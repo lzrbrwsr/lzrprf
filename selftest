@@ -317,6 +317,7 @@ if ($part eq 'curl') {
     my $back = '';
     if ($way) { syswrite($way, 'hello'); sysread($way, $back, 100) }
     report 'talk through the one socket it was given', $back || 'nothing';
+    report 'the variables it is given', join(' ', sort keys %ENV) || 'none';
     attempts();
     exit 0;
 }
@@ -324,6 +325,7 @@ my ($kind) = $address =~ m{/out/(\w+)};
 $kind //= '';
 if ($kind eq 'spin') { 1 while 1 }
 if ($kind eq 'sleep') { sleep 1000 }
+if ($kind eq 'nap') { sleep 5; print STDERR "woke\n"; exit 0 }
 my $answer = $kind eq 'noread' ? '' : do { local $/; <STDIN> } // '';
 my $good = "=page other.test third.test\nP10\nT\@A page by the hostile application\nPp0\nTHa link that is only a colour\nB\nI200x100\nPc1\nTDfixed\n";
 my $marks = "a\e[2Jb\tc\x{202e}d\x{200b}e\x{2028}f\x{feff}g\x{e000}h\x00i\x7fj\x{85}k\rl\x{1fffe}m";
@@ -458,13 +460,20 @@ sub write_log {                           # a log with this many lines in it, as
     close $out;
 }
 sub pair_line { 'lzrprf ' . Digest::SHA->new(256)->addfile($_[0])->hexdigest }    # the line of a release file that names one copy of lzrprf
-sub bundle {                              # an application of the test's own, with a file "release" beside it as a maker would put it: it names the lzrprf under test, unless the run names another or none
+my $beside_text = "a file beside the program, as a launcher is\n";
+my %beside = (app => Digest::SHA->new(256)->addfile('/usr/bin/perl')->hexdigest, starter => Digest::SHA::sha256_hex($beside_text));    # the two files in the program's folder, and the SHA-256 of each
+sub bundle {                              # an application of the test's own, with a file "release" beside it as a maker would put it: it names the lzrprf under test and the two files in the program's folder, unless the run names others or none
     my ($name, @lines) = @_;
+    push @lines, map { "file $_ $beside{$_}" } sort keys %beside unless grep { /^file / || $_ eq 'no file' } @lines;
     push @lines, "lzrprf $paired" unless grep { /^lzrprf / || $_ eq '' } @lines;
-    @lines = grep { $_ ne '' } @lines;    # an empty line in the call stands for "names no lzrprf"
+    @lines = grep { $_ ne '' && $_ ne 'no file' } @lines;    # an empty line in the call stands for "names no lzrprf", the words "no file" for "names no file"
     my $in = "$base.$name" . 'app/Test.app/Contents';
     make_path("$in/MacOS", "$in/Resources");
     system('/bin/cp', '/usr/bin/perl', "$in/MacOS/app") == 0 or die "selftest: cannot copy a program\n";
+    open my $starter, '>', "$in/MacOS/starter" or die "selftest: cannot write $in/MacOS/starter: $!\n";
+    print $starter $beside_text;
+    close $starter;
+    mkdir "$in/MacOS/held" or die "selftest: cannot make $in/MacOS/held: $!\n";    # a folder beside the program: see the run "filefolder"
     symlink $secret, "$in/Resources/alias" or die "selftest: cannot make a link in $in/Resources: $!\n";    # a name in the application's own folder for the file in the home folder: see the run "alias"
     open my $out, '>', "$in/Resources/release" or die "selftest: cannot write $in/Resources/release: $!\n";
     print $out map { "$_\n" } @lines;
@@ -489,6 +498,9 @@ my %lost = (container => { '(deny default)' => '(allow default)' }, probe => { '
     memory => { q{&& ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env} => q{&& exec /usr/bin/env} });
 
 run_of('slow', typed => "$t/slow", fetches => ['/slow']);
+# No second process to hand the answer over: the application is running by then, and is ended there.
+run_of('nofeeder', lzrprf => mutant('nofeeder', "    my \$feeder = fork;\n" => "    my \$feeder = undef;\n"), typed => "$t/out/nap?nofeeder", fetches => ['/out/nap?nofeeder']);
+run_of('leftpage', lzrprf => mutant('leftpage', "    my \$feeder = fork;\n" => "    my \$feeder = undef;\n", "        kill 'KILL', \$page;\n        waitpid \$page, 0;\n        return (undef, 'unstarted');" => "        return (undef, 'unstarted');"), typed => "$t/out/nap?leftpage", fetches => ['/out/nap?leftpage']);    # the same, and the line that ends it taken out
 run_of('spin', typed => "$t/out/spin", fetches => ['/out/spin']);
 run_of('sleep', typed => "$t/out/sleep", fetches => ['/out/sleep']);
 run_of('outside', command => ['/usr/bin/perl', '-e', $hostile, hostile_args("$base.outside", 'outside')], prepare => sub { write_log($_[0], 3) });
@@ -581,7 +593,17 @@ run_of('pairanyway', app => bundle('pairanyway', 'release 3', 'lzrprf ' . ('0' x
 run_of('pairbroken', app => bundle('pairbroken', "lzrprf " . ('0' x 64) . "\r"), typed => "$t/pairbroken", answer => 'allow');    # a release file with no line "release" and line ends of another system: it still names another lzrprf
 run_of('pairsame', app => bundle('pairsame', 'release 3', "lzrprf " . ($paired // '')), typed => "$t/pairsame", fetches => ['/pairsame']);    # the application names this one
 run_of('pairnone', app => bundle('pairnone', 'release 3', ''), typed => "$t/pairnone", answer => 'allow');    # an application whose release file names no lzrprf, as before release 12
-run_of('lostpair', lzrprf => mutant('lostpair', q{    return if defined $pair ? $pair eq (sum_of($SELF) // '') : $PROGRAM !~ m{\.app/Contents/MacOS/} && !-e release_file() && !-l release_file();} => '    return;'), app => bundle('lostpair', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/lostpair", fetches => ['/lostpair']);    # a copy of lzrprf whose pair check lets a pair that differs start
+run_of('lostpair', lzrprf => mutant('lostpair', q{    return if defined $pair && $pair eq (sum_of($SELF) // '') && !defined $what;} => '    return;'), app => bundle('lostpair', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/lostpair", fetches => ['/lostpair']);    # a copy of lzrprf whose pair check lets a pair that differs start
+# The application's own files: its release file names the program and what else stands in the program's folder, each with its SHA-256.
+run_of('fileother', app => bundle('fileother', 'release 3', "file starter $beside{starter}", 'file app ' . ('0' x 64)), typed => "$t/fileother", answer => 'allow');    # the program is another file than the release file names
+run_of('filebeside', app => bundle('filebeside', 'release 3', "file app $beside{app}", 'file starter ' . ('0' x 64)), typed => "$t/filebeside", answer => 'allow');    # the file beside the program is another one
+run_of('filegone', app => bundle('filegone', 'release 3', "file app $beside{app}", 'file absent ' . ('0' x 64)), typed => "$t/filegone", answer => 'allow');    # a named file is not there
+run_of('filenone', app => bundle('filenone', 'release 3', 'no file'), typed => "$t/filenone", answer => 'allow');    # the release file names no file at all, as before release 16
+run_of('fileunnamed', app => bundle('fileunnamed', 'release 3', "file starter $beside{starter}"), typed => "$t/fileunnamed", answer => 'allow');    # it names the file beside the program, and not the program
+run_of('filefolder', app => bundle('filefolder', 'release 3', "file app $beside{app}", 'file held ' . ('0' x 64)), typed => "$t/filefolder", answer => 'allow');    # a named file is a folder: it is not read, and it is not the file
+run_of('filedamaged', app => bundle('filedamaged', 'release 3', "file app $beside{app}", 'file starter ' . uc $beside{starter}), typed => "$t/filedamaged", answer => 'allow');    # a line "file" that is not in its shape, here a SHA-256 in capitals, with a file that is the right one
+my $lost_file = mutant('lostfile', q{ && !defined $what;} => ';');
+run_of('lostfile', lzrprf => $lost_file, app => bundle('lostfile', 'release 3', pair_line($lost_file), 'file app ' . ('0' x 64)), typed => "$t/lostfile", fetches => ['/lostfile']);    # a copy of lzrprf that does not look at the files, with an application that names itself as the pair of that copy
 # A mark that names a check the test could not try: it counts only after a yes to exactly that line, kept in the file "untested".
 my $untested_line = "$mark, untested: a check (no way to try it here)";
 sub said_yes { my ($line) = @_; return sub { open my $out, '>', "$_[0]/untested"; print $out "$line\n" } }
@@ -594,7 +616,7 @@ run_of('lostyes', lzrprf => $lost_yes, typed => "$t/lostyes", answer => '2', fet
 run_of('lostcontainer', lzrprf => mutant('lostcontainer', %{ $lost{container} }), typed => "$t/lostcontainer");
 run_of('lostprobe', lzrprf => mutant('lostprobe', %{ $lost{container} }, %{ $lost{probe} }), typed => "$t/lostprobe");
 my $reported_quick = "/report-quick?fault=page&release=3&macos=" . ($build // '');
-my $quick = bundle('quick', 'release 3', "report $t/report-quick");
+my $quick = bundle('quick', 'release 3', "report $t/report-quick", "file starter $beside{starter}", 'file app ' . Digest::SHA->new(256)->addfile('/usr/bin/true')->hexdigest);    # its release file names the program that is put in its place below
 system('/bin/cp', '/usr/bin/true', $quick) == 0 or die "selftest: cannot copy a program\n";    # the system's "true" in the application's place: it ends as soon as it is started
 run_of('quick', app => $quick, typed => "$t/out/quick", fetches => ['/out/quick', $reported_quick]);    # an application that ends at once, perhaps before the system was asked whether it is contained
 my $lost_page = mutant('lostpage', %{ $lost{page} });
@@ -718,6 +740,8 @@ my ($through) = map { /^answer\t\S+\t([0-9a-f]*)$/ ? pack('H*', $1) : () } split
 my @in_fetch = tried($through // '', 'fetch container');
 judge('fetch container', @in_fetch);
 my ($talk) = map { $_->[1] } grep { $_->[0] eq 'talk through the one socket it was given' } @in_fetch;
+my ($given) = map { $_->[1] } grep { $_->[0] eq 'the variables it is given' } @in_fetch;
+check(($given // '') eq 'none', 'in curl\'s place it sees no variable at all, not one of the shell that set its limits', $given // 'nothing came of it');
 check(($talk // '') eq 'echo:hello', 'through the one socket it is given, it reaches the one site lzrprf connected for it, and nothing else', $talk // 'nothing came of it');
 my $window = out('window');
 my ($free_tries) = out('windowoutside') =~ /^(network=.*)$/m;
@@ -936,6 +960,15 @@ check(((words('pairbroken', 'ask'))[0] // '') =~ $pair_asks && words('pairbroken
 check(((words('pairnone', 'ask'))[0] // '') =~ /^Test does not say which lzrprf it was installed with, so it does not start\. .* Installing again mends it\.\tQuit$/ && words('pairnone', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairnone')) && !words('pairnone', 'idle') && !page_of('pairnone') && !asked('/pairnone') && !-s "$base.pairnone/log", 'an application whose release file names no lzrprf at all, as before release 12: it does not start either, and nothing is shown, looked up or fetched', (words('pairnone', 'ask'))[0] // 'no question');
 check(!grep({ $_ =~ $pair_asks } words('pairsame', 'ask')) && asked('/pairsame') == 1 && visit('pairsame', "$t/pairsame")->{page}, 'an application whose release file names this lzrprf: no question about the pair, and the page is shown', 'one request');
 check(!grep({ $_ =~ $pair_asks } words('lostpair', 'ask')) && asked('/lostpair') == 1, 'a copy of lzrprf whose pair check lets a pair that differs start: it says nothing and fetches, so the runs above would see that weakening', asked('/lostpair') . ' request');
+my $file_asks = sub { my $what = $_[0] ? 'the file "' . quotemeta($_[0]) . '" is another one than that file names, or is not named there' : 'a line "file" there is not as the installer writes it'; qr/^Test is not as it was installed, so it does not start\. The installer writes the SHA-256 of the program and of the launcher into the application's release file: here $what\. Installing again mends it\.\tQuit$/ };
+for (['fileother', 'app', 'an application whose program is another file than its release file names'], ['filebeside', 'starter', 'an application with another file beside its program than its release file names'], ['filegone', 'absent', 'an application whose release file names a file that is not there'],
+    ['filefolder', 'held', 'an application whose release file names a folder where a file must be'], ['filedamaged', '', 'an application whose release file holds a line "file" that is not in its shape, beside files that are the right ones'],
+    ['filenone', 'app', 'an application whose release file names no file at all, as before release 16'], ['fileunnamed', 'app', 'an application whose release file names the file beside the program and not the program']) {
+    my ($run, $file, $what) = @$_;
+    check(((words($run, 'ask'))[0] // '') =~ $file_asks->($file) && words($run, 'ask') == 1 && grep({ $_->[0] eq 'quit' } told($run)) && !words($run, 'idle') && !page_of($run) && !asked("/$run") && !-s "$base.$run/log", "$what: it does not start, the window says which file and what mends it, and nothing is shown, looked up or fetched", (words($run, 'ask'))[0] // 'no question');
+}
+check(!grep({ /is not as it was installed/ } words('pairsame', 'ask')) && visit('pairsame', "$t/pairsame")->{page}, 'an application whose release file names its program and the file beside it as they are: no question about them, and the page is shown', 'one request');
+check(!grep({ /is not as it was installed/ } words('lostfile', 'ask')) && asked('/lostfile') == 1, 'a copy of lzrprf that does not look at the files: it says nothing and fetches, so the runs above would see that weakening', asked('/lostfile') . ' request');
 
 # 7. The checks are not blind.                                [C2] [C3]
 print "\n7. Copies of lzrprf with one condition taken out: the next condition must stop them.\n";
@@ -1031,6 +1064,13 @@ check(!@unlike, 'what is typed is sent as typed, or not at all: https only, a ho
 print "\n11. The time limits.\n";
 my $spun = last_said('spin');
 check($spun =~ /^perl did not show this page: (?:it did not finish in time|what it wrote is not a page)\.$/ && $run{spin}{took} > 25 && $run{spin}{took} < 50, 'an application that never stops is ended', sprintf('after %.0f seconds: %s', $run{spin}{took}, $spun));
+for (grep { defined $run{$_}{took} } 'nofeeder', 'leftpage') {    # the application of these two runs says "woke" after 5 seconds, if it still runs then: so at least 9 seconds are let pass after each
+    my $since = Time::HiRes::time() - $run{$_}{began} - $run{$_}{took};
+    select undef, undef, undef, 9 - $since if $since < 9;
+}
+my ($woke_ended, $woke_left) = map { err($_) =~ /^woke$/m ? 1 : 0 } 'nofeeder', 'leftpage';
+check(last_said('nofeeder') eq 'perl did not show this page: its container could not be started.' && ($run{nofeeder}{took} // 99) < 25 && !$woke_ended, 'a copy of lzrprf that gets no second process to hand the answer over: the application, running by then, is ended there and not left to itself', $woke_ended ? 'it went on running' : last_said('nofeeder') || 'nothing said');
+check($woke_left, 'the same copy without the line that ends it: the application goes on running after lzrprf gave up, so the run above would see that weakening', $woke_left ? 'it went on running' : 'it did not');
 check(last_said('sleep') eq 'perl did not show this page: it did not finish in time.' && $run{sleep}{took} > 25 && $run{sleep}{took} < 50, 'an application that does nothing is ended', sprintf('after %.0f seconds', $run{sleep}{took}));
 check(last_said('slow') eq 'Nothing is shown: the site did not answer in time.' && $run{slow}{took} > 25 && $run{slow}{took} < 50, 'a site that never answers is given up on', sprintf('after %.0f seconds', $run{slow}{took}));
 
