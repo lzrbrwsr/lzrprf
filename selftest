@@ -35,7 +35,10 @@
 # At its start the test takes out of ~/.lzrprf/proven the mark of what it
 # tests (this build of macOS, this lzrprf, this selftest), and when nothing
 # failed it writes that mark again: "lzrprf run" shows no page without it, so
-# a run that fails takes back the proof of an earlier run that held. Nothing else is left behind but the empty file ~/.lzrprf/selftest.lock,
+# a run that fails takes back the proof of an earlier run that held. When a
+# check could not be tried on this computer, the mark is followed by
+# ", untested: " and the checks that could not be tried, and "lzrprf run"
+# shows no page before you said yes to starting without exactly those. Nothing else is left behind but the empty file ~/.lzrprf/selftest.lock,
 # which keeps two tests from running at once. A test that is stopped from
 # outside ends every process it started and takes its files away.
 use strict;
@@ -62,6 +65,7 @@ my $home = abs_path((getpwuid $<)[7]);
 my $secret = "$home/.lzrprf-selftest-secret";
 my $secret_made = 0;                      # only a file this run made is ever removed
 my ($failures, $untested, $held) = (0, 0, 0);
+my @not_tried;                            # each check the test could not try, as "what (why)": named in the mark this run writes
 sub check($$$);                           # each of the three is taken as one value. Without this, a comparison that
 sub works($$$);                           # fails where a list is expected gives no value at all, the two after it
 sub untested($$);                         # move up, and the line of a failed attack reads "held"
@@ -370,11 +374,12 @@ my $t = 'https://site.test';
 # process what its container must refuse. "tries" is also run outside every
 # container, where each of its tries must work.
 my $window_tries = <<'END';
-function tries(port, file, secret, keep, temp, numbered) {
+function tries(port, file, secret, keep, temp, numbered, outside) {
     ObjC.import('Foundation');
     ObjC.bindFunction('socket', ['int', ['int', 'int', 'int']]);
     ObjC.bindFunction('connect', ['int', ['int', 'void *', 'int']]);
     ObjC.bindFunction('sandbox_check', ['int', ['int', 'char *', 'int']]);
+    ObjC.bindFunction('kill', ['int', ['int', 'int']]);
     var to = $.NSData.alloc.initWithBase64EncodedStringOptions($(port), 0), s = $.socket(2, 1, 0);
     var network = s >= 0 && $.connect(s, to.bytes, 16) == 0 ? 'reached' : 'refused';
     var written = $('x').writeToFileAtomicallyEncodingError($(file), false, 4, null) ? 'written' : 'refused';
@@ -386,7 +391,8 @@ function tries(port, file, secret, keep, temp, numbered) {
     var number = numbered && !$.NSString.stringWithContentsOfFileEncodingError($(numbered), 4, null).isNil() ? 'read' : 'refused';    // the same file by its number on the disk (/.vol/DISK/NUMBER), a name that holds no folder
     var shared = $.NSFileManager.defaultManager.contentsOfDirectoryAtPathError($('/Users/Shared'), null).isNil() ? 'refused' : 'listed';
     var pid = $.NSProcessInfo.processInfo.processIdentifier;
-    return 'network=' + network + ' file=' + written + ' program=' + started + ' home=' + read + ' data=' + data + ' number=' + number + ' temp=' + spare + ' shared=' + shared + ' system=' + ['network-outbound', 'file-write-create', 'process-fork', 'lsopen', 'appleevent-send', 'user-preference-write'].map(function (what) { return $.sandbox_check(pid, what, 0); }).join('') + ' keep=' + kept;
+    var signal = $.kill(parseInt(outside, 10), 0) == 0 ? 'allowed' : 'refused';    // signal 0 to the self-test's own process: it asks only whether a signal may be sent
+    return 'network=' + network + ' file=' + written + ' program=' + started + ' home=' + read + ' data=' + data + ' number=' + number + ' temp=' + spare + ' shared=' + shared + ' system=' + ['network-outbound', 'file-write-create', 'process-fork', 'lsopen', 'appleevent-send', 'user-preference-write'].map(function (what) { return $.sandbox_check(pid, what, 0); }).join('') + ' signal=' + signal + ' keep=' + kept;
 }
 END
 my $window_test = <<'END';
@@ -405,7 +411,7 @@ function told(word, rest) {
     else if (step == 1 && word == 'ask') { step = 2; say('test asked ' + first.title.js + '|' + second.title.js + '|bar=' + bar.enabled + '|' + plain(words.stringValue.js).slice(0, 60)); second.performClick(null); }
     else if (step == 2 && word == 'idle') { step = 3; say('test page title=' + win.title.js + ' visible=' + win.visible + ' drawn=' + pictures + ' links=' + links() + ' editable=' + page.editable + ' menu=' + page.menuForEvent(null).numberOfItems + ' bar=' + bar.stringValue.js + ' words=' + plain(words.stringValue.js) + ' text=' + plain(page.string.js)); logs.performClick(null); }
     else if (step == 3 && word == 'ask') { step = 5; say('test log a question came: ' + first.title.js + '|' + second.title.js); app.terminate(null); }    // with nothing kept and no log, the Log button has no question
-    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.stringValue.js).slice(0, 600) + '|' + plain(page.string.js).slice(0, 2000)); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED)); app.terminate(null); }
+    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.stringValue.js).slice(0, 600) + '|' + plain(page.string.js).slice(0, 2000)); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE)); app.terminate(null); }
 }
 END
 
@@ -546,8 +552,20 @@ run_of('othertest', typed => "$t/othertest", answer => 'deny', prepare => marked
 run_of('notest', typed => "$t/notest", answer => 'deny', prepare => marked($mark =~ s/, selftest [0-9a-f]{64}\z//r));    # a mark as older copies wrote it: the build and lzrprf, and no selftest
 run_of('proved', typed => "$t/proved", fetches => ['/proved'], prepare => marked(($mark =~ s/lzrprf [0-9a-f]{8}/lzrprf 00000000/r) . "\n$mark"));
 my ($paired) = $mark =~ /, lzrprf ([0-9a-f]{64}),/ or die "selftest: the mark does not name lzrprf's SHA-256\n";    # the SHA-256 of the lzrprf under test, as the release file of a newer application names it
-run_of('pairother', app => bundle('pairother', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/pairother", answer => 'deny');    # the application names another lzrprf, and the question is answered no
+run_of('pairother', app => bundle('pairother', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/pairother", answer => 'deny');    # the application names another lzrprf, and its one button is pressed
+run_of('pairanyway', app => bundle('pairanyway', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/pairanyway", answer => 'allow');    # the same, with the answer that once meant "Start anyway": it starts nothing
+run_of('pairbroken', app => bundle('pairbroken', "lzrprf " . ('0' x 64) . "\r"), typed => "$t/pairbroken", answer => 'allow');    # a release file with no line "release" and line ends of another system: it still names another lzrprf
 run_of('pairsame', app => bundle('pairsame', 'release 3', "lzrprf " . ($paired // '')), typed => "$t/pairsame", fetches => ['/pairsame']);    # the application names this one
+run_of('lostpair', lzrprf => mutant('lostpair', q{    return if !defined $pair || $pair eq (sum_of($SELF) // '');} => '    return;'), app => bundle('lostpair', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/lostpair", fetches => ['/lostpair']);    # a copy of lzrprf whose pair check lets a pair that differs start
+# A mark that names a check the test could not try: it counts only after a yes to exactly that line, kept in the file "untested".
+my $untested_line = "$mark, untested: a check (no way to try it here)";
+sub said_yes { my ($line) = @_; return sub { open my $out, '>', "$_[0]/untested"; print $out "$line\n" } }
+run_of('untestedquit', typed => "$t/untestedquit", answer => 'deny', prepare => marked($untested_line));    # no yes yet, and the answer is Quit
+run_of('untestedstart', typed => "$t/untestedstart", fetches => ['/untestedstart'], prepare => marked($untested_line));    # no yes yet, and the answer is Start
+run_of('untestedyes', typed => "$t/untestedyes", fetches => ['/untestedyes'], prepare => sub { marked($untested_line)->($_[0]); said_yes($untested_line)->($_[0]) });    # a yes kept for exactly this line
+run_of('untestedother', typed => "$t/untestedother", answer => 'deny', prepare => sub { marked($untested_line)->($_[0]); said_yes("$mark, untested: another check (no way to try it here)")->($_[0]) });    # a yes kept for other checks
+my $lost_yes = mutant('lostyes', q{        return 1 if $yes eq "$line\n";} => '        return 1;');    # a copy of lzrprf that counts a line with untested checks without a yes
+run_of('lostyes', lzrprf => $lost_yes, typed => "$t/lostyes", answer => '2', fetches => ['/lostyes'], prepare => marked('macOS build ' . ($build // '') . ', lzrprf ' . Digest::SHA->new(256)->addfile($lost_yes)->hexdigest . ", selftest $own, untested: a check (no way to try it here)"));    # its own mark with a check untested, and no yes; the one answer given is a yes to the own network
 run_of('lostcontainer', lzrprf => mutant('lostcontainer', %{ $lost{container} }), typed => "$t/lostcontainer");
 run_of('lostprobe', lzrprf => mutant('lostprobe', %{ $lost{container} }, %{ $lost{probe} }), typed => "$t/lostprobe");
 my $reported_quick = "/report-quick?fault=page&release=3&macos=" . ($build // '');
@@ -560,13 +578,13 @@ run_of('lostmemoryprobe', lzrprf => mutant('lostmemoryprobe', %{ $lost{memory} }
 my $echo_at = encode_base64(pack('CCna4x8', 16, 2, $port{echo}, inet_aton('127.0.0.1')), '');
 run_of('window', app => bundle('window', 'release 3'), answer => 'ask', keep => undef, fetches => ['/window?q=1'], prepare => sub {    # nothing is kept, as when nobody chose
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
-    print $out "var GO = 'site.test/window?q=1', PORT = '$echo_at', FILE = '$site_folder/window.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number';\n$window_tries$window_test";
+    print $out "var GO = 'site.test/window?q=1', PORT = '$echo_at', FILE = '$site_folder/window.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number', OUTSIDE = '$outside';\n$window_tries$window_test";
 });
 run_of('lostwindow', lzrprf => mutant('lostwindow', "(deny lsopen)\n" => ''), app => bundle('lostwindow', 'release 3'), answer => 'ask', prepare => sub {
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
     print $out "function kind() { return 2; }\nfunction shown() { }\nfunction drawn() { }\nfunction told(word, rest) { if (word == 'busy' && /container/.test(rest)) { say('test closed ' + String(rest).replace(/[^\\x20-\\x7e]/g, '?')); app.terminate(null); } }\n";
 });
-run_of('windowoutside', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', "$window_tries function run(argv) { return tries(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]); }", $echo_at, "$site_folder/window.outside", $secret, "$site_folder/keep.outside", $temp_file, $by_number]);
+run_of('windowoutside', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', "$window_tries function run(argv) { return tries(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]); }", $echo_at, "$site_folder/window.outside", $secret, "$site_folder/keep.outside", $temp_file, $by_number, $outside]);
 
 # All of them, at most eight at a time, each given at most 90 seconds.
 my (%pid, @waiting, $said_waiting);
@@ -670,10 +688,10 @@ my ($talk) = map { $_->[1] } grep { $_->[0] eq 'talk through the one socket it w
 check(($talk // '') eq 'echo:hello', 'through the one socket it is given, it reaches the one site lzrprf connected for it, and nothing else', $talk // 'nothing came of it');
 my $window = out('window');
 my ($free_tries) = out('windowoutside') =~ /^(network=.*)$/m;
-works(($free_tries // '') eq 'network=reached file=written program=started home=read data=read number=read temp=read shared=listed system=000000 keep=written', 'outside every container: the window\'s text connects, writes a file, starts a program, reads a file in the home folder by its two names and by its number on the disk, reads a file in the temporary folder, lists the folder all users share, writes a setting of what is kept', $free_tries // 'nothing came of it');
+works(($free_tries // '') eq 'network=reached file=written program=started home=read data=read number=read temp=read shared=listed system=000000 signal=allowed keep=written', 'outside every container: the window\'s text connects, writes a file, starts a program, reads a file in the home folder by its two names and by its number on the disk, reads a file in the temporary folder, lists the folder all users share, sends a signal to the self-test\'s own process, writes a setting of what is kept', $free_tries // 'nothing came of it');
 unlink "$site_folder/window.outside", "$site_folder/keep.outside";
 my ($window_tries_came) = $window =~ /^test tries (.*)$/m;
-check(($window_tries_came // '') =~ /^network=refused file=refused program=refused home=refused data=refused number=refused temp=(?:read|refused) shared=refused system=111111 keep=refused$/, 'window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here', $window_tries_came // 'nothing came of it');
+check(($window_tries_came // '') =~ /^network=refused file=refused program=refused home=refused data=refused number=refused temp=(?:read|refused) shared=refused system=111111 signal=refused keep=refused$/, 'window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, send a signal to the self-test\'s own process, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here', $window_tries_came // 'nothing came of it');
 check(!-e "$site_folder/window.inside" && !-e "$base.window/keep", 'the window\'s process wrote no file, and no setting of what is kept', 'looked for both');
 
 # 3. What crosses from the application to the window.           [C9]
@@ -861,9 +879,18 @@ check(!asked('/latest-unlogged') && !-e "$base.upunlogged/look" && !-e "$secret.
 my $asks_to_test = qr/^lzrprf has not been tested on this Mac as it is now/;
 check(!grep({ my $name = $_; ((words($name, 'ask'))[0] // '') !~ $asks_to_test || !grep({ $_->[0] eq 'quit' } told($name)) || words($name, 'idle') || asked("/$name") || -s "$base.$name/log" } 'unproven', 'stale', 'changed', 'othertest', 'notest'), 'no mark of a test, a mark from another build of macOS, a mark of another lzrprf, a mark made by another selftest, a mark that names no selftest: you are asked to test, and after a no nothing is shown, looked up or fetched', '5 starts, 5 questions');
 check(!grep({ $_ =~ $asks_to_test } words('proved', 'ask')) && asked('/proved') == 1 && visit('proved', "$t/proved")->{page}, 'the mark of this build of macOS and this lzrprf, standing after the mark of another copy that was tested here: no question, and the page is shown', 'one request');
-my $pair_asks = qr/^Test was installed together with another lzrprf than the one running now\. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand\. Installing again mends it\.\tQuit\tStart anyway$/;
-check(((words('pairother', 'ask'))[0] // '') =~ $pair_asks && words('pairother', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairother')) && !words('pairother', 'idle') && !page_of('pairother') && !asked('/pairother') && !-s "$base.pairother/log", 'an application whose release file names another lzrprf than the one running: you are asked before anything else, and after a no nothing is shown, looked up or fetched', (words('pairother', 'ask'))[0] // 'no question');
+my $untested_asks = qr/^The self-test held on this Mac, but it could not try every check here: a check \(no way to try it here\)\. What it could not try is not shown to hold on this Mac as it is now\. Start perl without it\?\tQuit\tStart$/;
+check(words('untestedquit', 'ask') == 1 && ((words('untestedquit', 'ask'))[0] // '') =~ $untested_asks && grep({ $_->[0] eq 'quit' } told('untestedquit')) && !words('untestedquit', 'idle') && !page_of('untestedquit') && !asked('/untestedquit') && !-s "$base.untestedquit/log" && !-e "$base.untestedquit/untested", 'a mark of now that names a check the test could not try, and no yes to it: the window names the check and asks, and after Quit nothing is shown, looked up or fetched, and no yes is kept', (words('untestedquit', 'ask'))[0] // 'no question');
+check(((words('untestedstart', 'ask'))[0] // '') =~ $untested_asks && slurp("$base.untestedstart/untested") eq "$untested_line\n" && asked('/untestedstart') == 1 && visit('untestedstart', "$t/untestedstart")->{page}, 'the same mark, and the answer Start: the yes is kept as that whole line, and the page is shown', slurp("$base.untestedstart/untested") =~ s/\n/ /gr);
+check(words('untestedother', 'ask') == 1 && ((words('untestedother', 'ask'))[0] // '') =~ $untested_asks && grep({ $_->[0] eq 'quit' } told('untestedother')) && !page_of('untestedother') && !asked('/untestedother') && !-s "$base.untestedother/log" && slurp("$base.untestedother/untested") eq "$mark, untested: another check (no way to try it here)\n", 'the same mark, with a yes kept for other checks that could not be tried: that yes is not a yes to this line, the question comes again, and after Quit nothing is shown, looked up or fetched', (words('untestedother', 'ask'))[0] // 'no question');
+check(!grep({ /^The self-test held on this Mac/ } words('untestedyes', 'ask')) && asked('/untestedyes') == 1 && visit('untestedyes', "$t/untestedyes")->{page}, 'the same mark, with a yes kept for exactly that line: no question, and the page is shown', asked('/untestedyes') . ' request');
+check(!grep({ /^The self-test held on this Mac/ } words('lostyes', 'ask')) && asked('/lostyes') == 1, 'a copy of lzrprf that counts a mark with an untested check without a yes: it asks nothing and fetches, so the runs above would see that weakening', asked('/lostyes') . ' request');
+my $pair_asks = qr/^Test was installed together with another lzrprf than the one running now, so it does not start\. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand\. Installing again mends it\.\tQuit$/;
+check(((words('pairother', 'ask'))[0] // '') =~ $pair_asks && words('pairother', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairother')) && !words('pairother', 'idle') && !page_of('pairother') && !asked('/pairother') && !-s "$base.pairother/log", 'an application whose release file names another lzrprf than the one running: before anything else the window says that it does not start, why and what mends it, with one button, Quit; nothing is shown, looked up or fetched', (words('pairother', 'ask'))[0] // 'no question');
+check(((words('pairanyway', 'ask'))[0] // '') =~ $pair_asks && words('pairanyway', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairanyway')) && !words('pairanyway', 'idle') && !page_of('pairanyway') && !asked('/pairanyway') && !-s "$base.pairanyway/log", 'the same, with the answer that once meant "Start anyway": there is no way to start, and nothing is shown, looked up or fetched', (words('pairanyway', 'ask'))[0] // 'no question');
+check(((words('pairbroken', 'ask'))[0] // '') =~ $pair_asks && words('pairbroken', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairbroken')) && !page_of('pairbroken') && !asked('/pairbroken') && !-s "$base.pairbroken/log", 'a release file that names another lzrprf and is damaged otherwise (no line "release", line ends of another system): it does not start either', (words('pairbroken', 'ask'))[0] // 'no question');
 check(!grep({ $_ =~ $pair_asks } words('pairsame', 'ask')) && asked('/pairsame') == 1 && visit('pairsame', "$t/pairsame")->{page}, 'an application whose release file names this lzrprf: no question about the pair, and the page is shown', 'one request');
+check(!grep({ $_ =~ $pair_asks } words('lostpair', 'ask')) && asked('/lostpair') == 1, 'a copy of lzrprf whose pair check lets a pair that differs start: it says nothing and fetches, so the runs above would see that weakening', asked('/lostpair') . ' request');
 
 # 7. The checks are not blind.                                [C2] [C3]
 print "\n7. Copies of lzrprf with one condition taken out: the next condition must stop them.\n";
@@ -974,20 +1001,27 @@ if ($failures) {
 # The mark of what was just tested. "lzrprf run" shows a page only when the mark of now is in this file.
 # The marks of other copies of lzrprf that held on this same build of macOS stay, seven at most: a test of
 # another copy, such as a clone of the repository, does not take the proof from the copy that is installed.
+# A check this run could not try is never passed over in silence: the line is the mark followed by ", untested: "
+# and each such check as "what (why)", in printable characters, at most 600 of them, on one line. "lzrprf run"
+# shows no page for such a line before you said yes to starting without exactly those checks. With every check
+# tried, the line is the mark alone.
+my $untried = join('; ', @not_tried) =~ s/[^\x20-\x7e]/?/gr;
+$untried = substr($untried, 0, 540) . ' (and more: the lines UNTESTED of the test name all)' if length $untried > 600;    # lzrprf counts a text of 600 characters at most, and shows all of it
+my $proven_line = $mark . (@not_tried ? ", untested: $untried" : '');
 my ($this_build) = $mark =~ /^(macOS build \w+), /;
 my @others;
-if (open my $in, '<', "$home/.lzrprf/proven") { @others = grep { /^\Q$this_build\E, lzrprf [0-9a-f]{64}, selftest [0-9a-f]{64}\n\z/ && $_ ne "$mark\n" } map { scalar(<$in>) // () } 1 .. 8 }
+if (open my $in, '<', "$home/.lzrprf/proven") { @others = grep { /^\Q$this_build\E, lzrprf [0-9a-f]{64}, selftest [0-9a-f]{64}(?:, untested: [^\n]*)?\n\z/ && plain_mark($_) ne "$mark\n" } map { scalar(<$in>) // () } 1 .. 8 }    # a line with the checks that could not be tried is that copy's mark too
 open my $proven, '>', "$home/.lzrprf/proven.new" or die "selftest: cannot write $home/.lzrprf/proven.new: $!\n";    # written whole beside the file of marks, then given its name: no reader finds it half written or gone
 # The mark of the copy that is installed (~/.lzrprf/lzrprf) stands first when it is among them, and is never the
 # one that is dropped: testing other copies cannot push it out.
 my $installed = '';
 if (-f "$home/.lzrprf/lzrprf") { my $test = -f "$home/.lzrprf/selftest" ? ', selftest ' . Digest::SHA->new(256)->addfile("$home/.lzrprf/selftest")->hexdigest : ''; $installed = "$this_build, lzrprf " . Digest::SHA->new(256)->addfile("$home/.lzrprf/lzrprf")->hexdigest . "$test\n" }
-my @first = grep { $_ eq $installed } @others;
-my @rest = grep { $_ ne $installed } @others;
+my @first = grep { plain_mark($_) eq $installed } @others;
+my @rest = grep { plain_mark($_) ne $installed } @others;
 my $room = 7 - @first;
-print $proven @first, "$mark\n", @rest[0 .. ($#rest >= $room ? $room - 1 : $#rest)];
+print $proven @first, "$proven_line\n", @rest[0 .. ($#rest >= $room ? $room - 1 : $#rest)];
 close $proven && rename "$home/.lzrprf/proven.new", "$home/.lzrprf/proven" or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
-print "Nothing failed. lzrprf holds on this Mac as it is now: $mark\n";
+print "Nothing failed. lzrprf holds on this Mac as it is now: $proven_line\n";
 exit 0;
 
 # The bytes that open an encryption, with the values that must differ from one
@@ -1035,12 +1069,14 @@ sub unmark {                              # the mark of this copy is taken out o
     open my $in, '<', "$home/.lzrprf/proven" or return;
     my @all = map { scalar(<$in>) // () } 1 .. 8;
     close $in;
-    my @kept = grep { $_ ne "$mark\n" } @all;
+    my @kept = grep { plain_mark($_) ne "$mark\n" } @all;    # in either form: the mark alone, or with the checks that could not be tried
     return if @kept == @all;
     open my $out, '>', "$home/.lzrprf/proven.new" or die "selftest: cannot write $home/.lzrprf/proven.new: $!\n";
     print $out @kept;
     close $out && rename "$home/.lzrprf/proven.new", "$home/.lzrprf/proven" or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
 }
+
+sub plain_mark { $_[0] =~ s/, untested: [^\n]*//r }    # a line of the file of marks without the checks that could not be tried: the mark of its copy
 
 sub hears {                               # "sub hear" of lzrprf, taken out and run here against a pipe: what it returns when nothing is said in time, then when the other end is gone
     my ($text) = $text_of_lzrprf =~ /^(sub hear \{.*?^\})/ms;
@@ -1058,6 +1094,7 @@ sub check($$$) {
 sub untested($$) {
     my ($what, $why) = @_;
     $untested++;
+    push @not_tried, "$what ($why)";
     printf "%-6s %s (%s)\n", 'UNTESTED', $what, $why;
 }
 

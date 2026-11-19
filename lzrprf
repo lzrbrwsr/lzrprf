@@ -39,8 +39,8 @@
 #   [C7]  What a site is sent is made from the address alone: the same bytes from every computer, with nothing kept from an earlier request.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of four kinds of line is not drawn at all.
-#   [C10] The window's process has no network of its own, writes no file, starts no program, opens nothing through the system, commands no other program, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. lzrprf asks the system whether that holds before anything is shown. It still reaches the system's services, the clipboard among them.
-#   [C11] Nothing is shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there.
+#   [C10] The window's process has no network of its own, writes no file, starts no program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. lzrprf asks the system before anything is shown whether all of that but the reading is refused. It still reaches the system's services, the clipboard among them.
+#   [C11] Nothing is shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. A check the test could not try there is named in its mark, and then nothing is shown before you said yes to starting without exactly those checks.
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #
 # This file is the whole program. Its parts, in order: the containers, the
@@ -173,7 +173,7 @@ my $FETCH_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -v $((v + ' . $PAGE_ROO
 # starting of any program. No asking the system to open an address, a file
 # or another program for it. No command to another program. No writing of
 # your settings. No asking the system's downloader to fetch for it. No
-# reading under /Users or on another disk, apart from your settings, your
+# signal to any other process. No reading under /Users or on another disk, apart from your settings, your
 # fonts, keyboard layouts and input methods. No file of the application is
 # read: the icon in the Dock is drawn by the lines of "icon" in window_text.
 # What it reads on descriptor 0 and writes on descriptor 1 is its talk with
@@ -194,6 +194,8 @@ my $WINDOW_CONTAINER = <<'END';
 (deny lsopen)
 (deny appleevent-send)
 (deny user-preference-write)
+(deny signal)
+(allow signal (target self))
 (deny mach-lookup (global-name "com.apple.nsurlsessiond"))
 (deny file-read* (subpath "/Users") (subpath "/Volumes") (subpath (param "HOME")) (subpath "/System/Volumes/Data/Users") (subpath "/System/Volumes/Data/Volumes") (subpath (string-append "/System/Volumes/Data" (param "HOME"))))
 (allow file-read*
@@ -324,8 +326,8 @@ sub holds {
 # question is put to the system, by number of the process. Nothing is asked
 # of the process itself. The window's process is asked about in the same
 # way before anything is shown: no to the first three, and no to opening
-# something through the system, to commanding another program and to
-# writing your settings. A system service it may reach.                # [C3]
+# something through the system, to commanding another program, to writing
+# your settings and to a signal. A system service it may reach.        # [C3]
 my $WITNESS = <<'END';
 ObjC.import('Foundation');
 ObjC.bindFunction('sandbox_check', ['int', ['int', 'char *', 'int']]);
@@ -337,7 +339,7 @@ function run() {
         held += $.NSString.alloc.initWithDataEncoding(data, 4).js;
         for (var at; (at = held.indexOf('\n')) >= 0; held = held.slice(at + 1)) {
             var pid = parseInt(held.slice(0, at), 10);
-            var refused = ['network-outbound', 'file-write-create', 'process-fork', 'mach-lookup', 'lsopen', 'appleevent-send', 'user-preference-write'].map(function (what) { return $.sandbox_check(pid, what, 0); });
+            var refused = ['network-outbound', 'file-write-create', 'process-fork', 'mach-lookup', 'lsopen', 'appleevent-send', 'user-preference-write', 'signal'].map(function (what) { return $.sandbox_check(pid, what, 0); });
             to.writeData($(pid + ' ' + refused.join(' ') + '\n').dataUsingEncoding(4));
         }
     }
@@ -347,7 +349,7 @@ my ($witness, $to_witness, $from_witness);
 
 sub inside {                              # true when the system says that this process is contained; it is asked for two seconds, and then the answer is no
     my ($pid, $window) = @_;
-    my $contained = $window ? qr/^\Q$pid\E 1 1 1 [01] 1 1 1\n\z/ : qr/^\Q$pid\E 1 1 1 1 [01] [01] [01]\n\z/;    # the page and fetch containers refuse everything; what the last three say of them is not what holds them
+    my $contained = $window ? qr/^\Q$pid\E 1 1 1 [01] 1 1 1 1\n\z/ : qr/^\Q$pid\E 1 1 1 1 [01] [01] [01] [01]\n\z/;    # the page and fetch containers refuse everything; what the last four say of them is not what holds them
     my $lost = sub {                      # the one that answers did not answer: it is ended, so that no late answer of its is ever read as the answer to a later question
         kill 'KILL', $witness;
         waitpid $witness, 0;
@@ -435,13 +437,13 @@ sub behind {
 
 # The pair. The installer puts the application and lzrprf in place together,
 # and the application's "release" file names the SHA-256 of that lzrprf.
-# When this file is another one, you are asked before anything else, and a
-# question nobody answers quits. An older application names none, and then
-# nothing is asked.
+# When this file is another one, the application does not start: the window
+# says why and what mends it, with one button, Quit, and there is no way on
+# from there. An older application names none, and then nothing is said.
 sub paired {
-    my $pair = (beside())[5];
+    my ($pair) = map { /^lzrprf\s+(\S*)/ ? $1 : () } release_lines();    # read for itself: a file whose other lines are damaged still names its lzrprf
     return if !defined $pair || $pair eq (sum_of($SELF) // '');
-    return if ask("$APP was installed together with another lzrprf than the one running now. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it.", 'Quit', 'Start anyway') == 2;
+    ask("$APP was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it.", 'Quit');    # whatever comes back, the run ends here
     window('quit');
     leave();
 }
@@ -835,10 +837,10 @@ sub fixed {
 # application also names the SHA-256 of the lzrprf it was installed with
 # ("lzrprf"). A program without that file is never checked for a newer one,
 # and is never asked about in a report.
+sub release_lines { open my $in, '<', $PROGRAM =~ m{^(.*\.app)/Contents/MacOS/} ? "$1/Contents/Resources/release" : dirname($PROGRAM) . '/release' or return; return <$in> }
+
 sub beside {
-    my $file = $PROGRAM =~ m{^(.*\.app)/Contents/MacOS/} ? "$1/Contents/Resources/release" : dirname($PROGRAM) . '/release';
-    open my $in, '<', $file or return;
-    my %is = map { /^(release|newest|installer|report|same|lzrprf) (\S+)$/ ? ($1 => $2) : () } <$in>;
+    my %is = map { /^(release|newest|installer|report|same|lzrprf) (\S+)$/ ? ($1 => $2) : () } release_lines();
     return unless ($is{release} // '') =~ /^\d{1,6}$/;
     my ($same) = address($is{same} // '');
     return ($is{release}, (map { my ($url) = address($is{$_} // ''); $url } 'newest', 'report', 'installer'), exists $is{same} ? $same // '' : undef, $is{lzrprf});    # the last: the SHA-256 of the lzrprf the application was installed with, when the file names it. A second place that is named and is no address counts as one that does not agree: nothing is written
@@ -963,7 +965,8 @@ sub hear {                                # the next thing the window says; noth
     return $line;
 }
 
-# A question, in lzrprf's strip of the window, with two buttons. The first
+# A question, in lzrprf's strip of the window, with two buttons, or with one
+# where there is nothing to choose. The first
 # button is always the one that fetches, sends, replaces and keeps nothing, or
 # keeps less, and it is the answer when the time is over; when the window is
 # gone, lzrprf ends instead, and nothing is fetched or sent. Returns 1 or 2.
@@ -1332,7 +1335,14 @@ sub show {
 # mark is the mark of now. So after macOS was updated, or this file or the
 # selftest beside it changed, no page is shown before the attacks were made
 # again. Where no selftest can be read beside this file, there is no mark,
-# and nothing counts as proven.                                          # [C11]
+# and nothing counts as proven.
+# When the test held but could not try every check on this Mac, it writes
+# the mark followed by ", untested: " and the checks it could not try. Such
+# a line counts only after you said yes to starting without exactly those
+# checks, for exactly this mark: the window names them and asks, Quit first,
+# and your yes is kept as that whole line in the file "untested". A yes to
+# another line (other checks, another build, another lzrprf) is not a yes to
+# this one, and the question comes again.                                # [C11]
 # The file of marks holds up to eight lines, one for each copy of lzrprf that
 # was tested on this build of macOS: testing another copy, such as one from
 # the public repository, does not take the proof from the one that is
@@ -1348,8 +1358,31 @@ sub sum_of { open my $in, '<', $_[0] or return; binmode $in; return Digest::SHA-
 
 sub proven {
     my $mark = mark();
-    my $is = sub { open my $in, '<', "$DIR/proven" or return 0; return length $mark && grep { $_ eq "$mark\n" } map { scalar(<$in>) // () } 1 .. 8 };
-    return 1 if $is->();
+    my $is = sub {                        # 'plain' for the mark of now; the line, for the mark of now with the checks that could not be tried; '' for neither
+        sysopen my $in, "$DIR/proven", O_RDONLY | O_NONBLOCK or return '';    # a pipe put in its place is not waited for
+        return '' unless length $mark && -f $in;
+        my @lines = map { scalar(<$in>) // () } 1 .. 8;
+        return 'plain' if grep { $_ eq "$mark\n" } @lines;
+        my ($line) = grep { /^\Q$mark\E, untested: [\x20-\x7e]{1,600}\n\z/ } @lines;    # as selftest writes it: the question shows all of it, so the yes is to nothing unseen
+        return defined $line ? $line =~ s/\n\z//r : '';
+    };
+    my $without = sub {                   # a line that names checks the test could not try counts only after a yes to exactly that line
+        my ($line) = @_;
+        return 1 if $line eq 'plain';
+        my $yes = '';
+        if (sysopen my $in, "$DIR/untested", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) { $yes = (-f $in ? scalar(<$in>) : undef) // '' }    # a plain file and no link; a pipe put in its place is not waited for
+        return 1 if $yes eq "$line\n";
+        my $text = substr($line, length "$mark, untested: ");
+        if (ask("The self-test held on this Mac, but it could not try every check here: $text. What it could not try is not shown to hold on this Mac as it is now. Start $APP without it?", 'Quit', 'Start') != 2) {
+            window('quit');
+            leave();
+        }
+        unlink "$DIR/untested";
+        if (sysopen my $out, "$DIR/untested", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out "$line\n"; close $out }    # when it cannot be kept, the question comes again at the next start
+        return 1;
+    };
+    my $found = $is->();
+    return $without->($found) if length $found;
     my $test = dirname($SELF) . '/selftest';
     if (ask("lzrprf has not been tested on this Mac as it is now: macOS was updated, or lzrprf or its selftest is new. The test attacks lzrprf with a hostile application and takes about half a minute. $APP shows a page only when every attack was held. Test now?", 'Not now', 'Test now') != 2) {
         window('quit');
@@ -1359,7 +1392,8 @@ sub proven {
     my ($report) = -f $test ? said(900, '/usr/bin/perl', $test) : ("there is no selftest beside $SELF\n");
     unlink "$DIR/selftest.txt";
     if (sysopen my $out, "$DIR/selftest.txt", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out $report }
-    return 1 if $is->();
+    $found = $is->();
+    return $without->($found) if length $found;    # the test held: when it could not try every check, the same question is asked before anything is shown
     my @failed = grep { /^(?:FAILED|UNTESTED|selftest:)/ } split /\n/, $report;
     @failed = (split /\n/, $report)[-20 .. -1] unless @failed;
     window('page', 'Pc0', (map { ('T@' . substr(s/\t/   /gr =~ s/[^\x20-\x7e]/?/gr, 0, 300), 'B') } grep { length } @failed[0 .. (@failed > 200 ? 199 : $#failed)]), '.');
