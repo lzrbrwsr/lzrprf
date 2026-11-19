@@ -1,7 +1,7 @@
 now    A test site is built on this computer: no host outside this computer is used.
-now    75 runs of lzrprf, a hostile application in each: all of them are judged below.
+now    83 runs of lzrprf, a hostile application in each: all of them are judged below.
 now    Three runs never end by themselves: lzrprf's limits must end them, after 30 seconds.
-selftest of lzrprf: macOS build 26B123, lzrprf 88b098c2c7162fb740b8dffdb50221267c5e79a64f735262a3423ea0c1776d9d, selftest 30f81358b02728aa2ba70cd74fb633314ff72a4a4f1c912ca666bccc7fb7162a
+selftest of lzrprf: macOS build 26B123, lzrprf b02c2e25749d055a0e1fed0f5cb780786270646d3e9ef6c85315548393cee18b, selftest 19ee3a0326a4c3cc6966f7e6651c8e16c901d5d0728106fbd0769de2ce79c38d
 
 1. The application, in its container. Each attempt was first made outside every container, where it worked.
 works  outside every container: use a file that was open in whoever started lzrprf (open)
@@ -114,8 +114,8 @@ held   fetch container: start a second process (refused)
 held   fetch container: start another program (refused)
 held   fetch container: connect straight to an address outside this computer (refused)
 held   through the one socket it is given, it reaches the one site lzrprf connected for it, and nothing else (echo:hello)
-works  outside every container: the window's text connects, writes a file, starts a program, reads a file in the home folder by its two names and by its number on the disk, reads a file in the temporary folder, lists the folder all users share, writes a setting of what is kept (network=reached file=written program=started home=read data=read number=read temp=read shared=listed system=000000 keep=written)
-held   window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here (network=refused file=refused program=refused home=refused data=refused number=refused temp=read shared=refused system=111111 keep=refused)
+works  outside every container: the window's text connects, writes a file, starts a program, reads a file in the home folder by its two names and by its number on the disk, reads a file in the temporary folder, lists the folder all users share, sends a signal to the self-test's own process, writes a setting of what is kept (network=reached file=written program=started home=read data=read number=read temp=read shared=listed system=000000 signal=allowed keep=written)
+held   window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, send a signal to the self-test's own process, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here (network=refused file=refused program=refused home=refused data=refused number=refused temp=read shared=refused system=111111 signal=refused keep=refused)
 held   the window's process wrote no file, and no setting of what is kept (looked for both)
 
 3. What the application writes to the window: it is checked before the window is given it.
@@ -127,12 +127,12 @@ held   in text, a control code, an invisible mark, a mark that turns the reading
 held   an application that does not read the answer changes nothing (its list was drawn)
 
 4. What a site is sent: by the test site's own record.
-held   the site was asked for what was typed, and for the two fixed addresses after a yes: each once, and nothing else (68 requests)
-held   every request is the address and nothing else: no cookie, no name of a browser, no language, no number of this computer (68 requests, each of the same 4 lines)
+held   the site was asked for what was typed, and for the two fixed addresses after a yes: each once, and nothing else (72 requests)
+held   every request is the address and nothing else: no cookie, no name of a browser, no language, no number of this computer (72 requests, each of the same 4 lines)
 held   "lzrprf request" prints the bytes the site received, byte for byte (180 bytes)
 held   the second request of a run carries nothing of the first: the site set a cookie, and it did not come back (the site sent Set-Cookie: kept=never with every answer)
-held   in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk (56 of 56; 12 more from runs that keep nothing)
-held   the bytes that open the encryption are the same for every request, apart from the random values the protocol requires; no earlier connection is taken up again (68 requests from 75 starts, 312 bytes each)
+held   in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk (60 of 60; 12 more from runs that keep nothing)
+held   the bytes that open the encryption are the same for every request, apart from the random values the protocol requires; no earlier connection is taken up again (72 requests from 83 starts, 312 bytes each)
 held   a site without encryption is sent the opening of an encryption and nothing readable (312 bytes)
 held   and nothing of it is shown (Nothing is shown: no secure connection could be made.)
 held   a certificate that does not prove the host: no request is sent, nothing is shown (Nothing is shown: the certificate does not prove the host.)
@@ -148,7 +148,7 @@ held   a request is four lines: what you typed, your yes, where lzrprf connects,
 held   a log that cannot be written (no permission): nothing is looked up, nothing is fetched (Nothing was fetched: the log could not be written.)
 held   a log that cannot be written (a link that leads elsewhere): nothing is looked up, nothing is fetched (Nothing was fetched: the log could not be written.)
 held   the log is only added to, and has no size at which a line is dropped (30003 lines after 30000)
-held   the log is shown in the window, where a page stands: this window's lines, and under them the last of the log on this computer (Every address lzrprf fetched for perl in this window is below. Kept on this computer until you clear it: full addresses. The log on this computer holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.21619.logkeep/log	Keep the log	Clear the log)
+held   the log is shown in the window, where a page stands: this window's lines, and under them the last of the log on this computer (Every address lzrprf fetched for perl in this window is below. Kept on this computer until you clear it: full addresses. The log on this computer holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.12045.logkeep/log	Keep the log	Clear the log)
 held   the log is cleared by your button, after you were asked twice, and its first line then says so (you cleared the log: it held 3 lines, 0.0 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z)
 held   the log is not cleared while a request is between its first line and its last (The log was not cleared: an address is being fetched right now, or the log could not be written. Nothing was removed.)
 held   nothing kept, as when nobody chose: after a window fetched an address with a path and a query, no file in its folder holds the host, the numeric address, the path or the query; nor in the folder of any other run that keeps nothing (searched every file of 9 folders)
@@ -206,8 +206,16 @@ held   a yes to looking that cannot be kept: the log says so, and nothing is fet
 held   a yes to looking whose line cannot be written is not kept: nothing is fetched, at this start or a later one (no yes kept)
 held   no mark of a test, a mark from another build of macOS, a mark of another lzrprf, a mark made by another selftest, a mark that names no selftest: you are asked to test, and after a no nothing is shown, looked up or fetched (5 starts, 5 questions)
 held   the mark of this build of macOS and this lzrprf, standing after the mark of another copy that was tested here: no question, and the page is shown (one request)
-held   an application whose release file names another lzrprf than the one running: you are asked before anything else, and after a no nothing is shown, looked up or fetched (Test was installed together with another lzrprf than the one running now. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it.	Quit	Start anyway)
+held   a mark of now that names a check the test could not try, and no yes to it: the window names the check and asks, and after Quit nothing is shown, looked up or fetched, and no yes is kept (The self-test held on this Mac, but it could not try every check here: a check (no way to try it here). What it could not try is not shown to hold on this Mac as it is now. Start perl without it?	Quit	Start)
+held   the same mark, and the answer Start: the yes is kept as that whole line, and the page is shown (macOS build 26B123, lzrprf b02c2e25749d055a0e1fed0f5cb780786270646d3e9ef6c85315548393cee18b, selftest 19ee3a0326a4c3cc6966f7e6651c8e16c901d5d0728106fbd0769de2ce79c38d, untested: a check (no way to try it here) )
+held   the same mark, with a yes kept for other checks that could not be tried: that yes is not a yes to this line, the question comes again, and after Quit nothing is shown, looked up or fetched (The self-test held on this Mac, but it could not try every check here: a check (no way to try it here). What it could not try is not shown to hold on this Mac as it is now. Start perl without it?	Quit	Start)
+held   the same mark, with a yes kept for exactly that line: no question, and the page is shown (1 request)
+held   a copy of lzrprf that counts a mark with an untested check without a yes: it asks nothing and fetches, so the runs above would see that weakening (1 request)
+held   an application whose release file names another lzrprf than the one running: before anything else the window says that it does not start, why and what mends it, with one button, Quit; nothing is shown, looked up or fetched (Test was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it.	Quit)
+held   the same, with the answer that once meant "Start anyway": there is no way to start, and nothing is shown, looked up or fetched (Test was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it.	Quit)
+held   a release file that names another lzrprf and is damaged otherwise (no line "release", line ends of another system): it does not start either (Test was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it.	Quit)
 held   an application whose release file names this lzrprf: no question about the pair, and the page is shown (one request)
+held   a copy of lzrprf whose pair check lets a pair that differs start: it says nothing and fetches, so the runs above would see that weakening (1 request)
 
 7. Copies of lzrprf with one condition taken out: the next condition must stop them.
 held   a container that refuses nothing: the tries at the start notice, and nothing is started (The container did not hold on this Mac a moment ago, so perl was not started. Run selftest, which is beside lzrprf, to see what was not refused.)
@@ -246,9 +254,9 @@ held   an address on the internet is seen as sent that way (1.1.1.1 is sent the 
 held   what is typed is sent as typed, or not at all: https only, a host by its name, port 443, no name and password, no space, no control character (29 texts)
 
 11. The time limits.
-held   an application that never stops is ended (after 31 seconds: perl did not show this page: what it wrote is not a page.)
+held   an application that never stops is ended (after 31 seconds: perl did not show this page: it did not finish in time.)
 held   an application that does nothing is ended (after 31 seconds)
 held   a site that never answers is given up on (after 30 seconds)
 
-225 held or worked.
-Nothing failed. lzrprf holds on this Mac as it is now: macOS build 26B123, lzrprf 88b098c2c7162fb740b8dffdb50221267c5e79a64f735262a3423ea0c1776d9d, selftest 30f81358b02728aa2ba70cd74fb633314ff72a4a4f1c912ca666bccc7fb7162a
+233 held or worked.
+Nothing failed. lzrprf holds on this Mac as it is now: macOS build 26B123, lzrprf b02c2e25749d055a0e1fed0f5cb780786270646d3e9ef6c85315548393cee18b, selftest 19ee3a0326a4c3cc6966f7e6651c8e16c901d5d0728106fbd0769de2ce79c38d
