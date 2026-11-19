@@ -12,8 +12,9 @@
 An open container for a closed application. Trust the boundary, not the browser.
 
 lzrprf was written for [LZRBRWSR](https://lzrbrwsr.com), a browser whose source is closed. It
-treats that browser as hostile. The browser gets no network, no file, no window and no service
-of the system. lzrprf owns the one window you see, with its address bar, and does itself the one
+treats that browser as hostile. The browser gets no network, no file of yours, no window and no service
+of the system: it reads the system's own folders and the folder it is installed in, and can
+write no file. lzrprf owns the one window you see, with its address bar, and does itself the one
 thing a browser needs done: fetching the https address **you type into that bar**. So what the
 browser can and cannot do on your computer is decided here, in code anyone can read, and not in
 the browser.
@@ -80,6 +81,8 @@ this repository is proven in this sense, and in no stronger one:
    of `lzrprf` or of the `selftest` beside it, no page is shown before the attacks were made
    again `[C11]`. A run of `selftest` takes the mark of what it tests away at its start and
    writes it again only when nothing failed, so a run that fails takes back an earlier proof.
+   The one module the test uses that is not part of perl itself (`IO::Socket::SSL`) is loaded
+   only after the mark is out.
 
 So a run that held is evidence for the attacks it names, each with its control outside the
 container and, for the seven things named in point 3, the weakened copies it must catch. It is not a proof that
@@ -114,9 +117,11 @@ writes the log and checks what crosses.
 Before the first page, at every start (`sub behind`): macOS is asked whether the window's own
 process is in its container `[C10]`, and lzrprf looks whether `selftest` held on this Mac as it
 is now `[C11]`. Without both, no page is shown. lzrprf also compares its own SHA-256 with the
-line `lzrprf` of the installed app's `release` file, when that file has one (apps before
-release 12 have none); when they differ it says so and does not start: that window has one
-button, Quit (`sub paired`). And when the mark names checks the test could not try on this Mac,
+line `lzrprf` of the installed app's `release` file; when they differ, or when the app names
+no lzrprf at all (apps before release 12 named none), it says so and does not start: that
+window has one button, Quit (`sub paired`, the runs `pairother` and `pairnone` in `selftest`).
+A program that stands in no application and has no `release` file beside it is not asked: the
+installer places no such program, and the launcher starts none. And when the mark names checks the test could not try on this Mac,
 the window names them and asks, and no page is fetched or shown before your yes to exactly those
 (`sub proven`).
 
@@ -245,7 +250,7 @@ application can do the first in part. The second is what the container refuses.
   process (`sysctl.proc_`) and one under `vm.`, exactly as `$CONTAINER` names them; and the
   time, and the folder it is installed in. Not the computer's name, your account's variables,
   your files, the fonts you installed, your time zone, your screen, or other processes.
-- Delivering. It has no way out. No network, no file, no shared memory by the ways the test
+- Delivering. It has no way out. No network, no file to write, no shared memory by the ways the test
   tries, no second process, no window. The one thing that leaves it is the list of lines, and `sub checked` lets through
   only lines that cannot carry an address, a picture or a command `[C9]`. The window that draws
   them has no network `[C10]`.
@@ -283,7 +288,7 @@ and a site can tie your requests together by that address, or by links it made u
 Who could keep a record of where you go?
 
 - The application: it is started fresh for each answer and sees that one page and its address.
-  It can keep nothing between pages (no file, no shared memory by the ways the test tries) and
+  It can keep nothing between pages (no file to write, no shared memory by the ways the test tries) and
   send nothing.
 - lzrprf: unless you chose otherwise, it keeps nothing after the window closes: the lines are
   in the memory of the process behind the window, and gone with it. A log you chose to keep is
@@ -320,7 +325,9 @@ Interfering needs a way to reach them, or a way to starve them.
   (so no window of another program, no key, no clipboard, no event to another program),
   starting a program or a second process, and writing any file. `selftest` tries each.
   They open no device but `/dev/null` and the two that give random numbers: the test opens
-  a device of the terminals (`/dev/ptmx`), outside every container and inside. They read no
+  a device of the terminals (`/dev/ptmx`), outside every container and inside. A file in your
+  home folder is tried by three names: its path, its path through the data volume, and its
+  number on the disk (`/.vol/…`), a name that holds no folder. They read no
   file in your temporary folder, which is outside the home folder: the test puts one there
   and reads it outside every container and inside. And a name in
   the program's own folder that points at a file in your home folder opens nothing in the
@@ -334,7 +341,8 @@ Interfering needs a way to reach them, or a way to starve them.
   That is a test of these five ways, not a proof that no other way to share exists.
 - Starving. A page container gets at most 30 seconds of processor time, counted over all
   processor cores together (`ulimit -t` in `$PAGE_LIMITS`), and is ended after 30 seconds
-  whatever it does. It may create no file and no memory dump. It may write at most 6 MB,
+  whatever it does. It may write no byte into a file (`ulimit -f 0`; making a file is refused
+  by the container) and leave no memory dump. It may write at most 6 MB,
   200000 lines and 2000 boxes; more is not drawn.
 - Memory. The same `/bin/sh` (`$PAGE_LIMITS`) sets, before the container starts, the system's
   own limit on address space (`ulimit -v`) to what that shell itself holds (`ps -o vsz=`) plus
@@ -345,8 +353,9 @@ Interfering needs a way to reach them, or a way to starve them.
   given. The limit counts address space, not memory in use: an application that reserves much
   more than it uses (a large engine does) would need a larger `$PAGE_ROOM`, and with too small
   a one it shows no page.
-  The system's `curl` in the fetch container is started under the same limit
-  (`$FETCH_LIMITS`), and the test asks for the 3 GiB there too.
+  The system's `curl` in the fetch container is started under the same limit on memory, and
+  from release 15 also with at most 30 seconds of processor time, no byte written into a file
+  and no memory dump (`$FETCH_LIMITS`); the test asks for the 3 GiB there too.
   The window's process (the system's `osascript`) has no such cap.
 
 Limit, said plainly: within those limits a hostile application can still load this computer,
@@ -362,7 +371,7 @@ kernel or its sandbox, is outside what lzrprf can refuse.
 The page and fetch containers may read the system's own folders and the application's own
 folder, and write nothing. `selftest` puts a secret in your home folder and tries to read it,
 to learn that it exists, to list the folder, and to reach it by its other path through the data
-volume. It tries to read and change the log, the setting of what is kept (`~/.lzrprf/keep`)
+volume and by its number on the disk (`/.vol/…`). It tries to read and change the log, the setting of what is kept (`~/.lzrprf/keep`)
 and `lzrprf` itself, and to put a setting of its own in its place. Each is refused.
 
 ### Is its safety mathematically proven?
@@ -505,9 +514,19 @@ asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you 
   into the log what Terminal is about to fetch, and then a short file (`sub installer_file`)
   that runs in Terminal, in front of you.
 - That file runs as an ordinary program of your account, outside every container. Before it
-  fetches anything it starts itself again through `env -i` with three variables only (your
-  home folder, the kind of terminal, the system's own `PATH`), so no other variable of your
-  shell reaches its `curl` or the installer. It leaves two things behind: itself (`~/.lzrprf/install.command`,
+  says or fetches anything it looks at what it would hand on to a program it starts, and goes
+  on only when that is nothing but the kind of terminal as one plain word, the system's own
+  `PATH` and names a shell sets for itself, each in its plain shape (`PWD`, `SHLVL`, `_`; zsh
+  also `OLDPWD` and `LOGNAME`); with anything else there, or with a line break or another
+  control character inside one of those values, the file starts itself once more through
+  `env -i` with the first two only. So the `curl` and the installer it starts get no variable
+  of your shell, not a home folder either: the installer reads that from this Mac's list of
+  accounts. No mark says "already clean" that a starter could set (releases before 15 used
+  the number of the process as one): what counts is what is there. `selftest` runs that line
+  with a hostile environment, also with values that carry a second line, and reads what comes
+  after it. What the line cannot see or undo is what `/bin/sh` took in for itself at its own
+  start; the installer's first lines have the same limit, said where they are
+  described below. Its `curl` follows no redirect. It leaves two things behind: itself (`~/.lzrprf/install.command`,
   replaced the next time) and a temporary folder that holds the installer it fetched.
 - It first says where the installer comes from and waits for your Return. Before that it
   fetches nothing, so a press of "Install it" alone reaches no site.
@@ -528,7 +547,8 @@ Where the addresses come from: a plain file, `release`, beside the application
 line and nothing else counts: `release` (a number), `newest` (where the number is published),
 `installer` and `same` (the two places of the installer), `report` (see the next section) and
 `lzrprf` (the SHA-256 of the lzrprf the release installs; an lzrprf of release 12 or later
-compares it with itself at every start, and a `release` file without the line is not compared).
+compares it with itself at every start, and from release 15 an app whose `release` file has no
+such line does not start either).
 Each address must pass `sub address`, the same check as an address you type. The two installer
 addresses are written into the Terminal file between quotes, so `sub installer_file` writes no
 file at all when one of them holds a character that could end a quote; `selftest` tries exactly
@@ -537,12 +557,12 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 14
+    release 15
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
-    lzrprf a8c2f22005f5ee698df10a8e5be5b3708e704d258ed380d372826c5190aadc17
+    lzrprf 7522d036977e8e61670c02c710729948c54284da6493e79a78cf2bec85d7f96d
 
 ## When a page cannot be shown
 
@@ -711,7 +731,7 @@ narrows down who could have sent a report. The question shows the build before y
   and the fetch container is given that one name. Another program of your account could take
   a connection in that moment; see "Your account".
 - **A page process left behind.** If lzrprf is ended by force while a page is laid out, the
-  page process is not ended with it. It stays in its container, with no network and no file,
+  page process is not ended with it. It stays in its container, with no network and no file of yours,
   until it ends, uses up its processor time, or you log out.
 - **An authority added to this Mac.** `curl` trusts the certificate authorities of macOS. One
   that you, an administrator or another program added is trusted like the rest, and whoever
@@ -778,8 +798,8 @@ It shows what a run looks like; the proof for your computer is your own run.
 installer runs from a file and never from a pipe, so that what runs is something you can read
 and check first:
 
-    curl -q -fsSLO https://lzrbrwsr.com/install.sh &&
-    curl -q -fsSL https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&
+    curl -q -fsSO https://lzrbrwsr.com/install.sh &&
+    curl -q -fsS https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | cmp - install.sh &&
     sh install.sh
 
 The first line saves the installer from the site as a file. The second compares that file, byte
@@ -838,7 +858,21 @@ What the two places do not cover:
 - **The three lines themselves.** Most people copy them from the site, and a changed site could
   show other lines. They are printed above, and in the first lines of `install.sh`. What you
   paste must be these.
-- **https.** Both fetches rest on TLS and on macOS's list of certificate authorities.
+- **https.** Both fetches rest on TLS and on macOS's list of certificate authorities: an
+  authority that can speak for both hosts can change both copies on their way to you.
+- **Your shell.** The three lines start `curl` from your shell, with your shell's variables (a
+  proxy, a file of certificates): `-q` keeps curl from a settings file and no more. The same
+  three lines with no variable of your shell:
+
+      /usr/bin/env -i /usr/bin/curl -q -fsSO https://lzrbrwsr.com/install.sh &&
+      /usr/bin/env -i /usr/bin/curl -q -fsS https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh | /usr/bin/cmp - install.sh &&
+      /usr/bin/env -i /bin/sh install.sh
+
+- **`main` moves.** The second line compares with `main` as it is in that moment, which shows
+  that the two places agree now, not that this is the installer somebody read. Whoever read
+  one release keeps two things from that reading: the full hash of the commit, and the
+  SHA-256 of its `install.sh` (`release.txt` at that commit names it). Then
+  `shasum -a 256 install.sh` on the file about to run must print that value.
 - **A release in the making.** For some minutes the two places can differ, and GitHub serves a
   raw file from a cache for up to five minutes. A comparison then stops and nothing is
   installed. Try again later; if it still differs, one place was changed. `main` is what is
@@ -853,10 +887,30 @@ What the installer does, each step readable in the file:
 - Asks, on your terminal, whether to print the whole of itself, and then whether to run: two
   questions, the second whatever you answered to the first. Piped into a shell, or with no
   terminal to ask on, it runs nothing.
-- Needs no password and no `sudo`. It starts itself again at once through `/usr/bin/env -i`
-  with only your home folder (as this Mac's list of accounts gives it), the system's own
-  `PATH` and `TERM`, so no variable of your shell (`PERL5OPT`, `PERL5LIB`, `SSL_CERT_FILE`, …)
-  reaches curl, perl or `selftest`. It fetches over https only, with `/usr/bin/curl -q` (the
+- Needs no password and no `sudo`. Before anything else it looks at what it would hand on to
+  a program it starts, and goes on only when that is your home folder (as this Mac's list of
+  accounts gives it), the system's own `PATH`, the kind of terminal as one plain word, names a
+  shell sets for itself, each in its plain shape (`PWD`, `SHLVL`, `_`; zsh also `OLDPWD` and
+  `LOGNAME`), and nothing else; with anything else there, or with a line break or another
+  control character inside one of those values, it starts itself once more through
+  `/usr/bin/env -i` with the first three (a test keeps its six settings too). So the curl, the
+  perl and the `selftest` it starts get no variable of your shell (`PERL5OPT`, `PERL5LIB`,
+  `SSL_CERT_FILE`, …). No mark says "already clean" that a starter could set (releases before
+  15 used the number of the process as one): what is there is read by a perl that is itself
+  started through `env -i`, and the lines before it name their tools by full path and use
+  words of the shell that no function can give another meaning. What those first lines cannot
+  see or undo is what `/bin/sh` took in for itself at its own start and does not hand on. On
+  macOS `/bin/sh` is bash: it reads `SHELLOPTS` and `PS4`, and with those a command written
+  into `PS4` runs before each of these lines, as the starter's own program. The second start
+  has neither; started as `/usr/bin/env -i /bin/sh install.sh` (see "Your shell" under the
+  three lines), the first has neither as well. Where an administrator made zsh the `/bin/sh`,
+  it reads more for itself: the one found to act (`ARGV0`, the name it gives the programs it
+  starts) is unset at the top, and `IFS` with it. What stays from the starter to the end and
+  is no variable: the current folder, open files, limits, and signals set to be ignored. From
+  a folder whose name holds a control character the installer does not start, and says so.
+  It fetches over https
+  only, with `/usr/bin/curl -q`, and follows no
+  redirect: each file comes from the address written in the installer, or not at all (the
   function `fetch` in `install.sh`).
 - Has six settings for its own test, read from variables of your shell whose names begin
   `LZRBRWSR_` or `LZRPRF_`. They are taken only when every file then comes from this computer
@@ -913,10 +967,10 @@ What the installer does, each step readable in the file:
   next start, when both parts know the line: lzrprf finds its own SHA-256 is not the one the
   app's `release` file names. The lzrprf of release 12 says so and asks, and can be told to
   start anyway; from release 13 on lzrprf says so and does not start, with one button, Quit.
-  An app of
-  release 11 or earlier names no lzrprf, and an lzrprf of release 11 or earlier does not look,
-  so a mixed pair with one of those in it, as an update from release 11 that was cut off
-  would leave, is not noticed. Installing again mends it in every case.
+  An app of release 11 or earlier names no lzrprf: from release 15 on lzrprf does not start
+  such an app either. An lzrprf of release 11 or earlier does not look, so a mixed pair with
+  that older lzrprf in it, as an update from release 11 that was cut off would leave, is not
+  noticed. Installing again mends it in every case.
 - Removes two files an earlier lzrprf kept and this one does not: `~/.lzrprf/rules` and
   `~/.lzrprf/refused`. A log an earlier release wrote is not removed: while nothing is
   kept, the installer says that it is there, and the Log button of the window offers to clear
@@ -960,7 +1014,7 @@ What stands where Apple's notarization would stand, and what does not:
 
 | notarization gives | here |
 | --- | --- |
-| Apple's scan found no known malware in the program. | Nothing is assumed about the program. It runs with no network, no file and no other program, in a container whose every line is in this repository, and that container is attacked on your Mac before a file is put in place (`selftest`) and proves itself again at every start `[C2]`. |
+| Apple's scan found no known malware in the program. | Nothing is assumed about the program. It runs with no network, no file of yours, nowhere to write and no other program, in a container whose every line is in this repository, and that container is attacked on your Mac before a file is put in place (`selftest`) and proves itself again at every start `[C2]`. |
 | The bytes are the ones the maker handed in. | The SHA-256 of the installer, of the download and of each file in it is on public record here (`release.txt`). The installer and the download stand in two places that must agree, and the installer stops on any other byte (`get` in `install.sh`). |
 | A named maker, and a ticket Apple can take back. | Not here. No identity stands behind a release, nothing is signed with a key, and a release cannot be taken back from a Mac it is on: a newer one can only be offered. A signing key of the maker's own, kept away from the computer that builds, would give the first half. It is not built. |
 
@@ -1032,8 +1086,9 @@ what the code and the system make impossible, and how you checked it.
    reach if text it draws took it over? Name every allowance and say whether it is a risk.
    Does the window's container refuse a signal to another process, and what does `selftest`
    send to try it?
-   Under which limits does the closed program run (processor time, memory, files, processes),
-   who sets them, and what happens when one cannot be set?
+   Under which limits do the closed program and curl run (processor time, memory, files,
+   processes), who sets them, and what happens when one cannot be set? By which names does
+   `selftest` try to read a file of the home folder in the page and fetch containers?
 3. The first lines of `lzrprf` list twelve conditions, [C1] to [C12], and each is marked again
    at the line that holds it. For each: is the line there, does it do what the condition says,
    and can you find a way around it?
@@ -1051,8 +1106,10 @@ what the code and the system make impossible, and how you checked it.
    sent without a yes? Is anything piped into a shell? Can lzrprf replace itself or the
    program? What exactly does a report hold, where does it go, and can the closed program
    choose any part of it? What does lzrprf do at its start when the app beside it names
-   another lzrprf than the one that runs (does it start at all?), and with which variables does the file that
-   `sub installer_file` writes run?
+   another lzrprf than the one that runs, or names none (does it start at all?). With which
+   variables does the file that `sub installer_file` writes run, how does its first line
+   decide that, could whoever starts it get another variable past that line, and does its
+   curl follow a redirect?
 7. Read `install.sh` and `release.txt`. Confirm that the installer refuses to run from a pipe,
    asks before it runs, takes no test setting from the shell unless every file comes from this
    computer, fetches lzrprf from this repository at one fixed commit, that the
@@ -1060,9 +1117,11 @@ what the code and the system make impossible, and how you checked it.
    `lzrbrwsr-macos-arm64.tar.gz` here, that it fetches the download from two places and stops
    unless they are the same file, that it runs `selftest` before installing anything, never
    runs the closed program, refuses an older release, asks before it replaces lzrprf, and
-   looks for a newer release in both folders an install can be in, starts itself and the
-   self-test with no variable of my shell but the kind of terminal (the home folder is read
-   from this Mac's list of accounts, the PATH is set by the script), lets one installer of my
+   looks for a newer release in both folders an install can be in, goes on only when its
+   environment holds nothing of my shell but the kind of terminal (the home folder must be
+   the one this Mac's list of accounts gives, the PATH the system's own; read how the first
+   lines decide that, and whether a mark or a variable of whoever starts it could get past
+   them), follows no redirect, lets one installer of my
    account run at a time, puts the
    older app and the older lzrprf back as a pair when it cannot finish, removes nothing older
    when it cannot put everything back and says where it is, and installs nothing else. Read

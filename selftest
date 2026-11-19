@@ -59,7 +59,6 @@ use Socket qw(MSG_PEEK inet_aton);
 use Time::HiRes;
 
 exec '/usr/bin/perl', $0, @ARGV if $^X ne '/usr/bin/perl' && !$ENV{LZRPRF_SELFTEST_PERL}++;    # the system's own perl, which has what the test site needs
-require IO::Socket::SSL;
 
 my $here = dirname(abs_path($0));
 my $lzrprf = "$here/lzrprf";
@@ -81,12 +80,17 @@ flock $alone, LOCK_EX | LOCK_NB or die "selftest: another selftest is running\n"
 # once; then the mark of what is tested is taken out, before anything else
 # can stop the test. Only a test that cannot say what it tests, or that is
 # not the selftest beside lzrprf, stops before that, and then no mark of
-# its own stands to be taken out.
+# its own stands to be taken out. What the test site needs and perl does not
+# bring itself (IO::Socket::SSL) is loaded after the mark is out, so a Mac
+# that lacks it ends with the mark taken out too; the lines "use" above name
+# only what comes with perl itself.
 chomp(my $mark = qx{/usr/bin/perl "$lzrprf" mark} // '');    # what is tested: this build of macOS, this lzrprf, and this selftest
 length $mark or die "selftest: lzrprf could not say what is tested (the build of macOS, its own SHA-256 and that of the selftest beside it)\n";
 my $own = Digest::SHA->new(256)->addfile(abs_path($0))->hexdigest;
 $mark =~ /, selftest \Q$own\E$/ or die "selftest: the selftest beside lzrprf is not this file, so a mark written by this run would name another test. Run the selftest that stands beside lzrprf.\n";
 unmark();                                 # a run that fails must not leave standing the mark an earlier run wrote for this same copy
+require IO::Socket::SSL;
+my ($paired) = $mark =~ /, lzrprf ([0-9a-f]{64}),/ or die "selftest: the mark does not name lzrprf's SHA-256\n";    # the SHA-256 of the lzrprf under test, as the release file of an application names it
 # The file in the home folder that the attacks try to read. It is made here,
 # while the lock is held and before anything of the test is made or started,
 # so a refusal leaves nothing behind. A run that was killed leaves its file:
@@ -231,7 +235,7 @@ my $computer = (POSIX::uname())[1] // '';
 # lines are joined into one, and a comment would take the rest with it.
 my $hostile = <<'END';
 use IO::Socket::IP; use IO::Socket::UNIX; use Socket; use POSIX ();
-my ($port, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $spare) = @ARGV;
+my ($port, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $spare, $numbered) = @ARGV;
 $| = 1; $SIG{PIPE} = 'IGNORE';
 my $address = $ENV{LZRPRF_CONTAINED} // '';
 exit 0 if $part eq 'page' && $address =~ m{/out/quick};
@@ -264,6 +268,7 @@ sub attempts {
     report 'listen for connections', IO::Socket::IP->new(LocalHost => '127.0.0.1', LocalPort => 0, Listen => 1) ? 'listening' : 'refused';
     report 'read a file in the home folder', open(my $in, '<', $secret) ? 'read' : 'refused';
     report 'read the same file by its other path, through the data volume', open(my $by, '<', "/System/Volumes/Data$secret") ? 'read' : 'refused';
+    report 'read the same file by its number on the disk, a name that holds no folder', open(my $number, '<', $numbered // '') ? 'read' : 'refused';
     report 'learn whether a file exists in the home folder', -e $secret ? 'found' : 'hidden';
     report 'list the home folder', opendir(my $dir, $home) ? 'listed' : 'refused';
     report 'list the folder of all users', opendir(my $users, '/System/Volumes/Data/Users') || opendir($users, '/Users') ? 'listed' : 'refused';
@@ -366,7 +371,7 @@ END
 my @attempts = (
     ['use a file that was open in whoever started lzrprf', 'open', 'closed'], ['connect straight to a listener on this computer', 'reached', 'refused'],
     ['look up a name', 'resolved', 'refused'], ['send a datagram', 'sent', 'refused'], ['listen for connections', 'listening', 'refused'],
-    ['read a file in the home folder', 'read', 'refused'], ['read the same file by its other path, through the data volume', 'read', 'refused'],
+    ['read a file in the home folder', 'read', 'refused'], ['read the same file by its other path, through the data volume', 'read', 'refused'], ['read the same file by its number on the disk, a name that holds no folder', 'read', 'refused'],
     ['learn whether a file exists in the home folder', 'found', 'hidden'], ['list the home folder', 'listed', 'refused'], ['list the folder of all users', 'listed', 'refused'],
     ['read the log', 'read', 'refused'], ['change the log', 'opened', 'refused'], ['empty the log', 'opened', 'refused'], ['give the log another name', 'renamed', 'refused'], ['remove the log', 'removed', 'refused'], ['change what is kept', 'opened', 'refused'], ['remove the setting of what is kept', 'removed', 'refused'], ['put a setting of its own in its place', 'written', 'refused'],
     ['change lzrprf itself', 'opened', 'refused'],
@@ -431,7 +436,7 @@ END
 # with the hostile application in it. They run beside each other, and all
 # of them are judged afterwards. What each is for is said where it is judged.
 my (%run, @order, @expected, @kept_open);
-sub hostile_args { my ($folder, $part) = @_; return ($port{echo}, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $temp_file) }
+sub hostile_args { my ($folder, $part) = @_; return ($port{echo}, $secret, $home, $outside, $lzrprf, $folder, $computer, $part, $temp_file, $by_number) }
 sub run_of {
     my ($name, %how) = @_;
     my $folder = "$base.$name";
@@ -452,8 +457,11 @@ sub write_log {                           # a log with this many lines in it, as
     print $out "2026-01-01T00:00:00Z\t1\tyou typed https://earlier.test/$_\n" for 1 .. $lines;
     close $out;
 }
-sub bundle {                              # an application of the test's own, with a file "release" beside it as a maker would put it
+sub pair_line { 'lzrprf ' . Digest::SHA->new(256)->addfile($_[0])->hexdigest }    # the line of a release file that names one copy of lzrprf
+sub bundle {                              # an application of the test's own, with a file "release" beside it as a maker would put it: it names the lzrprf under test, unless the run names another or none
     my ($name, @lines) = @_;
+    push @lines, "lzrprf $paired" unless grep { /^lzrprf / || $_ eq '' } @lines;
+    @lines = grep { $_ ne '' } @lines;    # an empty line in the call stands for "names no lzrprf"
     my $in = "$base.$name" . 'app/Test.app/Contents';
     make_path("$in/MacOS", "$in/Resources");
     system('/bin/cp', '/usr/bin/perl', "$in/MacOS/app") == 0 or die "selftest: cannot copy a program\n";
@@ -567,12 +575,13 @@ run_of('changed', typed => "$t/changed", answer => 'deny', prepare => marked($ma
 run_of('othertest', typed => "$t/othertest", answer => 'deny', prepare => marked($mark =~ s/selftest [0-9a-f]{8}/selftest 00000000/r));
 run_of('notest', typed => "$t/notest", answer => 'deny', prepare => marked($mark =~ s/, selftest [0-9a-f]{64}\z//r));    # a mark as older copies wrote it: the build and lzrprf, and no selftest
 run_of('proved', typed => "$t/proved", fetches => ['/proved'], prepare => marked(($mark =~ s/lzrprf [0-9a-f]{8}/lzrprf 00000000/r) . "\n$mark"));
-my ($paired) = $mark =~ /, lzrprf ([0-9a-f]{64}),/ or die "selftest: the mark does not name lzrprf's SHA-256\n";    # the SHA-256 of the lzrprf under test, as the release file of a newer application names it
+# The pair: an application names the lzrprf it was installed with, and one that names another or none does not start.
 run_of('pairother', app => bundle('pairother', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/pairother", answer => 'deny');    # the application names another lzrprf, and its one button is pressed
 run_of('pairanyway', app => bundle('pairanyway', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/pairanyway", answer => 'allow');    # the same, with the answer that once meant "Start anyway": it starts nothing
 run_of('pairbroken', app => bundle('pairbroken', "lzrprf " . ('0' x 64) . "\r"), typed => "$t/pairbroken", answer => 'allow');    # a release file with no line "release" and line ends of another system: it still names another lzrprf
 run_of('pairsame', app => bundle('pairsame', 'release 3', "lzrprf " . ($paired // '')), typed => "$t/pairsame", fetches => ['/pairsame']);    # the application names this one
-run_of('lostpair', lzrprf => mutant('lostpair', q{    return if !defined $pair || $pair eq (sum_of($SELF) // '');} => '    return;'), app => bundle('lostpair', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/lostpair", fetches => ['/lostpair']);    # a copy of lzrprf whose pair check lets a pair that differs start
+run_of('pairnone', app => bundle('pairnone', 'release 3', ''), typed => "$t/pairnone", answer => 'allow');    # an application whose release file names no lzrprf, as before release 12
+run_of('lostpair', lzrprf => mutant('lostpair', q{    return if defined $pair ? $pair eq (sum_of($SELF) // '') : $PROGRAM !~ m{\.app/Contents/MacOS/} && !-e release_file() && !-l release_file();} => '    return;'), app => bundle('lostpair', 'release 3', 'lzrprf ' . ('0' x 64)), typed => "$t/lostpair", fetches => ['/lostpair']);    # a copy of lzrprf whose pair check lets a pair that differs start
 # A mark that names a check the test could not try: it counts only after a yes to exactly that line, kept in the file "untested".
 my $untested_line = "$mark, untested: a check (no way to try it here)";
 sub said_yes { my ($line) = @_; return sub { open my $out, '>', "$_[0]/untested"; print $out "$line\n" } }
@@ -588,7 +597,8 @@ my $reported_quick = "/report-quick?fault=page&release=3&macos=" . ($build // ''
 my $quick = bundle('quick', 'release 3', "report $t/report-quick");
 system('/bin/cp', '/usr/bin/true', $quick) == 0 or die "selftest: cannot copy a program\n";    # the system's "true" in the application's place: it ends as soon as it is started
 run_of('quick', app => $quick, typed => "$t/out/quick", fetches => ['/out/quick', $reported_quick]);    # an application that ends at once, perhaps before the system was asked whether it is contained
-run_of('lostpage', lzrprf => mutant('lostpage', %{ $lost{page} }), app => bundle('lostpage', 'release 3', "report $t/report"), typed => "$t/lostpage", fetches => ['/lostpage', $reported_container]);
+my $lost_page = mutant('lostpage', %{ $lost{page} });
+run_of('lostpage', lzrprf => $lost_page, app => bundle('lostpage', 'release 3', "report $t/report", pair_line($lost_page)), typed => "$t/lostpage", fetches => ['/lostpage', $reported_container]);
 run_of('lostmemory', lzrprf => mutant('lostmemory', %{ $lost{memory} }), typed => "$t/lostmemory");
 run_of('lostmemoryprobe', lzrprf => mutant('lostmemoryprobe', %{ $lost{memory} }, %{ $lost{probe} }), typed => "$t/lostmemoryprobe", fetches => ['/lostmemoryprobe']);
 my $echo_at = encode_base64(pack('CCna4x8', 16, 2, $port{echo}, inet_aton('127.0.0.1')), '');
@@ -596,7 +606,8 @@ run_of('window', app => bundle('window', 'release 3'), answer => 'ask', keep => 
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
     print $out "var GO = 'site.test/window?q=1', PORT = '$echo_at', FILE = '$site_folder/window.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number', OUTSIDE = '$outside';\n$window_tries$window_test";
 });
-run_of('lostwindow', lzrprf => mutant('lostwindow', "(deny lsopen)\n" => ''), app => bundle('lostwindow', 'release 3'), answer => 'ask', prepare => sub {
+my $lost_window = mutant('lostwindow', "(deny lsopen)\n" => '');
+run_of('lostwindow', lzrprf => $lost_window, app => bundle('lostwindow', 'release 3', pair_line($lost_window)), answer => 'ask', prepare => sub {
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
     print $out "function kind() { return 2; }\nfunction shown() { }\nfunction drawn() { }\nfunction told(word, rest) { if (word == 'busy' && /container/.test(rest)) { say('test closed ' + String(rest).replace(/[^\\x20-\\x7e]/g, '?')); app.terminate(null); } }\n";
 });
@@ -870,14 +881,22 @@ print "\n6. What lzrprf asks you, and what it does without a yes.\n";
 check(last_said('deny') eq 'Nothing is shown: you said no to a host inside your own network.' && !asked('/denied') && (log_of('deny'))[1] eq 'you refused site.test, which is inside your own network (127.0.0.1)', 'a host inside your own network, and a no: nothing is fetched, and the no is in the log', last_said('deny'));
 my @asks = words('upyes', 'ask');
 my $command = slurp("$base.upyes/install.command");
+my ($gate) = $command =~ /^(unset IFS ARGV0; case "\$\{PATH-\}[^\n]*)$/m;    # the one line of the file that is neither a comment nor words: it looks at the environment
+$gate //= 'no such line';
+if (open my $out, '>', "$base.upyes/gate.sh") { print $out "#!/bin/sh\n$gate\n/usr/bin/env\n"; close $out }
+my ($gate_clean, $gate_again) = do { local %ENV = (%ENV, PERL5OPT => '-MNoSuchModule', SSL_CERT_FILE => '/nowhere', HOME => '/nowhere', LZRPRF_CLEAN => $$, TERM => 'two words'); (scalar qx{/bin/sh "$base.upyes/gate.sh" 2>&1}, scalar qx{/bin/sh "$base.upyes/gate.sh" again 2>&1}) };
+my $gate_plain = do { local %ENV = (PATH => '/usr/bin:/bin:/usr/sbin:/sbin', TERM => 'xterm'); scalar qx{/bin/sh "$base.upyes/gate.sh" again 2>&1} };    # nothing but what is allowed: it goes on, also when told it was started again
+my $gate_split = do { local %ENV = (PATH => "/usr/bin:/bin:/usr/sbin:/sbin\nPWD=/x:/nowhere", TERM => "xterm\nSHLVL=7"); scalar qx{/bin/sh "$base.upyes/gate.sh" again 2>&1} };    # the same two names, each value with a line break and a second line that looks like an allowed one
 my $twice_early = slurp("$base.uptwo/install.command");
 check(@asks == 2 && $asks[0] =~ m{^May lzrprf look for a newer release of Test at each start\? It fetches one fixed address, \Q$t\E/latest-yes,} && $asks[1] =~ /^A newer release of Test is published: 7\. You run 3\./ && slurp("$base.upyes/look") eq "yes $t/latest-yes", 'a newer release: you are asked once whether lzrprf may look at each start, and again before anything is installed', scalar(@asks) . ' questions');
 check((log_of('upyes'))[0] eq "you allowed lzrprf to look for a newer release at each start: $t/latest-yes" && (log_of('upyes'))[1] eq "lzrprf looks for a newer release: $t/latest-yes" && asked('/latest-yes') == 1, 'the look is one request for one fixed address, written in the log like every other, and the yes that allows it at each start is a line before it', (log_of('upyes'))[1] // 'nothing');
-check($command =~ m{^/usr/bin/curl -q -fsSL --proto =https -o install\.sh '\Q$t\E/install\.sh' }m && $command =~ /^read answer \|\| exit 1\nexec \/bin\/sh install\.sh\n\z/m && $command !~ /\|\s*(?:\/bin\/)?sh\b/, 'the installer is fetched into a file you can read, its SHA-256 is shown, and it runs after you press Return: nothing is piped into a shell', length($command) . ' bytes written, nothing started');
-check($command =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\[ "\$[{]LZRPRF_CLEAN:-[}]" = "\$\$" \] \|\| exec /usr/bin/env -i HOME="\$HOME" TERM="\$[{]TERM:-dumb[}]" PATH=/usr/bin:/bin:/usr/sbin:/sbin LZRPRF_CLEAN="\$\$" /bin/sh "\$0"\n|echo '[^'\n]*'\n|printf '[^'\n]*'\n)+read answer \|\| exit 1\ncd } && $twice_early =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\[ "\$[{]LZRPRF_CLEAN:-[}]" = "\$\$" \] \|\| exec /usr/bin/env -i HOME="\$HOME" TERM="\$[{]TERM:-dumb[}]" PATH=/usr/bin:/bin:/usr/sbin:/sbin LZRPRF_CLEAN="\$\$" /bin/sh "\$0"\n|echo '[^'\n]*'\n|printf '[^'\n]*'\n)+read answer \|\| exit 1\ncd } && system('/bin/sh', '-n', "$base.upyes/install.command") == 0 && system('/bin/sh', '-n', "$base.uptwo/install.command") == 0, 'the file for Terminal starts itself again with a clean environment, says where the installer comes from and waits for a first Return: before it there is nothing but words, so a press of "Install it" alone fetches nothing', 'words only before the first Return');
+check($command =~ m{^/usr/bin/curl -q -fsS --proto =https -o install\.sh '\Q$t\E/install\.sh' }m && $command !~ /curl[^\n]* -[A-Za-z]*L|--location/ && $command =~ /^read answer \|\| exit 1\nexec \/bin\/sh install\.sh\n\z/m && $command !~ /\|\s*(?:\/bin\/)?sh\b/, 'the installer is fetched into a file you can read, its SHA-256 is shown, and it runs after you press Return: nothing is piped into a shell', length($command) . ' bytes written, nothing started');
+check($command =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\Q$gate\E\n|echo '[^'\n]*'\n|printf '[^'\n]*'\n)+read answer \|\| exit 1\ncd } && $twice_early =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\Q$gate\E\n|echo '[^'\n]*'\n|printf '[^'\n]*'\n)+read answer \|\| exit 1\ncd } && system('/bin/sh', '-n', "$base.upyes/install.command") == 0 && system('/bin/sh', '-n', "$base.uptwo/install.command") == 0, 'the file for Terminal looks at its environment first, says where the installer comes from and waits for a first Return: before it there is nothing but that one line and words, so a press of "Install it" alone fetches nothing', 'words only before the first Return');
+check($gate_clean =~ m{^PATH=/usr/bin:/bin:/usr/sbin:/sbin$}m && $gate_clean =~ /^TERM=dumb$/m && $gate_clean !~ /^(?!PATH=|TERM=|PWD=|SHLVL=|_=|OLDPWD=|LOGNAME=)/m && $gate_clean !~ /PERL5OPT|SSL_CERT_FILE|nowhere|LZRPRF_CLEAN|two words/ && $gate_again =~ /^This file could not be started with only the kind of terminal and the PATH of the system\. Nothing was fetched\.$/ && $gate_again !~ /PATH=/ && $gate_plain =~ /^TERM=xterm$/m && $gate_plain !~ /Nothing was fetched/ && $gate_split =~ /^This file could not be started with only the kind of terminal and the PATH of the system\. Nothing was fetched\.$/ && $gate_split !~ /PATH=|nowhere/,
+    'that one line, run here with a module for perl, a file of certificates, another home folder, the mark of older releases and a kind of terminal in two words in its environment: what runs after it sees the PATH of the system, a plain kind of terminal and what the shell itself sets, and nothing else; told that it was started again already, with the same environment, it stops and fetches nothing; told so with nothing but a plain PATH and kind of terminal, it goes on; told so with a PATH and a kind of terminal that each carry a line break and a second line, it stops', ($gate_clean =~ tr/\n//) . ' variables after the line: ' . join(' ', map { /^([^=]*)=/ ? $1 : '?' } split /\n/, $gate_clean));
 check(!asked('/install.sh'), 'lzrprf itself never fetches the installer', 'the site was not asked for it');
 my $twice = slurp("$base.uptwo/install.command");
-check(asked('/latest-yes?two') == 1 && $twice =~ m{^/usr/bin/curl -q -fsSL --proto =https -o install\.sh '\Q$t\E/install\.sh' .*\n/usr/bin/curl -q -fsSL --proto =https -o second '\Q$t\E/second/install\.sh' \|\| \{ [^\n]*exit 1; \}\n/usr/bin/cmp -s install\.sh second \|\| \{ [^\n]*exit 1; \}\n}m && $twice =~ /^read answer \|\| exit 1\nexec \/bin\/sh install\.sh\n\z/m && index($twice, '/usr/bin/cmp') < rindex($twice, 'read answer') && !asked('/second/install.sh'),
+check(asked('/latest-yes?two') == 1 && $twice =~ m{^/usr/bin/curl -q -fsS --proto =https -o install\.sh '\Q$t\E/install\.sh' .*\n/usr/bin/curl -q -fsS --proto =https -o second '\Q$t\E/second/install\.sh' \|\| \{ [^\n]*exit 1; \}\n/usr/bin/cmp -s install\.sh second \|\| \{ [^\n]*exit 1; \}\n}m && $twice =~ /^read answer \|\| exit 1\nexec \/bin\/sh install\.sh\n\z/m && index($twice, '/usr/bin/cmp') < rindex($twice, 'read answer') && !asked('/second/install.sh'),
     'a release that names a second place for its installer: the file fetches both copies and stops unless they are the same byte for byte, before it asks you to run anything', length($twice) . ' bytes written, nothing started');
 check($command =~ /^echo 'The installer comes from one place: /m && $command !~ /cmp/, 'a release that names one place says so in the file', 'one place');
 check((grep { $_ eq "you chose to install release 7: Terminal fetches the installer from $t/install.sh and from $t/second/install.sh" } log_of('uptwo')) == 1 && (grep { $_ eq "you chose to install release 7: Terminal fetches the installer from $t/install.sh" } log_of('upyes')) == 1, 'what Terminal will fetch after "Install it" is written in the log before the file exists: those fetches are Terminal\'s, not lzrprf\'s, and the log still says that you asked for them', (grep { /^you chose to install/ } log_of('uptwo'))[0] // 'no line');
@@ -914,6 +933,7 @@ my $pair_asks = qr/^Test was installed together with another lzrprf than the one
 check(((words('pairother', 'ask'))[0] // '') =~ $pair_asks && words('pairother', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairother')) && !words('pairother', 'idle') && !page_of('pairother') && !asked('/pairother') && !-s "$base.pairother/log", 'an application whose release file names another lzrprf than the one running: before anything else the window says that it does not start, why and what mends it, with one button, Quit; nothing is shown, looked up or fetched', (words('pairother', 'ask'))[0] // 'no question');
 check(((words('pairanyway', 'ask'))[0] // '') =~ $pair_asks && words('pairanyway', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairanyway')) && !words('pairanyway', 'idle') && !page_of('pairanyway') && !asked('/pairanyway') && !-s "$base.pairanyway/log", 'the same, with the answer that once meant "Start anyway": there is no way to start, and nothing is shown, looked up or fetched', (words('pairanyway', 'ask'))[0] // 'no question');
 check(((words('pairbroken', 'ask'))[0] // '') =~ $pair_asks && words('pairbroken', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairbroken')) && !page_of('pairbroken') && !asked('/pairbroken') && !-s "$base.pairbroken/log", 'a release file that names another lzrprf and is damaged otherwise (no line "release", line ends of another system): it does not start either', (words('pairbroken', 'ask'))[0] // 'no question');
+check(((words('pairnone', 'ask'))[0] // '') =~ /^Test does not say which lzrprf it was installed with, so it does not start\. .* Installing again mends it\.\tQuit$/ && words('pairnone', 'ask') == 1 && grep({ $_->[0] eq 'quit' } told('pairnone')) && !words('pairnone', 'idle') && !page_of('pairnone') && !asked('/pairnone') && !-s "$base.pairnone/log", 'an application whose release file names no lzrprf at all, as before release 12: it does not start either, and nothing is shown, looked up or fetched', (words('pairnone', 'ask'))[0] // 'no question');
 check(!grep({ $_ =~ $pair_asks } words('pairsame', 'ask')) && asked('/pairsame') == 1 && visit('pairsame', "$t/pairsame")->{page}, 'an application whose release file names this lzrprf: no question about the pair, and the page is shown', 'one request');
 check(!grep({ $_ =~ $pair_asks } words('lostpair', 'ask')) && asked('/lostpair') == 1, 'a copy of lzrprf whose pair check lets a pair that differs start: it says nothing and fetches, so the runs above would see that weakening', asked('/lostpair') . ' request');
 

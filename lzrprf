@@ -12,7 +12,7 @@
 #   lzrprf mark                                 this build of macOS, this file and the selftest beside it (each file by its SHA-256), as one line; an empty line when no selftest can be read beside it
 #
 # The application is treated as hostile. It has no window, no network, no
-# file and no service of the system: it is started once for each answer
+# file of yours and no service of the system: it is started once for each answer
 # lzrprf has already fetched, reads that answer, and writes a list of what to
 # draw. lzrprf checks every line of the list and draws it. The window, its
 # address bar, its buttons and its words are lzrprf's, made by the text at the
@@ -114,7 +114,7 @@ sub now { Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) }    # a cl
 # What the operating system allows inside the page container and the fetch
 # container. Every line is an allowance; what is not listed is refused: every
 # network use, writing any file, reading any file outside the system's own
-# folders, starting any other program, starting a second process, signalling
+# folders and the application's own folder, starting any other program, starting a second process, signalling
 # another process, asking another program to open something, every system
 # service (so: no window, no key, no clipboard, no other application), and
 # every fact about the computer that is not in the short list of names below
@@ -150,12 +150,12 @@ my $CONTAINER = <<'END';
 END
 
 # The page container is allowed nothing on top of that. It also gets at most
-# 30 seconds of processor time, may create no file and no memory dump, may
+# 30 seconds of processor time, may write no byte into a file and no memory dump, may
 # take no more memory than the shell that starts it holds plus 2 GiB
 # ($PAGE_ROOM), and is told one thing: the address it lays out. It sees no
 # other variable. Each limit is set before the next step, and a limit the
 # system will not set starts nothing.
-my $PAGE_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -t 30 -f 0 -c 0 && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" "$@"';
+my $PAGE_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -t 30 && ulimit -f 0 && ulimit -c 0 && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" "$@"';
 
 # What curl's container is allowed on top of it: one socket file, behind which
 # lzrprf holds the connection to the site, and the list of certificate
@@ -166,9 +166,11 @@ my $FETCH = <<'END';
 (allow network-outbound (literal (param "WAY")))
 (allow file-read* (literal (param "ROOTS")))
 END
-# curl too may take no more memory than the shell that starts it holds plus
-# 2 GiB, and when the system will not set that limit, curl is not started.
-my $FETCH_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec "$@"';
+# curl too gets at most 30 seconds of processor time, may write no byte into a
+# file and no memory dump, and may take no more memory than the shell that starts it
+# holds plus 2 GiB. When the system will not set one of these limits, curl
+# is not started.
+my $FETCH_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -t 30 && ulimit -f 0 && ulimit -c 0 && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec "$@"';
 
 # The window's container. A window needs the system's services, so this one
 # is written the other way round: what a program of yours may do, without
@@ -429,7 +431,7 @@ sub behind {
     return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
     $UNEXPIRED = !expire_log();           # [C12] the days you chose, at the start of a window; when a request of another window is open just then, it is tried again before each request of this window and each press of Log, until it is done
     newer();
-    idle("$APP is contained: no network, no file, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
+    idle("$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
     while (defined(my $event = hear())) {
         if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { visit($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window
         elsif ($event eq 'log') { log_shown() }
@@ -442,11 +444,15 @@ sub behind {
 # and the application's "release" file names the SHA-256 of that lzrprf.
 # When this file is another one, the application does not start: the window
 # says why and what mends it, with one button, Quit, and there is no way on
-# from there. An older application names none, and then nothing is said.
+# from there. An application whose file names no lzrprf, or that has no such
+# file, does not start either: applications before release 12 named none.
+# Only a program that stands in no application folder and has no "release"
+# file beside it is not asked: the installer puts no such program in place,
+# and the launcher starts none.
 sub paired {
-    my ($pair) = map { /^lzrprf\s+(\S*)/ ? $1 : () } release_lines();    # read for itself: a file whose other lines are damaged still names its lzrprf
-    return if !defined $pair || $pair eq (sum_of($SELF) // '');
-    ask("$APP was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it.", 'Quit');    # whatever comes back, the run ends here
+    my ($pair) = map { /^lzrprf\s+(\S+)/ ? $1 : () } release_lines();    # read for itself: a file whose other lines are damaged still names its lzrprf
+    return if defined $pair ? $pair eq (sum_of($SELF) // '') : $PROGRAM !~ m{\.app/Contents/MacOS/} && !-e release_file() && !-l release_file();
+    ask(defined $pair ? "$APP was installed together with another lzrprf than the one running now, so it does not start. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it." : "$APP does not say which lzrprf it was installed with, so it does not start. The installer puts the two in place as a pair and writes lzrprf's SHA-256 into the application's release file: here that line is missing, as in an application older than release 12 or one that was changed by hand. Installing again mends it.", 'Quit');    # whatever comes back, the run ends here
     window('quit');
     leave();
 }
@@ -847,7 +853,8 @@ sub fixed {
 # application also names the SHA-256 of the lzrprf it was installed with
 # ("lzrprf"). A program without that file is never checked for a newer one,
 # and is never asked about in a report.
-sub release_lines { open my $in, '<', $PROGRAM =~ m{^(.*\.app)/Contents/MacOS/} ? "$1/Contents/Resources/release" : dirname($PROGRAM) . '/release' or return; return <$in> }
+sub release_file { $PROGRAM =~ m{^(.*\.app)/Contents/MacOS/} ? "$1/Contents/Resources/release" : dirname($PROGRAM) . '/release' }
+sub release_lines { open my $in, '<', release_file() or return; return <$in> }
 
 sub beside {
     my %is = map { /^(release|newest|installer|report|same|lzrprf) (\S+)$/ ? ($1 => $2) : () } release_lines();
@@ -911,10 +918,23 @@ sub newer {
 # names a second place for the same installer, it is fetched from both, and
 # it runs only when the two copies are the same byte for byte: somebody who
 # changed the installer in one place would have had to change it in the other
-# too. Before anything else the file starts itself again through env -i, so
-# no variable of the Terminal's (a proxy, a file of certificates) reaches curl
-# or the shell. curl is started with -q, so it reads no settings file of yours that
-# could switch off its checking of the site. lzrprf itself replaces nothing: not the application, and not this
+# too. Before anything else the file looks at what it would hand on to a
+# program it starts, and goes on only when that is nothing but the kind of
+# terminal as one plain word, the system's own PATH and names a shell sets for
+# itself, each in its plain shape (PWD, SHLVL, _; zsh also OLDPWD and
+# LOGNAME): with anything else there, or with a line break or another control
+# character inside one of those values, it starts itself once more through
+# env -i with the first two only. So no variable of the Terminal's (a proxy, a
+# file of certificates, a home folder) reaches the curl or the installer it
+# starts, and no mark says "already clean" that a starter could set. What that
+# line cannot see or undo is what /bin/sh took in for itself at its own start
+# and does not hand on (bash reads SHELLOPTS and PS4: a command in PS4 runs
+# before the line, as the starter's own program; the second start has
+# neither. zsh, where it was made the /bin/sh, reads ARGV0 for itself: the
+# line unsets it, and IFS with it). curl# starter's own program); the second start has neither. curl
+# is started with -q, so it reads no settings file of yours that could switch
+# off its checking of the site, and it follows no redirect: the installer
+# comes from the address you read, or not at all. lzrprf itself replaces nothing: not the application, and not this
 # file. Whatever is replaced is replaced by that installer, in front of you,
 # after it asked.
 sub installer_file {
@@ -922,7 +942,7 @@ sub installer_file {
     my $plain = qr{^https://[A-Za-z0-9./_~%?=&+:-]+$};    # an address stands between quotes in the file below: one that could end the quote is not written at all
     return '' unless $installer =~ $plain && (!defined $same || $same =~ $plain);
     my $twice = defined $same ? <<"END" : "echo 'The installer comes from one place: $installer'\n";
-/usr/bin/curl -q -fsSL --proto =https -o second '$same' || { echo 'The second copy of the installer could not be fetched. Nothing was changed.'; exit 1; }
+/usr/bin/curl -q -fsS --proto =https -o second '$same' || { echo 'The second copy of the installer could not be fetched. Nothing was changed.'; exit 1; }
 /usr/bin/cmp -s install.sh second || { echo 'The two places hold different installers. Nothing was changed.'; echo '  $installer'; echo '  $same'; exit 1; }
 echo 'The installer was fetched from two places, and both hold the same file:'
 echo '  $installer'
@@ -932,13 +952,13 @@ END
     return <<"END";
 #!/bin/sh
 # Written by lzrprf when "Install it" was pressed in its window.
-# It starts itself again at once with only your home folder, the kind of terminal and the system's own PATH, so no other variable of the Terminal's reaches curl or the shell that goes on.
-[ "\${LZRPRF_CLEAN:-}" = "\$\$" ] || exec /usr/bin/env -i HOME="\$HOME" TERM="\${TERM:-dumb}" PATH=/usr/bin:/bin:/usr/sbin:/sbin LZRPRF_CLEAN="\$\$" /bin/sh "\$0"
+# It goes on only when what it would hand on to a program it starts is nothing but the kind of terminal as one plain word, the system's own PATH and names a shell sets for itself (PWD, SHLVL, _; zsh also OLDPWD and LOGNAME). With anything else there, or with a line break or another control character inside one of those values, it starts itself once more through env -i with the first two only, so no variable of the Terminal's reaches the curl or the shell that go on. No mark says "already clean": what counts is what is there, read by a perl that is itself started through env -i. Two names a shell may have read for itself are unset first.
+unset IFS ARGV0; case "\${PATH-}\${TERM-}\${SHLVL-}\${LOGNAME-}\${OLDPWD-}\${PWD-}\${_-}" in *[[:cntrl:]]*) plain= ;; *) plain=one ;; esac; case "\$plain\$(/usr/bin/env | /usr/bin/env -i /usr/bin/perl -e 'my (\$user, \$login, %at) = (scalar(getpwuid(\$<)), scalar(getlogin())); while (defined(my \$line = <STDIN>)) { chomp \$line; next if \$line eq "PATH=/usr/bin:/bin:/usr/sbin:/sbin" || \$line =~ m{^(?:TERM=[A-Za-z0-9._+-]+|SHLVL=[0-9]+|_=/[A-Za-z0-9._/+-]*)\\z}; if (\$line =~ m{^(PWD|OLDPWD)=(/.*)\\z}) { \$at{\$1} = \$2; next } next if grep { defined(\$_) && \$line eq "LOGNAME=\$_" } \$user, \$login; print "other"; exit } print exists \$at{OLDPWD} && \$at{OLDPWD} ne (\$at{PWD} // "") ? "other" : "only"')" in oneonly) ;; *) case "\${1:-}" in again) /bin/echo 'This file could not be started with only the kind of terminal and the PATH of the system. Nothing was fetched.'; exit 1 ;; esac; case "\${TERM:-}" in ''|*[!A-Za-z0-9._+-]*) TERM=dumb ;; esac; exec /usr/bin/env -i TERM="\$TERM" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/sh "\$0" again ;; esac
 echo 'A newer release: its installer would be fetched from'
 ${places}printf 'Press Return to fetch it, or close this window and nothing is fetched. '
 read answer || exit 1
 cd "\$(/usr/bin/mktemp -d)" || exit 1
-/usr/bin/curl -q -fsSL --proto =https -o install.sh '$installer' || { echo 'The installer could not be fetched. Nothing was changed.'; exit 1; }
+/usr/bin/curl -q -fsS --proto =https -o install.sh '$installer' || { echo 'The installer could not be fetched. Nothing was changed.'; exit 1; }
 ${twice}echo "The installer is in this file, to read before it runs: \$PWD/install.sh"
 echo "Its SHA-256: \$(/usr/bin/shasum -a 256 install.sh | /usr/bin/cut -d' ' -f1)"
 printf 'Press Return to run it, or close this window and nothing is changed. '
