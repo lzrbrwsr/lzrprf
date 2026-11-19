@@ -48,8 +48,8 @@
 #      this one does not (rules, refused) are removed;
 #   9. asks whether to put LZRBRWSR in the Dock, and only on a yes adds it and
 #      starts the Dock again so that it shows.
-# Only one installer runs at a time: right after its two questions it takes a
-# lock, the link ~/.lzrprf/.installing, and takes it away when it ends.
+# Only one installer places files at a time: right after its two questions it takes a
+# lock, the link ~/.lzrprf/.installing, and takes it away once the new parts stand at their names.
 # If a step before step 8 fails, what changed is in ~/.lzrprf alone: step 7
 # (the mark, the self-test's lock file) and that folder's rights. It never runs the closed program, asks for no password, reports
 # nothing back, installs no updater and leaves nothing running. LZRBRWSR never
@@ -153,12 +153,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="020fd0bcd801f070c13c9023a8e56e563ad825556a1409e429bee2222f524415"
-RELEASE="17"
-LZRPRF_COMMIT="6e7725dc42f533763911f5f4148e5ce3b6ebc504"
+SHA256="d7b50e13842109bacdaf79798bf0558118272a48caf2a85d3522ea1f83fd8aa3"
+RELEASE="18"
+LZRPRF_COMMIT="848bd4af45fe63874ca7f05f1d027f457452af26"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="201b4968e23e61b20c9706364cc1aee638444f1492ad048d86e158f6b378ecc1"
-SELFTEST_SHA256="8c7c9f6bb6936c43d57442ea78c3deb6c9f7ec08261bb01e8bd10b3cedd3f8fd"
+LZRPRF_SHA256="0f2a298205041dd5b8d58595091c98b34f028da91f9bda83695ba1c89766aa94"
+SELFTEST_SHA256="7fc4fc15ba29806f469548d70183b9e35712bac06e57cf30e3f0271b6a4f4dff"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -279,7 +279,7 @@ if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
 	fi
 fi
 
-# One installer at a time, from here to the end: two of them would each pass the checks below
+# One installer at a time, from here until the files are placed: two of them would each pass the checks below
 # against what the other is about to replace, and each undo the other's renames. The lock is a
 # link and not a file: making a link is one act, and what it points at is its text, so the lock and
 # the name of its holder appear together. The text is this process's number and the moment it
@@ -473,14 +473,14 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 17
+release 18
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
 file lzrbrwsr-bin 8aa6df5bb4c29924782c20c9b7b95e5cc21cd39a2190ac9011d1cda27029307c
-lzrprf 201b4968e23e61b20c9706364cc1aee638444f1492ad048d86e158f6b378ecc1
+lzrprf 0f2a298205041dd5b8d58595091c98b34f028da91f9bda83695ba1c89766aa94
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
