@@ -356,6 +356,21 @@ my $good = "=page other.test third.test\nUd+-\nUd+HTML\t5\nUc-Grid\tLevel 1\nUc-
 my $marks = "a\e[2Jb\tc\x{202e}d\x{200b}e\x{2028}f\x{feff}g\x{e000}h\x00i\x7fj\x{85}k\rl\x{1fffe}m";
 utf8::encode($marks);
 $marks .= "\xf4\x90\x80\x80n";            # the bytes of a number above every character there is
+my ($mark, $ki, $deva) = ("\x{301}", "\x{915}\x{93f}", "\x{915}\x{94d}\x{937}\x{93f} \x{644}\x{627} ");
+my $hung = "=page\nPp0\nT\@a" . $mark x 31 . "b\nT\@c" . $mark x 20 . "\nTA" . $mark x 20 . "d\nB\nT\@" . $mark x 31 . "\nPp0\nT\@\x{915}" . "\x{94d}\x{915}" x 20 . "\n";
+my $long = "=page\nPp0\nT\@" . 'x' x 1001 . "\nT\@" . 'y' x 600 . "\nTA" . 'y' x 600 . " z\nB\nT\@" . $ki x 500 . $mark x 5 . "\x{915}\n";
+my $joined = "=page\nPp0\nT\@" . 'a' x 1000 . $mark x 2 . " z\nB\nT\@" . 'a' x 1000 . $mark . "\nT\@ b\nB\nT\@" . 'a' x 998 . "\x{915}\x{94d}\nT\@\x{915}zz\nB\nT\@" . join("\x{a0}", ('a' x 600) x 3) . "\nB\nT\@a" . ($mark x 29 . "\x{1f3fb}") x 2 . "\nB\nT\@\x{915}" . "\x{94d}\x{93c}\x{915}" x 12 . "\nB\nT\@" . "\x{1100}" x 20 . "\nT\@" . "\x{1100}" x 20 . "\n";
+utf8::encode($_) for $hung, $long, $joined;
+my %heavy = (
+    heavylines => sub { "=page\n" . join('', map { ($_ % 600 ? '' : "Pp0\n") . 'T' . chr(64 + $_ % 16) . 'x' x 30 . "\n" } 0 .. 48_999) },
+    heavyblocks => sub { "=page\n" . "Pp0\nT\@x\n" x 24_999 },
+    heavytext => sub { "=page\n" . ("Pp0\nT\@" . $deva x 2500 . "\n") x 42 },
+    heavymarks => sub { "=page\n" . ("Pp0\nT\@a" . $mark x 19_999 . "\n") x 47 },
+    heavyword => sub { "=page\n" . ("Pp0\nT\@" . $ki x 10_000 . "\n") x 31 },
+    heavyspaced => sub { "=page\n" . ("Pp0\nT\@" . join("\x{a0}", ($ki x 499) x 20) . "\n") x 31 },
+    heavyjoined => sub { "=page\n" . ("Pp0\nT\@a" . ($mark x 29 . "\x{1f3fb}") x 666 . "\n") x 47 },
+    heavymixed => sub { "=page\n" . ("Pp0\nT\@" . "a\x{915}\x{644}\x{1f600}\x{6f22}\x{e01}\x{5d0}\x{ac00}" x 2500 . "\n") x 36 },
+);
 my %list = (
     unknown => "=page\nPp0\nU https://tracker.test/pixel\n",
     script => "=page\nPp0\nT\@x\n<script src=https://tracker.test/x.js>\n",
@@ -368,7 +383,8 @@ my %list = (
     bigbox => "=page\nI641x10\n",
     smallbox => "=page\nI7x10\n",
     otherdigit => "=page\nI64\xd9\xa0x64\n",
-    boxes => "=page\n" . "I8x8\n" x 2001,
+    boxes => "=page\n" . ("Pp0\n" . "I8x8\n" x 3) x 667,
+    boxesfull => "=page\n" . ("Pp0\n" . "I8x8\n" x 4) x 500,
     hosts => "=page" . join('', map { " h$_.test" } 1 .. 201) . "\nPp0\nT\@x\n",
     hostpath => "=page tracker.test/pixel?id=1\nPp0\nT\@x\n",
     hostnumber => "=page 127.0.0.1\nPp0\nT\@x\n",
@@ -378,10 +394,19 @@ my %list = (
     style => "=page\nPz0\nT\@x\n",
     depth => "=page\nPp10\nT\@x\n",
     looks => "=page\nPp0\nTPx\n",
-    many => "=page\n" . "B\n" x 200001,
+    many => "=page\n" . ("Pp0\n" . "T\@x\n" x 9) x 5000 . "B\n",
+    manyfull => "=page\n" . ("Pp0\n" . "T\@x\n" x 9) x 5000,
+    blocklong => "=page\nPp0\n" . ("T\@" . 'word ' x 400 . "\n") x 10 . "T\@x\n",
+    blockbreak => "=page\nPp0\nT\@x\n" . "B\n" x 20_000,
+    blockbox => "=page\nPp0\n" . "I8x8\n" x 50 . "T\@x\n",
+    blockfirst => "=page\n" . "B\n" x 20_001,
+    blockfull => "=page\nPp0\n" . ("T\@" . 'word ' x 400 . "\n") x 10 . "Pp0\n" . "I8x8\n" x 50 . "Pc0\n" . ("T\@" . 'word ' x 399 . "word\nB\n") x 10,
+    hung => $hung,
+    joined => $joined,
+    long => $long,
     noend => "=page\nPp0\nT\@x",
     nothing => '',
-    big => "=page\n" . ("T\@" . 'x' x 1000 . "\n") x 7000,
+    big => "=page\n" . ("T\@" . 'x' x 1000 . "\n") x 2100,
     control => "=page\nPp0\nT\@$marks\n",
     madelate => "=page\nPp0\nT\@x\nUd+HTML\t5\n",
     madekind => "=page\nUz+HTML\t5\n",
@@ -404,7 +429,8 @@ my %list = (
     madeversionspace => "=page\nUd-HTML\t 5\n",
     madefull => "=page\n" . join('', map { sprintf "Ud%s%03d%s\t%s\n", $_ % 2 ? '+' : '-', $_, 'n' x 57, 'v' x 30 } 1 .. 120) . "Pp0\nT\@x\n",
 );
-print exists $list{$kind} ? $list{$kind} : $good;
+if (exists $heavy{$kind}) { my $whole = $heavy{$kind}->(); utf8::encode($whole); print $whole }
+else { print exists $list{$kind} ? $list{$kind} : $good }
 print STDERR "answer\t$address\t", unpack('H*', $answer), "\n" if $part eq 'echo';
 exit 0 if $part ne 'page' || $kind;
 report 'what it is given', -p STDIN ? 'a pipe that holds a finished answer' : 'something else';
@@ -430,7 +456,9 @@ my @attempts = (
     ['start a second process', 'started', 'refused'], ['start another program', 'started', 'refused'],
 );
 my @good = ('Ud+-', "Ud+HTML\t5", "Uc-Grid\tLevel 1", 'Uc-Subgrid', "Ul-A library of the hostile application\t1.2.3", 'P10', 'T@A page by the hostile application', 'Pp0', 'THa link that is only a colour', 'B', 'I200x100', 'Pc1', 'TDfixed');
-my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 bigbox smallbox otherdigit boxes hosts hostpath hostnumber emptytext style depth looks many noend nothing madelate madekind madeorder madename madetwice mademany madelong madeversion madetabs madecontrol madeother madespace madeempty madeflag madesign madetrail madebare madeblank madeversionspace);
+my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 bigbox smallbox otherdigit boxes blocklong blockbreak blockbox blockfirst hosts hostpath hostnumber emptytext style depth looks many noend nothing madelate madekind madeorder madename madetwice mademany madelong madeversion madetabs madecontrol madeother madespace madeempty madeflag madesign madetrail madebare madeblank madeversionspace);
+my @fit = qw(big control noread madefull manyfull boxesfull blockfull hung long joined);    # each is judged by itself below; "big" is the one of them that is not drawn
+my @heavy = qw(heavylines heavyblocks heavytext heavymarks heavyword heavyspaced heavyjoined heavymixed);    # the heaviest pages the limits allow of each kind that was measured slow, drawn by the real window in a run of their own
 my $t = 'https://site.test';
 
 # What a test puts into lzrprf's window, to keep it off the screen, to press
@@ -500,7 +528,7 @@ sub run_of {
     if (defined $keep) { open my $out, '>', "$folder/keep" or die "selftest: cannot write $folder/keep: $!\n"; print $out "$keep\n"; close $out }
     $how{prepare}->($folder) if $how{prepare};
     my @program = ($how{app} // '/usr/bin/perl', '-e', $hostile, hostile_args($folder, $how{part} // 'page'));
-    $run{$name} = { folder => $folder, ends => $how{ends}, command => $how{command} // ['/usr/bin/perl', $how{lzrprf} // $lzrprf, 'try', $folder,
+    $run{$name} = { folder => $folder, ends => $how{ends}, limit => $how{limit}, command => $how{command} // ['/usr/bin/perl', $how{lzrprf} // $lzrprf, 'try', $folder,
         '127.0.0.1:' . $port{ $how{peer} // 'trusted' }, $how{typed} // '-', $how{answer} // 'allow', @program] };
     push @order, $name;
     push @expected, @{ $how{fetches} // [] };
@@ -585,7 +613,7 @@ my $lost_code = mutant('lostcode', qq{(deny file-map-executable)\n} => '');    #
 run_of('lostcode', lzrprf => $lost_code, app => bundle('lostcode', 'release 3', pair_line($lost_code)), typed => "$t/lostcode", fetches => ['/lostcode']);
 run_of('alias', app => bundle('alias', 'release 3'), typed => "$t/alias", fetches => ['/alias']);    # the same program in the page container: its own folder is the one place in your account it may read
 run_of('deny', typed => "$t/denied", answer => 'deny');
-run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, 'big', 'control', 'noread', 'madefull'), fetches => [map { "/out/$_" } @unfit, 'big', 'control', 'noread', 'madefull']);
+run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit), fetches => [map { "/out/$_" } @unfit, @fit]);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large", fetches => ['/elsewhere', '/pieces', '/large']);
 run_of('untrusted', peer => 'untrusted', typed => "$t/untrusted");
 run_of('plain', peer => 'plain', typed => "$t/plain");
@@ -611,7 +639,7 @@ run_of('logbusy', typed => '=log', prepare => sub {
 });
 # What is kept. A run with a path and a query in every address, so that a file holding either is found.
 my $secret_path = 'secret-path?token=sesame';
-my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
+my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', (map { "/out/$_" } @heavy), map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
 run_of('memory', keep => undef, typed => "$t/nothing/$secret_path,,=log", answer => '2', fetches => ["/nothing/$secret_path"]);    # yes to the own network, then nobody answers
 run_of('hosts', keep => 'hosts 30', typed => "$t/hosts/$secret_path,,=log", answer => '2', fetches => ["/hosts/$secret_path"]);
 my %broken = (junk => sub { open my $out, '>', "$_[0]/keep"; print $out "keep everything\n" }, huge => sub { open my $out, '>', "$_[0]/keep"; print $out "all 3651\n" },
@@ -734,7 +762,33 @@ run_of('lostservices', lzrprf => $lost_services, app => bundle('lostservices', '
 });
 run_of('windowoutside', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', "$window_tries function run(argv) { return tries(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]); }", $echo_at, "$site_folder/window.outside", $secret, "$site_folder/keep.outside", $temp_file, $by_number, $outside, $settings_file]);
 
-# All of them, at most eight at a time, each given at most 90 seconds.
+my $heavy_test = <<'END';
+function kind() { return 2; }                // no place in the Dock, no menu bar, never in front
+function shown() { }                         // and the window is never put on the screen
+var at = -1, began = 0, got = '', last = false;
+function plain(text) { return String(text).replace(/[^\x20-\x7e]/g, '?'); }
+function drawn(lines, characters) {
+    var set = Date.now();
+    page.layoutManager.ensureLayoutForTextContainer(page.textContainer);    // every line of the page is set, not only the part a window of this size shows
+    got = 'lines=' + lines + ' characters=' + characters + ' set_ms=' + (set - began) + ' laid_ms=' + (Date.now() - set);
+}
+function told(word, rest) {
+    if (word == 'ask' && !last) return second.performClick(null);    // the test site is on this computer: yes, this once
+    if (word != 'idle' && word != 'ask') return;
+    if (last) { say('test heavylog ' + (Date.now() - began) + ' ms ' + plain(words.stringValue.js).slice(0, 60)); return app.terminate(null); }
+    if (at >= 0) say('test heavy' + at + ' ' + (got || 'not drawn: ' + plain(rest).slice(0, 160)));
+    got = '';
+    began = Date.now();
+    if (++at < GO.length) { bar.stringValue = $(GO[at]); bar.performClick(null); }
+    else { last = true; logs.performClick(null); }    // after the last page a button is pressed: the window still answers
+}
+END
+run_of('heavy', app => bundle('heavy', 'release 3'), answer => 'ask', keep => undef, limit => 150, fetches => [map { "/out/$_" } @heavy], prepare => sub {
+    open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
+    print $out 'var GO = [' . join(', ', map { "'site.test/out/$_'" } @heavy) . "];\n$heavy_test";
+});
+# All of them, at most eight at a time, each given at most 90 seconds; the
+# run of the heaviest pages, which is the last to start, 150.
 my (%pid, @waiting, $said_waiting);
 @waiting = @order;
 print "now    " . @order . " runs of lzrprf, a hostile application in each: all of them are judged below.\n";
@@ -759,7 +813,7 @@ while (@waiting || %pid) {
         @{ $run{$name} }{ 'took', 'ended' } = (Time::HiRes::time() - $run{$name}{began}, $?);
         next;
     }
-    for (grep { Time::HiRes::time() - $run{ $pid{$_} }{began} > 90 } keys %pid) { kill 'KILL', $_ }
+    for (grep { Time::HiRes::time() - $run{ $pid{$_} }{began} > ($run{ $pid{$_} }{limit} // 90) } keys %pid) { kill 'KILL', $_ }
     for my $one (grep { $run{ $pid{$_} }{ends} && !$run{ $pid{$_} }{ended_here} } keys %pid) {    # lzrprf of such a run is killed, by the number this test's own fork gave, once its application said that it sleeps
         $run{ $pid{$one} }{ended_here} = kill 'KILL', $one if err($pid{$one}) =~ /^napping$/m;
     }
@@ -880,7 +934,7 @@ my $shown = visit('page', "$t/selftest?q=1");
 check($shown->{page} && "@{ $shown->{page} }" eq "@good", 'a list of the five kinds of line is passed on as it is, the five things the page is said to be made of first, one of them with a name of one character that is itself a mark', $shown->{page} ? scalar(@{ $shown->{page} }) . ' lines' : 'no page');
 check($shown->{said} eq 'site.test answered 162 bytes. The page names 2 other hosts (other.test, third.test). lzrprf asked none of them.' =~ s/162/length answer_for('')/er, 'the other hosts a page names are said in lzrprf\'s strip, and none of them is asked', $shown->{said});
 my @passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @unfit;
-check(!@passed, 'a list with anything else in it is not drawn at all: an unknown line, a line of lzrprf\'s own talk with the window ("ask", "quit", "address", "."), a line that would choose what is kept, a line of what the window says to lzrprf ("go", "log", a press of a button), a script, a box too large, a box whose size is written in the digits of another script, too many boxes, too many lines, a thing the page is said to be made of that comes after the page began, is of no kind, stands out of the order of the kinds or of the names, stands twice, is one of more than 120, has a name or a version too long, a second tab, a character that is not plain, a space in front or no name, no mark of whether the application supports it or another mark than the two, a space at the end of a name or at either end of a version, a tab with no version, a host that is not a name, bytes that are no text', @passed ? "passed: @passed" : scalar(@unfit) . ' lists, none drawn');
+check(!@passed, 'a list with anything else in it is not drawn at all: an unknown line, a line of lzrprf\'s own talk with the window ("ask", "quit", "address", "."), a line that would choose what is kept, a line of what the window says to lzrprf ("go", "log", a press of a button), a script, a box too large, a box whose size is written in the digits of another script, too many boxes, too many lines, a block that holds more than 20,000 (in text, in line breaks, in boxes and text, or before the first block begins), a thing the page is said to be made of that comes after the page began, is of no kind, stands out of the order of the kinds or of the names, stands twice, is one of more than 120, has a name or a version too long, a second tab, a character that is not plain, a space in front or no name, no mark of whether the application supports it or another mark than the two, a space at the end of a name or at either end of a version, a tab with no version, a host that is not a name, bytes that are no text', @passed ? "passed: @passed" : scalar(@unfit) . ' lists, none drawn');
 my $big = visit('output', "$t/out/big");
 check(!$big->{page} && $big->{said} eq 'perl did not show this page: it wrote more than lzrprf takes.', 'more than lzrprf takes is not drawn', $big->{said});
 my $marked = visit('output', "$t/out/control");
@@ -889,6 +943,19 @@ utf8::encode($clean);
 check($marked->{page} && "@{ $marked->{page} }" eq "Pp0 T\@$clean", 'in text, a control code, an invisible mark, a mark that turns the reading direction, a line break of another kind, a number that is no character and one above every character are each replaced by the replacement mark', $marked->{page} ? '13 characters replaced' : 'no page');
 my $full = visit('output', "$t/out/madefull");
 check($full->{page} && @{ $full->{page} } == 122 && $full->{page}[119] eq 'Ud-120' . 'n' x 57 . "\t" . 'v' x 30 && $full->{page}[0] eq 'Ud+001' . 'n' x 57 . "\t" . 'v' x 30, 'the most that may be said of what a page is made of is passed on: 120 things, each name 60 characters and each version 30, supported or not', $full->{page} ? scalar(@{ $full->{page} }) . ' lines' : $full->{said});
+my ($most_lines, $most_boxes, $block_full) = map { visit('output', "$t/out/$_")->{page} } 'manyfull', 'boxesfull', 'blockfull';
+check($most_lines && @$most_lines == 50_000 && $most_boxes && 2000 == grep({ $_ eq 'I8x8' } @$most_boxes), 'the most lines and the most boxes a page may have are passed on, where one more of either is not drawn: 50,000 lines, 2000 boxes', ($most_lines ? scalar(@$most_lines) : 'no') . ' lines, ' . ($most_boxes ? scalar(grep { $_ eq 'I8x8' } @$most_boxes) : 'no') . ' boxes');
+my @block_full = ('Pp0', ('T@' . 'word ' x 400) x 10, 'Pp0', ('I8x8') x 50, 'Pc0', map { ('T@' . 'word ' x 399 . 'word', 'B') } 1 .. 10);
+check($block_full && "@$block_full" eq "@block_full", 'a block that holds exactly the most is passed on as it is, where one character more is not drawn: 20,000 in text, in boxes that count 400 each, in text and line breaks that count 1 each', $block_full ? scalar(@$block_full) . ' lines' : 'no page');
+my ($accent, $no, $ka, $joins, $gap) = ("\x{301}", "\x{fffd}", "\x{915}", "\x{94d}", "\x{200b}");
+my @unhung = ('Pp0', 'T@a' . $accent x 30 . $no . 'b', 'T@c' . $accent x 20, 'TA' . $accent x 10 . $no . $accent x 9 . 'd', 'B', 'T@' . $accent x 30 . $no, 'Pp0', 'T@' . $ka . "$joins$ka" x 15 . $no . $ka . "$joins$ka" x 4);
+my @parted = ('Pp0', 'T@' . 'x' x 1000 . $gap . 'x', 'T@' . 'y' x 600, 'TA' . 'y' x 399 . $gap . 'y' x 201 . ' z', 'B', 'T@' . "$ka\x{93f}" x 500 . $accent x 5 . $gap . $ka);
+my @joined = ('Pp0', 'T@' . 'a' x 1000 . $accent x 2 . ' z', 'B', 'T@' . 'a' x 1000 . $accent, 'T@ b', 'B', 'T@' . 'a' x 998 . "$ka$joins", "T\@$ka${gap}zz", 'B', 'T@' . 'a' x 600 . "\x{a0}" . 'a' x 399 . $gap . 'a' x 201 . "\x{a0}" . 'a' x 600, 'B', 'T@a' . $accent x 29 . "\x{1f3fb}$no" . $accent x 28 . "\x{1f3fb}", 'B', "T\@$ka" . "$joins\x{93c}$ka" x 10 . "$no\x{93c}$ka$joins\x{93c}$ka", 'B', 'T@' . "\x{1100}" x 20, 'T@' . "\x{1100}" x 11 . $no . "\x{1100}" x 8);
+utf8::encode($_) for @unhung, @parted, @joined;
+my ($hung, $long, $joined) = map { visit('output', "$t/out/$_")->{page} } 'hung', 'long', 'joined';
+check($hung && "@$hung" eq "@unhung", 'in text, no more than 30 characters in a row hang on the one before them: the 31st mark on a letter, and the 31st in a chain of letters joined by a joining sign, becomes the replacement mark, and the row is counted over the end of a line of text and begins again after a line break', $hung ? scalar(@$hung) . ' lines, 4 characters replaced' : 'no page');
+check($long && "@$long" eq "@parted", 'in text, no more than 1000 characters stand in a row with no white space: there lzrprf puts in a space of no width, after the marks that hang on the last letter, and a word is counted over the end of a line of text', $long ? scalar(@$long) . ' lines, 3 spaces of no width put in' : 'no page');
+check($joined && "@$joined" eq "@joined", 'what hangs on a letter is more than marks, and a space that does not break is no place to end a line: the 31st of marks and joining characters of other kinds in turn, of a chain joined by a sign and a dot, of Hangul initials over two lines of text, becomes the replacement mark; no space of no width is put among the marks that end a word, at the end of a line of text or before a space, nor between a joining sign and the letter it joins on the next line; words parted only by no-break spaces get it as one word does', $joined ? scalar(@$joined) . ' lines' : 'no page');
 my $unread = visit('output', "$t/out/noread");
 check($unread->{page} && "@{ $unread->{page} }" eq "@good", 'an application that does not read the answer changes nothing', $unread->{page} ? 'its list was drawn' : 'no page');
 
@@ -1127,6 +1194,9 @@ check(asked('/window?q=1') == 1 && (asked('/window?q=1'))[0]{bytes} eq request_f
 check(($at{made} // '') eq 'What Test says this page is made of: 5 things, 2 of them supported by Test itself, as it says. lzrprf checked the form of this list, not whether it is true.?Document?-   supported by Test: true??HTML 5   supported by Test: true?CSS?Grid Level 1   supported by Test: false??Subgrid   supported by Test: false?Libraries?A library of the hostile application 1.2.3   supported by Test: false', 'under the page the same window lists what the application says the page is made of, a row for each thing under the name of its kind: its name, its version, and true or false for whether the application says it supports it; and it says that lzrprf checked the form only', $at{made} // 'nothing came of it');
 check(($at{logmade} // '') eq 'Here Test lists what it says a page is made of. Nothing is listed for what is shown now.', 'when the log stands where the page stood, that list is empty and says so', $at{logmade} // 'nothing came of it');
 check(($at{log} // '') =~ m{^Every address lzrprf fetched for \S+ in this window is below\. Nothing is kept after this window closes\. To keep a log, type in Terminal: perl \S+ keep hosts\. No button of this window makes lzrprf keep more\.\|This window.*you typed \Q$t\E/window\?q=1}, 'the log is shown in the same window: this window\'s lines, with nothing kept on the disk and no question that keeps anything', substr($at{log} // 'nothing came of it', 0, 80));
+my %heavy_at = map { /^test (heavy\w+) (.*)$/ ? ($1 => $2) : () } split /\n/, out('heavy') . err('heavy');
+my @heavy_ms = map { ($heavy_at{"heavy$_"} // '') =~ /^lines=\d+ characters=\d+ set_ms=(\d+) laid_ms=(\d+)$/ ? $1 + $2 : undef } 0 .. $#heavy;
+check(!grep({ !defined || $_ >= 30_000 } @heavy_ms) && ($heavy_at{heavylog} // '') =~ /^\d+ ms Every address lzrprf fetched/, 'the heaviest pages the limits allow of each kind that was measured slow are each fetched, checked, drawn by the real window and set to their last line in under 30 seconds on this Mac, and the window answers a press after them: the most lines, the most blocks, and full blocks of text in two other scripts, of marks on one letter, of one word, of words parted by no-break spaces, of marks and joining characters of another kind in turn, of eight scripts in turn', join(', ', map { "$heavy[$_] " . (defined $heavy_ms[$_] ? "$heavy_ms[$_] ms" : $heavy_at{"heavy$_"} // 'nothing came of it') } 0 .. $#heavy));
 
 # 9. The text of lzrprf itself.                               [C1] [C6]
 print "\n9. The text of lzrprf, read by the test.\n";
@@ -1155,7 +1225,7 @@ my $readme = slurp("$here/README.md");
 if (length $readme) {
     my %cited = map { $_ => 1 } $readme =~ /\[(C\d+)\]/g;
     check(join(' ', sort keys %cited) eq join(' ', sort keys %marks), 'the README cites the same conditions, all of them and no other', scalar(keys %cited) . ' cited');
-    my @numbers = map { $text_of_lzrprf =~ /^my \$$_->[0] = ([\d_ *]+);/m ? [eval($1 =~ s/_//gr), $_->[1]] : [0, $_->[1]] } ['FETCH_SECONDS', '%d seconds'], ['PAGE_SECONDS', '%d seconds'], ['FETCH_BYTES', '%d MB'], ['PIECES', '%d lines'], ['BOXES', '%d boxes'], ['ANSWER_SECONDS', '%d minutes'], ['FOUND', '%d addresses'];
+    my @numbers = map { $text_of_lzrprf =~ /^my \$$_->[0] = ([\d_ *]+);/m ? [eval($1 =~ s/_//gr), $_->[1]] : [0, $_->[1]] } ['FETCH_SECONDS', '%d seconds'], ['PAGE_SECONDS', '%d seconds'], ['FETCH_BYTES', '%d MB'], ['PAGE_BYTES', '%d MB'], ['PIECES', '%d lines'], ['BOXES', '%d boxes'], ['BLOCK', '%d characters in a block'], ['HUNG', '%d characters in a row'], ['WORD', '%d characters with no white space'], ['ANSWER_SECONDS', '%d minutes'], ['FOUND', '%d addresses'];
     my @unsaid = grep { index($readme, $_) < 0 } map { my ($n, $how) = @$_; sprintf $how, $how =~ /MB/ ? $n / 1048576 : $how =~ /minutes/ ? $n / 60 : $n } @numbers;
     check(!@unsaid, 'the numbers the README states are the numbers in lzrprf', @unsaid ? "not in the README: @unsaid" : scalar(@numbers) . ' numbers');
     my @named = grep { $text_of_lzrprf !~ /^sub \Q$_\E\b/m } $readme =~ /\bsub (\w+)/g;
