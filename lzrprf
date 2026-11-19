@@ -36,10 +36,10 @@
 #   [C4]  A request is made only for an address that came from the window's bar, or for one of two fixed addresses after you said yes. There is no third way to a request.
 #   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
 #   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
-#   [C7]  What a site is sent is made from the address alone: the same bytes from every computer, with nothing kept from an earlier request.
+#   [C7]  What a site is sent is made from the address alone: the same request from every computer, byte for byte, with nothing kept from an earlier request.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of four kinds of line is not drawn at all.
-#   [C10] The window's process has no network of its own, writes no file, starts no program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. lzrprf asks the system before anything is shown whether all of that but the reading is refused. It still reaches the system's services, the clipboard among them.
+#   [C10] The window's process has no network of its own, writes no file, starts no other program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, lzrprf asks the system about seven operations of that process (connecting out, creating a file, starting a second process, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of that container's text is not asked about, and selftest makes its own tries from the real window. It still reaches the system's services, the clipboard among them.
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #
@@ -189,7 +189,7 @@ my $FETCH_LIMITS = 'limit() { ulimit -S "$@" && ulimit -H "$@"; } && v=$(/bin/ps
 # The window's container. A window needs the system's services, so this one
 # is written the other way round: what a program of yours may do, without
 # the things below. No network of any kind. No writing of any file. No
-# starting of any program. No asking the system to open an address, a file
+# starting of any program but the one it is, in this same container. No asking the system to open an address, a file
 # or another program for it. No command to another program. No writing of
 # your settings. No asking the system's downloader to fetch for it. No
 # signal to any other process. No reading under /Users or on another disk, apart from your settings, your
@@ -344,7 +344,7 @@ sub holds {
 # a page container the site's answer, curl the connection to the site. The
 # question is put to the system, by number of the process. Nothing is asked
 # of the process itself. The window's process is asked about in the same
-# way before anything is shown: no to the first three, and no to opening
+# way before it takes an address: no to the first three, and no to opening
 # something through the system, to commanding another program, to writing
 # your settings and to a signal. A system service it may reach.        # [C3]
 my $WITNESS = <<'END';
@@ -964,7 +964,7 @@ sub beside {
 # yes does not count for it and you are asked again. With a yes, lzrprf fetches
 # one fixed address at each start, where the newest release number is
 # published and nothing else. The request holds what "request" above holds:
-# the same bytes from every computer, so it says nothing about you or about
+# the same request from every computer, so it says nothing about you or about
 # which release you run, and it is written in the log like any other. When
 # the number there is larger than the one beside the program, the window says
 # so and offers the installer. The installer then runs in Terminal, in front
@@ -976,7 +976,7 @@ sub newer {
     if (open my $in, '<', "$DIR/look") { $may = <$in> // '' }
     $may = $may eq "yes $newest" ? 'yes' : $may =~ /^no\b/ ? 'no' : '';    # a yes for another address is no yes for this one; a no stays a no
     if (!$may) {
-        $may = ask("May lzrprf look for a newer release of $APP at each start? It fetches one fixed address, $newest, with the same bytes from every computer, and writes it in the log like every other. It tells nobody who you are or what you read.", 'No', 'Yes, look') == 2 ? 'yes' : 'no';
+        $may = ask("May lzrprf look for a newer release of $APP at each start? It fetches one fixed address, $newest, with the same request from every computer, and writes it in the log like every other. The request does not say who you are or what you read; the host of that address sees your internet address, as every site does.", 'No', 'Yes, look') == 2 ? 'yes' : 'no';
         unlink "$DIR/look";
         my $kept = record($may eq 'yes' ? "you allowed lzrprf to look for a newer release at each start: $newest" : 'no newer release is looked for: the question was answered no, or not at all');    # an answer that lasts is a line first, like a change of what is kept: without its line it is not kept
         my $out;
@@ -1521,7 +1521,7 @@ sub proven {
     unlink "$DIR/selftest.txt";
     if (sysopen my $out, "$DIR/selftest.txt", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out $report }
     $found = $is->();
-    return $without->($found) if length $found;    # the test held: when it could not try every check, the same question is asked before anything is shown
+    return $without->($found) if length $found;    # the test held: when it could not try every check, the same question is asked before an address is taken
     my @failed = grep { /^(?:FAILED|UNTESTED|selftest:)/ } split /\n/, $report;
     @failed = (split /\n/, $report)[-20 .. -1] unless @failed;
     window('page', 'Pc0', (map { ('T@' . substr(s/\t/   /gr =~ s/[^\x20-\x7e]/?/gr, 0, 300), 'B') } grep { length } @failed[0 .. (@failed > 200 ? 199 : $#failed)]), '.');
