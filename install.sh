@@ -41,13 +41,17 @@
 #      Both new parts are first written whole beside the ones they replace and
 #      checked there; then they take their names by renames, back to back, and
 #      if one fails or Ctrl-C comes, the older app and the older lzrprf are put
-#      back as a pair. Only a power failure in that second can leave a mixed
-#      pair, which installing again mends. Two files an earlier lzrprf kept and
+#      back as a pair. An older part that cannot be put back is never removed:
+#      it is kept, and the installer says where it is and that the pair is not
+#      whole. A power failure or a kill in that second can also leave a mixed
+#      pair. Installing again mends it. Two files an earlier lzrprf kept and
 #      this one does not (rules, refused) are removed;
 #   9. asks whether to put LZRBRWSR in the Dock, and only on a yes adds it and
 #      starts the Dock again so that it shows.
-# If a step before step 8 fails, the only thing that changed is the mark of
-# step 7. It never runs the closed program, asks for no password, reports
+# Only one installer runs at a time: right after its two questions it takes a
+# lock, the link ~/.lzrprf/.installing, and takes it away when it ends.
+# If a step before step 8 fails, what changed is in ~/.lzrprf alone: step 7
+# (the mark, the self-test's lock file) and that folder's rights. It never runs the closed program, asks for no password, reports
 # nothing back, installs no updater and leaves nothing running. LZRBRWSR never
 # updates itself: when you allowed it, lzrprf looks whether a newer release is
 # published, and offers to fetch that release's installer into a file and run
@@ -107,12 +111,12 @@ unset LZRBRWSR_CLEAN
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="3ce3d26ba8c2c947ac3227aea41748cd60547ac757b084206128cda02f80d529"
-RELEASE="11"
-LZRPRF_COMMIT="041dd402de4522d4ac4ee6948e44302fb471d3c8"
+SHA256="ca4357a5b921da7b64396cf4d945c575eb4362be8ae3f462826d8b305b524030"
+RELEASE="12"
+LZRPRF_COMMIT="d0de09ee5882d1175ffa71fb34647656747c8f16"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="c914f6c472a826467e7dd2fd7bab3a5d2831ec1e484d43dbe5128dcd87ddd1e0"
-SELFTEST_SHA256="4e93abb431d01c62407378f5d153a3ac8901858248eb4a464b5e1e164e20dfb1"
+LZRPRF_SHA256="88b098c2c7162fb740b8dffdb50221267c5e79a64f735262a3423ea0c1776d9d"
+SELFTEST_SHA256="30f81358b02728aa2ba70cd74fb633314ff72a4a4f1c912ca666bccc7fb7162a"
 
 # Outside the tests, files come over https and nothing else, also when an
 # address sends on to another. In a test they come from files on this computer
@@ -233,6 +237,61 @@ if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
 	fi
 fi
 
+# One installer at a time, from here to the end: two of them would each pass the checks below
+# against what the other is about to replace, and each undo the other's renames. The lock is a
+# link and not a file: making a link is one act, and what it points at is its text, so the lock and
+# the name of its holder appear together. The text is this process's number and the moment it
+# started, as the system says it (ps), so a later process that was given the same number is not
+# taken for the holder.
+# A lock whose holder is gone was left by an installer that was killed. It is taken away only by
+# the installer that first makes a second link beside it (.installing.over), so two installers that
+# find the same dead lock cannot take each other's new lock away.
+lock="$HOME/.lzrprf/.installing" locked=""
+started() { LC_ALL=C TZ=UTC /bin/ps -o lstart= -p "$1" 2>/dev/null || true; }	# in one zone and one language, so it reads the same when the Mac's are changed
+lives() {	# lives <text of a lock>: is the process that wrote it still running, and still that process?
+	case "${1%% *}" in '' | *[!0-9]*) return 1 ;; esac
+	[ -n "$(started "${1%% *}")" ] && [ "${1%% *} $(started "${1%% *}")" = "$1" ]
+}
+take_lock() {
+	[ -n "$(started "$$")" ] || stop "this Mac did not say when this process started (ps), so the installer cannot mark its lock as its own."
+	me="$$ $(started "$$")"
+	[ ! -e "$lock" ] || stop "$lock is not a lock of this installer. Look at it, move it away, and run this again."
+	if ! ln -s "$me" "$lock" 2>/dev/null; then
+		if [ ! -L "$lock" ]; then	# no lock stands: an installer that just ended took the folder it had made away
+			[ -d "$HOME/.lzrprf" ] || made=1
+			mkdir -p "$HOME/.lzrprf" && ln -s "$me" "$lock" 2>/dev/null || stop "the lock $lock could not be made. Run this again."
+			locked=1
+			return 0
+		fi
+		held="$(readlink "$lock" 2>/dev/null || true)"
+		! lives "$held" || stop "another installer of LZRBRWSR is running on this Mac (process ${held%% *}). When it has ended, run this one again."
+		ln -s "$me" "$lock.over" 2>/dev/null || stop "another installer is taking over the lock of one that was killed, or was killed itself while it did. If no installer is running, remove $lock.over and run this one again."
+		[ "$(readlink "$lock" 2>/dev/null || true)" != "$held" ] || rm -f "$lock"
+		if ln -s "$me" "$lock" 2>/dev/null; then
+			rm -f "$lock.over"
+		else
+			rm -f "$lock.over"
+			stop "another installer took the lock first. When it has ended, run this one again."
+		fi
+	fi
+	locked=1
+}
+unlock() {	# takes the lock away when it is this process's own
+	[ -z "$locked" ] || [ "$(readlink "$lock" 2>/dev/null || true)" != "$me" ] || rm -f "$lock"
+	locked=""
+}
+# (the end of the lock's own lines)
+# lzrprf's folder is made here when this Mac has none, for the lock to stand in. An installer that
+# stops before it installs anything takes the folder away again, when it made it and it is empty.
+made=""
+[ -d "$HOME/.lzrprf" ] || made=1
+mkdir -p "$HOME/.lzrprf"
+tmp="" me=""
+trap 'unlock; [ -z "$tmp" ] || rm -rf "$tmp"; [ -z "$made" ] || rmdir "$HOME/.lzrprf" 2>/dev/null || true' EXIT
+trap 'exit 130' INT TERM HUP QUIT
+take_lock
+chmod 700 "$HOME/.lzrprf"
+
 # Where the app goes: Applications, or your own Applications folder when that one is not yours to
 # write. LZRBRWSR_DEST names another folder, for tests.
 dest="${LZRBRWSR_DEST:-/Applications}"
@@ -253,7 +312,6 @@ for folder in "${LZRBRWSR_DEST:-/Applications}" "$HOME/Applications"; do
 done
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
 
 # get <address> <file> <checksum> <what it is>
 get() {
@@ -353,19 +411,22 @@ cat >"$tmp/plist" <<'PLIST'
 </plist>
 PLIST
 cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "the app's property list is not the one written out in the installer."
-# The release file is what lzrprf reads beside the program: the number of this release, and four
-# fixed addresses. This is all of it. "newest" is the one address lzrprf fetches by itself, and only
+# The release file is what lzrprf reads beside the program: the number of this release, four fixed
+# addresses, and the SHA-256 of the lzrprf this app is installed with, which lzrprf compares with
+# itself at every start. This is all of it. "newest" is the one address lzrprf fetches by itself, and only
 # after you said yes in its window. "installer" and "same" are the two places a newer release's
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 11
+release 12
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
+lzrprf 88b098c2c7162fb740b8dffdb50221267c5e79a64f735262a3423ea0c1776d9d
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
+grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
 step "the icon runs one thing: lzrprf, and inside it LZRBRWSR (release $RELEASE)"
 
 # lzrprf is what holds LZRBRWSR in. A release of the browser never changes its own container
@@ -417,7 +478,7 @@ step "Validating the safety of lzrprf on this computer, about half a minute"
 /usr/bin/perl "$tmp/selftest" >"$tmp/selftest.out" 2>&1 &
 testing=$!
 # Stopped with Ctrl-C: the test is told, and it ends every process it started and takes its files away.
-trap 'kill "$testing" 2>/dev/null || true; wait "$testing" 2>/dev/null || true; exit 130' INT TERM HUP
+trap 'kill "$testing" 2>/dev/null || true; wait "$testing" 2>/dev/null || true; exit 130' INT TERM HUP QUIT
 printed=0 frame=0 began="$(date +%s)"
 while kill -0 "$testing" 2>/dev/null; do
 	seconds="$(($(date +%s) - began))"
@@ -434,7 +495,7 @@ while kill -0 "$testing" 2>/dev/null; do
 	fi
 done
 if wait "$testing"; then held=yes; else held=no; fi
-trap - INT TERM HUP
+trap 'exit 130' INT TERM HUP QUIT
 shown "$printed" 0 0 1 || true
 if [ "$held" = yes ]; then
 	untested="$(grep -c '^UNTESTED' "$tmp/selftest.out" || true)"
@@ -459,53 +520,119 @@ chmod 755 "$tmp/unpacked/LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin" "$tmp/unpacke
 # back; if one fails, or Ctrl-C comes, every rename done is undone and the older app and the older
 # lzrprf are back as a pair. Only when all stand are the older ones removed.
 #
-# What a script cannot do: make renames in two folders one act. If the power fails between them, the
-# computer can start with the new app and the older lzrprf, or the other way round, or with the app
-# still aside in a hidden folder .LZRBRWSR.* in the same folder as the app. Nothing at the start
-# notices that: the icon checks only that lzrprf is there, and lzrprf reads the app's release file
-# only for its number. Running this installer again puts a matching pair in place.
+# What a script cannot do: make renames in two folders one act. If the power fails between them, or
+# the installer is killed outright, the computer can be left with the new app and the older lzrprf,
+# or the other way round, or with the app still aside in a hidden folder .LZRBRWSR.* in the same
+# folder as the app. From this release on lzrprf notices a pair that does not belong together at
+# its next start: the app's release file names the SHA-256 of the lzrprf it was installed with,
+# lzrprf compares that with itself, says so and asks. That needs an app and an lzrprf that both
+# know the line: an app of release 11 or earlier names no lzrprf, and an lzrprf of release 11 or
+# earlier does not look. Running this installer again puts a matching pair in place.
 [ "$(sum "$tmp/lzrprf")" = "$LZRPRF_SHA256" ] && [ "$(sum "$tmp/selftest")" = "$SELFTEST_SHA256" ] || stop "lzrprf changed while it was being installed."
-mkdir -p "$HOME/.lzrprf" "$dest"
-chmod 700 "$HOME/.lzrprf"
-# What an install that was killed left in lzrprf's folder (new files that never got their names, and
-# second names of the installed ones) is removed. The same in the app's folder is not touched: a
-# hidden folder .LZRBRWSR.* there can hold the older app, whole.
-rm -rf "$HOME/.lzrprf"/.new.????????
+for part in lzrprf selftest; do
+	if [ -L "$HOME/.lzrprf/$part" ] || { [ -e "$HOME/.lzrprf/$part" ] && [ ! -f "$HOME/.lzrprf/$part" ]; }; then
+		stop "$HOME/.lzrprf/$part is not a plain file, and lzrprf and its self-test are plain files. Look at what stands there, move it away, and run this again."
+	fi
+done
+mkdir -p "$dest"
+# What an earlier install left behind. This runs under the lock, so no folder of a running installer
+# is among them. In lzrprf's folder: new files that never got their names, and second names of the
+# installed ones, are removed. A folder that holds an older lzrprf or selftest which is NOT the
+# installed one is the only copy of it, and stays: it is named, every time, until you remove it.
+# In the app's folder nothing with a file in it is removed: a hidden folder .LZRBRWSR.* there can
+# hold the older app, whole. It is named; an empty one is removed.
+for left in "$HOME/.lzrprf"/.new.????????; do
+	[ -d "$left" ] || continue
+	only=""
+	for part in lzrprf selftest; do
+		[ ! -e "$left/old.$part" ] || cmp -s "$left/old.$part" "$HOME/.lzrprf/$part" || only=1
+	done
+	if [ -n "$only" ]; then
+		step "an older lzrprf is kept in: $left"
+		step "an earlier install could not put it back, or was killed just after the new one was in place; remove that folder by hand when you do not need it"
+	else
+		rm -rf "$left" || step "what an earlier install left could not be removed: $left"
+	fi
+done
+for left in "$dest"/.LZRBRWSR.????????; do
+	[ -d "$left" ] && [ ! -L "$left" ] || continue
+	if rmdir "$left" 2>/dev/null; then
+		continue	# it was empty: an install was stopped as it began
+	elif [ -e "$left/old.app" ]; then
+		step "an older LZRBRWSR.app is kept in: $left"
+		step "an earlier install could not put it back, or was killed; remove that folder by hand when you do not need it"
+	else
+		step "a LZRBRWSR.app that an earlier install never put in place is left in: $left (remove that folder by hand)"
+	fi
+done
 # appsum <folder>: one checksum of every name and every file's contents in that folder
 appsum() { (cd "$1" && find . | LC_ALL=C sort && find . -type f -exec shasum -a 256 {} + | LC_ALL=C sort) | shasum -a 256 | cut -d' ' -f1; }
 checked="$(appsum "$tmp/unpacked/LZRBRWSR.app")"
-stage="" prfstage="" placing=""
+stage="" prfstage="" placing="" back=0 kept="" had_lzrprf="" had_selftest=""
 # undo: puts back what was there. It goes by what stands on the disk and not by a count of the steps
 # done, so it is right at whichever rename a failure or Ctrl-C came. Before the renames began
 # (placing is empty) nothing installed has changed and only the folders of the new parts are removed.
+# Every putting back is checked. An older part that could not be put back is never removed: it stays
+# where it is, "kept" names the place, and "back" is 1 so that what is printed afterwards is true.
+# Whether there was an older lzrprf file is what was noted when its second name was made (had_...),
+# not what the disk shows now: an installed file is removed only when none stood there before.
 undo() {
-	trap '' INT TERM HUP
+	trap '' INT TERM HUP QUIT
+	set +e	# every step below is checked by itself; none may end the script half way
+	holds=""
 	if [ -n "$placing" ]; then
 		# A new lzrprf file that has left its folder holds the installed name: the older one, kept
 		# under a second name, takes the name back; if there was none, the name is removed.
 		for part in selftest lzrprf; do
 			[ ! -e "$prfstage/$part" ] || continue
 			if [ -e "$prfstage/old.$part" ]; then
-				mv -f "$prfstage/old.$part" "$HOME/.lzrprf/$part" || true
-			else
-				rm -f "$HOME/.lzrprf/$part"
+				if ! mv -f "$prfstage/old.$part" "$HOME/.lzrprf/$part"; then
+					back=1 holds=1
+					kept="$kept
+      the older $part: $prfstage/old.$part"
+				fi
+			elif eval "[ -n \"\$had_$part\" ]"; then
+				back=1
+				kept="$kept
+      the older $part is not where this installer kept it ($prfstage/old.$part); what stands in its place was left as it is: $HOME/.lzrprf/$part"
+			elif ! rm -f "$HOME/.lzrprf/$part"; then
+				back=1
+				kept="$kept
+      the new $part could not be taken away again: $HOME/.lzrprf/$part"
 			fi
 		done
 		# The same for the app: the new one goes back to its folder, the older one takes its name back.
-		[ -e "$stage/LZRBRWSR.app" ] || mv "$dest/LZRBRWSR.app" "$stage/LZRBRWSR.app" || true
+		if [ ! -e "$stage/LZRBRWSR.app" ] && ! mv "$dest/LZRBRWSR.app" "$stage/LZRBRWSR.app"; then
+			back=1
+			kept="$kept
+      the new LZRBRWSR.app could not be taken away again: $dest/LZRBRWSR.app"
+		fi
 		[ ! -e "$stage/old.app" ] || [ -e "$dest/LZRBRWSR.app" ] || mv "$stage/old.app" "$dest/LZRBRWSR.app" || true
 	fi
 	# A folder that still holds an older part that could not be put back is never removed.
 	if [ -n "$stage" ] && [ -e "$stage/old.app" ]; then
-		printf '\n  LZRBRWSR: the older LZRBRWSR.app could not be put back. It is whole, in %s/old.app\n' "$stage" >&2
+		back=1
+		kept="$kept
+      the older LZRBRWSR.app, whole: $stage/old.app"
 	elif [ -n "$stage" ]; then
 		rm -rf "$stage"
 	fi
-	[ -z "$prfstage" ] || rm -rf "$prfstage"
+	[ -z "$prfstage" ] || [ -n "$holds" ] || rm -rf "$prfstage"
+	unlock
+}
+# gone <what failed>: undoes, then says what is true of the disk now, and stops.
+gone() {
+	undo
+	if [ "$back" = 0 ]; then
+		printf '\n  LZRBRWSR: %s Nothing was changed: what was installed before, the app and\n  lzrprf as a pair, is in place as it was.\n\n' "$1" >&2
+	else
+		printf '\n  LZRBRWSR: %s Not everything that was installed before could be put back.\n  Nothing older was removed. It is here:%s\n  Run this installer again: it puts an app and an lzrprf that belong together in place.\n\n' "$1" "$kept" >&2
+	fi
+	exit "${2:-1}"
 }
 # The two older lzrprf files are kept by a second name (a hard link), so their own names are never
 # missing: the new file takes the name in one rename, and undoing it is one rename back.
-trap 'undo; printf "\n  LZRBRWSR: stopped while it was being put in place; the older LZRBRWSR and lzrprf are back as they were.\n\n" >&2; exit 130' INT TERM HUP
+trap 'gone "stopped while it was being put in place." 130' INT TERM HUP QUIT
 {
 	stage="$(mktemp -d "$dest/.LZRBRWSR.XXXXXXXX")" &&
 		prfstage="$(mktemp -d "$HOME/.lzrprf/.new.XXXXXXXX")" &&
@@ -515,26 +642,28 @@ trap 'undo; printf "\n  LZRBRWSR: stopped while it was being put in place; the o
 		[ "$(sum "$prfstage/lzrprf")" = "$LZRPRF_SHA256" ] &&
 		[ "$(sum "$prfstage/selftest")" = "$SELFTEST_SHA256" ] &&
 		[ "$(appsum "$stage/LZRBRWSR.app")" = "$checked" ] &&
-		{ [ ! -f "$HOME/.lzrprf/lzrprf" ] || ln "$HOME/.lzrprf/lzrprf" "$prfstage/old.lzrprf"; } &&
-		{ [ ! -f "$HOME/.lzrprf/selftest" ] || ln "$HOME/.lzrprf/selftest" "$prfstage/old.selftest"; }
-} || {
-	undo
-	stop "the new files could not be written beside the installed ones, or were not the checked ones once written."
-}
+		{ [ ! -f "$HOME/.lzrprf/lzrprf" ] || { ln "$HOME/.lzrprf/lzrprf" "$prfstage/old.lzrprf" && had_lzrprf=1; }; } &&
+		{ [ ! -f "$HOME/.lzrprf/selftest" ] || { ln "$HOME/.lzrprf/selftest" "$prfstage/old.selftest" && had_selftest=1; }; }
+} || gone "the new files could not be written beside the installed ones, or were not the checked ones once written."
 # The renames, back to back.
 placing=1
 if [ -e "$dest/LZRBRWSR.app" ]; then
-	mv "$dest/LZRBRWSR.app" "$stage/old.app" || { undo; stop "the LZRBRWSR.app that is installed could not be moved aside."; }
+	mv "$dest/LZRBRWSR.app" "$stage/old.app" || gone "the LZRBRWSR.app that is installed could not be moved aside."
 fi
-mv "$stage/LZRBRWSR.app" "$dest/LZRBRWSR.app" || { undo; stop "the new LZRBRWSR.app could not be put in place; the older one is back."; }
-mv -f "$prfstage/lzrprf" "$HOME/.lzrprf/lzrprf" || { undo; stop "lzrprf could not be put in place; the older LZRBRWSR and lzrprf are back."; }
-mv -f "$prfstage/selftest" "$HOME/.lzrprf/selftest" || { undo; stop "lzrprf's self-test could not be put in place; the older LZRBRWSR and lzrprf are back."; }
-trap '' INT TERM HUP	# all stand: what is left is removing the older ones
-rm -rf "$stage" "$prfstage"
+mv "$stage/LZRBRWSR.app" "$dest/LZRBRWSR.app" || gone "the new LZRBRWSR.app could not be put in place."
+mv -f "$prfstage/lzrprf" "$HOME/.lzrprf/lzrprf" || gone "lzrprf could not be put in place."
+mv -f "$prfstage/selftest" "$HOME/.lzrprf/selftest" || gone "lzrprf's self-test could not be put in place."
+trap '' INT TERM HUP QUIT	# all stand: what is left is removing the older ones
+rm -rf "$stage" "$prfstage" || step "the older app or the older lzrprf, now replaced, could not be removed whole; what is left: $stage $prfstage"
+unlock
 rm -f "$HOME/.lzrprf/rules" "$HOME/.lzrprf/refused"	# kept by an earlier lzrprf; this one keeps neither
-trap - INT TERM HUP
+trap - INT TERM HUP QUIT
 step "lzrprf is installed:    $HOME/.lzrprf/lzrprf"
 step "LZRBRWSR is installed:  $dest/LZRBRWSR.app"
+# An app in the other folder an install can be in was not touched, and can belong to another lzrprf.
+for folder in "${LZRBRWSR_DEST:-/Applications}" "$HOME/Applications"; do
+	[ "$folder" = "$dest" ] || [ ! -e "$folder/LZRBRWSR.app" ] || step "another LZRBRWSR.app stands in $folder and was not touched; it can belong to another lzrprf than the one installed now. Move it to the Trash and use the one above."
+done
 # A log an earlier release wrote. Nothing here removes it: that is for you, in the window.
 if [ -s "$HOME/.lzrprf/log" ] && { [ ! -f "$HOME/.lzrprf/keep" ] || [ -L "$HOME/.lzrprf/keep" ] || ! grep -Eq '^(hosts|all) [0-9]+$' "$HOME/.lzrprf/keep"; }; then
 	step "a log written earlier is still on this computer: $HOME/.lzrprf/log"
