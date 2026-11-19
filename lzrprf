@@ -9,7 +9,7 @@
 #   lzrprf address TEXT...                      say what would be fetched if TEXT were typed into the bar
 #   lzrprf request TEXT...                      print the exact bytes a site is sent for TEXT
 #   lzrprf public NUMBER...                     say whether a numeric address is on the public internet, and how this computer would send to it
-#   lzrprf mark                                 this version of macOS and this file, as one line
+#   lzrprf mark                                 this build of macOS, this file and the selftest beside it (each file by its SHA-256), as one line; an empty line when no selftest can be read beside it
 #
 # The application is treated as hostile. It has no window, no network, no
 # file and no service of the system: it is started once for each answer
@@ -79,6 +79,7 @@ my $FIND_SECONDS = 10;                    # the most a name lookup may take
 my $FOUND = 8;                            # the most addresses of one name that are looked at
 my $PAGE_BYTES = 6 * 1024 * 1024;         # the most one page container may write
 my $PAGE_SECONDS = 30;                    # a page container is ended after this, whatever it is doing
+my $PAGE_ROOM = 2097152;                 # the address space, in KiB, a page container may take on top of what the shell that starts it holds: 2 GiB. What the application itself holds at its start is not measured
 my $PIECES = 200_000;                     # the most lines one page may have
 my $BOXES = 2000;                         # the most grey boxes among them
 my $ANSWER_SECONDS = 600;                 # a question that is still open then counts as answered with its first button
@@ -146,9 +147,12 @@ my $CONTAINER = <<'END';
 END
 
 # The page container is allowed nothing on top of that. It also gets at most
-# 30 seconds of processor time, may create no file and no memory dump, and
-# is told one thing: the address it lays out. It sees no other variable.
-my $PAGE_LIMITS = 'ulimit -t 30 -f 0 -c 0 && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" "$@"';
+# 30 seconds of processor time, may create no file and no memory dump, may
+# take no more memory than the shell that starts it holds plus 2 GiB
+# ($PAGE_ROOM), and is told one thing: the address it lays out. It sees no
+# other variable. Each limit is set before the next step, and a limit the
+# system will not set starts nothing.
+my $PAGE_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -t 30 -f 0 -c 0 && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" "$@"';
 
 # What curl's container is allowed on top of it: one socket file, behind which
 # lzrprf holds the connection to the site, and the list of certificate
@@ -159,6 +163,9 @@ my $FETCH = <<'END';
 (allow network-outbound (literal (param "WAY")))
 (allow file-read* (literal (param "ROOTS")))
 END
+# curl too may take no more memory than the shell that starts it holds plus
+# 2 GiB, and when the system will not set that limit, curl is not started.
+my $FETCH_LIMITS = 'v=$(/bin/ps -o vsz= -p $$) && ulimit -v $((v + ' . $PAGE_ROOM . ')) && exec "$@"';
 
 # The window's container. A window needs the system's services, so this one
 # is written the other way round: what a program of yours may do, without
@@ -167,8 +174,8 @@ END
 # or another program for it. No command to another program. No writing of
 # your settings. No asking the system's downloader to fetch for it. No
 # reading under /Users or on another disk, apart from your settings, your
-# fonts, keyboard layouts and input methods, and the application's own
-# folder for its icon.
+# fonts, keyboard layouts and input methods. No file of the application is
+# read: the icon in the Dock is drawn by the lines of "icon" in window_text.
 # What it reads on descriptor 0 and writes on descriptor 1 is its talk with
 # lzrprf.
 # What this container does NOT refuse, said plainly: the other services of
@@ -193,8 +200,7 @@ my $WINDOW_CONTAINER = <<'END';
   (subpath (string-append (param "HOME") "/Library/Preferences")) (subpath (string-append (param "HOME") "/Library/Fonts"))
   (subpath (string-append (param "HOME") "/Library/Keyboard Layouts")) (subpath (string-append (param "HOME") "/Library/Input Methods"))
   (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Preferences")) (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Fonts"))
-  (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Keyboard Layouts")) (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Input Methods"))
-  (subpath (param "OWN")))
+  (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Keyboard Layouts")) (subpath (string-append "/System/Volumes/Data" (param "HOME") "/Library/Input Methods")))
 (allow file-read-metadata (literal "/Users") (literal "/Volumes") (literal (param "HOME")) (literal (string-append (param "HOME") "/Library")))
 END
 
@@ -271,10 +277,11 @@ sub ended {                               # waits this long for a process to end
 #
 # The first part is made at every start. A small program, the text below, is
 # run inside the page container: the same container text, the same way of
-# starting. It tries six things the container must refuse, each against
-# something that is really there (a listener lzrprf opened a moment ago, a
-# file lzrprf wrote a moment ago, lzrprf's own process). Then the same
-# program is run outside every container, where each of the six must work:
+# starting, with the same limits. It tries seven things the container must
+# refuse, each against something that is really there (a listener lzrprf
+# opened a moment ago, a file lzrprf wrote a moment ago, lzrprf's own
+# process, 3 GiB of memory). Then the same program is run outside every
+# container and without the limits, where each of the seven must work:
 # so a refusal inside is the container's, not a try that could never have
 # worked. Unless both runs say exactly that, nothing is started.         # [C2]
 my $TRIES = <<'END';
@@ -286,6 +293,7 @@ print 'network ', (connect($s, pack_sockaddr_in($port, inet_aton('127.0.0.1'))) 
 print 'read ', (open(my $in, '<', "$folder/here") ? 'done' : 'refused'), "\n";
 print 'write ', (open(my $out, '>', "$folder/made") ? 'done' : 'refused'), "\n";
 print 'signal ', (kill(0, $pid) ? 'done' : 'refused'), "\n";
+print 'memory ', (syscall(197, 0, 3 * 1024**3, 3, 0x1002, -1, 0) != -1 ? 'done' : 'refused'), "\n";    # asks for 3 GiB of addresses (mmap) and touches none of it
 my $child = fork;
 exit 0 if defined $child && !$child;
 print 'second process ', (defined $child ? 'done' : 'refused'), "\n";
@@ -299,11 +307,11 @@ sub holds {
     mkdir $folder or return 0;
     put("$folder/here", O_EXCL, 'a file of yours') or return 0;
     my @tries = ('-e', $TRIES, $listen->sockport, $folder, $$);
-    my ($inside) = said(10, contain('', '/usr/bin/perl'), @tries);
+    my ($inside) = said(10, '/bin/sh', '-c', $PAGE_LIMITS, 'lzrprf', contain('', '/usr/bin/perl'), @tries);    # started as a page is started, limits and all
     my ($outside) = said(10, '/usr/bin/perl', @tries);
     unlink "$folder/here", "$folder/made";
     rmdir $folder;
-    my @what = ('network', 'read', 'write', 'signal', 'second process');
+    my @what = ('network', 'read', 'write', 'signal', 'memory', 'second process');
     return $inside eq join('', map { "$_ refused\n" } @what, 'other program') && $outside eq join('', map { "$_ done\n" } @what);    # outside, the last try turns the program into another one, which says nothing
 }
 
@@ -397,10 +405,8 @@ sub run {
     close $_ for $to, $from;
     my $more = '';
     if ($TRY && open my $test, '<', "$DIR/window") { local $/; $more = <$test> }    # "lzrprf try" only: the test's own text after the window's, so a test can keep the window off the screen and read what it holds
-    my $own = $program =~ m{^(.*\.app)/Contents/MacOS/} ? $1 : $program;
-    my ($icon) = bsd_glob("$own/Contents/Resources/*.icns");
-    die "lzrprf: the program's path holds a character lzrprf does not pass on\n" if "$own$HOME" =~ /["\\\n]/;
-    become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-D', "OWN=$own", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP, $icon // '');
+    die "lzrprf: the home folder's path holds a character lzrprf does not pass on\n" if $HOME =~ /["\\\n]/;
+    become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP);
 }
 
 sub named {                               # the program of this run, and the name it is called by in the window
@@ -412,6 +418,7 @@ sub named {                               # the program of this run, and the nam
 # Behind the window: everything lzrprf does for one run, one thing at a time.
 sub behind {
     leave() unless (hear(60) // '') eq 'ready';
+    paired();                             # before anything else: an application and an lzrprf that were not installed together are noticed
     return closed("lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e "$DIR/prove") || proven();    # [C11]
     return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless holds();    # [C2]
     return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
@@ -423,6 +430,19 @@ sub behind {
         elsif ($event eq 'log') { log_shown() }
         elsif ($event =~ /^fault / && $DRAWN) { $DRAWN = 0; fault('undrawn') }    # the window could not draw a list that "checked" let through: it shows nothing of it. Taken once for a page that was handed over, and never without one: the window's process cannot open the question about a report whenever it likes
     }
+    leave();
+}
+
+# The pair. The installer puts the application and lzrprf in place together,
+# and the application's "release" file names the SHA-256 of that lzrprf.
+# When this file is another one, you are asked before anything else, and a
+# question nobody answers quits. An older application names none, and then
+# nothing is asked.
+sub paired {
+    my $pair = (beside())[5];
+    return if !defined $pair || $pair eq (sum_of($SELF) // '');
+    return if ask("$APP was installed together with another lzrprf than the one running now. The installer puts the two in place as a pair: a pair that differs was left by an install that did not finish, or lzrprf was replaced by hand. Installing again mends it.", 'Quit', 'Start anyway') == 2;
+    window('quit');
     leave();
 }
 
@@ -488,9 +508,10 @@ sub laid_out {
     }
     close $_ for $answer_out, $to_lzrprf;
     if (!inside($page)) {                 # [C3] the system did not say so: the answer stays here; the application was told the address and nothing else
-        kill 'KILL', $page;
-        waitpid $page, 0;
-        return (undef, 'uncontained');
+        my $gone = waitpid($page, POSIX::WNOHANG()) == $page;    # it ended by itself: of a process that is gone the system has nothing to say
+        kill 'KILL', $page unless $gone;
+        waitpid $page, 0 unless $gone;
+        return (undef, $gone ? 'ended' : 'uncontained');    # only a process still running, of which the system does not say that it is contained, is the container's fault
     }
     my $feeder = fork // return (undef, 'unstarted');
     if (!$feeder) {                       # hands the answer over and ends; an application that does not read it changes nothing
@@ -550,18 +571,23 @@ sub checked {
 # reports, you are asked whether to send one, shown the whole address first:
 # one of two words, the release, the build of macOS. Not the address you
 # typed, and nothing of the page. It is sent the way a typed address is, and
-# written in the log the same way.
-# Two words and not the six phrases, because four of the six are the
-# application's own doing: it could fail in one of four ways on purpose, and
+# written in the log the same way. The question also says what no request can
+# hide: the server that receives it sees your internet address and the time.
+# Two words and not the seven phrases, because five of the seven are the
+# application's own doing: it could fail in one of five ways on purpose, and
 # a report that named the way would carry what the application chose. So a
-# report says "page" for all four, and "container" for the two that lzrprf
-# and the system decide. One thing stays the application's choice and cannot
+# report says "page" for all five, and "container" for the two that lzrprf
+# and the system decide. Ending at once, before the system was asked about
+# it, is one of the five: a process that is gone is "ended", never
+# "uncontained", so the application cannot choose the word by how fast it
+# ends. One thing stays the application's choice and cannot
 # be taken from it: whether it fails on a page at all. A report you send
 # therefore tells its maker that some page failed on your computer at that
 # moment, and not which.
 my %FAULT = (
     unstarted => 'its container could not be started',
     uncontained => 'the system did not say that it was in its container, so the answer was not handed to it',
+    ended => 'it ended before it was given the page',
     late => 'it did not finish in time',
     large => 'it wrote more than lzrprf takes',
     unfit => 'what it wrote is not a page',
@@ -576,7 +602,7 @@ sub fault {
     my $word = $which =~ /^un(?:started|contained)$/ ? 'container' : 'page';
     my ($url, $host) = $to && $build ? address("$to?fault=$word&release=$release&macos=$build") : ();
     return idle($says) unless $url;
-    return idle($says) unless ask("$says Send an anonymous report to its developer? This is all of it, and it is written in the log: $url", "Don't send", 'Send') == 2;    # [C4]
+    return idle($says) unless ask("$says Send a report to its developer? It holds one of two words, the number of the release and this Mac's build of macOS, and nothing else. The server that receives it sees your internet address and the time, as every site does. This is all of it, and it is written in the log: $url", "Don't send", 'Send') == 2;    # [C4]
     idle("$says " . (fixed("you sent a report: $url", $url, $host) ? 'The report was sent.' : 'The report could not be sent.'));
 }
 
@@ -687,7 +713,7 @@ sub fetch {
             '-H', 'User-Agent:', '-H', 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close',
             '--unix-socket', $way, '--', $url);
         if ($PEER ne '-' && open my $instead, '<', "$DIR/fetcher") { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to attack this container too
-        become(undef, $out, undef, contain($FETCH, shift @curl, '-D', "WAY=$way", '-D', "ROOTS=$roots"), @curl);
+        become(undef, $out, undef, '/bin/sh', '-c', $FETCH_LIMITS, 'lzrprf', contain($FETCH, shift @curl, '-D', "WAY=$way", '-D', "ROOTS=$roots"), @curl);    # the memory limit first, then the container
     }
     close $out;
     my ($got, $until, $unreached, $loose, $done, $peer, @links) = ('', now() + $FETCH_SECONDS, 0, 0, 0);    # a link: from, to, bytes held, 1 while "from" is open, bytes carried
@@ -805,16 +831,17 @@ sub fixed {
 # the number of this release, and up to four addresses. Where the newest
 # release number is published, where the installer is, where reports go, and
 # a second place that holds the same installer ("same"), so that the copy
-# from one place can be compared with the copy from the other. A program
-# without that file is never checked for a newer one, and is never asked
-# about in a report.
+# from one place can be compared with the copy from the other. A newer
+# application also names the SHA-256 of the lzrprf it was installed with
+# ("lzrprf"). A program without that file is never checked for a newer one,
+# and is never asked about in a report.
 sub beside {
     my $file = $PROGRAM =~ m{^(.*\.app)/Contents/MacOS/} ? "$1/Contents/Resources/release" : dirname($PROGRAM) . '/release';
     open my $in, '<', $file or return;
-    my %is = map { /^(release|newest|installer|report|same) (\S+)$/ ? ($1 => $2) : () } <$in>;
+    my %is = map { /^(release|newest|installer|report|same|lzrprf) (\S+)$/ ? ($1 => $2) : () } <$in>;
     return unless ($is{release} // '') =~ /^\d{1,6}$/;
     my ($same) = address($is{same} // '');
-    return ($is{release}, (map { my ($url) = address($is{$_} // ''); $url } 'newest', 'report', 'installer'), exists $is{same} ? $same // '' : undef);    # a second place that is named and is no address counts as one that does not agree: nothing is written
+    return ($is{release}, (map { my ($url) = address($is{$_} // ''); $url } 'newest', 'report', 'installer'), exists $is{same} ? $same // '' : undef, $is{lzrprf});    # the last: the SHA-256 of the lzrprf the application was installed with, when the file names it. A second place that is named and is no address counts as one that does not agree: nothing is written
 }
 
 # A newer release. The first time, you are asked whether lzrprf may look at
@@ -872,7 +899,9 @@ sub newer {
 # names a second place for the same installer, it is fetched from both, and
 # it runs only when the two copies are the same byte for byte: somebody who
 # changed the installer in one place would have had to change it in the other
-# too. curl is started with -q, so it reads no settings file of yours that
+# too. Before anything else the file starts itself again through env -i, so
+# no variable of the Terminal's (a proxy, a file of certificates) reaches curl
+# or the shell. curl is started with -q, so it reads no settings file of yours that
 # could switch off its checking of the site. lzrprf itself replaces nothing: not the application, and not this
 # file. Whatever is replaced is replaced by that installer, in front of you,
 # after it asked.
@@ -891,6 +920,8 @@ END
     return <<"END";
 #!/bin/sh
 # Written by lzrprf when "Install it" was pressed in its window.
+# It starts itself again at once with only your home folder, the kind of terminal and the system's own PATH, so no other variable of the Terminal's reaches curl or the shell that goes on.
+[ "\${LZRPRF_CLEAN:-}" = "\$\$" ] || exec /usr/bin/env -i HOME="\$HOME" TERM="\${TERM:-dumb}" PATH=/usr/bin:/bin:/usr/sbin:/sbin LZRPRF_CLEAN="\$\$" /bin/sh "\$0"
 echo 'A newer release: its installer would be fetched from'
 ${places}printf 'Press Return to fetch it, or close this window and nothing is fetched. '
 read answer || exit 1
@@ -1300,8 +1331,8 @@ sub show {
 # beside it, the file that made the attacks. Nothing is shown unless that
 # mark is the mark of now. So after macOS was updated, or this file or the
 # selftest beside it changed, no page is shown before the attacks were made
-# again. Where no selftest stands beside this file, the mark names this file
-# alone, as before.                                                      # [C11]
+# again. Where no selftest can be read beside this file, there is no mark,
+# and nothing counts as proven.                                          # [C11]
 # The file of marks holds up to eight lines, one for each copy of lzrprf that
 # was tested on this build of macOS: testing another copy, such as one from
 # the public repository, does not take the proof from the one that is
@@ -1309,8 +1340,8 @@ sub show {
 sub mark {
     my ($build) = said(5, '/usr/sbin/sysctl', '-n', 'kern.osversion');
     my $self = sum_of($SELF) // return '';
-    my $test = sum_of(dirname($SELF) . '/selftest');
-    return $build =~ /^(\w+)$/ ? "macOS build $1, lzrprf $self" . (defined $test ? ", selftest $test" : '') : '';
+    my $test = sum_of(dirname($SELF) . '/selftest') // return '';    # no selftest to read beside this file: no mark, so nothing counts as proven
+    return $build =~ /^(\w+)$/ ? "macOS build $1, lzrprf $self, selftest $test" : '';
 }
 
 sub sum_of { open my $in, '<', $_[0] or return; binmode $in; return Digest::SHA->new(256)->addfile($in)->hexdigest }
@@ -1351,7 +1382,7 @@ sub lookup {                              # every address a name leads to, as nu
 sub window_text {
     return <<'END';
 ObjC.import('Cocoa');
-var NAME = 'lzrprf', ICON = '', app, win, bar, logs, words, first, second, scroll, page, hand, asking = false, asked = 0, list = null;
+var NAME = 'lzrprf', app, win, bar, logs, words, first, second, scroll, page, hand, asking = false, asked = 0, list = null;
 var to = $.NSFileHandle.fileHandleWithStandardOutput, from = $.NSFileHandle.fileHandleWithStandardInput, held = $.NSMutableData.data;
 var looks = {}, paragraphs = {};
 
@@ -1543,13 +1574,28 @@ function shown() { win.makeKeyAndOrderFront(null); app.activateIgnoringOtherApps
 function drawn(lines, characters) { }
 function told(word, rest) { }
 
+// The icon in the Dock is drawn here, a black square with a beam of green dots, so the window
+// reads no picture from the closed download.
+function icon(S) {
+    var img = $.NSImage.alloc.initWithSize($.NSMakeSize(S, S)), side = S * 824 / 1024, d = S / 64, at = S * 3 / 16, c, i, j, dots = $.NSBezierPath.bezierPath;
+    img.lockFocus;
+    $.NSColor.blackColor.setFill;
+    $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect((S - side) / 2, (S - side) / 2, side, side), side * 0.225, side * 0.225).fill;
+    for (c = 0; c < 8; c++) for (i = 0; i < 5; i++) for (j = 0; j < 5; j++)
+        if (c > 5 || (c > 3 ? !(i % 2 && j % 2) : c > 1 ? i % 2 == j % 2 : !(i % 2) && !(j % 2)))
+            dots.appendBezierPathWithRect($.NSMakeRect(at + (c * 5 + i) * d, at + (c * 5 + j) * d, d, d));
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 1, 0, 1).setFill;
+    dots.fill;
+    img.unlockFocus;
+    return img;
+}
+
 function run(argv) {
     NAME = argv[0] || NAME;
-    ICON = argv[1] || '';
     $.NSProcessInfo.processInfo.processName = $(NAME);
     app = $.NSApplication.sharedApplication;
     app.setActivationPolicy(kind());
-    if (ICON) { var picture = $.NSImage.alloc.initWithContentsOfFile($(ICON)); if (!picture.isNil()) app.applicationIconImage = picture; }
+    app.applicationIconImage = icon(256);
     hand = $.LzrprfHand.alloc.init;
     app.delegate = hand;
     win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer($.NSMakeRect(0, 0, 960, 720), 15, 2, false);
