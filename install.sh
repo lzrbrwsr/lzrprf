@@ -153,12 +153,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="2d0360308f7a7ffb436061daa0a0cb3baff4042429bd68a0561885a204e4e59c"
-RELEASE="21"
-LZRPRF_COMMIT="416636595e5caf4373c8f3fb85a6b8c96cd5c865"
+SHA256="09c1498e9a742674996bfbf279b549d2cf139d33ffe3d15bda2ffa1c1e423162"
+RELEASE="22"
+LZRPRF_COMMIT="c59ae840d8fe154e1f419b6f1b9dc06a4542ca2c"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="0623d65a417e605e287ad6ececc6c4cbb839b92def0c38a089e2beb979692897"
-SELFTEST_SHA256="fe49488b5cb77761a87ec0cf6af62fd92475de230a28eb6cee80ab49f8af8e0f"
+LZRPRF_SHA256="b9bf4e5b79e7eee09162e89b2bc2ba652259b3eb98ef4c0de7c6b47c9708bdb3"
+SELFTEST_SHA256="af21b864efc5cc452f7a7fdfb011cf592e22691254ecbe12e66a3071c4841b5b"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -217,8 +217,8 @@ cat <<ART
  ${G}┃${N}     box of its own, and the box is thrown away.                            ${G}┃${N}
  ${G}┃${N}   ▸ The browser keeps nothing: no cookies, no account. Nothing is          ${G}┃${N}
  ${G}┃${N}     reported unless you press Send. The one record is that log.            ${G}┃${N}
- ${G}┃${N}   ▸ Version one lays a page out as text, with a grey box where             ${G}┃${N}
- ${G}┃${N}     a picture stands. Nothing a page sends is ever run.                    ${G}┃${N}
+ ${G}┃${N}   ▸ Our own engines lay each page out with its own styles, with            ${G}┃${N}
+ ${G}┃${N}     a grey box where a picture stands. Nothing a page sends is run.        ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
  ${G}┃${N}  You do not have to take our word for any of it.                           ${G}┃${N}
  ${G}┃${N}                                                                            ${G}┃${N}
@@ -473,14 +473,14 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 21
+release 22
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-file lzrbrwsr-bin 73e8b84f5a16840c44bd299ea684e855d8014db818eda41debc21431499ae9c7
-lzrprf 0623d65a417e605e287ad6ececc6c4cbb839b92def0c38a089e2beb979692897
+file lzrbrwsr-bin f49a4338b25f04376eb26c2df3ab6bfb5fb7cf0ac03fd33d3affdb2ed411aca5
+lzrprf b9bf4e5b79e7eee09162e89b2bc2ba652259b3eb98ef4c0de7c6b47c9708bdb3
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
