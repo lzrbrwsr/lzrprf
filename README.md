@@ -513,8 +513,9 @@ narrows down who could have sent a report. The question shows the build before y
   This is the weakest point, so it is said in full. If such text could take over that process,
   the process has no network of its own, writes no file, starts nothing, opens nothing through
   the system, commands no other program, and reads nothing under `/Users` or on another disk
-  but settings, fonts, keyboard layouts and input methods `[C10]`, by either name of those
-  folders (`/Users/...` or `/System/Volumes/Data/Users/...`). What it could still do:
+  but settings, fonts, keyboard layouts and input methods `[C10]`, by the data volume's name of those
+  folders too (`/System/Volumes/Data/Users/...`); `selftest` also tries the file by its number
+  on the disk (`/.vol/...`). What it could still do:
   - say to lzrprf what the window says (`sub hear`): "go ADDRESS" as if you had typed it, a
     press of either button of the question that is open ("Send", "Yes, look", "Install it",
     "Clear the log" and the buttons that keep less among them), or a request for the
@@ -550,7 +551,7 @@ narrows down who could have sent a report. The question shows the build before y
   trust it to keep working: `[C11]`, `[C2]` and `[C3]` make it prove itself on every build of
   macOS, at every start and for every process, and nothing is shown when it does not hold.
   The day a build of macOS comes without the command, or reads a profile another way: the
-  mark of `[C11]` is for one build of macOS and one `lzrprf` (`sub proven`), so after a system
+  mark of `[C11]` is for one build of macOS, one `lzrprf` and one `selftest` (`sub proven`), so after a system
   update no page is shown until `selftest` held again on the new build. Where a profile no
   longer holds, the window says so, names `selftest` to see what was not refused, and the
   program is not started. Where the command itself is gone, no window opens: lzrprf stops with
@@ -724,8 +725,10 @@ What the two places do not cover:
   raw file from a cache for up to five minutes. A comparison then stops and nothing is
   installed. Try again later; if it still differs, one place was changed. `main` is what is
   released: lzrprf's own files and the release's files reach it in one push. A branch named
-  `next` can hold lzrprf's files of a release whose tests passed and whose installer is not
-  out yet; nothing is installed from it.
+  `next` holds lzrprf's files of a release whose tests passed, from then until that push. In
+  the minutes between the site serving a new installer and that push, the installer takes
+  `lzrprf` and `selftest` from their commit on `next`, by its full hash and with their
+  SHA-256 checked, as always.
 
 What the installer does, each step readable in the file:
 

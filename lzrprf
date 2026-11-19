@@ -188,7 +188,7 @@ my $WINDOW_CONTAINER = <<'END';
 (deny appleevent-send)
 (deny user-preference-write)
 (deny mach-lookup (global-name "com.apple.nsurlsessiond"))
-(deny file-read* (subpath "/Users") (subpath "/Volumes") (subpath (param "HOME")) (subpath "/System/Volumes/Data/Users") (subpath "/System/Volumes/Data/Volumes"))
+(deny file-read* (subpath "/Users") (subpath "/Volumes") (subpath (param "HOME")) (subpath "/System/Volumes/Data/Users") (subpath "/System/Volumes/Data/Volumes") (subpath (string-append "/System/Volumes/Data" (param "HOME"))))
 (allow file-read*
   (subpath (string-append (param "HOME") "/Library/Preferences")) (subpath (string-append (param "HOME") "/Library/Fonts"))
   (subpath (string-append (param "HOME") "/Library/Keyboard Layouts")) (subpath (string-append (param "HOME") "/Library/Input Methods"))

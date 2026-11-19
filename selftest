@@ -6,9 +6,10 @@
 #   perl selftest            about half a minute
 #
 # It connects to nothing outside this computer, shows no window and asks you
-# nothing. Its one try at an address outside, from inside a container, goes to
-# 192.0.2.1, an address kept for documentation that no host answers, and
-# counts as refused only when the sandbox itself refuses it. It starts lzrprf with "try": the same program, with its state in a
+# nothing. Its tries at an address outside go to 192.0.2.1, an address kept for
+# documentation that no host answers: inside a container the try counts as
+# refused only when the sandbox itself refuses it, and outside every container
+# it must not be refused. It starts lzrprf with "try": the same program, with its state in a
 # folder of its own, every name leading to a test site on this computer whose
 # certificate is signed by an authority made here a moment ago, and the
 # window's part played by the test. One run uses lzrprf's real window, kept
@@ -70,6 +71,21 @@ print "now    A test site is built on this computer: no host outside this comput
 my $made = mkdir "$home/.lzrprf", 0700;   # lzrprf keeps its state here; what is already there is left as it is
 open my $alone, '>>', "$home/.lzrprf/selftest.lock" or die "selftest: cannot write in $home/.lzrprf: $!\n";
 flock $alone, LOCK_EX | LOCK_NB or die "selftest: another selftest is running\n";
+# The file in the home folder that the attacks try to read. It is made here,
+# while the lock is held and before anything of the test is made or started,
+# so a refusal leaves nothing behind. A run that was killed leaves its file:
+# a plain file of yours, no link, that holds the test's own line and nothing
+# else, is that one and is removed. Anything else at the name is not the
+# test's: it is left as it is and the test does not run.
+my $secret_line = "a file in the home folder\n";
+if (my @there = lstat $secret) {
+    -f _ && $there[4] == $< && $there[7] == length $secret_line && slurp($secret) eq $secret_line && unlink $secret
+        or die "selftest: $secret is there already. It is not the test's, so the test leaves it as it is and does not run. Move it away, then start the test again.\n";
+}
+sysopen(my $file, $secret, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) or die "selftest: cannot make $secret: $!\n";    # made here and now, never a file or a link that was there
+$secret_made = 1;
+print $file $secret_line;
+close $file;
 my $base = "$home/.lzrprf/selftest.$outside";
 my $site_folder = "$base.site";
 mkdir $site_folder or die "selftest: cannot make $site_folder: $!\n";
@@ -171,14 +187,11 @@ sub seen {                                # one line, written in one piece, so t
     syswrite($out, join("\t", $_[0], unpack('H*', $_[1]), unpack('H*', $_[2]), $_[3]) . "\n");
 }
 close $_ for values %listener;
--e $secret || -l $secret and die "selftest: $secret is there already. It is not the test's, so the test leaves it as it is and does not run. Move it away, then start the test again.\n";
-sysopen(my $file, $secret, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) or die "selftest: cannot make $secret: $!\n";    # made here and now, never a file or a link that was there
-$secret_made = 1;
 chomp(my $temp_dir = qx{/usr/bin/getconf DARWIN_USER_TEMP_DIR 2>/dev/null} // '');    # your temporary folder, outside the home folder
 my $temp_file = length $temp_dir ? "${temp_dir}lzrprf-selftest.$outside" : '';
 if (length $temp_file && sysopen(my $spare, $temp_file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)) { print $spare "a file in the temporary folder\n"; close $spare } else { $temp_file = '' }
-print $file "a file in the home folder\n";
-close $file;
+my @numbered = stat $secret;
+my $by_number = @numbered ? "/.vol/$numbered[0]/$numbered[1]" : '';    # the same file by its number on the disk, a name that holds no folder
 open my $left_open, '<', $secret or die "selftest: cannot read $secret: $!\n";
 POSIX::dup2(fileno $left_open, 19) // die "selftest: cannot keep a file open: $!\n";    # every program started from here on inherits this open file as descriptor 19
 $ENV{LZRPRF_SELFTEST_MARK} = 'a variable of the user';
@@ -195,7 +208,9 @@ my $computer = (POSIX::uname())[1] // '';
 # Its try at an address outside this computer ("sub nowhere") goes to
 # 192.0.2.1, kept for documentation (RFC 5737), which no host answers. It
 # does not wait: outside a sandbox the try is left pending, and pending is
-# not refused. Only the sandbox's own refusal counts as refused.
+# not refused. Only the sandbox's own refusal counts as refused, and the same
+# try is made outside every container, where it must not be refused: so a
+# firewall of yours that refuses it is not taken for the sandbox.
 # No comment stands in its text before the part for curl's place: there its
 # lines are joined into one, and a comment would take the rest with it.
 my $hostile = <<'END';
@@ -210,7 +225,7 @@ sub direct { IO::Socket::IP->new(PeerHost => $_[0], PeerPort => $_[1], Timeout =
 sub nowhere {
     socket(my $s, PF_INET, SOCK_STREAM, 0) or return $!{EPERM} ? 'refused' : "no socket: $!";
     fcntl($s, POSIX::F_SETFL(), POSIX::O_NONBLOCK());
-    return connect($s, pack_sockaddr_in(443, inet_aton('192.0.2.1'))) ? 'connected' : $!{EPERM} ? 'refused' : "not refused by the sandbox: $!";
+    return connect($s, pack_sockaddr_in(443, inet_aton('192.0.2.1'))) ? 'connected' : $!{EPERM} ? 'refused' : $!{EINPROGRESS} ? 'pending' : "not refused: $!";
 }
 sub computer_name { my $name = eval { (POSIX::uname())[1] } // ''; return $name }
 sub process_list {
@@ -220,7 +235,7 @@ sub process_list {
 sub attempts {
     report 'use a file that was open in whoever started lzrprf', POSIX::fstat(19) ? 'open' : 'closed';
     report 'connect straight to a listener on this computer', direct('127.0.0.1', $port);
-    report 'connect straight to an address outside this computer', nowhere() unless $part eq 'outside';
+    report 'connect straight to an address outside this computer', nowhere();
     report 'look up a name', gethostbyname('localhost') ? 'resolved' : 'refused';
     socket(my $udp, PF_INET, SOCK_DGRAM, 0);
     report 'send a datagram', $udp && send($udp, 'x', 0, pack_sockaddr_in($port, inet_aton('127.0.0.1'))) ? 'sent' : 'refused';
@@ -343,7 +358,7 @@ my $t = 'https://site.test';
 # process what its container must refuse. "tries" is also run outside every
 # container, where each of its tries must work.
 my $window_tries = <<'END';
-function tries(port, file, secret, keep, temp) {
+function tries(port, file, secret, keep, temp, numbered) {
     ObjC.import('Foundation');
     ObjC.bindFunction('socket', ['int', ['int', 'int', 'int']]);
     ObjC.bindFunction('connect', ['int', ['int', 'void *', 'int']]);
@@ -356,9 +371,10 @@ function tries(port, file, secret, keep, temp) {
     var read = $.NSString.stringWithContentsOfFileEncodingError($(secret), 4, null).isNil() ? 'refused' : 'read';
     var data = $.NSString.stringWithContentsOfFileEncodingError($('/System/Volumes/Data' + secret), 4, null).isNil() ? 'refused' : 'read';    // the same file, by the data volume's name for it
     var spare = temp && !$.NSString.stringWithContentsOfFileEncodingError($(temp), 4, null).isNil() ? 'read' : 'refused';    // a file of the test's own in your temporary folder, outside the home folder
+    var number = numbered && !$.NSString.stringWithContentsOfFileEncodingError($(numbered), 4, null).isNil() ? 'read' : 'refused';    // the same file by its number on the disk (/.vol/DISK/NUMBER), a name that holds no folder
     var shared = $.NSFileManager.defaultManager.contentsOfDirectoryAtPathError($('/Users/Shared'), null).isNil() ? 'refused' : 'listed';
     var pid = $.NSProcessInfo.processInfo.processIdentifier;
-    return 'network=' + network + ' file=' + written + ' program=' + started + ' home=' + read + ' data=' + data + ' temp=' + spare + ' shared=' + shared + ' system=' + ['network-outbound', 'file-write-create', 'process-fork', 'lsopen', 'appleevent-send', 'user-preference-write'].map(function (what) { return $.sandbox_check(pid, what, 0); }).join('') + ' keep=' + kept;
+    return 'network=' + network + ' file=' + written + ' program=' + started + ' home=' + read + ' data=' + data + ' number=' + number + ' temp=' + spare + ' shared=' + shared + ' system=' + ['network-outbound', 'file-write-create', 'process-fork', 'lsopen', 'appleevent-send', 'user-preference-write'].map(function (what) { return $.sandbox_check(pid, what, 0); }).join('') + ' keep=' + kept;
 }
 END
 my $window_test = <<'END';
@@ -377,7 +393,7 @@ function told(word, rest) {
     else if (step == 1 && word == 'ask') { step = 2; say('test asked ' + first.title.js + '|' + second.title.js + '|bar=' + bar.enabled + '|' + plain(words.stringValue.js).slice(0, 60)); second.performClick(null); }
     else if (step == 2 && word == 'idle') { step = 3; say('test page title=' + win.title.js + ' visible=' + win.visible + ' drawn=' + pictures + ' links=' + links() + ' editable=' + page.editable + ' menu=' + page.menuForEvent(null).numberOfItems + ' bar=' + bar.stringValue.js + ' words=' + plain(words.stringValue.js) + ' text=' + plain(page.string.js)); logs.performClick(null); }
     else if (step == 3 && word == 'ask') { step = 5; say('test log a question came: ' + first.title.js + '|' + second.title.js); app.terminate(null); }    // with nothing kept and no log, the Log button has no question
-    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.stringValue.js).slice(0, 600) + '|' + plain(page.string.js).slice(0, 2000)); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP)); app.terminate(null); }
+    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.stringValue.js).slice(0, 600) + '|' + plain(page.string.js).slice(0, 2000)); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED)); app.terminate(null); }
 }
 END
 
@@ -520,13 +536,13 @@ run_of('lostpage', lzrprf => mutant('lostpage', %{ $lost{page} }), app => bundle
 my $echo_at = encode_base64(pack('CCna4x8', 16, 2, $port{echo}, inet_aton('127.0.0.1')), '');
 run_of('window', app => bundle('window', 'release 3'), answer => 'ask', keep => undef, fetches => ['/window?q=1'], prepare => sub {    # nothing is kept, as when nobody chose
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
-    print $out "var GO = 'site.test/window?q=1', PORT = '$echo_at', FILE = '$site_folder/window.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file';\n$window_tries$window_test";
+    print $out "var GO = 'site.test/window?q=1', PORT = '$echo_at', FILE = '$site_folder/window.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number';\n$window_tries$window_test";
 });
 run_of('lostwindow', lzrprf => mutant('lostwindow', "(deny lsopen)\n" => ''), app => bundle('lostwindow', 'release 3'), answer => 'ask', prepare => sub {
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
     print $out "function kind() { return 2; }\nfunction shown() { }\nfunction drawn() { }\nfunction told(word, rest) { if (word == 'busy' && /container/.test(rest)) { say('test closed ' + String(rest).replace(/[^\\x20-\\x7e]/g, '?')); app.terminate(null); } }\n";
 });
-run_of('windowoutside', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', "$window_tries function run(argv) { return tries(argv[0], argv[1], argv[2], argv[3], argv[4]); }", $echo_at, "$site_folder/window.outside", $secret, "$site_folder/keep.outside", $temp_file]);
+run_of('windowoutside', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', "$window_tries function run(argv) { return tries(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]); }", $echo_at, "$site_folder/window.outside", $secret, "$site_folder/keep.outside", $temp_file, $by_number]);
 
 # All of them, at most eight at a time, each given at most 90 seconds.
 my (%pid, @waiting, $said_waiting);
@@ -596,11 +612,11 @@ my @seen = map { my @part = split /\t/, $_, -1; { kind => $part[0], bytes => pac
 sub asked { my ($path) = @_; return grep { $_->{kind} eq 'trusted' && $_->{bytes} =~ /^GET \Q$path\E / } @seen }
 sub judge {                               # every attempt of the hostile application in one container, against what must come of it
     my ($where, @lines) = @_;
-    for my $one (@attempts, $where eq 'outside' ? () : ['connect straight to an address outside this computer', '', 'refused']) {
+    for my $one (@attempts, ['connect straight to an address outside this computer', undef, 'refused']) {    # outside every container this one may end any way but refused: then a refusal inside is the sandbox's, not a firewall's
         my ($what, $free, $contained) = @$one;
         my @came = map { $_->[1] } grep { $_->[0] eq $what } @lines;
         my $must = $where eq 'outside' ? $free : $contained;
-        if ($where eq 'outside') { works(@came && !grep({ $_ ne $must } @came), "outside every container: $what", join '/', @came ? @came : 'nothing came of it') }
+        if ($where eq 'outside') { works(@came && !grep({ defined $must ? $_ ne $must : $_ eq 'refused' } @came), "outside every container: $what", join '/', @came ? @came : 'nothing came of it') }
         else { check(@came && !grep({ $_ ne $must } @came), "$where: $what", join '/', @came ? @came : 'nothing came of it') }
     }
 }
@@ -630,10 +646,10 @@ my ($talk) = map { $_->[1] } grep { $_->[0] eq 'talk through the one socket it w
 check(($talk // '') eq 'echo:hello', 'through the one socket it is given, it reaches the one site lzrprf connected for it, and nothing else', $talk // 'nothing came of it');
 my $window = out('window');
 my ($free_tries) = out('windowoutside') =~ /^(network=.*)$/m;
-works(($free_tries // '') eq 'network=reached file=written program=started home=read data=read temp=read shared=listed system=000000 keep=written', 'outside every container: the window\'s text connects, writes a file, starts a program, reads a file in the home folder by both its names, reads a file in the temporary folder, lists the folder all users share, writes a setting of what is kept', $free_tries // 'nothing came of it');
+works(($free_tries // '') eq 'network=reached file=written program=started home=read data=read number=read temp=read shared=listed system=000000 keep=written', 'outside every container: the window\'s text connects, writes a file, starts a program, reads a file in the home folder by its two names and by its number on the disk, reads a file in the temporary folder, lists the folder all users share, writes a setting of what is kept', $free_tries // 'nothing came of it');
 unlink "$site_folder/window.outside", "$site_folder/keep.outside";
 my ($window_tries_came) = $window =~ /^test tries (.*)$/m;
-check(($window_tries_came // '') eq 'network=refused file=refused program=refused home=refused data=refused temp=read shared=refused system=111111 keep=refused', 'window container: connect, write a file, start a program, read a file in the home folder by either of its names, list the folder all users share, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, stays readable to it, as the README says', $window_tries_came // 'nothing came of it');
+check(($window_tries_came // '') =~ /^network=refused file=refused program=refused home=refused data=refused number=refused temp=(?:read|refused) shared=refused system=111111 keep=refused$/, 'window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here', $window_tries_came // 'nothing came of it');
 check(!-e "$site_folder/window.inside" && !-e "$base.window/keep", 'the window\'s process wrote no file, and no setting of what is kept', 'looked for both');
 
 # 3. What crosses from the application to the window.           [C9]
@@ -931,8 +947,7 @@ if ($failures) {
 my ($this_build) = $mark =~ /^(macOS build \w+), /;
 my @others;
 if (open my $in, '<', "$home/.lzrprf/proven") { @others = grep { /^\Q$this_build\E, lzrprf [0-9a-f]{64}(?:, selftest [0-9a-f]{64})?\n\z/ && $_ ne "$mark\n" } map { scalar(<$in>) // () } 1 .. 8 }
-unlink "$home/.lzrprf/proven";
-open my $proven, '>', "$home/.lzrprf/proven" or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
+open my $proven, '>', "$home/.lzrprf/proven.new" or die "selftest: cannot write $home/.lzrprf/proven.new: $!\n";    # written whole beside the file of marks, then given its name: no reader finds it half written or gone
 # The mark of the copy that is installed (~/.lzrprf/lzrprf) stands first when it is among them, and is never the
 # one that is dropped: testing other copies cannot push it out.
 my $installed = '';
@@ -941,7 +956,7 @@ my @first = grep { $_ eq $installed } @others;
 my @rest = grep { $_ ne $installed } @others;
 my $room = 7 - @first;
 print $proven @first, "$mark\n", @rest[0 .. ($#rest >= $room ? $room - 1 : $#rest)];
-close $proven or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
+close $proven && rename "$home/.lzrprf/proven.new", "$home/.lzrprf/proven" or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
 print "Nothing failed. lzrprf holds on this Mac as it is now: $mark\n";
 exit 0;
 
@@ -992,10 +1007,9 @@ sub unmark {                              # the mark of this copy is taken out o
     close $in;
     my @kept = grep { $_ ne "$mark\n" } @all;
     return if @kept == @all;
-    unlink "$home/.lzrprf/proven";
-    open my $out, '>', "$home/.lzrprf/proven" or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
+    open my $out, '>', "$home/.lzrprf/proven.new" or die "selftest: cannot write $home/.lzrprf/proven.new: $!\n";
     print $out @kept;
-    close $out or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
+    close $out && rename "$home/.lzrprf/proven.new", "$home/.lzrprf/proven" or die "selftest: cannot write $home/.lzrprf/proven: $!\n";
 }
 
 sub hears {                               # "sub hear" of lzrprf, taken out and run here against a pipe: what it returns when nothing is said in time, then when the other end is gone
