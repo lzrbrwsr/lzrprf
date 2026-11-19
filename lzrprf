@@ -38,7 +38,7 @@
 #   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
 #   [C7]  What a site is sent is made from the address alone: the same request from every computer, byte for byte, with nothing kept from an earlier request.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
-#   [C9]  Every line the application writes is checked before the window is given it, and what is not one of four kinds of line is not drawn at all.
+#   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line is not drawn at all.
 #   [C10] The window's process has no network of its own, writes no file, starts no other program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, lzrprf asks the system about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of that container's text, its list of services among it, is not asked about, and selftest makes its own tries from the real window. Of the system's services it looks up by name only the 40 its container lists and one local name, the clipboard's.
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
@@ -83,6 +83,7 @@ my $PAGE_SECONDS = 30;                    # a page container is ended after this
 my $PAGE_ROOM = 2097152;                 # the address space, in KiB, a page container may take on top of what the shell that starts it holds: 2 GiB. What the application itself holds at its start is not measured
 my $PIECES = 200_000;                     # the most lines one page may have
 my $BOXES = 2000;                         # the most grey boxes among them
+my $MADE = 120;                           # the most lines that say what the page is made of
 my $ANSWER_SECONDS = 600;                 # a question that is still open then counts as answered with its first button
 my $NAME = qr/(?:[A-Za-z0-9-]{1,63}\.)+[A-Za-z][A-Za-z0-9-]{0,62}/;    # a host name: never a bare number, never one word
 my $UNWRITTEN = 'Nothing was fetched: the log could not be written.';
@@ -705,16 +706,28 @@ sub keeper {
 }
 
 # What the application may write, and nothing else: a first line that names
-# the other hosts the page asks for, and then lines of four kinds.
+# the other hosts the page asks for, and then lines of five kinds.
 #
+#   U<kind><s><name>   a thing the application says the page is made of; <s> is + when it says its own code supports the thing and - when not; a tab and a version may follow
 #   P<style><depth>    a paragraph begins: plain, heading 1 2 3, list item, quote, code, rule; how far it is set in, 0 to 9
 #   T<looks><text>     text in that paragraph; one letter says bold, italic, fixed width, and coloured as a link
 #   B                  a line ends
 #   I<wide>x<high>     a grey box where a picture would stand, 8 to 640 wide and 8 to 480 high
 #
-# None of the four can carry an address to fetch, a program, a picture or a
+# None of the five can carry an address to fetch, a program, a picture or a
 # command: a link is a colour, a picture is a size. A list with any other
-# line in it is not drawn at all. In the text, every character that would
+# line in it is not drawn at all. The lines of the first kind stand before
+# every other, at most 120 of them: one of eight letters for the kind
+# (document, CSS, JavaScript, libraries, media and formats, web APIs,
+# security and transport, metadata), a + or a - for whether the application
+# says its own code supports the thing, a name of 1 to 60 plain characters,
+# and after a tab a version of 1 to 30, neither with a space at either end.
+# They come in the order of the kinds and by name within a kind, and no name
+# twice in a kind, so a list has one form only. They are what the
+# application says, of the page and of itself: lzrprf checks their form, not
+# whether they are true, and the window shows them as text in a pane of
+# their own under the page.
+# In the text, every character that would
 # act on the display instead of being displayed (a control code, an invisible
 # mark, a mark that turns the reading direction) is replaced by the
 # replacement mark before the window is given it.                        # [C9]
@@ -725,8 +738,15 @@ sub checked {
     my ($first, @lines) = split /\n/, $wrote, -1;
     return unless defined $first && $first =~ /^=page((?: $NAME){0,200})$/ && @lines <= $PIECES;
     my @hosts = split ' ', $1;
-    my $boxes = 0;
+    my ($boxes, $made, $before, $begun) = (0, 0);
     for (@lines) {
+        if (!$begun && /^U([dcjlmasx])[+-]([\x21-\x7e](?:[\x20-\x7e]{0,58}[\x21-\x7e])?)(?:\t[\x21-\x7e](?:[\x20-\x7e]{0,28}[\x21-\x7e])?)?$/) {    # only plain characters, so nothing in such a line acts on the display
+            my $key = index('dcjlmasx', $1) . $2;
+            return unless ++$made <= $MADE && (!defined $before || $before lt $key);    # in the one order there is, and none twice
+            $before = $key;
+            next;
+        }
+        $begun = 1;                           # from the first line of another kind on, a line that begins with U is no line at all
         if (/^T[\@-O]./s) { s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/\x{fffd}/g }    # the last: a number above every character there is, which Perl would pass on and the window could not read
         elsif (/^I([0-9]{1,3})x([0-9]{1,3})$/) { return unless $1 >= 8 && $1 <= 640 && $2 >= 8 && $2 <= 480 && ++$boxes <= $BOXES }
         else { return unless /^(?:P[p123lqcr][0-9]|B)$/ }
@@ -1590,16 +1610,20 @@ sub lookup {                              # every address a name leads to, as nu
 
 # The window. This text is run by the system's own osascript, in the window
 # container. It makes one window with the application's name: the bar on top,
-# lzrprf's strip under it, the page below. It draws the four kinds of line
-# that "checked" let through, as characters with a look: a paragraph with its
-# indent, text in a font and a colour, a line end, and a row of spaces on
-# grey as large as a picture would be. No picture is loaded and no address is
+# lzrprf's strip under it, the page below, and under the page a pane that
+# lists what the application says the page is made of. It draws the five
+# kinds of line that "checked" let through, as characters with a look: a
+# paragraph with its indent, text in a font and a colour, a line end, a row
+# of spaces on grey as large as a picture would be, and in the pane a row
+# for each thing: the name of its kind before the first of that kind, then
+# its name, its version, and whether the application says it supports it.
+# No picture is loaded and no address is
 # followed. A link is coloured text that does nothing when it is clicked, and
 # the page's own menu holds "Copy" and nothing that opens anything.
 sub window_text {
     return <<'END';
 ObjC.import('Cocoa');
-var NAME = 'lzrprf', app, win, bar, logs, words, first, second, scroll, page, hand, asking = false, asked = 0, list = null;
+var NAME = 'lzrprf', app, win, bar, logs, words, first, second, scroll, page, under, made, hand, asking = false, asked = 0, list = null;
 var to = $.NSFileHandle.fileHandleWithStandardOutput, from = $.NSFileHandle.fileHandleWithStandardInput, held = $.NSMutableData.data;
 var looks = {}, paragraphs = {};
 
@@ -1611,7 +1635,7 @@ function heard(line) {
         if (line != '.') return list.push(line);
         var lines = list;
         list = null;
-        try { draw(lines); } catch (fault) { page.string = $(''); say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); }
+        try { draw(lines); } catch (fault) { page.string = $(''); listed([]); say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); }
         return;
     }
     var at = line.indexOf(' '), word = at < 0 ? line : line.slice(0, at), rest = at < 0 ? '' : line.slice(at + 1);
@@ -1640,12 +1664,14 @@ function strip(parts, free, question) {
 
 function place() {
     var all = win.contentView.frame, wide = all.size.width, high = all.size.height, tall = asking ? 96 : 24;
+    var room = high - 48 - tall, low = Math.round(Math.min(room / 2, Math.max(96, Math.min(190, room * 0.3))));    // the pane under the page, set whenever the strip changes: three tenths of what the bar and the strip leave, between 96 and 190, and never more than half
     bar.frame = $.NSMakeRect(10, high - 34, wide - 92, 24);
     logs.frame = $.NSMakeRect(wide - 78, high - 37, 72, 30);
     words.frame = $.NSMakeRect(12, high - 42 - tall, wide - (asking ? 300 : 24), tall);
     first.frame = $.NSMakeRect(wide - 284, high - 42 - 62, 132, 30);
     second.frame = $.NSMakeRect(wide - 148, high - 42 - 62, 138, 30);
-    scroll.frame = $.NSMakeRect(0, 0, wide, high - 48 - tall);
+    scroll.frame = $.NSMakeRect(0, low, wide, high - 48 - tall - low);
+    under.frame = $.NSMakeRect(0, 0, wide, low);
 }
 
 function look(font, size, kind) {
@@ -1676,7 +1702,7 @@ function paragraph(style, depth) {
 
 // The page: the lines lzrprf let through, as characters with a look.
 function draw(lines) {
-    var text = '', runs = [], blocks = [], block = null, style = 'p';
+    var text = '', runs = [], blocks = [], block = null, style = 'p', of = [];
     function put(chars, font, size, kind) { runs.push([text.length, chars.length, font, size, kind]); text += chars; }
     function begin(next, depth) {
         if (block) { put('\n', 'ArialMT', 14, 0); block[1] = text.length - block[0]; }
@@ -1688,6 +1714,7 @@ function draw(lines) {
     }
     lines.forEach(function (line) {
         var kind = line.charAt(0);
+        if (kind == 'U') return of.push(line);
         if (kind == 'P') return begin(line.charAt(1), +line.charAt(2));
         if (!block) begin('p', 0);
         if (kind == 'T') {
@@ -1715,7 +1742,44 @@ function draw(lines) {
     all.endEditing;
     page.textStorage.setAttributedString(all);
     page.scrollRangeToVisible($.NSMakeRange(0, 0));
+    listed(of);
     drawn(lines.length, text.length);
+}
+
+// The pane under the page: what the application says the page is made of. A row for each
+// thing: the name of its kind in front of the first of that kind, then its name, its version
+// in grey, and whether the application says its own code supports it. These are the
+// application's words, in plain characters: lzrprf checked their form and not their truth,
+// and the pane says so in its first line. A list holds 120 lines at most (the same number
+// as "checked" holds a list to), and a full one says that there may be more.
+var KINDS = { d: 'Document', c: 'CSS', j: 'JavaScript', l: 'Libraries', m: 'Media and formats', a: 'Web APIs', s: 'Security and transport', x: 'Metadata' };
+function listed(lines) {
+    var text = '', runs = [], kind = '', head, held = 0;
+    function put(chars, font, look) { runs.push([text.length, chars.length, font, look]); text += chars; }
+    lines.forEach(function (line) { if (line.charAt(2) == '+') held++; });
+    put(lines.length ? 'What ' + NAME + ' says this page is made of: ' + lines.length + (lines.length == 1 ? ' thing' : ' things') + ', ' + held + ' of them supported by ' + NAME + ' itself, as it says.' + (lines.length == 120 ? ' A list holds 120 at most, so there may be more.' : '') + ' lzrprf checked the form of this list, not whether it is true.'
+        : 'Here ' + NAME + ' lists what it says a page is made of. Nothing is listed for what is shown now.', 'ArialMT', 3);
+    head = text.length;
+    lines.forEach(function (line) {
+        var tab = line.indexOf('\t'), name = line.slice(3, tab < 0 ? line.length : tab), version = tab < 0 ? '' : line.slice(tab + 1), yes = line.charAt(2) == '+';
+        put('\n', 'ArialMT', 0);
+        if (line.charAt(1) != kind) { kind = line.charAt(1); put(KINDS[kind] || '?', 'Arial-BoldMT', 0); }
+        put('\t', 'ArialMT', 0);
+        put(name, 'ArialMT', 0);
+        if (version) put(' ' + version, 'ArialMT', 3);
+        put('   supported by ' + NAME + ': ' + (yes ? 'true' : 'false'), yes ? 'Arial-BoldMT' : 'ArialMT', yes ? 0 : 3);
+    });
+    var all = $.NSMutableAttributedString.alloc.init, set = $.NSMutableParagraphStyle.alloc.init;
+    set.headIndent = 176;
+    set.tabStops = $.NSArray.arrayWithObject($.NSTextTab.alloc.initWithTextAlignmentLocationOptions(0, 176, $.NSDictionary.dictionary));
+    set.paragraphSpacingBefore = 3;
+    all.beginEditing;
+    all.replaceCharactersInRangeWithString($.NSMakeRange(0, 0), $(text));
+    runs.forEach(function (run) { all.addAttributesRange(look(run[2], 12, run[3]), $.NSMakeRange(run[0], run[1])); });
+    if (text.length > head) all.addAttributeValueRange($.NSParagraphStyleAttributeName, set, $.NSMakeRange(head, text.length - head));
+    all.endEditing;
+    made.textStorage.setAttributedString(all);
+    made.scrollRangeToVisible($.NSMakeRange(0, 0));
 }
 
 ObjC.registerSubclass({ name: 'LzrprfPage', superclass: 'NSTextView', methods: {
@@ -1860,6 +1924,21 @@ function run(argv) {
     page.autoresizingMask = 2;
     scroll.documentView = page;
     win.contentView.addSubview(scroll);
+    under = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));
+    under.hasVerticalScroller = true;
+    under.borderType = 1;
+    under.autoresizingMask = 2 | 32;
+    made = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));
+    made.editable = false;
+    made.richText = false;
+    made.automaticLinkDetectionEnabled = false;
+    made.automaticDataDetectionEnabled = false;
+    made.displaysLinkToolTips = false;
+    made.textContainerInset = $.NSMakeSize(14, 8);
+    made.autoresizingMask = 2;
+    under.documentView = made;
+    win.contentView.addSubview(under);
+    listed([]);
     menus();
     place();
     $.NSNotificationCenter.defaultCenter.addObserverSelectorNameObject(hand, 'heard:', $.NSFileHandleDataAvailableNotification, from);

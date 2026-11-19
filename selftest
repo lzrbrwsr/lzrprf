@@ -352,7 +352,7 @@ if ($kind eq 'spin') { 1 while 1 }
 if ($kind eq 'sleep') { sleep 1000 }
 if ($kind eq 'nap') { 1 while sysread(STDIN, my $read, 65536); print STDERR "napping\n"; sleep 5; print STDERR "woke\n"; exit 0 }
 my $answer = $kind eq 'noread' ? '' : do { local $/; <STDIN> } // '';
-my $good = "=page other.test third.test\nP10\nT\@A page by the hostile application\nPp0\nTHa link that is only a colour\nB\nI200x100\nPc1\nTDfixed\n";
+my $good = "=page other.test third.test\nUd+-\nUd+HTML\t5\nUc-Grid\tLevel 1\nUc-Subgrid\nUl-A library of the hostile application\t1.2.3\nP10\nT\@A page by the hostile application\nPp0\nTHa link that is only a colour\nB\nI200x100\nPc1\nTDfixed\n";
 my $marks = "a\e[2Jb\tc\x{202e}d\x{200b}e\x{2028}f\x{feff}g\x{e000}h\x00i\x7fj\x{85}k\rl\x{1fffe}m";
 utf8::encode($marks);
 $marks .= "\xf4\x90\x80\x80n";            # the bytes of a number above every character there is
@@ -383,6 +383,26 @@ my %list = (
     nothing => '',
     big => "=page\n" . ("T\@" . 'x' x 1000 . "\n") x 7000,
     control => "=page\nPp0\nT\@$marks\n",
+    madelate => "=page\nPp0\nT\@x\nUd+HTML\t5\n",
+    madekind => "=page\nUz+HTML\t5\n",
+    madeorder => "=page\nUc-Grid\nUd+HTML\n",
+    madename => "=page\nUd-b\nUd-a\n",
+    madetwice => "=page\nUd+HTML\t5\nUd-HTML\t4\n",
+    mademany => "=page\n" . join('', map { sprintf "Ud-n%03d\n", $_ } 1 .. 121),
+    madelong => "=page\nUd-" . 'x' x 61 . "\n",
+    madeversion => "=page\nUd-HTML\t" . '5' x 31 . "\n",
+    madetabs => "=page\nUd-HTML\t5\t6\n",
+    madecontrol => "=page\nUd-HT\e[2JML\n",
+    madeother => "=page\nUd-HTML\xc3\xa4\n",
+    madespace => "=page\nUd- HTML\n",
+    madeempty => "=page\nUd-\n",
+    madeflag => "=page\nUdHTML\t5\n",
+    madesign => "=page\nUd*HTML\t5\n",
+    madetrail => "=page\nUd-HTML \t5\n",
+    madebare => "=page\nUd-HTML\t\n",
+    madeblank => "=page\nUd-   \n",
+    madeversionspace => "=page\nUd-HTML\t 5\n",
+    madefull => "=page\n" . join('', map { sprintf "Ud%s%03d%s\t%s\n", $_ % 2 ? '+' : '-', $_, 'n' x 57, 'v' x 30 } 1 .. 120) . "Pp0\nT\@x\n",
 );
 print exists $list{$kind} ? $list{$kind} : $good;
 print STDERR "answer\t$address\t", unpack('H*', $answer), "\n" if $part eq 'echo';
@@ -409,8 +429,8 @@ my @attempts = (
     ['take 3 GiB of memory', 'made', 'refused'], ['allow itself more than 256 open files', 'allowed', 'refused'], ['allow itself more processor time', 'allowed', 'refused'], ['allow itself more memory', 'allowed', 'refused'],
     ['start a second process', 'started', 'refused'], ['start another program', 'started', 'refused'],
 );
-my @good = ('P10', 'T@A page by the hostile application', 'Pp0', 'THa link that is only a colour', 'B', 'I200x100', 'Pc1', 'TDfixed');
-my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 bigbox smallbox otherdigit boxes hosts hostpath hostnumber emptytext style depth looks many noend nothing);
+my @good = ('Ud+-', "Ud+HTML\t5", "Uc-Grid\tLevel 1", 'Uc-Subgrid', "Ul-A library of the hostile application\t1.2.3", 'P10', 'T@A page by the hostile application', 'Pp0', 'THa link that is only a colour', 'B', 'I200x100', 'Pc1', 'TDfixed');
+my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 bigbox smallbox otherdigit boxes hosts hostpath hostnumber emptytext style depth looks many noend nothing madelate madekind madeorder madename madetwice mademany madelong madeversion madetabs madecontrol madeother madespace madeempty madeflag madesign madetrail madebare madeblank madeversionspace);
 my $t = 'https://site.test';
 
 # What a test puts into lzrprf's window, to keep it off the screen, to press
@@ -460,9 +480,9 @@ function drawn(lines, characters) { pictures++; }
 function told(word, rest) {
     if (step == 0 && word == 'idle') { step = 1; say('test start title=' + win.title.js + ' visible=' + win.visible + ' policy=' + app.activationPolicy + ' bar=' + bar.stringValue.js + ' enabled=' + bar.enabled + ' menu=' + app.mainMenu.itemAtIndex(0).submenu.title.js); bar.stringValue = $(GO); bar.performClick(null); }
     else if (step == 1 && word == 'ask') { step = 2; say('test asked ' + first.title.js + '|' + second.title.js + '|bar=' + bar.enabled + '|' + plain(words.stringValue.js).slice(0, 60)); second.performClick(null); }
-    else if (step == 2 && word == 'idle') { step = 3; say('test page title=' + win.title.js + ' visible=' + win.visible + ' drawn=' + pictures + ' links=' + links() + ' editable=' + page.editable + ' menu=' + page.menuForEvent(null).numberOfItems + ' bar=' + bar.stringValue.js + ' words=' + plain(words.stringValue.js) + ' text=' + plain(page.string.js)); logs.performClick(null); }
+    else if (step == 2 && word == 'idle') { step = 3; say('test page title=' + win.title.js + ' visible=' + win.visible + ' drawn=' + pictures + ' links=' + links() + ' editable=' + page.editable + ' menu=' + page.menuForEvent(null).numberOfItems + ' bar=' + bar.stringValue.js + ' words=' + plain(words.stringValue.js) + ' text=' + plain(page.string.js)); say('test made ' + plain(made.string.js)); logs.performClick(null); }
     else if (step == 3 && word == 'ask') { step = 5; say('test log a question came: ' + first.title.js + '|' + second.title.js); app.terminate(null); }    // with nothing kept and no log, the Log button has no question
-    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.stringValue.js).slice(0, 600) + '|' + plain(page.string.js).slice(0, 2000)); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE, SETTINGS)); app.terminate(null); }
+    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.stringValue.js).slice(0, 600) + '|' + plain(page.string.js).slice(0, 2000)); say('test logmade ' + plain(made.string.js)); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE, SETTINGS)); app.terminate(null); }
 }
 END
 
@@ -565,7 +585,7 @@ my $lost_code = mutant('lostcode', qq{(deny file-map-executable)\n} => '');    #
 run_of('lostcode', lzrprf => $lost_code, app => bundle('lostcode', 'release 3', pair_line($lost_code)), typed => "$t/lostcode", fetches => ['/lostcode']);
 run_of('alias', app => bundle('alias', 'release 3'), typed => "$t/alias", fetches => ['/alias']);    # the same program in the page container: its own folder is the one place in your account it may read
 run_of('deny', typed => "$t/denied", answer => 'deny');
-run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, 'big', 'control', 'noread'), fetches => [map { "/out/$_" } @unfit, 'big', 'control', 'noread']);
+run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, 'big', 'control', 'noread', 'madefull'), fetches => [map { "/out/$_" } @unfit, 'big', 'control', 'noread', 'madefull']);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large", fetches => ['/elsewhere', '/pieces', '/large']);
 run_of('untrusted', peer => 'untrusted', typed => "$t/untrusted");
 run_of('plain', peer => 'plain', typed => "$t/plain");
@@ -857,16 +877,18 @@ check(!-e "$site_folder/window.inside" && !-e "$base.window/keep", 'the window\'
 # 3. What crosses from the application to the window.           [C9]
 print "\n3. What the application writes to the window: it is checked before the window is given it.\n";
 my $shown = visit('page', "$t/selftest?q=1");
-check($shown->{page} && "@{ $shown->{page} }" eq "@good", 'a list of the four kinds of line is passed on as it is', $shown->{page} ? scalar(@{ $shown->{page} }) . ' lines' : 'no page');
+check($shown->{page} && "@{ $shown->{page} }" eq "@good", 'a list of the five kinds of line is passed on as it is, the five things the page is said to be made of first, one of them with a name of one character that is itself a mark', $shown->{page} ? scalar(@{ $shown->{page} }) . ' lines' : 'no page');
 check($shown->{said} eq 'site.test answered 162 bytes. The page names 2 other hosts (other.test, third.test). lzrprf asked none of them.' =~ s/162/length answer_for('')/er, 'the other hosts a page names are said in lzrprf\'s strip, and none of them is asked', $shown->{said});
 my @passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @unfit;
-check(!@passed, 'a list with anything else in it is not drawn at all: an unknown line, a line of lzrprf\'s own talk with the window ("ask", "quit", "address", "."), a line that would choose what is kept, a line of what the window says to lzrprf ("go", "log", a press of a button), a script, a box too large, a box whose size is written in the digits of another script, too many boxes, too many lines, a host that is not a name, bytes that are no text', @passed ? "passed: @passed" : scalar(@unfit) . ' lists, none drawn');
+check(!@passed, 'a list with anything else in it is not drawn at all: an unknown line, a line of lzrprf\'s own talk with the window ("ask", "quit", "address", "."), a line that would choose what is kept, a line of what the window says to lzrprf ("go", "log", a press of a button), a script, a box too large, a box whose size is written in the digits of another script, too many boxes, too many lines, a thing the page is said to be made of that comes after the page began, is of no kind, stands out of the order of the kinds or of the names, stands twice, is one of more than 120, has a name or a version too long, a second tab, a character that is not plain, a space in front or no name, no mark of whether the application supports it or another mark than the two, a space at the end of a name or at either end of a version, a tab with no version, a host that is not a name, bytes that are no text', @passed ? "passed: @passed" : scalar(@unfit) . ' lists, none drawn');
 my $big = visit('output', "$t/out/big");
 check(!$big->{page} && $big->{said} eq 'perl did not show this page: it wrote more than lzrprf takes.', 'more than lzrprf takes is not drawn', $big->{said});
 my $marked = visit('output', "$t/out/control");
 my $clean = "a\x{fffd}[2Jb\x{fffd}c\x{fffd}d\x{fffd}e\x{fffd}f\x{fffd}g\x{fffd}h\x{fffd}i\x{fffd}j\x{fffd}k\x{fffd}l\x{fffd}m\x{fffd}n";
 utf8::encode($clean);
 check($marked->{page} && "@{ $marked->{page} }" eq "Pp0 T\@$clean", 'in text, a control code, an invisible mark, a mark that turns the reading direction, a line break of another kind, a number that is no character and one above every character are each replaced by the replacement mark', $marked->{page} ? '13 characters replaced' : 'no page');
+my $full = visit('output', "$t/out/madefull");
+check($full->{page} && @{ $full->{page} } == 122 && $full->{page}[119] eq 'Ud-120' . 'n' x 57 . "\t" . 'v' x 30 && $full->{page}[0] eq 'Ud+001' . 'n' x 57 . "\t" . 'v' x 30, 'the most that may be said of what a page is made of is passed on: 120 things, each name 60 characters and each version 30, supported or not', $full->{page} ? scalar(@{ $full->{page} }) . ' lines' : $full->{said});
 my $unread = visit('output', "$t/out/noread");
 check($unread->{page} && "@{ $unread->{page} }" eq "@good", 'an application that does not read the answer changes nothing', $unread->{page} ? 'its list was drawn' : 'no page');
 
@@ -1102,6 +1124,8 @@ check(($at{start} // '') eq 'title=Test visible=false policy=2 bar= enabled=true
 check(($at{asked} // '') =~ /^No\|Yes, this once\|bar=false\|site\.test is not on the public internet/, 'a question stands in lzrprf\'s strip of that window, and the bar takes nothing while it is open', $at{asked} // 'nothing came of it');
 check(($at{page} // '') =~ m{^title=Test visible=false drawn=1 links=0 editable=false menu=1 bar=\Q$t\E/window\?q=1 words=site\.test answered \d+ bytes\. .* text=A page by the hostile application\?a link that is only a colour}, 'the page is drawn in the same window; the bar shows the address that was sent; a link is a colour and leads nowhere', substr($at{page} // 'nothing came of it', 0, 150));
 check(asked('/window?q=1') == 1 && (asked('/window?q=1'))[0]{bytes} eq request_for('/window?q=1'), 'what was typed into the bar is what the site was asked, once', 'compared the bytes');
+check(($at{made} // '') eq 'What Test says this page is made of: 5 things, 2 of them supported by Test itself, as it says. lzrprf checked the form of this list, not whether it is true.?Document?-   supported by Test: true??HTML 5   supported by Test: true?CSS?Grid Level 1   supported by Test: false??Subgrid   supported by Test: false?Libraries?A library of the hostile application 1.2.3   supported by Test: false', 'under the page the same window lists what the application says the page is made of, a row for each thing under the name of its kind: its name, its version, and true or false for whether the application says it supports it; and it says that lzrprf checked the form only', $at{made} // 'nothing came of it');
+check(($at{logmade} // '') eq 'Here Test lists what it says a page is made of. Nothing is listed for what is shown now.', 'when the log stands where the page stood, that list is empty and says so', $at{logmade} // 'nothing came of it');
 check(($at{log} // '') =~ m{^Every address lzrprf fetched for \S+ in this window is below\. Nothing is kept after this window closes\. To keep a log, type in Terminal: perl \S+ keep hosts\. No button of this window makes lzrprf keep more\.\|This window.*you typed \Q$t\E/window\?q=1}, 'the log is shown in the same window: this window\'s lines, with nothing kept on the disk and no question that keeps anything', substr($at{log} // 'nothing came of it', 0, 80));
 
 # 9. The text of lzrprf itself.                               [C1] [C6]

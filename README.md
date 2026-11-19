@@ -203,8 +203,20 @@ One visit, in order (`sub visit`):
    answer is handed over by the page's keeper, a second process of lzrprf's own (`sub keeper`),
    which ends the application when lzrprf ends (see "It cannot reach other applications").
 8. The application writes a list of what to draw. lzrprf checks every line `[C9]`
-   (`sub checked`) and gives the window only lines of four kinds: a paragraph begins, text, a
-   line ends, a grey box where a picture would stand. The window draws them.
+   (`sub checked`) and gives the window only lines of five kinds: a paragraph begins, text, a
+   line ends, a grey box where a picture would stand, and before all of these, from release 20
+   on, a thing the application says the page is made of. The window draws them.
+   Those first lines are what the application says the page is made of: a kind (one of eight
+   letters: document, CSS, JavaScript, libraries, media and formats, web APIs, security and
+   transport, metadata), a `+` or a `-` for whether the application says its own code
+   supports the thing, a name of at most 60 plain characters, and after a tab a version of at
+   most 30. There are at most 120, in the order of the kinds and by name within a kind, no
+   name twice in a kind, so one list has one form. The window lists them in a pane under the
+   page, a row for each: its name, its version, and "supported by" the application's name
+   with true or false. Above the rows a sentence says that lzrprf checked the form of the
+   list and not whether it is true. Apart from refusing a whole list in which such a line has
+   a wrong form or place, lzrprf does nothing with them: nothing is fetched or allowed
+   because of what they say.
 
 ## The conditions
 
@@ -218,7 +230,7 @@ One visit, in order (`sub visit`):
 | `[C6]` | One place connects to a site, and it connects to a numeric address that was checked and written down. | `sub reach` | Reads the text: two `connect` lines, this one and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
 | `[C7]` | What a site is sent is made from the address alone: the same request from every computer, byte for byte, nothing kept from an earlier request. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
 | `[C8]` | A host inside your own network is fetched only after your yes to exactly that, once. | `sub own_network` | A no: nothing is fetched, and the no is in the log. |
-| `[C9]` | Every line the application writes is checked, and a list with anything but the four kinds of line is not drawn at all. | `sub checked` | Hostile lists (a script, lzrprf's own words to the window, too large, not text): none is drawn. |
+| `[C9]` | Every line the application writes is checked, and a list with anything but the five kinds of line is not drawn at all. | `sub checked` | Hostile lists (a script, lzrprf's own words to the window, too large, not text, a thing the page is said to be made of in a wrong form or place): none is drawn. The fullest list of such things that is allowed is passed on, and the real window's pane is read. |
 | `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. Of the system's services it looks up by name only the 40 its container lists and one local name, the clipboard's (from release 19 on; before that all but one). The question about a system service names none: it says that the container refuses by default, not which names its list lets through. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. From the real window it asks for six system services by name: the clipboard, which the container lists, is answered, and the five it does not list are refused; a copy without that refusal is answered as a program outside every container is, and a copy whose list is one name wider is caught by the same try. |
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
 | `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
@@ -358,7 +370,12 @@ application can do the first in part. The second is what the container refuses.
   screen, or other processes.
 - Delivering. It has no way out by the ways its page container gives it. No network, no file
   to write, no shared memory by the ways the test tries, no second process, no window. The one thing that leaves it is the list of lines, and `sub checked` lets through
-  only lines that cannot carry an address, a picture or a command `[C9]`. The window that draws
+  only lines that cannot carry an address, a picture or a command `[C9]`. From release 20 on
+  the list may begin with up to 120 lines that say what the page is made of. They are plain
+  characters, shown as text in the pane under the page, and they are the application's own
+  words as much as the text of the page is: what stands there is whatever it wrote. The true
+  or false beside each of them is the application's word about itself, which lzrprf cannot
+  check either. The window that draws
   them has no network `[C10]`. One exception: the window's process. An application
   whose text took that process over, by a flaw in how macOS draws text, would have the ways
   that process has, a fetch through lzrprf among them, logged first (see "The window's process"
@@ -749,14 +766,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 19
+    release 20
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin 8aa6df5bb4c29924782c20c9b7b95e5cc21cd39a2190ac9011d1cda27029307c
-    lzrprf 93e3fb77858f6c23388b0383cfad183126774c92bd5a16bcdc741043858bda00
+    file lzrbrwsr-bin 87f333f42a3d39f3417a54ba3a8e831e56e30b43c4160ae716fa6dde46809184
+    lzrprf 5def33f35e3bcd93d51c48326b9215347867c23ca777b1c7b05c6ff964666f72
 
 ## When a page cannot be shown
 
