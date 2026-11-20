@@ -161,12 +161,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="7616ec6ccc1871882f9bd4644d4612c8ab8f1ffe5e1a9d0fe7553bba1450c6a7"
-RELEASE="45"
-LZRPRF_COMMIT="52f5b7c1d50134e70276b579be8e345799c1aad3"
+SHA256="0403e7280e878daf7f30d728e1bff66a753017fb8947a2638fca32c8f8ca08dc"
+RELEASE="46"
+LZRPRF_COMMIT="ce63a2fa876f9766a9f684ec4aabc4972df4cddc"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="5006c87dde865603e06aacce3ba1af5c430945ea03a011f051beea82b342c69f"
-SELFTEST_SHA256="be65a5f98d134434d00e8612dba6ae6701180c08bab7194a3882eadb9e6e6237"
+LZRPRF_SHA256="a6cf1cc5878eb509b4a770a9b968cad8149e6294fac10fff3076d031d1ac3f02"
+SELFTEST_SHA256="b26d5280d0fcfd9263ffefa29acc1b18a96bf06b82e3520fc98978942a2e9d2a"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -503,19 +503,17 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 45
-new A welcome like this one after every install or update: what is new, and what LZRBRWSR does and does not do for you
-new Address suggestions as you type, from your bookmarks and what you opened before
-new Bookmarks imported from Chrome, Edge, Brave, Firefox, Safari, Vivaldi or an HTML file, in a few steps
-new The log and the technical details behind two icons in the bar
-new Installing a newer release no longer closes the window, waits out a release still being published, and offers Close and restart
+release 46
+new Incognito windows (Shift-Cmd-N or the cog menu): nothing of them is kept after they close
+new Pictures drawn in a page's own code (inline SVG) now show, styled by the page
+new The site shows a measured audit against Chrome, Chromium, Brave and Firefox, renewed with every release
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-file lzrbrwsr-bin ed1b16dbede7d42d445946a747418a727825028a925276aef3b00dbd32bf65ea
-lzrprf 5006c87dde865603e06aacce3ba1af5c430945ea03a011f051beea82b342c69f
+file lzrbrwsr-bin e42a8ff18ec666e7a758ccbd290789a346c6fbc9e44f698ff9e3c4470828b67a
+lzrprf a6cf1cc5878eb509b4a770a9b968cad8149e6294fac10fff3076d031d1ac3f02
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
