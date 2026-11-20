@@ -912,13 +912,13 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 36
+    release 37
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin 784330687e00e5e12b6d233a589d1f13405abcb86efd7a8a97013ff9252853af
+    file lzrbrwsr-bin 8aed20de4c5fed8dfd288b6eddcbc241b936f29d51bc1bd6c7c3f46e98837c6c
     lzrprf 89d0187911c1fe579bf344c5cbca1af31ec3bbf3011dbf4c2d3ed4c5fad80a88
 
 ## When a page cannot be shown
