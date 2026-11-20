@@ -679,7 +679,7 @@ short enough to read, probed on your own Mac, and probed again whenever macOS ch
 All of this is drawn by lzrprf's window, in strips of its own above the page where no page
 draws: the strip of tabs on top, then back, forward and reload, the bar with its lock and star,
 and the cogwheel, then the bookmarks bar when you chose to show it. The look is lzrprf's too,
-the neon laser: near black glass inside a thin glowing cyan edge, curved beams of light, light
+the neon laser: near black glass inside a thin glowing cyan edge, straight beams of light, light
 grey line icons and the system's own face, the logo set wide. It is drawn on the processor by
 the window alone, and nothing in it comes from a page.
 
@@ -1055,17 +1055,18 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 47
-    new The window resizes from its sides and corners, and opens at the size and place you left it, or as large as the desktop if it was full screen
-    new Importing from a Chrome whose files macOS keeps out says the two ways in instead of greying Chrome out
-    new What a page is made of opens in the large centred panel, and the Dock shows the current icon after an update
+    release 48
+    new Check for updates in the cogwheel menu, which says when it last looked and what it found
+    new The cogwheel menu shows an icon beside each item, and the item that is on is lit
+    new A page sees the window only in steps of 160 by 128 points, so no site learns its exact size
+    new The lasers of the home page are straight beams, as a laser is
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin e42a8ff18ec666e7a758ccbd290789a346c6fbc9e44f698ff9e3c4470828b67a
-    lzrprf e18372836d89362d33deaec6f441b9f0c999b11e31d0e0a19697b7fedc30e53a
+    lzrprf 6f92a8ad9fed278e04f9bee1a913844b2e355a91211515e2f656ffd9a4797b17
 
 ## When a page cannot be shown
 

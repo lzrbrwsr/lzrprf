@@ -645,6 +645,7 @@ sub behind {
     $UNEXPIRED = !expire_log();           # [C12] the days you chose, at the start of a window; when a request of another window is open just then, it is tried again before each request of this window and each press of Log, until it is done
     welcome() unless $INCOGNITO;          # once after each install or update: what is new, and what $APP does and does not do for you; an incognito window writes nothing, so it shows none
     newer() unless $INCOGNITO;           # [C16] it would write its answer and an installer's lines
+    window('checked ' . ($INCOGNITO ? 'none' : checked_kept()));    # when lzrprf last looked for a newer release, shown under Check for updates
     window('incognito') if $INCOGNITO;
     idle($INCOGNITO ? "$APP is contained, in an incognito window: its log, history and tabs are held in its memory and one folder of its own, removed when it closes. Nothing is written to ~/.lzrprf." : "$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
     marks_told();
@@ -663,6 +664,7 @@ sub behind {
         elsif ($event =~ /^search (brave|duckduckgo|google)$/) { search_set($ENGINES{$1}) }
         elsif ($event =~ /^search custom\t([\x21-\x7e]{1,2000})$/) { search_set($1) }
         elsif ($event eq 'log') { log_shown() }
+        elsif ($event eq 'update-check') { $INCOGNITO ? idle('An incognito window looks for no newer release; a window that is not incognito does, in its cogwheel menu.') : newer(1) }
         elsif ($event =~ /^frame (full|-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4})$/) { frame_said($1) }    # the window was moved, resized or made full screen: kept for the next window
         elsif ($event eq 'incognito') { incognito_opened() }
         elsif ($event =~ /^import (sources|go)$/) { $1 eq 'go' ? import_go() : import_sources() }    # [C15] "Import bookmarks..." in the window's wizard: nothing is read before a browser is chosen, nothing written before Import
@@ -1218,12 +1220,19 @@ sub pictured {
 }
 
 # A size of the window's page: "view", its width and its height in points,
-# each a number in its one form. A width or height outside the bounds a page
-# is laid in is taken as the nearer bound. Anything else is no size. Returns
+# each a number in its one form. The page is never laid at the window's own
+# size, which differs from one computer to the next and would tell a site who
+# you are: the width is taken to the nearest step of 160 points and the height
+# to the nearest step of 128, so every window of about that size lays every
+# page at one of a few sizes, the same on every computer, and the window fits
+# the laid page to itself (function fit). A size outside the bounds a page is
+# laid in is taken as the nearer bound. Anything else is no size. Returns
 # whether the line was one.
+my @VIEW_STEP = (160, 128);
 sub viewing {
     my ($event) = @_;
     my ($wide, $high) = $event =~ /^view ([1-9][0-9]{0,4}) ([1-9][0-9]{0,4})$/ or return;
+    ($wide, $high) = map { my $step = $VIEW_STEP[$_]; $step * int(($_ ? $high : $wide) / $step + 0.5) } 0, 1;
     @VIEW = ($wide < $VIEW_WIDE[0] ? $VIEW_WIDE[0] : $wide > $VIEW_WIDE[1] ? $VIEW_WIDE[1] : $wide, $high < $VIEW_HIGH[0] ? $VIEW_HIGH[0] : $high > $VIEW_HIGH[1] ? $VIEW_HIGH[1] : $high);
     return 1;
 }
@@ -1677,6 +1686,24 @@ sub frame_said {
     unlink "$DIR/frame.new";
     put("$DIR/frame.new", O_EXCL, $frame) && rename("$DIR/frame.new", "$DIR/frame");
     return;
+}
+
+sub checked_kept {                       # the last look for a newer release, as checked keeps it, or "never"
+    sysopen(my $in, kept_in() . '/checked', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 'never';
+    my @is = stat $in;
+    return 'never' unless -f _ && $is[4] == $<;
+    defined sysread($in, my $text, 64) or return 'never';
+    return $text =~ /\A([1-9][0-9]{8,10} (?:same|newer) [0-9]{1,6}|[1-9][0-9]{8,10} failed)\n?\z/ ? $1 : 'never';
+}
+
+sub checked_said {
+    my ($result, $asked) = @_;
+    if ($result ne 'none' && !$INCOGNITO) {
+        unlink "$DIR/checked.new";
+        put("$DIR/checked.new", O_EXCL, time . " $result") && rename("$DIR/checked.new", "$DIR/checked");
+    }
+    window('checked ' . ($result eq 'none' ? 'none' : $INCOGNITO ? time . " $result" : checked_kept()));
+    return 1;
 }
 
 sub marks_bar {                           # whether the bookmarks bar is shown: one line "on" in a plain file of yours
@@ -2474,8 +2501,10 @@ sub beside {
 # no question, since nobody is there choosing, and every line it prints is
 # shown there and kept in install.txt (sub installed).
 sub newer {
+    my ($asked) = @_;                     # "update-check": Check for updates in the cogwheel's menu was chosen, and that choice is the yes for this one look
     my ($release, $newest, undef, $installer, $same) = beside();
-    return unless $newest && $installer;
+    return $asked && checked_said('none') unless $newest && $installer;
+    return newer_looked($release, $newest, $installer, $same, 1) if $asked;
     my $may = '';
     if (open my $in, '<', "$DIR/look") { $may = <$in> // '' }
     $may = $may eq "yes $newest" ? 'yes' : $may =~ /^no\b/ ? 'no' : '';    # a yes for another address is no yes for this one; a no stays a no
@@ -2492,11 +2521,22 @@ sub newer {
         }
     }
     return unless $may eq 'yes';
+    return newer_looked($release, $newest, $installer, $same, 0);
+}
+
+# One look at the published release number, at a start allowed to look or for Check for updates;
+# when it was done and what it found is kept in a plain file of yours, checked ("EPOCH RESULT":
+# "same N", "newer N" or "failed"), and told to the window as "checked EPOCH RESULT", which shows
+# it under Check for updates. An incognito window looks for nothing and keeps nothing.    # [C16]
+sub newer_looked {
+    my ($release, $newest, $installer, $same, $asked) = @_;
     busy('Looking for a newer release.');
     my ($host) = $newest =~ m{^https://([^/]+)};
-    my $got = fixed("lzrprf looks for a newer release: $newest", $newest, $host) // return;
-    my ($there) = $got =~ m{\AHTTP/1\.1 200 .*?\r\n\r\n(?:[0-9a-f]{1,4}\r\n)?(\d{1,6})\s*(?:0\r\n\r\n)?\z}s or return;    # one number and nothing else, or the answer counts for nothing
-    return unless $there > $release;
+    my $got = fixed(($asked ? 'you chose Check for updates: ' : '') . "lzrprf looks for a newer release: $newest", $newest, $host);
+    my ($there) = defined $got ? $got =~ m{\AHTTP/1\.1 200 .*?\r\n\r\n(?:[0-9a-f]{1,4}\r\n)?(\d{1,6})\s*(?:0\r\n\r\n)?\z}s : ();    # one number and nothing else, or the answer counts for nothing
+    checked_said(!defined $there ? 'failed' : $there > $release ? "newer $there" : "same $release", $asked);
+    idle(!defined $there ? 'lzrprf could not read the newest release number just now. The log says what was fetched.' : $there > $release ? "A newer release of $APP is published: $there." : "You run the newest release of $APP, $release.") if $asked;
+    return unless defined $there && $there > $release;
     return unless ask("A newer release of $APP is published: $there. You run $release. Install it fetches the installer and runs it here, in this window, with no further question: every line it prints is shown and kept in $DIR/install.txt.", 'Later', 'Install it') == 2;
     installed($there, $installer, $same);
 }
@@ -2513,7 +2553,7 @@ sub newer {
 # Nothing is fetched for it. An application without a release file shows none,
 # and "lzrprf try" only when its folder holds a file "welcome".
 my @PROTECTS = (
-    'Page scripts: no page runs a script here, so no tracking code, fingerprinting or hidden miner runs either.',
+    'Page scripts: the scripts of a page run sealed in its container, with no network, no file of yours and no other program, so no tracking code, fingerprinting or hidden miner runs either.',
     'Being followed: every site gets the same request from every computer, with no cookie and nothing kept from an earlier visit.',
     'Pages reaching your Mac: each page is drawn in a sealed container with no network, no file of yours and no other program.',
     'Hidden requests: nothing is fetched that you did not ask for, and every address is in your log before it is fetched.',
@@ -3285,6 +3325,7 @@ function heard(line) {
     else if (word == 'tabs') tabsTold(rest);
     else if (word == 'title') { var gap = rest.indexOf(' '), which = +rest.slice(0, gap); if (tabs[which]) tabs[which].title = rest.slice(gap + 1); tabsView.needsDisplay = true; }
     else if (word == 'install') installTold(rest);
+    else if (word == 'checked') checkedTold(rest);
     else if (word == 'welcome') welcomeTold(rest);
     else if (word == 'ask') { asked++; strip(rest.split('\t'), false, true); }
     else if (word == 'address') { bar.stringValue = $(rest); current = rest; listing = null; suggestHidden(); pieces(); redrawn(); }
@@ -3474,7 +3515,7 @@ function viewNow() {
 function fit() {
     if (!sheet) return;
     var room = scroll.contentSize.width, scale = room / sheet.wide;
-    if (scale > 1 && room <= sheet.wide * 1.5) scale = 1;
+    if (scale > 1.1 && room <= sheet.wide * 1.5) scale = 1;    // a page laid at the nearest step of width (sub viewing) fills the window; a page far narrower is shown at its size
     canvas.setFrameSize($.NSMakeSize(sheet.wide * scale, sheet.high * scale));
     canvas.setBoundsSize($.NSMakeSize(sheet.wide, sheet.high));
     canvas.needsDisplay = true;
@@ -3890,15 +3931,46 @@ function paintCog() {
 // has it rise over the bar, still inside. Each item has the keys that do it too, as in Chrome. A
 // press outside it closes it and reaches nothing under it, as a menu's does.
 var cogBox = null, cogCatch = null, cogOpen = false, COG_ROW = 32, COG_PAD = 8;
+// Each item: its words, its keys or what it says on the right, whether it is on now, what it does, why an incognito window
+// does not do it, and its icon: a line icon in the item's grey, and in the beam's blue with its glow while the item is on.
 function cogItems() {
-    return [['New Incognito Window', '⇧⌘N', null, function () { say('incognito'); }],
-        ['Show bookmarks bar', '⇧⌘B', marksOn, function () { if (takes()) sent('menu bookmarks-bar'); }],
-        ['Bookmarks', '⌥⌘B', null, function () { if (takes()) listOpened('marks'); }],
-        ['Import bookmarks...', '', null, INCOGNITO ? function () { words.stringValue = $(UNKEPT_TIP); } : importOpened, INCOGNITO ? UNKEPT_TIP : ''],
-        ['Search engine...', '', null, function () { if (takes()) engineAsked(); }],
-        ['Clear browsing history', '⇧⌘⌫', null, clearing],
-        ['Make current page the home page', '', null, function () { if (takes()) sent('menu home'); }],
-        ['Show the log', '', null, function () { if (logs.enabled && !modalOpen) sent('log'); }]];
+    return [['New Incognito Window', '⇧⌘N', INCOGNITO, function () { say('incognito'); }, '', 'mask'],
+        ['Show bookmarks bar', '⇧⌘B', marksOn, function () { if (takes()) sent('menu bookmarks-bar'); }, '', 'bar'],
+        ['Bookmarks', '⌥⌘B', listing == 'marks', function () { if (takes()) listOpened('marks'); }, '', 'ribbon'],
+        ['Import bookmarks...', '', modalKind == 'wizard' && modalOpen, INCOGNITO ? function () { words.stringValue = $(UNKEPT_TIP); } : importOpened, INCOGNITO ? UNKEPT_TIP : '', 'tray'],
+        ['Search engine...', '', false, function () { if (takes()) engineAsked(); }, '', 'lens'],
+        ['Clear browsing history', '⇧⌘⌫', false, clearing, '', 'bin'],
+        ['Make current page the home page', '', false, function () { if (takes()) sent('menu home'); }, '', 'house'],
+        ['Show the log', '', false, function () { if (logs.enabled && !modalOpen) sent('log'); }, '', 'page'],
+        ['Check for updates', checkedWords(), false, INCOGNITO ? function () { words.stringValue = $(UNKEPT_TIP); } : function () { if (takes()) say('update-check'); }, INCOGNITO ? UNKEPT_TIP : '', 'turn']];
+}
+
+// When lzrprf last looked for a newer release ("checked EPOCH RESULT", "checked never", or "checked none" without a
+// release file), shown on the right of Check for updates: the time today, else the day.
+var lastChecked = 'never';
+function checkedTold(rest) { lastChecked = rest; if (cogOpen) cogPlaced(); }
+function checkedWords() {
+    var m = /^([0-9]+) (same|newer|failed)/.exec(lastChecked);
+    if (!m) return lastChecked == 'none' ? '' : 'never checked';
+    var at = new Date(+m[1] * 1000), now = new Date(), two = function (n) { return (n < 10 ? '0' : '') + n; };
+    var when = at.toDateString() == now.toDateString() ? two(at.getHours()) + ':' + two(at.getMinutes()) : at.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][at.getMonth()];
+    return (m[2] == 'newer' ? 'newer found, ' : m[2] == 'failed' ? 'failed, ' : 'checked ') + when;
+}
+
+// The menu's line icons, drawn in a box of 14 points around (cx, cy).
+function cogIcon(name, cx, cy, colour, on) {
+    var p = $.NSBezierPath.bezierPath, P = function (x, y) { return $.NSMakePoint(cx + x, cy + y); }, line = function (a, b, c, d) { p.moveToPoint(P(a, b)); p.lineToPoint(P(c, d)); };
+    var oval = function (x, y, w, h) { p.appendBezierPathWithOvalInRect($.NSMakeRect(cx + x, cy + y, w, h)); }, box = function (x, y, w, h, rad) { p.appendBezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(cx + x, cy + y, w, h), rad, rad); };
+    if (name == 'mask') { line(-7, 1, 7, 1); box(-4, 1, 8, 4.5, 1.5); oval(-6, -6, 4.6, 4.6); oval(1.4, -6, 4.6, 4.6); line(-1.4, -3.7, 1.4, -3.7); }
+    else if (name == 'bar') { box(-7, -5.5, 14, 11, 2); line(-7, 2, 7, 2); }
+    else if (name == 'ribbon') { p.moveToPoint(P(-4.5, 7)); p.lineToPoint(P(4.5, 7)); p.lineToPoint(P(4.5, -7)); p.lineToPoint(P(0, -3)); p.lineToPoint(P(-4.5, -7)); p.closePath; }
+    else if (name == 'tray') { line(0, 7, 0, -2); line(-3.5, 1.5, 0, -2); line(3.5, 1.5, 0, -2); p.moveToPoint(P(-7, -2)); p.lineToPoint(P(-7, -6.5)); p.lineToPoint(P(7, -6.5)); p.lineToPoint(P(7, -2)); }
+    else if (name == 'lens') { oval(-6.5, -1.5, 8.5, 8.5); line(0.8, -0.8, 6.5, -6.5); }
+    else if (name == 'bin') { line(-6.5, 4.5, 6.5, 4.5); line(-2, 6.5, 2, 6.5); p.moveToPoint(P(-5, 4.5)); p.lineToPoint(P(-4, -6.5)); p.lineToPoint(P(4, -6.5)); p.lineToPoint(P(5, 4.5)); line(-1.5, 2, -1.5, -4.5); line(1.5, 2, 1.5, -4.5); }
+    else if (name == 'house') { p.moveToPoint(P(-7, 0)); p.lineToPoint(P(0, 6.5)); p.lineToPoint(P(7, 0)); p.moveToPoint(P(-5, 1.5)); p.lineToPoint(P(-5, -6.5)); p.lineToPoint(P(5, -6.5)); p.lineToPoint(P(5, 1.5)); }
+    else if (name == 'page') { p.moveToPoint(P(-5, 7)); p.lineToPoint(P(2, 7)); p.lineToPoint(P(5, 4)); p.lineToPoint(P(5, -7)); p.lineToPoint(P(-5, -7)); p.closePath; line(-2.5, 2, 2.5, 2); line(-2.5, -1, 2.5, -1); line(-2.5, -4, 1, -4); }
+    else if (name == 'turn') { p.appendBezierPathWithArcWithCenterRadiusStartAngleEndAngleClockwise(P(0, 0), 6, 60, 330, false); line(6 * Math.cos(-30 * Math.PI / 180), 6 * Math.sin(-30 * Math.PI / 180), 6 * Math.cos(-30 * Math.PI / 180) + 2.6, -3 + 3.4); line(6 * Math.cos(-30 * Math.PI / 180), 6 * Math.sin(-30 * Math.PI / 180), 6 * Math.cos(-30 * Math.PI / 180) - 3.4, -3 + 0.6); }
+    stroked(p, colour, 1.3, on ? GREEN : null, on ? 7 : 0);
 }
 
 function cogClicked() {
@@ -3918,7 +3990,7 @@ function cogPlaced() {
     if (!cogOpen || !cogBox) return;
     var items = cogItems(), w = 0, all = root.frame.size, at = cog.convertRectToView(cog.bounds, root);
     items.forEach(function (one) { w = Math.max(w, $(one[0]).sizeWithAttributes(inked(sans(13), WHITE)).width + (one[1] ? $(one[1]).sizeWithAttributes(inked(sans(12), GREY)).width + 28 : 0)); });
-    w = Math.ceil(Math.max(250, w + 50));
+    w = Math.ceil(Math.max(270, w + 56));
     var h = items.length * COG_ROW + 2 * COG_PAD, x = Math.max(8, Math.min(all.width - w - 8, at.origin.x + at.size.width - w)), y = Math.max(8, at.origin.y - 6 - h);
     cogCatch.frame = $.NSMakeRect(0, 0, all.width, all.height);
     cogBox.frame = $.NSMakeRect(x, y, w, h);
@@ -3960,12 +4032,8 @@ function paintCogMenu() {
             glass(pill, true);
             $.NSGraphicsContext.saveGraphicsState; glow(GREEN, 6); DIM.setStroke; pill.stroke; $.NSGraphicsContext.restoreGraphicsState;
         }
-        if (one[2]) {    // a check, drawn with the beam
-            var tick = $.NSBezierPath.bezierPath;
-            tick.moveToPoint($.NSMakePoint(13, mid)); tick.lineToPoint($.NSMakePoint(17, mid - 4)); tick.lineToPoint($.NSMakePoint(24, mid + 4));
-            stroked(tick, GREEN, 1.6, GREEN, 5);
-        }
-        $(one[0]).drawAtPointWithAttributes($.NSMakePoint(32, mid - 8.5), inked(sans(13), one[4] ? GREY : hot ? WHITE : ICON));    // an item an incognito window does not do is grey, its reason in its tooltip
+        cogIcon(one[5], 21, mid, one[2] ? GREEN : one[4] ? GREY : hot ? WHITE : ICON, !!one[2]);    // the item that is on now glows in the beam's blue
+        $(one[0]).drawAtPointWithAttributes($.NSMakePoint(38, mid - 8.5), inked(sans(13), one[4] ? GREY : hot ? WHITE : ICON));    // an item an incognito window does not do is grey, its reason in its tooltip
         if (one[1]) { var keys = $(one[1]), kw = keys.sizeWithAttributes(inked(sans(12), GREY)).width; keys.drawAtPointWithAttributes($.NSMakePoint(size.width - 16 - kw, mid - 8), inked(sans(12), GREY)); }
     });
 }
@@ -4124,9 +4192,9 @@ function homeLaid() {
     return { cx: cx, top: top, buttons: at };
 }
 
-function beamed(from, c1, c2, to, strength) {    // one curved beam: a wide faint glow, then its bright core
+function beamed(from, to, strength) {    // one straight beam, as a laser is: a wide faint glow, then its bright core
     var p = $.NSBezierPath.bezierPath;
-    p.moveToPoint(from); p.curveToPointControlPoint1ControlPoint2(to, c1, c2);
+    p.moveToPoint(from); p.lineToPoint(to);
     stroked(p, tint(0.07 * strength), 7, GREEN, 22);
     stroked(p, tintCore(0.55 * strength), 1.2, GREEN, 7);
     return p;
@@ -4160,8 +4228,8 @@ function homeIcon(k, cx, cy) {
 
 function paintHome() {
     var size = homeView.frame.size, w = size.width, h = size.height, laid = homeLaid(), cx = laid.cx, lit = takes();
-    beamed($.NSMakePoint(0, h * 0.42), $.NSMakePoint(w * 0.12, h * 0.68), $.NSMakePoint(w * 0.24, h * 0.86), $.NSMakePoint(w * 0.42, h + 2), 0.55);
-    var low = beamed($.NSMakePoint(w * 0.44, -2), $.NSMakePoint(w * 0.62, h * 0.16), $.NSMakePoint(w * 0.82, h * 0.34), $.NSMakePoint(w + 2, h * 0.43), 1);
+    beamed($.NSMakePoint(0, h * 0.42), $.NSMakePoint(w * 0.42, h + 2), 0.55);
+    var low = beamed($.NSMakePoint(w * 0.44, -2), $.NSMakePoint(w + 2, h * 0.43), 1);
     var under = low.copy;    // a faint light on the glass under the lower beam
     under.lineToPoint($.NSMakePoint(w + 2, -2));
     under.closePath;
