@@ -3,16 +3,16 @@ This record, the installer and the download each stand in two places: https://lz
 https://github.com/lzrbrwsr/lzrprf. Compare them. A difference means one place does not hold this
 release: a copy that was changed, an older answer from a cache, or a release on its way. Fetch both again
 before you conclude, and install nothing while they differ.
-lzrprf and selftest are the files of that repository at commit 73ce0af0b868c26b9c7315719b98bacd267d22fc.
+lzrprf and selftest are the files of that repository at commit ca8d240b670524874470711fe808f2ffe607d575.
 Check a file with: shasum -a 256 FILE
 
-ee407555738b3e235c5ac4af289887ab1568575d157bff6822a6a602a27a406a  install.sh
-6ab270fdb8680d956a71bf57390c7339e2f6cb70950b9628763b2e2ec464b709  lzrbrwsr-macos-arm64.tar.gz
+01ecef0943ad08aa4178994228235e96e34993fe6a518e8c8147689a90c18e0c  install.sh
+c83ff86efbf36c3c8685210270ce3f774e046371bc8103da594afa357b21801c  lzrbrwsr-macos-arm64.tar.gz
 e90b0a714519f5959185152fa2acfd4cac03662896ab77a86392e988f87d30b4  LZRBRWSR.app/Contents/Info.plist
 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
-479fb2a960e55fbe2ed8a560cb955e74a68b97725e06f7035aa8bfa46e7fd841  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
+e8909feab65033f582f0e0ccc2f032a07e0f803e96b59f41b7839d54a0a41ddb  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
 54dbcf635e61885963239b5dbcd1e1ba5b663aeffc39da17487f6cd66416ad38  LZRBRWSR.app/Contents/Resources/LICENSE.txt
 d538134742fe1726d098d7c7a351edcb100d7900e2ee285cb1a55050de5064dc  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
-24ce5fa737946879716460859e93c98e5e356fc625764f77013e4b2e94bd1eef  LZRBRWSR.app/Contents/Resources/release
-63ebbb92528bdb22ce0efaa5ee46212b28d97a6e75f7e274bf431ffa86ae2ea1  lzrprf
-3f644dadf8dbdd778e906095eff39e84168bbca8ee603671cd01746bca72c911  selftest
+a5a04709f9980e8890c2c5e90791a65df71987d69ae9b03f49b9bf087315987c  LZRBRWSR.app/Contents/Resources/release
+241ee8825b0bc30958abe8f4b41f8ba6cf4c8cb525ae452a4bcbee866d777a9e  lzrprf
+7a38ef23514691de51a2540f2ebce903a0a376391f8433d7ec9dff4c9748ab21  selftest
