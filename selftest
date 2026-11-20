@@ -376,7 +376,8 @@ my $joined = "=page\nPp0\nT\@" . 'a' x 1000 . $mark x 2 . " z\nB\nT\@" . 'a' x 1
 my $laidcontrol = "=page\nL960x400\nX10,40,16,\@,333333,a\e[2Jb\x{202e}c\x{200b}d" . "\x{301}" x 31 . "e\n";
 utf8::encode($_) for $hung, $long, $joined;
 utf8::encode($laidcontrol);
-my $rows = sub { ('m' . MIME::Base64::encode_base64("\x80" x (4 * $_[0]), '') . "\n") x $_[1] };
+my $rows = sub { ('n' . MIME::Base64::encode_base64("\x80" x (3 * $_[0]), '') . "\n") x $_[1] };    # rows of a tile, w pixels wide: three bytes a pixel, 4w characters with no "="
+my $grey = 'gICA';                        # three bytes of 0x80 in base64, one pixel of a tile
 my %heavy = (
     heavylines => sub { "=page\n" . join('', map { ($_ % 600 ? '' : "Pp0\n") . 'T' . chr(64 + $_ % 16) . 'x' x 30 . "\n" } 0 .. 48_999) },
     heavyblocks => sub { "=page\n" . "Pp0\nT\@x\n" x 24_999 },
@@ -473,6 +474,15 @@ my %list = (
     tiledoutside => "=page\nL600x1\nK0,0,0,256,1\n" . $rows->(256, 1) . "J0,0,256\n",
     tiledmany => "=page\nL320x1\n" . join('', map { "K$_,0,0,256,1\n" . $rows->(256, 1) } 0 .. 32),
     tiledplaces => "=page\nL600x1\nK0,0,0,256,1\n" . $rows->(256, 1) . "J0,256,0\n" x 1025,
+    tiledold => "=page\nL600x1\nK0,0,0,256,1\nm" . MIME::Base64::encode_base64("\x80" x 1024, '') . "\n",
+    tiledletter => "=page\nL600x1\nK0,0,0,256,1\nm" . $grey x 256 . "\n",
+    tiledpad => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIA=\n",
+    tiledpads => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "gI==\n",
+    tiledrowshort => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "\n",
+    tileddash => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIC-\n",
+    tiledunder => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIC_\n",
+    tiledpicture => "=page\nL960x400\nM0,0,10,10,2,1\nngICAgICA\n",
+    tiledalone => "=page\nL960x400\nR0,0,1,1,000000ff\nn" . $grey x 4 . "\n",
     pictured => "=page\n=pictures /out/pixgood /out/pixrow /out/pixhex /out/pixnone\nUd+HTML\t5\nL960x400\nI0,0,20,20,0\nI30,0,20,20,1\nI60,0,20,20,2\nI90,0,20,20,3\nG120,0,5,5\n",
     picturesbad => "=page\n=pictures out/pixgood\nL960x400\nG0,0,5,5\n",
     picturesmany => "=page\n=pictures" . join('', map { " /p$_" } 1 .. 9) . "\nL960x400\nG0,0,5,5\n",
@@ -516,7 +526,7 @@ my @attempts = (
 my @good = ('Ud+-', "Ud+HTML\t5", "Uc-Grid\tLevel 1", 'Uc-Subgrid', "Ul-A library of the hostile application\t1.2.3", 'P10', 'T@A page by the hostile application', 'Pp0', 'THa link that is only a colour', 'B', 'I200x100', 'Pc1', 'TDfixed');
 my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 bigbox smallbox otherdigit boxes blocklong blockbreak blockbox blockfirst hosts hostpath hostnumber emptytext style depth looks many noend nothing madelate madekind madeorder madename madetwice mademany madelong madeversion madetabs madecontrol madeother madespace madeempty madeflag madesign madetrail madebare madeblank madeversionspace);
 my @fit = qw(big control noread madefull manyfull boxesfull blockfull hung long joined);    # each is judged by itself below; "big" is the one of them that is not drawn
-my @laid_unfit = qw(laidrange laidzero laidnarrow laidmany laidmix laidflow laidrows laidrowlong laidbase64 laidpad laidpixels tiledwide tiledrow tiledrows tilednumber tiledtwice tiledunknown tiledzero tiledcut tiledgrid tiledshort tiledplace tiledoutside tiledmany tiledplaces picturesbad picturesmany picturesrange);    # laid pages, each broken in one way
+my @laid_unfit = qw(laidrange laidzero laidnarrow laidmany laidmix laidflow laidrows laidrowlong laidbase64 laidpad laidpixels tiledwide tiledrow tiledrows tilednumber tiledtwice tiledunknown tiledzero tiledcut tiledgrid tiledshort tiledplace tiledoutside tiledmany tiledplaces tiledold tiledletter tiledpad tiledpads tiledrowshort tileddash tiledunder tiledpicture tiledalone picturesbad picturesmany picturesrange);    # laid pages, each broken in one way
 my @laid_fit = qw(laidgood laidcontrol pictured tiledgood);
 my @stated_unfit = qw(statedcontrol statedother statedlong statedtwice statedempty statedfirst);    # a =statement line, each broken in one way
 my @stated_fit = qw(stated statedfull);
@@ -847,6 +857,11 @@ function drawn(lines, characters) {
     var set = Date.now();
     page.layoutManager.ensureLayoutForTextContainer(page.textContainer);    // every line of the page is set, not only the part a window of this size shows
     got = 'lines=' + lines + ' characters=' + characters + ' set_ms=' + (set - began) + ' laid_ms=' + (Date.now() - set);
+    if (sheet) {                               // a laid page: the whole view drawn once into a bitmap, off the screen, and the time it took
+        var from = Date.now(), whole = canvas.bounds, into = canvas.bitmapImageRepForCachingDisplayInRect(whole);
+        canvas.cacheDisplayInRectToBitmapImageRep(whole, into);
+        got += ' drawn_ms=' + (Date.now() - from);
+    }
 }
 function told(word, rest) {
     if (word == 'ask' && !last) return second.performClick(null);    // the test site is on this computer: yes, this once
@@ -1053,11 +1068,11 @@ check($unread->{page} && "@{ $unread->{page} }" eq "@good", 'an application that
 my @laid_good = ("Ud+HTML\t5", 'L960x400', 'R0,0,960,400,ffffffff', 'R10,10,100,2,00000080', 'X10,40,16,H,333333,a link, with a comma', 'X10,60,14,D,000000,x', 'G300,10,50,50', 'M400,10,64,64,2,2', 'm/wAA/wAA/4A=', 'mAIAA////AEA=', 'X0,400,96,O,0000ff,on top');
 my $laid = visit('output', "$t/out/laidgood");
 check($laid->{page} && "@{ $laid->{page} }" eq "@laid_good", 'a laid page is passed on as it is: rectangles, runs of text with a comma in them, a grey box and a picture of 2 by 2 pixels in base64, each inside the page', $laid->{page} ? scalar(@{ $laid->{page} }) . ' lines' : $laid->{said});
-my @tiled_good = ('L640x1', 'R0,0,640,1,ffffffff', 'K0,0,0,256,1', 'm' . encode_base64("\x80" x 1024, ''), 'X10,1,6,@,333333,a', 'J0,256,0', 'K1,512,0,128,1', 'm' . encode_base64("\x80" x 512, ''), 'J1,512,0');
+my @tiled_good = ('L640x1', 'R0,0,640,1,ffffffff', 'K0,0,0,256,1', 'n' . encode_base64("\x80" x 768, ''), 'X10,1,6,@,333333,a', 'J0,256,0', 'K1,512,0,128,1', 'n' . encode_base64("\x80" x 384, ''), 'J1,512,0');
 my $tiled = visit('output', "$t/out/tiledgood");
-check($tiled->{page} && "@{ $tiled->{page} }" eq "@tiled_good", 'tiles of a laid page are passed on as they are: a tile given once with its rows, placed again at another corner of the grid where it is cut the same, and a tile cut by the edge of the page, among rectangles and text', $tiled->{page} ? scalar(@{ $tiled->{page} }) . ' lines' : $tiled->{said});
+check($tiled->{page} && "@{ $tiled->{page} }" eq "@tiled_good", 'tiles of a laid page are passed on as they are: a tile given once with its rows of red, green and blue, placed again at another corner of the grid where it is cut the same, and a tile cut by the edge of the page, among rectangles and text', $tiled->{page} ? scalar(@{ $tiled->{page} }) . ' lines' : $tiled->{said});
 my @laid_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @laid_unfit;
-check(!@laid_passed, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels, a line =pictures with a path that does not begin with / or with nine paths, a place I for a picture the line does not name, a tile wider than its cut, with a row too long or missing, numbered 32, 01 or twice, placed before it is given, off the grid of 256 or out of the page, narrower than its cut, placed where it is cut otherwise, 33 tiles or 1025 places', @laid_passed ? "passed: @laid_passed" : scalar(@laid_unfit) . ' pages, none drawn');
+check(!@laid_passed, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels, a line =pictures with a path that does not begin with / or with nine paths, a place I for a picture the line does not name, a tile wider than its cut, with a row 4 characters too long or too short or missing, a row that begins m as a picture\'s does, at a picture\'s length or at a tile\'s, a row with = or == at its end, with - or _ in it, numbered 32, 01 or twice, placed before it is given, off the grid of 256 or out of the page, narrower than its cut, placed where it is cut otherwise, 33 tiles or 1025 places, and a row of a tile under a picture or under no tile at all', @laid_passed ? "passed: @laid_passed" : scalar(@laid_unfit) . ' pages, none drawn');
 my $laid_clean = "X10,40,16,\@,333333,a\x{fffd}[2Jb\x{fffd}c\x{fffd}d" . "\x{301}" x 30 . "\x{fffd}e";
 utf8::encode($laid_clean);
 my $laid_marked = visit('output', "$t/out/laidcontrol");
@@ -1312,8 +1327,9 @@ check(($at{made} // '') eq 'What Test says this page is made of: 5 things, 2 of 
 check(($at{logmade} // '') eq 'Here Test lists what it says a page is made of. Nothing is listed for what is shown now.', 'when the log stands where the page stood, that list is empty and says so', $at{logmade} // 'nothing came of it');
 check(($at{log} // '') =~ m{^Every address lzrprf fetched for \S+ in this window is below\. Nothing is kept after this window closes\. To keep a log, type in Terminal: perl \S+ keep hosts\. No button of this window makes lzrprf keep more\.\|This window.*you typed \Q$t\E/window\?q=1}, 'the log is shown in the same window: this window\'s lines, with nothing kept on the disk and no question that keeps anything', substr($at{log} // 'nothing came of it', 0, 80));
 my %heavy_at = map { /^test (heavy\w+) (.*)$/ ? ($1 => $2) : () } split /\n/, out('heavy') . err('heavy');
-my @heavy_ms = map { ($heavy_at{"heavy$_"} // '') =~ /^lines=\d+ characters=\d+ set_ms=(\d+) laid_ms=(\d+)$/ ? $1 + $2 : undef } 0 .. $#heavy;
-check(!grep({ !defined || $_ >= 30_000 } @heavy_ms) && ($heavy_at{heavylog} // '') =~ /^\d+ ms Every address lzrprf fetched/, 'the heaviest pages the limits allow of each kind that was measured slow are each fetched, checked, drawn by the real window and set to their last line in under 30 seconds on this Mac, and the window answers a press after them: the most lines, the most blocks, and full blocks of text in two other scripts, of marks on one letter, of one word, of words parted by no-break spaces, of marks and joining characters of another kind in turn, of eight scripts in turn, and 32 tiles of a laid page placed 1024 times', join(', ', map { "$heavy[$_] " . (defined $heavy_ms[$_] ? "$heavy_ms[$_] ms" : $heavy_at{"heavy$_"} // 'nothing came of it') } 0 .. $#heavy));
+my @heavy_ms = map { ($heavy_at{"heavy$_"} // '') =~ /^lines=\d+ characters=\d+ set_ms=(\d+) laid_ms=(\d+)(?: drawn_ms=(\d+))?$/ ? $1 + $2 + ($3 // 0) : undef } 0 .. $#heavy;
+my @heavy_drawn = map { ($heavy_at{"heavy$_"} // '') =~ / drawn_ms=(\d+)$/ ? " of them $1 ms drawing it" : '' } 0 .. $#heavy;    # a laid page only
+check(!grep({ !defined || $_ >= 30_000 } @heavy_ms) && ($heavy_at{heavylog} // '') =~ /^\d+ ms Every address lzrprf fetched/, 'the heaviest pages the limits allow of each kind that was measured slow are each fetched, checked, drawn by the real window and set to their last line in under 30 seconds on this Mac, and the window answers a press after them: the most lines, the most blocks, and full blocks of text in two other scripts, of marks on one letter, of one word, of words parted by no-break spaces, of marks and joining characters of another kind in turn, of eight scripts in turn, and 32 tiles of a laid page placed 1024 times', join(', ', map { "$heavy[$_] " . (defined $heavy_ms[$_] ? "$heavy_ms[$_] ms$heavy_drawn[$_]" : $heavy_at{"heavy$_"} // 'nothing came of it') } 0 .. $#heavy));
 
 # 9. The text of lzrprf itself.                               [C1] [C6]
 print "\n9. The text of lzrprf, read by the test.\n";
