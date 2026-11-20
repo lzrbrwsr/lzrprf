@@ -161,12 +161,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="0403e7280e878daf7f30d728e1bff66a753017fb8947a2638fca32c8f8ca08dc"
-RELEASE="46"
-LZRPRF_COMMIT="ce63a2fa876f9766a9f684ec4aabc4972df4cddc"
+SHA256="d599f068122a277c2857c55624f3ba10b996ac237530c829948460bcefbe287c"
+RELEASE="47"
+LZRPRF_COMMIT="b98bc78590c9c48d8a3e79e327ae85aa9f409fe4"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="a6cf1cc5878eb509b4a770a9b968cad8149e6294fac10fff3076d031d1ac3f02"
-SELFTEST_SHA256="b26d5280d0fcfd9263ffefa29acc1b18a96bf06b82e3520fc98978942a2e9d2a"
+LZRPRF_SHA256="e18372836d89362d33deaec6f441b9f0c999b11e31d0e0a19697b7fedc30e53a"
+SELFTEST_SHA256="15d1c28572a924a8cf350c37a688df3a97251b54bccc1c700658eee0e1781417"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -503,17 +503,17 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 46
-new Incognito windows (Shift-Cmd-N or the cog menu): nothing of them is kept after they close
-new Pictures drawn in a page's own code (inline SVG) now show, styled by the page
-new The site shows a measured audit against Chrome, Chromium, Brave and Firefox, renewed with every release
+release 47
+new The window resizes from its sides and corners, and opens at the size and place you left it, or as large as the desktop if it was full screen
+new Importing from a Chrome whose files macOS keeps out says the two ways in instead of greying Chrome out
+new What a page is made of opens in the large centred panel, and the Dock shows the current icon after an update
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
 file lzrbrwsr-bin e42a8ff18ec666e7a758ccbd290789a346c6fbc9e44f698ff9e3c4470828b67a
-lzrprf a6cf1cc5878eb509b4a770a9b968cad8149e6294fac10fff3076d031d1ac3f02
+lzrprf e18372836d89362d33deaec6f441b9f0c999b11e31d0e0a19697b7fedc30e53a
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
@@ -784,6 +784,13 @@ rm -rf "$stage" "$prfstage" || step "the older app or the older lzrprf, now repl
 unlock
 rm -f "$HOME/.lzrprf/rules" "$HOME/.lzrprf/refused"	# kept by an earlier lzrprf; this one keeps neither
 trap - INT TERM HUP QUIT
+# macOS keeps an app's icon by the time its folder last changed. Every file of the download carries
+# one fixed date (the build is the same on every machine), so the Dock and the Finder went on showing
+# the icon of an older release: the app is given the time of this install, and the system is told to
+# read it again. Its contents stay as they were checked.
+touch "$dest/LZRBRWSR.app" "$dest/LZRBRWSR.app/Contents" "$dest/LZRBRWSR.app/Contents/Info.plist" "$dest/LZRBRWSR.app/Contents/Resources" "$dest/LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns" 2>/dev/null || step "the app's time could not be set, so the Dock may show the icon of the release before until you log in again"
+lsr=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+[ -n "${LZRBRWSR_DEST:-}" ] || [ ! -x "$lsr" ] || "$lsr" -f "$dest/LZRBRWSR.app" >/dev/null 2>&1 || true	# not for a folder you named (the package test installs into one): the system keeps no record of it
 step "lzrprf is installed:    $HOME/.lzrprf/lzrprf"
 step "LZRBRWSR is installed:  $dest/LZRBRWSR.app"
 # An app in the other folder an install can be in was not touched, and can belong to another lzrprf.
