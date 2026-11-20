@@ -161,12 +161,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="318580236ad5e00be0cba04958550fa442146f35a9b57c5c3890c27675632dd4"
-RELEASE="42"
-LZRPRF_COMMIT="d041405199ac2e62f1b2609a89eb7e5858557421"
+SHA256="5ceacae8fa236fc3cf855c6c2ec35662a9dcc65b262172a9c7b16c868e0393b7"
+RELEASE="43"
+LZRPRF_COMMIT="6f3a12023e4be953943493f6b37ed7293d43b909"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
 LZRPRF_SHA256="744974775c254f8445af956e08e34dec29644c88777e21348ea54fa59379c489"
-SELFTEST_SHA256="6ef4695822e3120a079b16cd2c9ee6d14f2391b66c2cd1be59f7b62c89d8d760"
+SELFTEST_SHA256="40592fd9e23b30aeaf0138a43553cfef5d565986272cf3592a914719f770280d"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -503,7 +503,7 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 42
+release 43
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
@@ -540,21 +540,35 @@ fi
 # tested again when macOS has changed.
 #
 # The test's steps are shown as they happen, each with its title and a beam
-# while it runs that strikes lzrprf's wall and ricochets off it, in yellow and
-# bright white: the deflection. Every word of it is read from the test's own output: its
-# lines "now ..." and its numbered headings are the titles, and the lines
-# "held" under a heading are counted. Nothing here decides what held.
-shown() {	# shown <steps already printed> <frame> <seconds so far> <has the test ended: 0 or 1>
-	awk -v printed="$1" -v frame="$2" -v seconds="$3" -v ended="$4" -v G="$G" -v B="$B" -v Y="$Y" -v N="$N" '
-		/^now / { n++; title[n] = substr($0, 8); sub(/[.:;].*/, "", title[n]); next }
-		/^[0-9]+\. / { n++; title[n] = $0; sub(/^[0-9]+\. /, "", title[n]); sub(/[.:;].*/, "", title[n]); next }
+# while it runs that flies at lzrprf's wall and strikes it: the sparks fly back
+# off the wall, in yellow and bright white, and nothing passes it. Every run of
+# lzrprf is a line of its own, under the step it belongs to, as it ends: its
+# number, what it tries, and how long it took. Every word of it is read from the
+# test's own output: its lines "now ..." and its numbered headings are the
+# titles, its lines "ran ..." the runs, and the lines "held" under a heading are
+# counted. Nothing here decides what held; a run that ran is judged afterwards.
+# What was printed already is counted in $tmp/shown.
+shown() {	# shown <frame> <seconds so far> <has the test ended: 0 or 1>
+	awk -v frame="$1" -v seconds="$2" -v ended="$3" -v kept="$tmp/shown" -v G="$G" -v B="$B" -v Y="$Y" -v N="$N" '
+		BEGIN { if ((getline printed < kept) <= 0) printed = 0; close(kept) }
+		function line(text) { rows++; row[rows] = text }
+		function closed_title() {
+			if (n && !done[n]) line(sprintf("    %-54s %s━━━━━━%s✦%s▌%s  %s", title[n], G, Y, B, N, failed[n] ? "FAILED" : held[n] ? B held[n] " deflected" N : ran[n] ? B ran[n] " ran" N : "done"))
+			done[n] = 1
+		}
+		/^now / { closed_title(); n++; title[n] = substr($0, 8); sub(/[.:;].*/, "", title[n]); next }
+		/^[0-9]+\. / { closed_title(); n++; title[n] = $0; sub(/^[0-9]+\. /, "", title[n]); sub(/[.:;].*/, "", title[n]); next }
+		/^ran / {
+			ran[n]++; what = $0; sub(/^ran +[^ ]+ +[^ ]+ +/, "", what)
+			line(sprintf("      %s%-8s%s %-56s %5s s", B, $2, N, substr(what, 1, 56), $3)); next
+		}
 		/^(held|works) / { held[n]++ }
 		/^FAILED/ { failed[n]++ }
 		END {
+			if (ended) closed_title()
 			clear = G == "" ? "" : "\r\033[K"
-			last = ended ? n : n - 1
-			for (i = printed + 1; i <= last; i++)
-				printf "%s    %-54s %s━━━━━━━%s▌%s✦%s  %s\n", clear, title[i], G, B, Y, N, failed[i] ? "FAILED" : held[i] ? B held[i] " deflected" N : "done"
+			for (i = printed + 1; i <= rows; i++) printf "%s%s\n", clear, row[i]
+			print rows > kept
 			if (!ended && n > 0 && G != "") {
 				at = frame % 10
 				beam = ""
@@ -562,14 +576,13 @@ shown() {	# shown <steps already printed> <frame> <seconds so far> <has the test
 					for (i = 0; i < at; i++) beam = beam "━"
 					beam = beam "▶" N
 					for (i = at; i < 6; i++) beam = beam " "
-					beam = beam B "▌ " N "  "
-				} else {	# it strikes the wall and ricochets off, yellow and bright white
-					spark[7] = Y "✦" B "   "; spark[8] = B "✸" Y " ✦ "; spark[9] = Y "·" B " ✧" Y "✦"
-					beam = "━━━━━━" Y "◀" B "▌" spark[at] N
+					beam = beam B "▌" N "   "
+				} else {	# it strikes the wall: the sparks fly back off it, yellow and bright white, and nothing passes it
+					spark[7] = "━━━━━━" Y "✸"; spark[8] = "━━━━" Y "✦" B "✧" Y "✸"; spark[9] = "━━" Y "·" B " ✧" Y " ✦"
+					beam = spark[at] B "▌" N "   "
 				}
 				printf "%s    %-54s %s%s%s  %s s", clear, title[n], G, beam, N, seconds
 			}
-			exit last > printed ? last : printed
 		}' "$tmp/selftest.out"
 }
 step "lzrprf now deflects hostile tries we made ourselves, just to be sure: about half a minute"
@@ -577,7 +590,8 @@ step "lzrprf now deflects hostile tries we made ourselves, just to be sure: abou
 testing=$!
 # Stopped with Ctrl-C: the test is told, and it ends every process it started and takes its files away.
 trap 'kill "$testing" 2>/dev/null || true; wait "$testing" 2>/dev/null || true; exit 130' INT TERM HUP QUIT
-printed=0 frame=0 seconds=0 began="$(date +%s)"
+: >"$tmp/shown"
+frame=0 seconds=0 began="$(date +%s)"
 while kill -0 "$testing" 2>/dev/null; do
 	seconds="$(($(date +%s) - began))"
 	if [ "$seconds" -gt 1800 ]; then	# DECLARED(half a minute on a quiet Mac; a Mac busy with other work can take many times that) a test that does not end is ended, and counts as one that did not hold
@@ -585,7 +599,7 @@ while kill -0 "$testing" 2>/dev/null; do
 		break
 	fi
 	if [ -t 1 ]; then
-		shown "$printed" "$frame" "$seconds" 0 && printed=0 || printed=$?
+		shown "$frame" "$seconds" 0 || true
 		frame=$((frame + 1))
 		sleep 0.1
 	else
@@ -595,7 +609,7 @@ done
 if wait "$testing"; then held=yes; else held=no; fi
 testing=""	# it has ended: nothing is left for the line that ends it at an exit
 trap 'exit 130' INT TERM HUP QUIT
-shown "$printed" 0 0 1 || true
+shown 0 0 1 || true
 if [ "$held" = yes ]; then
 	untested="$(grep -c '^UNTESTED' "$tmp/selftest.out" || true)"
 	step "self-test on this computer: lzrprf deflected all $(grep -c '^held' "$tmp/selftest.out") hostile tries we made ourselves, just to be sure"
