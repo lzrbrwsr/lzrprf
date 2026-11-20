@@ -878,6 +878,17 @@ run_of('lostservices', lzrprf => $lost_services, app => bundle('lostservices', '
 });
 run_of('windowoutside', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', "$window_tries function run(argv) { return tries(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]); }", $echo_at, "$site_folder/window.outside", $secret, "$site_folder/keep.outside", $temp_file, $by_number, $outside, $settings_file]);
 
+# The graphics card's shader compiler, from inside the window's container: the system draws a
+# window's pictures on the graphics card and asks the compiler for each new way of drawing one,
+# and ends the window's process when the compiler cannot be reached. A shader of its own is
+# compiled here, new each run so that no kept one is used; and in a copy of the container
+# without the compiler on its list, the same compile must not come through.
+my ($window_container) = $text_of_lzrprf =~ /^my \$WINDOW_CONTAINER = <<'END';\n(.*?)^END$/ms;
+my $no_compiler = ($window_container // '') =~ s/^  \(global-name "com\.apple\.MTLCompilerService"\)\n//mr;
+my $shader_js = "ObjC.import('Metal'); function run() { var dev = \$.MTLCreateSystemDefaultDevice(); if (dev.isNil()) return 'no graphics card'; var err = Ref(); var lib = dev.newLibraryWithSourceOptionsError(\$('kernel void k(device float *a [[buffer(0)]], uint i [[thread_position_in_grid]]) { a[i] = a[i] * 2.0 + ' + Math.random() + '; }'), \$.MTLCompileOptions.alloc.init, err); return lib.isNil() ? 'not compiled' : 'compiled'; }";
+run_of('shaders', command => ['/usr/bin/sandbox-exec', '-D', "HOME=$home", '-p', $window_container // '(version 1)', '/usr/bin/osascript', '-l', 'JavaScript', '-e', $shader_js]);
+run_of('noshaders', command => ['/usr/bin/sandbox-exec', '-D', "HOME=$home", '-p', $no_compiler, '/usr/bin/osascript', '-l', 'JavaScript', '-e', $shader_js]);
+
 my $heavy_test = <<'END';
 function kind() { return 2; }                // no place in the Dock, no menu bar, never in front
 function shown() { }                         // and the window is never put on the screen
@@ -1057,6 +1068,8 @@ unlink "$site_folder/window.outside", "$site_folder/keep.outside";
 my ($window_tries_came) = $window =~ /^test tries (.*)$/m;
 my ($window_services) = ($window_tries_came // '') =~ / services=(\S+)\z/;
 $window_tries_came =~ s/ services=\S+\z// if defined $window_tries_came;
+check(defined $window_container && $no_compiler ne $window_container && out('shaders') =~ /^compiled$/m && out('noshaders') !~ /^compiled$/m, 'window container: a shader of its own is compiled from inside it by the graphics card\'s compiler, which the system needs for each new way of drawing a picture (a tile, a scaled picture, a full-screen window) and without which it ends the window\'s process; a copy of the container without the compiler on its list does not get the same shader compiled', 'listed: ' . ((out('shaders') =~ /([^\n]+)\n*\z/)[0] // 'nothing') . ', unlisted: ' . ((out('noshaders') =~ /([^\n]+)\n*\z/)[0] // 'the process ended'));
+check($text_of_lzrprf =~ /^    if \(testing\(\)\) \{.*\n        busy\(.*\n        my \$until = now\(\) \+ 900;\n        select undef, undef, undef, 0\.5 while testing\(\) && now\(\) < \$until;\n        \$found = \$is->\(\);\n        return \$without->\(\$found\) if length \$found;\n    \}\n    my \$test = dirname\(\$SELF\) \. '\/selftest';\n/m && $text_of_lzrprf =~ /^sub testing \{\n    sysopen my \$lock, "\$DIR\/selftest\.lock", O_RDONLY \| O_NOFOLLOW \| O_NONBLOCK or return 0;\n    return 0 unless -f \$lock;\n    return !flock \$lock, LOCK_SH \| LOCK_NB;\n\}\n/m, 'while a self-test runs on this Mac (an installer\'s, which takes this copy\'s mark out when it begins), a window that finds no mark waits up to 15 minutes for its result before it asks to test: read in "sub proven" and "sub testing"', 'read, not tried');
 my ($open_tries) = out('openservices') =~ /^test tries (.*)$/m;
 my ($opened_services) = ($open_tries // '') =~ / services=(\S+)\z/;
 check(($window_tries_came // '') =~ /^network=refused file=refused program=refused home=refused data=refused number=refused temp=(?:read|refused) shared=refused system=1111111 signal=refused keep=refused settings=(?:read|refused)$/, 'window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, send a signal to the self-test\'s own process, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, no system service when none is named, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here; a file among your settings is in one of the four folders its container lets it read, and what came of that try is shown here too', $window_tries_came // 'nothing came of it');
