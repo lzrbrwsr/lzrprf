@@ -161,8 +161,8 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="cdbc718211ffcbf105a16a5086b77d421c9fa934db7775c374698ddb75b866be"
-RELEASE="55"
+SHA256="ab09c548893969b524383a5dc422d7af34f79a91ec4f1c6242768d98539215d3"
+RELEASE="56"
 LZRPRF_COMMIT="08e4665431e9e9ce27d3d425e9948707cd424fcc"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
 LZRPRF_SHA256="9a0c1221185389c5106141f727b924cd2be70ade88bd5b6ffa77f72aadcc550d"
@@ -503,14 +503,14 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 55
-new Scripts a page loads from its own files run too, in the page's order, and a script can read and change the page's address
+release 56
+new Scripts a page's own script adds run too, the way sites load their tools, and scripts are read in the page's own encoding
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-file lzrbrwsr-bin 526aed18d35c3f1210867dc86f56e4ada4f5c7dbee6c537c9ed6dc202930cc1e
+file lzrbrwsr-bin 5b752d7749cb36c788b64e10925b80a0c3e9f5bc88864750920129934f09e18a
 file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
 lzrprf 9a0c1221185389c5106141f727b924cd2be70ade88bd5b6ffa77f72aadcc550d
 RELEASEFILE
