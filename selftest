@@ -737,6 +737,9 @@ my %about = (
     homelink => q{A home page file that is a link is not followed},
     marks => q{Bookmarks are saved, renamed, removed and opened},
     markslink => q{A bookmarks folder that is a link is not read or written},
+    incognito => q{An incognito window changes no file of lzrprf's and leaves no folder},
+    incognitokilled => q{An incognito run killed outright leaves its folder behind},
+    incognitoswept => q{The next start removes a killed incognito run's folder},
     importchrome => q{Chrome's bookmarks are imported in their order, the bar into the bar},
     importfirefox => q{A Firefox backup (jsonlz4) is unpacked and imported in order},
     importsafari => q{Safari's binary Bookmarks.plist is read and imported in order},
@@ -799,7 +802,7 @@ sub run_of {
     if (defined $keep) { open my $out, '>', "$folder/keep" or die "selftest: cannot write $folder/keep: $!\n"; print $out "$keep\n"; close $out }
     $how{prepare}->($folder) if $how{prepare};
     my @program = ($how{app} // '/usr/bin/perl', '-e', $hostile, hostile_args($folder, $how{part} // 'page'));
-    $run{$name} = { folder => $folder, ends => $how{ends}, limit => $how{limit}, command => $how{command} // ['/usr/bin/perl', $how{lzrprf} // $lzrprf, 'try', $folder,
+    $run{$name} = { folder => $folder, ends => $how{ends}, crash => $how{crash}, after => $how{after}, limit => $how{limit}, command => $how{command} // ['/usr/bin/perl', $how{lzrprf} // $lzrprf, 'try', $folder,
         '127.0.0.1:' . $port{ $how{peer} // 'trusted' }, $how{typed} // '-', $how{answer} // 'allow', @program] };
     push @order, $name;
     push @expected, @{ $how{fetches} // [] };
@@ -927,7 +930,7 @@ run_of('logbusy', typed => '=log', prepare => sub {
 });
 # What is kept. A run with a path and a query in every address, so that a file holding either is found.
 my $secret_path = 'secret-path?token=sesame';
-my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', (map { "/out/$_" } @heavy), map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
+my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', '/incognito/one', '/incognito/two', '/incognito/mark', '/out/nap?incognitokilled', (map { "/out/$_" } @heavy), map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
 run_of('memory', keep => undef, typed => "$t/nothing/$secret_path,,=log", answer => '2', fetches => ["/nothing/$secret_path"]);    # yes to the own network, then nobody answers
 run_of('hosts', keep => 'hosts 30', typed => "$t/hosts/$secret_path,,=log", answer => '2', fetches => ["/hosts/$secret_path"]);
 my %broken = (junk => sub { open my $out, '>', "$_[0]/keep"; print $out "keep everything\n" }, huge => sub { open my $out, '>', "$_[0]/keep"; print $out "all 3651\n" },
@@ -989,6 +992,31 @@ run_of('homestart', fetches => ['/home/start'], prepare => sub { open my $out, '
 run_of('homebad', prepare => sub { open my $out, '>', "$_[0]/home"; print $out "http://site.test/home/bad\n" });    # a home page that is no address lzrprf fetches: nothing is opened
 run_of('homelink', prepare => sub { open my $out, '>', "$_[0]/elsewhere-home"; print $out "$t/home/link\n"; close $out; symlink "$_[0]/elsewhere-home", "$_[0]/home" });    # a link where the home page goes: not followed
 run_of('marks', typed => join(',,', "=mark save\t-\tWork\tTest page\t$t/marks/one", '=mark open 0', "=mark save\t-\t../up\tx\t$t/marks/two", "=mark save\t-\t\ty\thttp://site.test/marks/three", "=mark save\t0\tWork\tRenamed\t$t/marks/one", '=mark remove 0', '=mark open 0', '=menu bookmarks-bar'), fetches => ['/marks/one']);
+# An incognito window [C16]: a run folder with a file "incognito" in it, which "lzrprf try" takes as the
+# word to open the window in incognito. Two pages, a bookmark of the bar opened, a page starred and the
+# bar shown: afterwards every file of the run folder is what it was, byte for byte, and the window's own
+# folder in your temporary folder is gone. A second run is killed outright (kill -9 its sweeper, the
+# process behind its window and lzrprf, as a crash or a power cut would), which leaves its folder; a
+# third, started only once that one has ended, must find it and remove it.
+sub temp_folders { my %seen; return grep { defined && -d && !$seen{$_}++ } map { abs_path($_) } grep { defined && length } $ENV{TMPDIR}, glob('/private/var/folders/*/*/T') }
+sub left_of { my ($pid) = @_; return map { glob("$_/lzrprf-i.$pid.*") } temp_folders() }    # the incognito folders the run of this number left, by its name
+sub tree_sums {                           # every file under a folder: its name and the SHA-256 of its bytes, a link by where it points
+    my ($top) = @_;
+    my %sum;
+    find({ no_chdir => 1, wanted => sub { my @is = lstat $_; $sum{ substr $_, length $top } = -l _ ? 'link ' . readlink($_) : -f _ ? Digest::SHA->new(256)->addfile($_)->hexdigest : -d _ ? 'folder' : 'other' } }, $top);
+    return join "\n", map { "$_ $sum{$_}" } sort keys %sum;
+}
+my %sums_before;
+my $incognito_folder = sub {
+    my ($at) = @_;
+    put_file("$at/incognito", '');
+    put_file("$at/bookmarks/Bookmarks bar/Mine.mark", "Mine\n$t/incognito/mark\n");
+    put_file("$at/marksbar", "off\n");
+};
+run_of('incognito', typed => join(',,', "$t/incognito/one", "$t/incognito/two", '=mark open 0', "=mark save\t-\t\tStarred\t$t/incognito/one", '=menu bookmarks-bar', '=import profiles chrome'),
+    fetches => ['/incognito/one', '/incognito/two', '/incognito/mark'], prepare => sub { $incognito_folder->($_[0]); $sums_before{incognito} = tree_sums($_[0]) });
+run_of('incognitokilled', crash => 1, typed => "$t/out/nap?incognitokilled", fetches => ['/out/nap?incognitokilled'], prepare => $incognito_folder);
+run_of('incognitoswept', after => 'incognitokilled', typed => "$t/incognito/swept", fetches => ['/incognito/swept']);
 sub put_file { my ($file, $bytes) = @_; my ($dir) = $file =~ m{\A(.*)/}; system('/bin/mkdir', '-p', $dir) == 0 or die "selftest: cannot make $dir\n"; open my $out, '>:raw', $file or die "selftest: cannot write $file: $!\n"; print $out $bytes; close $out }
 sub lz4 {                                 # an LZ4 block of these bytes, made the plain way: each next 4 bytes looked for earlier, a match taken as far as it goes; and how many matches it holds
     my ($in) = @_;
@@ -1172,8 +1200,10 @@ my (%pid, @waiting, $said_waiting, $ran_count);
 @waiting = @order;
 print "now    " . @order . " runs of lzrprf, a hostile application in each: all of them are judged below.\n";
 while (@waiting || %pid) {
-    while (@waiting && keys %pid < 8) {
-        my $name = shift @waiting;
+    while (keys %pid < 8) {
+        my ($at) = grep { my $first = $run{ $waiting[$_] }{after}; !$first || defined $run{$first}{ended} } 0 .. $#waiting;    # a run that must start after another has ended waits for it
+        last unless defined $at;
+        my $name = splice @waiting, $at, 1;
         my $pid = fork // die "selftest: cannot fork: $!\n";
         if (!$pid) {
             open STDIN, '<', '/dev/null';
@@ -1184,7 +1214,7 @@ while (@waiting || %pid) {
             POSIX::_exit(127);
         }
         $pid{$pid} = $name;
-        $run{$name}{began} = Time::HiRes::time();
+        @{ $run{$name} }{ 'began', 'pid' } = (Time::HiRes::time(), $pid);
     }
     my $gone = waitpid -1, POSIX::WNOHANG();
     if ($gone > 0 && $pid{$gone}) {
@@ -1196,6 +1226,15 @@ while (@waiting || %pid) {
     for (grep { Time::HiRes::time() - $run{ $pid{$_} }{began} > ($run{ $pid{$_} }{limit} // 90) } keys %pid) { kill 'KILL', $_ }
     for my $one (grep { $run{ $pid{$_} }{ends} && !$run{ $pid{$_} }{ended_here} } keys %pid) {    # lzrprf of such a run is killed, by the number this test's own fork gave, once its application said that it sleeps
         $run{ $pid{$one} }{ended_here} = kill 'KILL', $one if err($pid{$one}) =~ /^napping$/m;
+    }
+    for my $one (grep { $run{ $pid{$_} }{crash} && !$run{ $pid{$_} }{ended_here} } keys %pid) {    # [C16] an incognito run killed outright once its application sleeps: its sweeper, then the process behind its window, then lzrprf, none given a moment to clean
+        next unless err($pid{$one}) =~ /^napping$/m;
+        my ($left) = left_of($one);
+        my @also = $left ? map { slurp("$left/$_") =~ /^(\d+)\s*$/ ? $1 : () } 'sweeper', 'behind' : ();
+        next unless @also == 2;
+        kill 'KILL', @also, $one;
+        select undef, undef, undef, 0.2;
+        @{ $run{ $pid{$one} } }{ 'ended_here', 'left' } = (1, -d $left ? $left : '');
     }
     if (!@waiting && !$said_waiting && !grep({ !/^(?:spin|sleep|slow)$/ } values %pid)) {
         $said_waiting = print "now    Three runs never end by themselves: lzrprf's limits must end them, after 30 seconds.\n";
@@ -1316,7 +1355,7 @@ my ($window_tries_came) = $window =~ /^test tries (.*)$/m;
 my ($window_services) = ($window_tries_came // '') =~ / services=(\S+)\z/;
 $window_tries_came =~ s/ services=\S+\z// if defined $window_tries_came;
 check(defined $window_container && $no_compiler ne $window_container && out('shaders') =~ /^compiled$/m && out('noshaders') !~ /^compiled$/m, 'window container: a shader of its own is compiled from inside it by the graphics card\'s compiler, which the system needs for each new way of drawing a picture (a tile, a scaled picture, a full-screen window) and without which it ends the window\'s process; a copy of the container without the compiler on its list does not get the same shader compiled', 'listed: ' . ((out('shaders') =~ /([^\n]+)\n*\z/)[0] // 'nothing') . ', unlisted: ' . ((out('noshaders') =~ /([^\n]+)\n*\z/)[0] // 'the process ended'));
-check($text_of_lzrprf =~ /^    if \(testing\(\)\) \{.*\n        busy\(.*\n        my \$until = now\(\) \+ 900;\n        select undef, undef, undef, 0\.5 while testing\(\) && now\(\) < \$until;\n        \$found = \$is->\(\);\n        return \$without->\(\$found\) if length \$found;\n    \}\n    my \$test = dirname\(\$SELF\) \. '\/selftest';\n/m && $text_of_lzrprf =~ /^sub testing \{\n    sysopen my \$lock, "\$DIR\/selftest\.lock", O_RDONLY \| O_NOFOLLOW \| O_NONBLOCK or return 0;\n    return 0 unless -f \$lock;\n    return !flock \$lock, LOCK_SH \| LOCK_NB;\n\}\n/m, 'while a self-test runs on this Mac (an installer\'s, which takes this copy\'s mark out when it begins), a window that finds no mark waits up to 15 minutes for its result before it asks to test: read in "sub proven" and "sub testing"', 'read, not tried');
+check($text_of_lzrprf =~ /^    if \(testing\(\)\) \{.*\n        busy\(.*\n        my \$until = now\(\) \+ 900;\n        select undef, undef, undef, 0\.5 while testing\(\) && now\(\) < \$until;\n        \$found = \$is->\(\);\n        return \$without->\(\$found\) if length \$found;\n    \}\n    return 0 if \$INCOGNITO; .*\n    my \$test = dirname\(\$SELF\) \. '\/selftest';\n/m && $text_of_lzrprf =~ /^sub testing \{\n    sysopen my \$lock, kept_in\(\) \. '\/selftest\.lock', O_RDONLY \| O_NOFOLLOW \| O_NONBLOCK or return 0;\n    return 0 unless -f \$lock;\n    return !flock \$lock, LOCK_SH \| LOCK_NB;\n\}\n/m, 'while a self-test runs on this Mac (an installer\'s, which takes this copy\'s mark out when it begins), a window that finds no mark waits up to 15 minutes for its result before it asks to test: read in "sub proven" and "sub testing"', 'read, not tried');
 my ($open_tries) = out('openservices') =~ /^test tries (.*)$/m;
 my ($opened_services) = ($open_tries // '') =~ / services=(\S+)\z/;
 check(($window_tries_came // '') =~ /^network=refused file=refused program=refused home=refused data=refused number=refused temp=(?:read|refused) shared=refused system=1111111 signal=refused keep=refused settings=(?:read|refused)$/, 'window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, send a signal to the self-test\'s own process, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, no system service when none is named, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here; a file among your settings is in one of the four folders its container lets it read, and what came of that try is shown here too', $window_tries_came // 'nothing came of it');
@@ -1470,6 +1509,14 @@ check($said_mark{"The bookmark was added: Test page, $t/marks/one."} && (grep { 
     'a bookmark is one plain file in a folder of its own under lzrprf\'s folder; the window is told the whole tree, and opening one is a visit written in the log first', scalar(@marks_said) . ' things said');
 check((grep { /^The bookmark was not saved: a folder is at most 4 deep/ } @marks_said) == 1 && (grep { /^The bookmark was not saved: lzrprf does not fetch that address\./ } @marks_said) == 1 && !-e "$base.marks/up" && !-e "$base.up" && $said_mark{"The bookmark was changed: Renamed, $t/marks/one."} && $said_mark{'The bookmark was removed: Renamed.'} && $said_mark{'That bookmark is no longer there.'} && !glob("'$base.marks/bookmarks/Work/'*.mark") && slurp("$base.marks/marksbar") eq "on\n" && (words('marks', 'marksbar'))[-1] eq 'on',
     'a folder name that climbs out, or an address lzrprf does not fetch, saves nothing; a bookmark is changed in place and removed by its number, and one that is gone opens nothing; "Show bookmarks bar" is kept in one plain file', join(' | ', grep { /bookmark/i } @marks_said[0 .. ($#marks_said < 7 ? $#marks_said : 7)]));
+my @incognito_said = words('incognito', 'idle');
+my $incognito_left = join ' ', map { s{.*/}{}r } left_of($run{incognito}{pid} // 0);
+check((grep { $_->[0] eq 'incognito' } told('incognito')) && asked('/incognito/one') == 1 && asked('/incognito/two') == 1 && asked('/incognito/mark') == 1 && defined $sums_before{incognito} && tree_sums("$base.incognito") eq $sums_before{incognito} && !$incognito_left
+        && (grep { $_ eq 'An incognito window writes nothing, so no bookmark was added or changed.' } @incognito_said) == 1 && (words('incognito', 'marksbar'))[-1] eq 'on' && (grep { $_ eq 'refused An incognito window writes nothing, so it imports no bookmarks.' } words('incognito', 'import')) == 1,
+    'an incognito window opens two pages and a bookmark and shows the bar, refuses the star and the import, and afterwards every file of lzrprf\'s folder is what it was, byte for byte, and its own folder is gone', $incognito_left ? "left $incognito_left" : join(' | ', @incognito_said[0 .. ($#incognito_said < 3 ? $#incognito_said : 3)]));
+my $crashed = $run{incognitokilled}{left} // '';
+check($crashed && !-e $crashed && defined $run{incognitoswept}{began} && $run{incognitoswept}{began} >= ($run{incognitokilled}{began} // 0) + ($run{incognitokilled}{took} // 0) && last_said('incognitoswept') !~ /^$/,
+    'an incognito run killed outright, its sweeper and the process behind its window too, leaves its folder; the next lzrprf started removes it', $crashed ? ($crashed =~ s{.*/}{}r) . (-e $crashed ? ' still there' : ' removed by the next start') : 'the test did not get to kill the run, or its folder was already gone');
 check(!grep({ /^B / } words('markslink', 'mark')) && (grep { /^The bookmark was not saved: .* is not a folder of yours\.$/ } words('markslink', 'idle')) == 1 && (() = glob "'$base.markslinked/'*") == 1,
     'a bookmarks folder that is a link to another folder: nothing in it is read, and nothing is written through it', join(' ', words('markslink', 'idle')));
 # Importing bookmarks from other browsers [C12] [C15]: what the wizard was told, the files written, and each folder's order.
@@ -1768,7 +1815,7 @@ my ($in_time, $gone) = hears();
 check(defined $in_time && $in_time eq '' && !defined $gone, 'the two ends of a question are told apart: "sub hear" of lzrprf, run against a pipe of the test\'s own, gives an empty line when nothing is said in time, so "sub ask" answers 1, and nothing when the window is gone, so lzrprf ends', defined $in_time ? (defined $gone ? 'the same for both' : 'time over: an empty line; window gone: nothing') : 'time over: nothing, as if the window were gone');
 my @no_folder = grep { my $pid = open(my $in, '-|') // die "selftest: cannot fork: $!\n"; if (!$pid) { open STDERR, '>&', \*STDOUT; { no warnings; exec '/usr/bin/perl', $cli, 'try', "$base.keepcli/$_", '-', '-', 'deny', '/usr/bin/true'; } POSIX::_exit(127) } my $all = do { local $/; <$in> } // ''; close $in; $all !~ /^usage: lzrprf run / } '.', '..', '.x';    # nothing is typed and every answer is the first button, so a folder that was taken would have nothing done in it
 check(!@no_folder, 'the door for tests takes no folder named ".", ".." or with a dot first, so it cannot be pointed at the folder lzrprf itself keeps its state in', @no_folder ? "taken: @no_folder" : 'usage, three times');
-check(keys %marks == 15 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 15 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
+check(keys %marks == 16 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 16 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
 my $readme = slurp("$here/README.md");
 if (length $readme) {
     my %cited = map { $_ => 1 } $readme =~ /\[(C\d+)\]/g;

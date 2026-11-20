@@ -4,6 +4,7 @@
 # done: fetch the https address that you typed into the bar of that window.
 #
 #   lzrprf run /path/to/program [arguments]     open the window, with the program contained behind it
+#   lzrprf incognito [/path/to/program [args]]  the same in an incognito window, which leaves nothing behind when it closes [C16]
 #   lzrprf log                                  print what the log on this computer holds
 #   lzrprf keep [nothing|hosts|all [DAYS]]      say, or choose, what is kept after a window closes
 #   lzrprf address TEXT...                      say what would be fetched if TEXT were typed into the bar
@@ -44,6 +45,7 @@
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log, apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file .order of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (install.txt); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #   [C13] The application opens no file for its fonts: lzrprf hands it eight fonts of the Mac, by fixed paths, in front of a page's answer and never a picture's, each a plain file and no link of at most 2 MiB that begins as a font, or with length 0; and only after the system said that the application is contained.
 #   [C14] A page is laid out at most twice: a second time only when its first run named style sheets on the page's own host, at most eight, which lzrprf fetches and hands the second run in front of the answer, after the fonts, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown, the first run's page is; there is never a third run, and a picture run is handed no style sheet.
+#   [C16] An incognito window writes nothing that outlives it. Its log, history, tabs, suggestions and everything it fetched are held in its memory or in one folder it makes for itself, readable by you alone, in your own temporary folder (TMPDIR, /private/var/folders/.../T), named lzrprf-i.<its process number>.<12 random hex digits>. Of ~/.lzrprf it reads, and never writes, the self-test's result (proven, untested, selftest.lock), the home page, the search address, whether the bookmarks bar is shown and the bookmarks. The folder is removed when the window ends, however it ends: quit, its last window closed, a signal, its process dying; and a folder left by a run whose processes are all gone is removed at the next start of any lzrprf window.
 #   [C15] Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: Local State and each profile's Bookmarks of Chrome, Edge, Brave and Vivaldi, Firefox's profiles.ini and newest bookmarkbackups/*.jsonlz4, Safari's Bookmarks.plist, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import [C12].
 #
 # This file is the whole program. Its parts, in order: the containers, the
@@ -56,6 +58,7 @@ use Digest::SHA;
 use Fcntl qw(:flock O_RDONLY O_RDWR O_WRONLY O_APPEND O_CREAT O_EXCL O_NOFOLLOW O_NONBLOCK);
 use File::Basename qw(basename dirname);
 use File::Glob 'bsd_glob';
+use File::Path 'remove_tree';
 use IO::Handle;
 use IO::Socket::INET;
 use IO::Socket::UNIX;
@@ -72,6 +75,10 @@ umask 0077;                               # what lzrprf writes is readable by yo
 my $SELF = abs_path($0);
 my $HOME = abs_path((getpwuid $<)[7]);    # from the account, not from the environment
 my $DIR = "$HOME/.lzrprf";                # no container can read or write this folder
+my ($INCOGNITO, $BASE) = (0, undef);     # an incognito window [C16]: $DIR is then its own folder in your temporary folder, and $BASE the folder its few settings are read from, never written
+my $UNKEPT = 'An incognito window writes nothing';    # the start of every refusal to keep something in one
+my ($HELD_ENGINE, $HELD_BAR);             # in an incognito window, a search address or a bookmarks bar chosen in it: in its memory only
+sub kept_in { $INCOGNITO ? $BASE : $DIR }    # where settings are read from: ~/.lzrprf (or a test's folder), also in an incognito window
 my $CURL = '/usr/bin/curl';               # the system's own; it does the https, lzrprf holds no code for it
 my $SCRIPT = '/usr/bin/osascript';        # the system's own; it runs the window's text and the question to the system
 my $ROOTS = '/private/etc/ssl/cert.pem';  # the system's list of certificate authorities
@@ -522,6 +529,8 @@ sub run {
         unlink bsd_glob("$old/*"), $old;
         rmdir $old;
     }
+    swept();                              # [C16] the folder of an incognito run that ended without removing it, at every start
+    incognito_begun() if $INCOGNITO || ($TRY && -e "$DIR/incognito");    # "lzrprf try" only: a file "incognito" in the test's folder makes the run an incognito one, the test's folder standing for ~/.lzrprf
     $SIG{PIPE} = 'IGNORE';
     if ($TRY && $ANSWER ne 'ask') {       # "lzrprf try" only: no window
         @EVENTS = ('ready', $TYPED eq '-' ? () : map { /^=(.+)/ ? $1 : "go $_" } split /,,/, $TYPED);
@@ -530,12 +539,87 @@ sub run {
     pipe(my $window_in, my $to) && pipe(my $from, my $window_out) or die "lzrprf: cannot make a pipe: $!\n";
     my $window = $$;
     my $behind = fork // die "lzrprf: cannot fork: $!\n";
-    become($from, $to, $TRY ? \*STDOUT : undef, '/usr/bin/perl', $SELF, 'behind', $TRY, $DIR, $PEER, $ANSWER, $window, $program, @arguments) unless $behind;    # descriptor 0 is what the window says, descriptor 1 what it is told
+    become($from, $to, $TRY ? \*STDOUT : undef, '/usr/bin/perl', $SELF, 'behind', $TRY, $DIR, $PEER, $ANSWER, $window, $BASE // '-', $program, @arguments) unless $behind;    # descriptor 0 is what the window says, descriptor 1 what it is told
     close $_ for $to, $from;
     my $more = '';
-    if ($TRY && open my $test, '<', "$DIR/window") { local $/; $more = <$test> }    # "lzrprf try" only: the test's own text after the window's, so a test can keep the window off the screen and read what it holds
+    if ($TRY && open my $test, '<', kept_in() . '/window') { local $/; $more = <$test> }    # "lzrprf try" only: the test's own text after the window's, so a test can keep the window off the screen and read what it holds
     die "lzrprf: the home folder's path holds a character lzrprf does not pass on\n" if $HOME =~ /["\\\n]/;
-    become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP);
+    become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP, $INCOGNITO ? 'incognito' : ());
+}
+
+# An incognito window [C16]. Its folder is made the way mkdtemp makes one: a
+# name with 12 random hex digits, made by one mkdir that fails when the name is
+# taken, readable by you alone, in your own temporary folder. Its name holds the
+# number of the window's process, so a later start can tell a folder whose run
+# has ended. A third process, the sweeper, outlives the window and the process
+# behind it: it ignores the signals a terminal sends, waits for both to be gone
+# and removes the folder. The process behind the window removes it too when it
+# leaves, on a signal among them. A run killed whole, the sweeper with it,
+# leaves the folder to the next start (sub swept).
+sub temp_folder {                         # your own temporary folder: TMPDIR when it is a folder of yours that nobody else may read, else the one of yours under /private/var/folders
+    my @found = grep { defined && m{^/[\x21-\x7e]+\z} } map { abs_path($_) } grep { defined && length } $ENV{TMPDIR}, bsd_glob('/private/var/folders/*/*/T');
+    for my $temp (@found) {
+        my @is = lstat $temp;
+        return $temp if @is && -d _ && $is[4] == $< && !($is[2] & 0077);
+    }
+    return;
+}
+
+sub swept {                               # [C16] incognito folders of runs whose window process is gone
+    my $temp = temp_folder() // return;
+    for my $old (bsd_glob("$temp/lzrprf-i.*")) {
+        my ($pid) = $old =~ m{/lzrprf-i\.(\d+)\.[0-9a-f]{12}\z} or next;
+        my @is = lstat $old;
+        next unless @is && -d _ && $is[4] == $<;
+        next if kill(0, $pid) || $!{EPERM};    # its window, or a process of that number, is still there
+        removed($old);
+    }
+}
+
+sub removed {                             # an incognito folder, whole; nothing else is ever removed by this
+    my ($folder) = @_;
+    return unless $folder =~ m{/lzrprf-i\.\d+\.[0-9a-f]{12}\z} && -d $folder && !-l $folder;
+    remove_tree($folder, { safe => 0, keep_root => 0 });
+}
+
+sub incognito_begun {
+    my $temp = temp_folder() // die "lzrprf: no temporary folder of yours was found that nobody else may read, so no incognito window was started\n";
+    my $folder;
+    for (1 .. 8) {
+        open my $random, '<:raw', '/dev/urandom' or last;
+        read($random, my $bytes, 6) == 6 or last;
+        my $try = "$temp/lzrprf-i.$$." . unpack('H*', $bytes);
+        if (mkdir $try, 0700) { $folder = $try; last }
+    }
+    die "lzrprf: the incognito window's folder could not be made in $temp, so nothing was started\n" unless $folder;
+    ($BASE, $DIR, $INCOGNITO) = ($DIR, $folder, 1);
+    my $window = $$;
+    my $sweeper = fork // do { removed($folder); die "lzrprf: cannot fork: $!\n" };
+    return if $sweeper;
+    $SIG{$_} = 'IGNORE' for qw(INT TERM HUP QUIT PIPE);    # a terminal's Ctrl-C or its closing ends the window, not the one that cleans after it
+    POSIX::setsid();
+    my $nowhere = POSIX::open('/dev/null', O_RDWR);
+    POSIX::dup2($nowhere, $_) for 0 .. 2;
+    seal();
+    put("$folder/sweeper", O_EXCL, $$);    # its number, for a test that ends it too
+    select undef, undef, undef, 0.25 while getppid() == $window;    # the window is this process's parent until it is gone
+    if (open my $held, '<', "$folder/held") { flock $held, LOCK_EX }    # the process behind the window holds this while it lives
+    removed($folder);
+    POSIX::_exit(0);
+}
+
+sub incognito_opened {                    # "New Incognito Window": a second lzrprf, of its own, in incognito
+    return idle('A new incognito window was asked for: "lzrprf try" starts none.') if $TRY;
+    my @again = ($PROGRAM, @ARGUMENTS);
+    my $child = fork // return idle('No incognito window was started: lzrprf could not start a process.');
+    if (!$child) {
+        POSIX::setsid();
+        my $grandchild = fork // POSIX::_exit(1);
+        POSIX::_exit(0) if $grandchild;   # so the window started is nobody's child here, and leaves nothing to wait for
+        become(undef, undef, undef, '/usr/bin/perl', $SELF, 'incognito', @again);
+    }
+    waitpid $child, 0;
+    return idle('An incognito window is opening. It writes nothing: when it closes, it leaves nothing behind.');
 }
 
 sub named {                               # the program of this run, and the name it is called by in the window
@@ -545,17 +629,24 @@ sub named {                               # the program of this run, and the nam
 }
 
 # Behind the window: everything lzrprf does for one run, one thing at a time.
+my $HELD;                                  # in an incognito window, the lock on its folder's file "held" that the sweeper waits for
 sub behind {
+    if ($INCOGNITO) {                     # [C16] every way out removes the folder
+        open $HELD, '>>', "$DIR/held" and flock $HELD, LOCK_EX;
+        put("$DIR/behind", O_EXCL, $$);    # its number, for a test that kills it outright, as a crash would
+        $SIG{$_} = sub { leave() } for qw(INT TERM HUP QUIT);
+    }
     leave() unless (hear(60) // '') eq 'ready';
     $BEGAN = sum_of($PROGRAM);            # read before it is compared below, so the program that is compared is the one every page is held to
     paired();                             # before anything else: an application and an lzrprf that were not installed together are noticed
-    return closed("lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e "$DIR/prove") || proven();    # [C11]
+    return closed($INCOGNITO ? "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. An incognito window does not run the self-test, because the test writes its result: open a normal window once to test this Mac." : "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e kept_in() . '/prove') || proven();    # [C11]
     return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless holds();    # [C2]
     return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
     $UNEXPIRED = !expire_log();           # [C12] the days you chose, at the start of a window; when a request of another window is open just then, it is tried again before each request of this window and each press of Log, until it is done
-    welcome();                            # once after each install or update: what is new, and what $APP does and does not do for you
-    newer();
-    idle("$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
+    welcome() unless $INCOGNITO;          # once after each install or update: what is new, and what $APP does and does not do for you; an incognito window writes nothing, so it shows none
+    newer() unless $INCOGNITO;           # [C16] it would write its answer and an installer's lines
+    window('incognito') if $INCOGNITO;
+    idle($INCOGNITO ? "$APP is contained, in an incognito window: its log, history and tabs are held in its memory and one folder of its own, removed when it closes. Nothing is written to ~/.lzrprf." : "$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
     marks_told();
     window('marksbar ' . (marks_bar() ? 'on' : 'off'), 'search ' . (engine() ? 'set' : 'none'));
     nav_told();
@@ -572,6 +663,7 @@ sub behind {
         elsif ($event =~ /^search (brave|duckduckgo|google)$/) { search_set($ENGINES{$1}) }
         elsif ($event =~ /^search custom\t([\x21-\x7e]{1,2000})$/) { search_set($1) }
         elsif ($event eq 'log') { log_shown() }
+        elsif ($event eq 'incognito') { incognito_opened() }
         elsif ($event =~ /^import (sources|go)$/) { $1 eq 'go' ? import_go() : import_sources() }    # [C15] "Import bookmarks..." in the window's wizard: nothing is read before a browser is chosen, nothing written before Import
         elsif ($event =~ /^import profiles (chrome|edge|brave|vivaldi|firefox|safari|file)$/) { import_profiles($1) }
         elsif ($event =~ /^import preview (chrome|edge|brave|vivaldi|firefox|safari|file) (0|[1-9][0-9]?)$/) { import_preview($1, $2) }
@@ -635,6 +727,7 @@ sub unnamed {                             # the first thing in the program's fol
 sub leave {
     kill 'KILL', $witness if $witness;
     unlink "$DIR/way.$$";
+    removed($DIR) if $INCOGNITO;          # [C16]
     exit 0;
 }
 
@@ -1222,6 +1315,7 @@ sub menu {
     my ($what) = @_;
     if ($what eq 'bookmarks-bar') {        # shown or hidden, kept in one plain file of yours, marksbar
         my $on = !marks_bar();
+        if ($INCOGNITO) { $HELD_BAR = $on ? 1 : 0; window('marksbar ' . ($on ? 'on' : 'off')); return idle(($on ? 'The bookmarks bar is shown' : 'The bookmarks bar is hidden') . ' in this incognito window only: it writes nothing.') }    # [C16]
         unlink "$DIR/marksbar.new";
         return idle('The bookmarks bar could not be changed: its setting could not be written.') unless put("$DIR/marksbar.new", O_EXCL, $on ? 'on' : 'off') && rename("$DIR/marksbar.new", "$DIR/marksbar");
         synced();
@@ -1229,6 +1323,7 @@ sub menu {
         return idle($on ? 'The bookmarks bar is shown.' : 'The bookmarks bar is hidden.');
     }
     if ($what eq 'home') {
+        return idle("$UNKEPT, so the home page was not changed.") if $INCOGNITO;    # [C16]
         my ($url) = address($TABS[$TAB]{url});
         return idle('No home page was set: this tab shows no address lzrprf fetches.') unless $url && length $TABS[$TAB]{url};
         unlink "$DIR/home.new";
@@ -1283,7 +1378,8 @@ sub engine_fit {                          # a search address lzrprf takes: https
 }
 
 sub engine {
-    sysopen(my $in, "$DIR/search", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return;
+    return $HELD_ENGINE if $INCOGNITO && $HELD_ENGINE;
+    sysopen(my $in, kept_in() . '/search', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return;
     my @is = stat $in;
     return unless -f _ && $is[4] == $<;
     defined sysread($in, my $text, 2002) or return;
@@ -1294,6 +1390,7 @@ sub engine {
 sub search_set {
     my ($text) = @_;
     my $fit = engine_fit($text) or return idle('That search address was not kept: it must be https, a host by its name, port 443, in plain characters, with %s exactly once where the words go.');
+    if ($INCOGNITO) { $HELD_ENGINE = $fit; window('search set'); return idle('Searches go to ' . ($fit =~ m{^https://([^/?#]+)}i)[0] . " in this incognito window only: $UNKEPT.") }    # [C16]
     unlink "$DIR/search.new";
     return idle('The search address could not be kept: its file could not be written. Nothing was changed.') unless put("$DIR/search.new", O_EXCL, $fit) && rename("$DIR/search.new", "$DIR/search");
     synced();
@@ -1338,7 +1435,7 @@ sub secured {
 }
 
 sub home {                                # the home page you set, when it is still an address lzrprf fetches; a plain file of yours and no link
-    sysopen(my $in, "$DIR/home", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return;
+    sysopen(my $in, kept_in() . '/home', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return;
     my @is = stat $in;
     return unless -f _ && $is[4] == $<;
     defined sysread($in, my $text, 2102) or return;
@@ -1431,7 +1528,7 @@ my $MARKS_MOST = 1000;                    # the most bookmarks read: the owner's
 my $MARKS_DEEP = 4;                       # how deep folders of bookmarks go: the owner's order of 2026-11-20
 my $PART = qr/[A-Za-z0-9_-][A-Za-z0-9 ._-]{0,63}/;    # one name in the bookmarks folder
 
-sub marks_root { "$DIR/bookmarks" }
+sub marks_root { kept_in() . '/bookmarks' }    # read, never written, by an incognito window [C16]
 
 # The bookmarks bar shows one folder, "Bookmarks bar" (Chrome's own name for it), and nothing
 # else; the star's modal offers it first. Before the bar had a folder of its own it showed the
@@ -1441,6 +1538,7 @@ sub marks_root { "$DIR/bookmarks" }
 my $BAR = 'Bookmarks bar';                # the owner's order of 2026-11-20
 
 sub marks_into_bar {
+    return if $INCOGNITO;                 # [C16]
     my $root = marks_root();
     return unless owned_folder($root);
     my $bar = "$root/$BAR";
@@ -1513,6 +1611,7 @@ sub mark_written {                        # a bookmark's two lines into a new fi
 
 sub mark_saved {
     my ($edit, $folder, $name, $where) = @_;
+    return idle("$UNKEPT, so no bookmark was added or changed.") if $INCOGNITO;    # [C16]
     my ($url) = address($where);
     return idle('The bookmark was not saved: lzrprf does not fetch that address. An address must be https, a host by its name, port 443, in plain characters without a space.') unless $url;
     my @parts = length $folder ? split(m{/}, $folder, -1) : ();
@@ -1539,6 +1638,7 @@ sub mark_saved {
 
 sub mark_removed {
     my ($n) = @_;
+    return idle("$UNKEPT, so no bookmark was removed.") if $INCOGNITO;    # [C16]
     my $mark = $MARKS[$n] // return idle('That bookmark is no longer there.');
     my @is = lstat $mark->[0];
     unlink $mark->[0] if @is && -f _;
@@ -1551,6 +1651,7 @@ sub mark_removed {
 sub mark_moved {                          # a bookmark's address made the one its page redirects to, after you said so
     my ($n, $url) = @_;
     my $mark = $MARKS[$n] or return 0;
+    return 0 if $INCOGNITO;               # [C16]
     my ($dir) = $mark->[0] =~ m{\A(.*)/[^/]+\z} or return 0;
     mark_written($dir, $mark->[0], $mark->[1], $url) or return 0;
     marks_told();
@@ -1558,7 +1659,8 @@ sub mark_moved {                          # a bookmark's address made the one it
 }
 
 sub marks_bar {                           # whether the bookmarks bar is shown: one line "on" in a plain file of yours
-    sysopen(my $in, "$DIR/marksbar", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 0;
+    return $HELD_BAR if $INCOGNITO && defined $HELD_BAR;
+    sysopen(my $in, kept_in() . '/marksbar', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 0;
     my @is = stat $in;
     return 0 unless -f _ && $is[4] == $<;
     defined sysread($in, my $text, 8) or return 0;
@@ -1882,6 +1984,7 @@ sub import_files {                        # the bookmarks files in Downloads, De
 }
 
 sub import_sources {
+    return import_refused("$UNKEPT, so it imports no bookmarks.") if $INCOGNITO;    # [C16]
     undef $IMPORT;
     window('import begin', (map { my @of = import_profiles_of($_); my $there = $_ eq 'safari' ? (-e $of[0][1] || $!{EPERM} || $!{EACCES} ? 1 : 0) : @of ? 1 : 0; "import source $_ $there " . ($_ eq 'safari' ? 1 : scalar @of) . " $BROWSERS{$_}[0]" } @BROWSERS),
         'import source file 1 ' . scalar(my @files = import_files()) . ' A bookmarks file (HTML)', 'import step source');
@@ -1889,6 +1992,7 @@ sub import_sources {
 }
 
 sub import_profiles {
+    return import_refused("$UNKEPT, so it imports no bookmarks.") if $INCOGNITO;    # [C16]
     my ($key) = @_;
     $IMPORT_KEY = $key;
     @IMPORT_FROM = $key eq 'file' ? import_files() : import_profiles_of($key);
@@ -1901,6 +2005,7 @@ sub import_profiles {
 sub import_refused { window("import refused $_[0]"); return idle($_[0]) }
 
 sub import_path {                         # a bookmarks file typed as a path: in your home folder, by a path that does not climb out of it
+    return import_refused("$UNKEPT, so it imports no bookmarks.") if $INCOGNITO;    # [C16]
     my ($path) = @_;
     $path =~ s/^\s+|\s+$//g;
     $path =~ s{^~/}{import_home() . '/'}e;
@@ -1910,6 +2015,7 @@ sub import_path {                         # a bookmarks file typed as a path: in
 }
 
 sub import_preview {
+    return import_refused("$UNKEPT, so it imports no bookmarks.") if $INCOGNITO;    # [C16]
     my ($key, $n) = @_;
     my $from = $key eq ($IMPORT_KEY // '') ? $IMPORT_FROM[$n] : undef;
     return import_refused('Choose the browser again: that choice is no longer there.') unless $from;
@@ -1971,6 +2077,7 @@ sub import_plan {                         # what Import would write, in order: [
 }
 
 sub import_go {
+    return import_refused("$UNKEPT, so it imports no bookmarks.") if $INCOGNITO;    # [C16]
     return import_refused('Nothing waits to be imported: choose a browser first.') unless $IMPORT;
     my $plan = import_plan();
     busy("Importing $plan->{marks} bookmarks.");
@@ -2183,7 +2290,7 @@ sub request {
 # none, and the address that answered.
 sub fetch {
     my ($url, $where) = @_;
-    my ($way, $roots) = ("$DIR/way.$$", $PEER ne '-' ? "$DIR/authority.pem" : $ROOTS);
+    my ($way, $roots) = ("$DIR/way.$$", $PEER ne '-' ? kept_in() . '/authority.pem' : $ROOTS);
     my $none = 'the request could not be made';
     unlink $way;
     my $listen = IO::Socket::UNIX->new(Local => $way, Listen => 1) or return (undef, $none);
@@ -2195,7 +2302,7 @@ sub fetch {
             '--cacert', $roots, '--max-time', $FETCH_SECONDS, '--max-filesize', $FETCH_BYTES, '--write-out', "$WROTE%{certs}",
             '-H', "User-Agent: $BROWSER", '-H', 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close',
             '--unix-socket', $way, '--', $url);
-        if ($PEER ne '-' && open my $instead, '<', "$DIR/fetcher") { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to probe this container too
+        if ($PEER ne '-' && open my $instead, '<', kept_in() . '/fetcher') { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to probe this container too
         become(undef, $out, undef, '/bin/sh', '-c', $FETCH_LIMITS, 'lzrprf', contain($FETCH, shift @curl, '-D', "WAY=$way", '-D', "ROOTS=$roots"), @curl);    # the memory limit first, then the container
     }
     close $out;
@@ -2808,6 +2915,7 @@ sub holds_log {                           # what the log on the disk holds, in w
 # lzrprf does not take. Returns the mode, the days, and whether the file was
 # there and not read.                                                   # [C12]
 sub keeping {
+    return ('nothing', 0, 0) if $INCOGNITO;    # [C16] its log is in its memory only
     sysopen(my $in, "$DIR/keep", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return ('nothing', 0, -l "$DIR/keep" || -e _);
     my @is = stat $in;
     return ('nothing', 0, 1) unless @is && -f _ && $is[3] == 1 && $is[4] == $< && $is[7] <= 64;
@@ -3028,7 +3136,7 @@ sub sum_of { sysopen my $in, $_[0], O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return
 sub proven {
     my $mark = mark();
     my $is = sub {                        # 'plain' for the mark of now; the line, for the mark of now with the checks that could not be tried; '' for neither
-        sysopen my $in, "$DIR/proven", O_RDONLY | O_NONBLOCK or return '';    # a pipe put in its place is not waited for
+        sysopen my $in, kept_in() . '/proven', O_RDONLY | O_NONBLOCK or return '';    # a pipe put in its place is not waited for
         return '' unless length $mark && -f $in;
         my @lines = map { scalar(<$in>) // () } 1 .. 8;
         return 'plain' if grep { $_ eq "$mark\n" } @lines;
@@ -3039,7 +3147,7 @@ sub proven {
         my ($line) = @_;
         return 1 if $line eq 'plain';
         my $yes = '';
-        if (sysopen my $in, "$DIR/untested", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) { $yes = (-f $in ? scalar(<$in>) : undef) // '' }    # a plain file and no link; a pipe put in its place is not waited for
+        if (sysopen my $in, kept_in() . '/untested', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) { $yes = (-f $in ? scalar(<$in>) : undef) // '' }    # a plain file and no link; a pipe put in its place is not waited for
         return 1 if $yes eq "$line\n";
         my $text = substr($line, length "$mark, untested: ");
         if (ask("The self-test held on this Mac, but it could not try every check here: $text. What it could not try is not shown to hold on this Mac as it is now. Start $APP without it?", 'Quit', 'Start') != 2) {
@@ -3059,6 +3167,7 @@ sub proven {
         $found = $is->();
         return $without->($found) if length $found;
     }
+    return 0 if $INCOGNITO;               # [C16] the self-test writes its result: an incognito window does not run it
     my $test = dirname($SELF) . '/selftest';
     if (ask("lzrprf has not been tested on this Mac as it is now: macOS was updated, or lzrprf or its selftest is new. The test runs hostile tries we made ourselves, just to be sure, and lzrprf must deflect every one; it takes about half a minute. $APP shows a page only when all were deflected. Test now?", 'Not now', 'Test now') != 2) {
         window('quit');
@@ -3080,7 +3189,7 @@ sub proven {
 # (~/.lzrprf/selftest.lock): a shared lock is not given beside it. A link, a pipe
 # or no file at all is no test running.
 sub testing {
-    sysopen my $lock, "$DIR/selftest.lock", O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return 0;
+    sysopen my $lock, kept_in() . '/selftest.lock', O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return 0;
     return 0 unless -f $lock;
     return !flock $lock, LOCK_SH | LOCK_NB;
 }
@@ -3108,6 +3217,7 @@ sub lookup {                              # every address a name leads to, as nu
 sub window_text {
     return <<'END';
 ObjC.import('Cocoa');
+var INCOGNITO = false, UNKEPT_TIP = 'An incognito window writes nothing, so it adds no bookmark and imports none.';    // an incognito window [C16]: lzrprf says so as the window's second word
 var NAME = 'lzrprf', app, win, bar, logs, words, first, second, scroll, page, under, made, hand, asking = false, asked = 0, list = null;
 var to = $.NSFileHandle.fileHandleWithStandardOutput, from = $.NSFileHandle.fileHandleWithStandardInput, held = $.NSMutableData.data;
 var looks = {}, paragraphs = {};
@@ -3206,7 +3316,8 @@ function place() {
     PILL = $.NSMakeRect(pillAt, 10, pillWide, 36);    // in the bar's row
     tabsView.frame = $.NSMakeRect(0, high - TABS_HIGH, wide, TABS_HIGH);
     belt.frame = $.NSMakeRect(0, row, wide, BAR_ROW);
-    bar.frame = $.NSMakeRect(pillAt + 42, row + 18, pillWide - 42 - 44, 20);
+    var inset = INCOGNITO ? 96 : 0;    // DECLARED(the incognito label: its mark, 22 points, and the word at 12 points, about 62, with a gap after)
+    bar.frame = $.NSMakeRect(pillAt + 42 + inset, row + 18, pillWide - 42 - 44 - inset, 20);
     star.frame = $.NSMakeRect(pillAt + pillWide - 40, row + 13, 30, 30);
     cog.frame = $.NSMakeRect(wide - 50, row + 13, 30, 30);
     marksView.frame = $.NSMakeRect(0, row - MARKS_ROW, wide, MARKS_ROW);
@@ -3353,6 +3464,24 @@ function laser() {
     GREEN = rgb(72, 221, 255); DIM = rgb(40, 128, 150); YELLOW = rgb(255, 196, 92); WHITE = rgb(236, 242, 246); DARK = rgb(8, 11, 14);
     GREY = rgb(138, 150, 158); LINE = rgb(40, 49, 56); GLASS = rgb(72, 221, 255, 0.035); GLASS_HI = rgb(72, 221, 255, 0.08);
     ICON = rgb(206, 214, 220); EDGE = rgb(66, 76, 84); FILL = rgb(15, 19, 23); HALO = rgb(72, 221, 255, 0.55); FAINT = rgb(72, 221, 255, 0.16);
+    if (INCOGNITO) {    // an incognito window glows violet, never in the beam's cyan, so it is told apart at a glance
+        GREEN = rgb(196, 132, 255); DIM = rgb(112, 76, 160); GLASS = rgb(196, 132, 255, 0.035); GLASS_HI = rgb(196, 132, 255, 0.08);
+        HALO = rgb(196, 132, 255, 0.55); FAINT = rgb(196, 132, 255, 0.16);
+    }
+}
+function tint(a) { return INCOGNITO ? $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.77, 0.52, 1, a) : $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, a); }    // the beam's glow, at a strength
+function tintCore(a) { return INCOGNITO ? $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.87, 0.74, 1, a) : $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.6, 0.94, 1, a); }    // the beam's bright core
+function masked(cx, cy, k) {    // the incognito mark: a mask's line, its two eyes cut out; k scales it
+    var p = $.NSBezierPath.bezierPath;
+    function at(x, y) { return $.NSMakePoint(cx + x * k, cy + y * k); }
+    p.moveToPoint(at(-9, 2.5));
+    p.curveToPointControlPoint1ControlPoint2(at(9, 2.5), at(-4, 5.5), at(4, 5.5));
+    p.curveToPointControlPoint1ControlPoint2(at(0, -3), at(10, -5), at(3, -6));
+    p.curveToPointControlPoint1ControlPoint2(at(-9, 2.5), at(-3, -6), at(-10, -5));
+    p.closePath;
+    p.appendBezierPathWithOvalInRect($.NSMakeRect(cx - 6.6 * k, cy - 1.2 * k, 4.4 * k, 2.8 * k));
+    p.appendBezierPathWithOvalInRect($.NSMakeRect(cx + 2.2 * k, cy - 1.2 * k, 4.4 * k, 2.8 * k));
+    return p;
 }
 
 function mono(size, bold) {
@@ -3601,7 +3730,7 @@ function paintBelt() {
     pill.fill;
     stroked(pill, on ? DIM : bar.enabled ? EDGE : LINE, 1, on ? GREEN : null, 4);
     if (true) {    // the beam along the lower edge, brightest in its middle, fading at both ends; longer while the bar is typed into
-        var from = PILL.origin.x + PILL.size.width * (on ? 0.06 : 0.3), to = PILL.origin.x + PILL.size.width - 18, mid = (from + to) / 2, y = PILL.origin.y - 0.2, clear = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 0);
+        var from = PILL.origin.x + PILL.size.width * (on ? 0.06 : 0.3), to = PILL.origin.x + PILL.size.width - 18, mid = (from + to) / 2, y = PILL.origin.y - 0.2, clear = tint(0);
         var core = $.NSBezierPath.bezierPath;    // one glow under the middle, then the line itself as two smooth gradients meeting there
         core.moveToPoint($.NSMakePoint(from + (to - from) * 0.25, y + 0.7)); core.lineToPoint($.NSMakePoint(to - (to - from) * 0.25, y + 0.7));
         stroked(core, FAINT, 1, GREEN, 9);
@@ -3610,6 +3739,10 @@ function paintBelt() {
     }
     var lockLit = hover.lock || securePinned;
     stroked(locked(PILL.origin.x + 21, cy), lockLit ? GREEN : ICON, 1.4, lockLit ? GREEN : null, 6);
+    if (INCOGNITO) {    // "Incognito", with its mask, between the lock and the address
+        stroked(masked(PILL.origin.x + 52, cy, 0.95), GREEN, 1.2, GREEN, 5);
+        $('Incognito').drawAtPointWithAttributes($.NSMakePoint(PILL.origin.x + 66, cy - 8), inked(sans(12, true), GREEN));
+    }
     $.NSColor.colorWithWhiteAlpha(1, 0.06).setStroke;
     $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(0, 0.5), $.NSMakePoint(size.width, 0.5));
 }
@@ -3654,9 +3787,10 @@ function paintCog() {
 // press outside it closes it and reaches nothing under it, as a menu's does.
 var cogBox = null, cogCatch = null, cogOpen = false, COG_ROW = 32, COG_PAD = 8;
 function cogItems() {
-    return [['Show bookmarks bar', '⇧⌘B', marksOn, function () { if (takes()) sent('menu bookmarks-bar'); }],
+    return [['New Incognito Window', '⇧⌘N', null, function () { say('incognito'); }],
+        ['Show bookmarks bar', '⇧⌘B', marksOn, function () { if (takes()) sent('menu bookmarks-bar'); }],
         ['Bookmarks', '⌥⌘B', null, function () { if (takes()) listOpened('marks'); }],
-        ['Import bookmarks...', '', null, importOpened],
+        ['Import bookmarks...', '', null, INCOGNITO ? function () { words.stringValue = $(UNKEPT_TIP); } : importOpened, INCOGNITO ? UNKEPT_TIP : ''],
         ['Search engine...', '', null, function () { if (takes()) engineAsked(); }],
         ['Clear browsing history', '⇧⌘⌫', null, clearing],
         ['Make current page the home page', '', null, function () { if (takes()) sent('menu home'); }],
@@ -3727,7 +3861,7 @@ function paintCogMenu() {
             tick.moveToPoint($.NSMakePoint(13, mid)); tick.lineToPoint($.NSMakePoint(17, mid - 4)); tick.lineToPoint($.NSMakePoint(24, mid + 4));
             stroked(tick, GREEN, 1.6, GREEN, 5);
         }
-        $(one[0]).drawAtPointWithAttributes($.NSMakePoint(32, mid - 8.5), inked(sans(13), hot ? WHITE : ICON));
+        $(one[0]).drawAtPointWithAttributes($.NSMakePoint(32, mid - 8.5), inked(sans(13), one[4] ? GREY : hot ? WHITE : ICON));    // an item an incognito window does not do is grey, its reason in its tooltip
         if (one[1]) { var keys = $(one[1]), kw = keys.sizeWithAttributes(inked(sans(12), GREY)).width; keys.drawAtPointWithAttributes($.NSMakePoint(size.width - 16 - kw, mid - 8), inked(sans(12), GREY)); }
     });
 }
@@ -3764,7 +3898,7 @@ function marked() { for (var i = 0; i < marks.length; i++) if (marks[i].url == c
 // The star at the end of the bar: a light grey line, or filled with the beam and glowing when the
 // address shown is a bookmark.
 function paintStar() {
-    var size = star.frame.size, cx = size.width / 2, cy = size.height / 2, path = $.NSBezierPath.bezierPath, kept = !!current && !!marked(), lit = takes();
+    var size = star.frame.size, cx = size.width / 2, cy = size.height / 2, path = $.NSBezierPath.bezierPath, kept = !!current && !!marked(), lit = takes() && !INCOGNITO;    // incognito: grey, its tooltip says why
     for (var k = 0; k < 10; k++) {
         var turn = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 3.4 : 8, point = $.NSMakePoint(cx + r * Math.cos(turn), cy + r * Math.sin(turn));
         if (k == 0) path.moveToPoint(point); else path.lineToPoint(point);
@@ -3778,6 +3912,7 @@ var BAR = 'Bookmarks bar';    // the folder the bookmarks bar shows (lzrprf's $B
 function folderLabel(path) { return path ? path.split('/').join(' / ') : 'Other bookmarks'; }
 
 function starClicked() {
+    if (INCOGNITO) { words.stringValue = $(UNKEPT_TIP); return; }    // [C16] no bookmark is written by an incognito window
     if (!takes() || !current) return;
     var one = marked();
     editing = one ? one.id : null;
@@ -3888,8 +4023,8 @@ function homeLaid() {
 function beamed(from, c1, c2, to, strength) {    // one curved beam: a wide faint glow, then its bright core
     var p = $.NSBezierPath.bezierPath;
     p.moveToPoint(from); p.curveToPointControlPoint1ControlPoint2(to, c1, c2);
-    stroked(p, $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 0.07 * strength), 7, GREEN, 22);
-    stroked(p, $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.6, 0.94, 1, 0.55 * strength), 1.2, GREEN, 7);
+    stroked(p, tint(0.07 * strength), 7, GREEN, 22);
+    stroked(p, tintCore(0.55 * strength), 1.2, GREEN, 7);
     return p;
 }
 
@@ -3926,10 +4061,21 @@ function paintHome() {
     var under = low.copy;    // a faint light on the glass under the lower beam
     under.lineToPoint($.NSMakePoint(w + 2, -2));
     under.closePath;
-    $.NSGradient.alloc.initWithStartingColorEndingColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 0.035), $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 0)).drawInBezierPathAngle(under, -60);
-    glint(cx, laid.top - 52, 52);
-    centred(spaced('LZRBRWSR', wide(34, -0.4), WHITE, 17), cx, laid.top - 150, 17);
-    centred(spaced('BROWSE WITH ZERO TRUST', wide(12, 0), GREY, 5.5), cx, laid.top - 182, 5.5);
+    $.NSGradient.alloc.initWithStartingColorEndingColor(tint(0.035), tint(0)).drawInBezierPathAngle(under, -60);
+    if (INCOGNITO) {    // what an incognito window keeps and does not keep, in plain words
+        stroked(masked(cx, laid.top - 40, 3.2), GREEN, 1.6, GREEN, 12);
+        centred(spaced('INCOGNITO', wide(30, -0.4), WHITE, 14), cx, laid.top - 104, 14);
+        ['This window keeps nothing after it closes: no history, no log, no tabs, nothing it fetched.',
+         'While it is open they are held in its memory and one folder of its own, readable by you alone,',
+         'and that folder is removed when it closes. Your bookmarks open here; none is added or imported.',
+         'Sites still see your internet address and what you send them, as from any window.'].forEach(function (line, k) {
+            centred(styled(line, inked(sans(12.5), k == 3 ? GREY : ICON)), cx, laid.top - 136 - k * 19, 0);
+        });
+    } else {
+        glint(cx, laid.top - 52, 52);
+        centred(spaced('LZRBRWSR', wide(34, -0.4), WHITE, 17), cx, laid.top - 150, 17);
+        centred(spaced('BROWSE WITH ZERO TRUST', wide(12, 0), GREY, 5.5), cx, laid.top - 182, 5.5);
+    }
     laid.buttons.forEach(function (box, k) {
         var hot = lit && hover.home == k, square = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(box, 13, 13);
         $.NSGraphicsContext.saveGraphicsState;
@@ -4635,7 +4781,7 @@ function hoveredOver(view, event) {
     else if (view == 'marks') hover.mark = event ? markAt(event) : -1;
     else if (view == 'home') hover.home = event ? homeAt(event) : -1;
     else if (view == 'list') hover.list = event ? listAt(event) : -1;
-    else if (view == 'cogmenu') hover.cogRow = event ? cogRowAt(event) : -1;
+    else if (view == 'cogmenu') { hover.cogRow = event ? cogRowAt(event) : -1; var why = hover.cogRow >= 0 ? cogItems()[hover.cogRow][4] : ''; cogBox.toolTip = why ? $(why) : $(); }
     else if (view == 'suggest') hover.suggest = event ? suggestAt(event) : -1;
     else if (view == 'wiz') hover.wiz = event ? wizAt(event) : -1;
     else if (view == 'belt') {
@@ -4986,7 +5132,8 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'second:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 2'); } } },
     'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled && !modalOpen) { techHidden(); sent('log'); } } },
     'techs:': { types: ['void', ['id']], implementation: function (sender) { techToggled(); } },
-    'importing:': { types: ['void', ['id']], implementation: function (sender) { importOpened(); } },
+    'importing:': { types: ['void', ['id']], implementation: function (sender) { if (!INCOGNITO) importOpened(); } },
+    'incognito:': { types: ['void', ['id']], implementation: function (sender) { say('incognito'); } },    // lzrprf starts a second lzrprf, in incognito: this process starts nothing
     'controlTextDidChange:': { types: ['void', ['id']], implementation: function (note) { if (note.object.isEqual(bar)) suggestUpdate(); } },
     'control:textView:doCommandBySelector:': { types: ['bool', ['id', 'id', 'SEL']], implementation: function (control, view, command) {    // up, down, Escape and Return in the bar, for its suggestions
         if (!control.isEqual(bar)) return false;
@@ -5051,7 +5198,7 @@ var CMD = 1 << 20, SHIFT = 1 << 17, OPTION = 1 << 19, CONTROL = 1 << 18;
 function menus() {
     var main = $.NSMenu.alloc.initWithTitle($(''));
     var tabKeys = [1, 2, 3, 4, 5, 6, 7, 8].map(function (n) { return ['Tab ' + n, 'tabNumber:', String(n), true, CMD, n - 1]; }).concat([['Last Tab', 'tabNumber:', '9', true, CMD, -1]]);
-    [[NAME, [['Settings...', 'settings:', ',', true], ['Quit ' + NAME, 'terminate:', 'q', false]]],
+    [[NAME, [['New Incognito Window', 'incognito:', 'N', true], ['Settings...', 'settings:', ',', true], ['Quit ' + NAME, 'terminate:', 'q', false]]],
      ['Edit', [['Undo', 'undo:', 'z', false], ['Redo', 'redo:', 'Z', false], ['Cut', 'cut:', 'x', false], ['Copy', 'copy:', 'c', false], ['Paste', 'paste:', 'v', false], ['Select All', 'selectAll:', 'a', false]]],
      ['Go', [['Address', 'bar:', 'l', true], ['Back', 'back:', '[', true], ['Forward', 'forward:', ']', true], ['Reload', 'reload:', 'r', true], ['Clear Browsing History...', 'clearing:', String.fromCharCode(8), true, CMD | SHIFT], ['Log', 'log:', '', true]]],
      ['Bookmarks', [['Bookmark This Tab...', 'markThis:', 'd', true], ['Show Bookmarks Bar', 'marksBar:', 'b', true, CMD | SHIFT], ['Bookmark Manager', 'bookmarks:', 'b', true, CMD | OPTION], ['Import Bookmarks...', 'importing:', '', true]]],
@@ -5064,6 +5211,7 @@ function menus() {
             if (entry[3]) made.target = hand;
             if (entry[4]) made.keyEquivalentModifierMask = entry[4];
             if (entry.length > 5) made.tag = entry[5];
+            if (INCOGNITO && (entry[1] == 'markThis:' || entry[1] == 'importing:')) { menu.autoenablesItems = false; made.enabled = false; made.toolTip = $(UNKEPT_TIP); }    // [C16]
         });
         item.submenu = menu;
         main.addItem(item);
@@ -5090,11 +5238,11 @@ function icon(S) {
     glintPath.curveToPointControlPoint1ControlPoint2($.NSMakePoint(c - d, c - d), $.NSMakePoint(c - n, c + n), $.NSMakePoint(c - n, c + n));
     glintPath.curveToPointControlPoint1ControlPoint2($.NSMakePoint(c + d, c + d), $.NSMakePoint(c + n, c - n), $.NSMakePoint(c + n, c - n));
     var shine = $.NSShadow.alloc.init;
-    shine.shadowColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 1);
+    shine.shadowColor = tint(1);
     shine.shadowBlurRadius = S * 0.06;
     shine.shadowOffset = $.NSMakeSize(0, 0);
     shine.set;
-    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 1).setFill;
+    tint(1).setFill;
     glintPath.fill;
     $.NSColor.whiteColor.setFill;
     $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(c - S * 0.04, c - S * 0.04, S * 0.08, S * 0.08)).fill;
@@ -5104,6 +5252,8 @@ function icon(S) {
 
 function run(argv) {
     NAME = argv[0] || NAME;
+    INCOGNITO = argv[1] == 'incognito';
+    if (INCOGNITO) $.NSUserDefaults.standardUserDefaults.registerDefaults($({ NSQuitAlwaysKeepsWindows: false, ApplePersistenceIgnoreState: true }));    // in memory only: macOS is asked to keep no window of it to restore (and this container lets it write no file anyway)
     $.NSProcessInfo.processInfo.processName = $(NAME);
     app = $.NSApplication.sharedApplication;
     app.setActivationPolicy(kind());
@@ -5112,7 +5262,8 @@ function run(argv) {
     app.delegate = hand;
     canvas = $.LzrprfLaid.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 640));
     win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer($.NSMakeRect(0, 0, 1000, 760), 15 | 32768, 2, false);    // titled, closable, minimisable, resizable, its content under the title bar
-    win.title = $(NAME);
+    win.title = $(INCOGNITO ? NAME + ' Incognito' : NAME);
+    if (INCOGNITO) win.restorable = false;
     win.titleVisibility = 1;
     win.titlebarAppearsTransparent = true;
     [0, 1, 2].forEach(function (k) { var one = win.standardWindowButton(k); if (one && !one.isNil()) one.hidden = true; });    // the strip draws the three dots itself (paintTabs)
@@ -5151,6 +5302,7 @@ function run(argv) {
     bar.autoresizingMask = 2 | 8;
     root.addSubview(bar);
     star = $.LzrprfStar.alloc.initWithFrame($.NSMakeRect(0, 0, 30, 30));
+    if (INCOGNITO) star.toolTip = $(UNKEPT_TIP);
     root.addSubview(star);
     cog = $.LzrprfCog.alloc.initWithFrame($.NSMakeRect(0, 0, 30, 30));
     root.addSubview(cog);
@@ -5319,8 +5471,9 @@ END
 }
 
 my $command = shift // '';
-die "lzrprf: this macOS has no /usr/bin/sandbox-exec. lzrprf contains with that command and with nothing else, so nothing was started.\n" if $command =~ /^(?:run|try)\z/ && !-x '/usr/bin/sandbox-exec';
+die "lzrprf: this macOS has no /usr/bin/sandbox-exec. lzrprf contains with that command and with nothing else, so nothing was started.\n" if $command =~ /^(?:run|try|incognito)\z/ && !-x '/usr/bin/sandbox-exec';
 if ($command eq 'run') { run(@ARGV) }
+elsif ($command eq 'incognito') { $INCOGNITO = 1; run(@ARGV ? @ARGV : '/Applications/LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin') }    # [C16] with no program named: the installed application's
 elsif ($command eq 'try' && @ARGV > 4 && $ARGV[0] =~ m{^\Q$DIR\E/[A-Za-z0-9][A-Za-z0-9.]*\z} && $ARGV[1] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask|[123]{1,9})$/) {
     ($TRY, $DIR, $PEER, $TYPED, $ANSWER) = (1, splice @ARGV, 0, 4);    # for tests: lzrprf try FOLDER PEER|- TYPED|- allow|deny|ask|DIGITS /path/to/program
     run(@ARGV);
@@ -5338,8 +5491,9 @@ elsif ($command eq 'public' && @ARGV) {
     }
 }
 elsif ($command eq 'mark' && !@ARGV) { print mark(), "\n" }
-elsif ($command eq 'behind' && @ARGV > 5 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask)$/ && $ARGV[4] =~ /^\d+$/) {    # started by run, not by hand: the same five things "try" sets, handed on
-    ($TRY, $DIR, $PEER, $ANSWER, $RUN) = splice @ARGV, 0, 5;
+elsif ($command eq 'behind' && @ARGV > 6 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask)$/ && $ARGV[4] =~ /^\d+$/ && ($ARGV[5] eq '-' || $ARGV[1] =~ m{/lzrprf-i\.\d+\.[0-9a-f]{12}\z})) {    # started by run, not by hand: the same five things "try" sets, handed on, and for an incognito window the folder its settings are read from
+    ($TRY, $DIR, $PEER, $ANSWER, $RUN, $BASE) = splice @ARGV, 0, 6;
+    ($INCOGNITO, $BASE) = $BASE eq '-' ? (0, undef) : (1, $BASE);
     named(@ARGV);
     open $FROM, '<&=', 0 or exit 1;
     $SIG{PIPE} = 'IGNORE';
@@ -5347,4 +5501,4 @@ elsif ($command eq 'behind' && @ARGV > 5 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ 
     behind();
 }
 elsif ($command eq 'lookup' && @ARGV == 1 && $ARGV[0] =~ /^$NAME$/) { lookup(@ARGV) }    # started for one address that was typed, not by hand
-else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf log\n       lzrprf keep [nothing|hosts|all [DAYS]]\n       lzrprf address TEXT...\n       lzrprf request TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }
+else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf incognito [/path/to/program [arguments]]\n       lzrprf log\n       lzrprf keep [nothing|hosts|all [DAYS]]\n       lzrprf address TEXT...\n       lzrprf request TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }

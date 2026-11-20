@@ -55,7 +55,7 @@ Not a mathematical proof. Nobody has proven macOS correct, and nothing here says
 this repository is proven in this sense, and in no stronger one:
 
 1. It is a **condition in the code**: one line, or a few, that you can read. Each has a mark,
-   `[C1]` to `[C15]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
+   `[C1]` to `[C16]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
 2. It is **probed on your computer**: `selftest` runs a hostile application against that
    condition. A probe on a container is first made outside every container, where it must
    succeed, so a refusal inside is the container's and not a probe that could never have
@@ -99,7 +99,7 @@ container and, for the things named in point 3, the weakened copies it must catc
 a proof that no other probe exists.
 
 `selftest` also reads this README when it stands beside it. It fails when the marks cited here
-are not exactly the fifteen in `lzrprf`, when a part named here (the word `sub` and a name) is
+are not exactly the sixteen in `lzrprf`, when a part named here (the word `sub` and a name) is
 not in `lzrprf`, or when one of eleven limits is not stated here as the number in `lzrprf`: 30
 seconds for a fetch and for a page, 6 MB for an answer, 12 MB for a list, 50000 lines, 2000 boxes,
 20000 characters in a block, 30 characters in a row that hang on the one before them,
@@ -284,6 +284,7 @@ One visit, in order (`sub visit`):
 | `[C13]` | The application opens no file for its fonts. lzrprf hands a page run, and never a picture run, eight fonts of the Mac by fixed paths in `/System/Library/Fonts/Supplemental` (Arial and Courier New, each plain, bold, italic and both), as one frame in front of the answer: `=fonts` and the eight lengths on one line, then their bytes. A face goes with length 0 unless it is a plain file and no link, of at most 2 MiB, that begins as a TrueType font; a pipe put in its place is not waited for. They are read once in a window, and the keeper hands them over after the same word of the system as the answer `[C3]`. A site cannot put a frame in front of lzrprf's: what it sends comes after it. | `sub faces`, `sub contained` | The application takes the frame off its input and says the length and SHA-256 of each face: they are the eight files as `selftest` reads them itself. A picture run gets no frame. A site whose answer holds a frame of its own: it arrives after the real one, byte for byte. A copy that reads its fonts from a folder of the test: a link to a font, a file one byte over 2 MiB, a pipe and a file that does not begin as a font each go with length 0, while a font of exactly 2 MiB is handed over whole; the same copy without O_NOFOLLOW hands over the font behind the link, and the test notices. |
 | `[C14]` | A page is laid out at most twice. The first run of a page is given the empty frame `=sheets` after the fonts, and may name up to eight style sheets on the page's own host in a line `=sheets`, checked as the paths of pictures are `[C9]`. lzrprf fetches them `[C4]` `[C5]` and runs the page a second time, with `=sheets`, the length of each and their answers byte for byte in front of the page's answer, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown: the first run's page is, and the bar says the sheets were not used. There is never a third run, and a picture run is given no style sheet. | `sub checked`, `sub sheeted`, `sub visit`, `sub contained` | The application says on each run the length and SHA-256 of each sheet it took off its input: none on the first run, the test site's answers on the second. A sheet whose body begins `=sheets 4` arrives inside its own length. A sheet over 1 MiB, a fetch that failed and a sheet not begun within the clock each go with length 0, the last neither logged nor asked for. Each sheet has two lines in the log and one request, of its own address; no other host is asked. Lines `=sheets` broken in six ways are refused with nothing fetched. A second run that names sheets again, or is not a page: the first run's page, two runs. A page that names none: one run. A picture run gets no frame. A copy that shows a second run naming sheets again shows it (`lostsheets`). |
 | `[C15]` | Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: `Local State` and each profile's `Bookmarks` of Chrome, Edge, Brave and Vivaldi, Firefox's `profiles.ini` and newest `bookmarkbackups/*.jsonlz4`, Safari's `Bookmarks.plist`, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import `[C12]`. | `sub import_read`, `sub import_profiles_of`, `sub import_files`, `sub import_path`, `sub import_preview`, `sub import_plan`, `sub import_go`, `sub lz4_block`, `sub plist_binary` | Fixture files of each format under the run's own folder, which a try takes for the home folder: Chrome's JSON with two profiles named in Local State, a Firefox backup whose LZ4 block holds matches, a binary plist made by `plutil`, an HTML export. Each is imported in its order, the bar into the bookmarks bar after what it held, the rest into "Imported from" and the browser's name, numbered past a folder of that name. Plain http and `javascript:` are skipped and a fifth folder deep is left out, each counted. A link to a bookmarks file is neither offered nor read; a typed path outside the home folder, or climbing out of it, is refused. Nothing imported is fetched or logged. |
+| `[C16]` | An incognito window writes nothing that outlives it. Its log, history, tabs and everything it fetched are held in its memory or in one folder of its own, readable by you alone, in your temporary folder, named `lzrprf-i.<process number>.<12 random hex digits>`; of `~/.lzrprf` it reads, and never writes, the self-test's result, the home page, the search address, whether the bar is shown and the bookmarks. The folder is removed however the window ends, and one left by a run whose processes are all gone is removed at the next start. | `sub incognito_begun`, `sub swept`, `sub removed`, `sub leave` | Run `incognito`: two pages, a bookmark opened, the star and the import tried; every file of the run's lzrprf folder hashed before and after, byte for byte the same, and the window's folder gone. Runs `incognitokilled` and `incognitoswept`: kill -9 of the sweeper, the process behind the window and lzrprf leaves the folder; the next start removes it. |
 
 ## The claims, one by one
 
@@ -900,6 +901,58 @@ The limits, said plainly:
   clear the log, as it could press any button (see "What it does not prove"). It could remove
   the record on this computer. It could not make lzrprf keep more.
 
+## An incognito window
+
+`lzrprf incognito`, or "New Incognito Window" (Shift-Command-N) in the app menu or the cog
+menu, opens a second window of its own whose whole state lives in one folder that is removed
+when it ends `[C16]`. It is told apart at a glance: it glows violet instead of cyan, the word
+"Incognito" and a mask stand left of the address, and its new tab page says what it keeps and
+what it does not.
+
+Where its state lives. `sub incognito_begun` makes a folder `lzrprf-i.<pid>.<12 hex>` with mode
+0700 in your own temporary folder: `TMPDIR` when it is a folder of yours that nobody else can
+read, else yours under `/private/var/folders/.../T` (`sub temp_folder`). The log of the window,
+its tabs, its history and every answer are in the memory of the process behind the window or in
+that folder; a search engine chosen there and the bookmarks bar shown or hidden there are held in
+memory for that window only.
+
+What it reads from `~/.lzrprf`, read only, and why each: `proven`, `untested` and `selftest.lock`
+(no page is shown before the self-test held `[C11]`; an incognito window never runs the test,
+because the test writes its result, and says to open a normal window once instead); `home` (the
+home page opens); `search` (searches go where you chose); `marksbar` (the bar as you keep it);
+`bookmarks` (your bookmarks open). Everything else of a normal window is not read, and nothing
+is written there: the star, the bookmark modal, the import wizard and "make this the home page"
+are refused with "An incognito window writes nothing", shown greyed out with that tooltip.
+
+Every way out removes the folder. The process behind the window removes it in `sub leave`
+whether the window was quit, its last window closed, Command-Q pressed or the window's process
+ended; it does the same on SIGINT, SIGTERM, SIGHUP and SIGQUIT. A third process, the sweeper,
+started in its own session and deaf to those signals, waits until the window's process is gone
+and the process behind it has let go of the lock on `held`, then removes the folder too. Only
+`kill -9` of all three at once (a crash, a power cut) leaves it; `sub swept`, at every start of
+any lzrprf window, removes every `lzrprf-i.*` folder of yours whose window process is gone.
+`sub removed` removes nothing whose name is not exactly that form.
+
+What macOS could keep, and what was checked:
+
+- Saved application state (the windows macOS reopens at login, under
+  `~/Library/Saved Application State`). The window's container refuses every file write, so
+  `osascript` cannot write it; on top of that an incognito window registers, in memory only,
+  `NSQuitAlwaysKeepsWindows` false and `ApplePersistenceIgnoreState` true, and sets its window's
+  `restorable` to false. Checked on the development Mac on 2026-11-20 after incognito windows were
+  run off the screen: that folder holds nothing for `osascript`, `perl` or lzrprf, and
+  `~/Library/Caches` and `~/Library/Preferences` hold no `com.apple.osascript` entry.
+- Recent documents. The window opens no document and has no `NSDocumentController`, so it adds
+  nothing to the recent items list. The list's own folder
+  (`~/Library/Application Support/com.apple.sharedfilelist`) is closed to a terminal by macOS
+  privacy settings, so that it is unchanged was not read directly.
+- Temporary files. The page container writes no file at all `[C10]`, the window's container none,
+  and the process behind the window writes into the incognito folder only. `selftest` run
+  `incognito` checks that afterwards no `lzrprf-i.<its pid>.*` is left in the temporary folder
+  and that every file of the run's lzrprf folder is byte for byte what it was.
+- What it does not cover: what sites see (your internet address and what you send them), and the
+  macOS unified log, which records process starts and sandbox refusals as for any program.
+
 ## Which choices cost you, and where they are made
 
 Each choice has one direction that costs you something. The window's process draws text the
@@ -1002,19 +1055,17 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 45
-    new A welcome like this one after every install or update: what is new, and what LZRBRWSR does and does not do for you
-    new Address suggestions as you type, from your bookmarks and what you opened before
-    new Bookmarks imported from Chrome, Edge, Brave, Firefox, Safari, Vivaldi or an HTML file, in a few steps
-    new The log and the technical details behind two icons in the bar
-    new Installing a newer release no longer closes the window, waits out a release still being published, and offers Close and restart
+    release 46
+    new Incognito windows (Shift-Cmd-N or the cog menu): nothing of them is kept after they close
+    new Pictures drawn in a page's own code (inline SVG) now show, styled by the page
+    new The site shows a measured audit against Chrome, Chromium, Brave and Firefox, renewed with every release
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin ed1b16dbede7d42d445946a747418a727825028a925276aef3b00dbd32bf65ea
-    lzrprf 5006c87dde865603e06aacce3ba1af5c430945ea03a011f051beea82b342c69f
+    file lzrbrwsr-bin e42a8ff18ec666e7a758ccbd290789a346c6fbc9e44f698ff9e3c4470828b67a
+    lzrprf a6cf1cc5878eb509b4a770a9b968cad8149e6294fac10fff3076d031d1ac3f02
 
 ## When a page cannot be shown
 
@@ -1282,6 +1333,7 @@ narrows down who could have sent a report. The question shows the build before y
 ## Use
 
     perl lzrprf run /path/to/program     open the window, with the program contained behind it
+    perl lzrprf incognito [/path/to/program]  the same in an incognito window, which leaves nothing behind when it closes [C16]
     perl lzrprf log                      what the log on this computer holds, and what is kept
     perl lzrprf keep                     what is kept after a window closes, in words
     perl lzrprf keep MODE [DAYS]         choose it: nothing, hosts or all; DAYS 0 keeps until you clear it. The one place where more is chosen
@@ -1658,7 +1710,7 @@ what the code and the system make impossible, and how you checked it.
    what ends the closed program when lzrprf itself is killed, and what if the keeper is
    killed first? By which names does
    `selftest` try to read a file of the home folder in the page and fetch containers?
-3. The first lines of `lzrprf` list fifteen conditions, [C1] to [C15], and each is marked again
+3. The first lines of `lzrprf` list sixteen conditions, [C1] to [C16], and each is marked again
    at the line that holds it. For each: is the line there, does it do what the condition says,
    and can you find a way around it?
 4. Follow one request from Return in the address bar to the page in the window. Can any byte
