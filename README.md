@@ -30,7 +30,7 @@ else. No signature, no auditor and no reputation stands in for that check.
 The container is two files:
 
 - `lzrprf`: the whole program. The containers, the window, the fetch and the log. One file of Perl.
-- `selftest`: a hostile application that attacks all of it on your Mac and says what it managed to do.
+- `selftest`: a hostile application that probes all of it on your Mac and says what it managed to do.
 
 The rest is the record of the LZRBRWSR release that is built on it. It is kept here so that
 everything a person installs stands in a second, public place, where each change has a date:
@@ -56,9 +56,9 @@ this repository is proven in this sense, and in no stronger one:
 
 1. It is a **condition in the code**: one line, or a few, that you can read. Each has a mark,
    `[C1]` to `[C12]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
-2. It is **attacked on your computer**: `selftest` runs a hostile application against that
-   condition. An attack on a container is first made outside every container, where it must
-   succeed, so a refusal inside is the container's and not an attack that could never have
+2. It is **probed on your computer**: `selftest` runs a hostile application against that
+   condition. A probe on a container is first made outside every container, where it must
+   succeed, so a refusal inside is the container's and not a probe that could never have
    worked. A condition that is not a container's (what is fetched, what is logged, what is
    drawn) is judged by what the test's own site received and by what the log holds. The hostile
    application is the test's own (`$hostile` in `selftest`), put in the closed application's
@@ -73,7 +73,7 @@ this repository is proven in this sense, and in no stronger one:
    stop each or show the difference: a page container that
    refuses nothing is stopped by `[C2]`; that container without the tries of `[C2]`, and a
    start outside the container, are both stopped by `[C3]`; a page container without its limit
-   on memory is stopped by `[C2]`, and with the tries of `[C2]` taken out too, the attack on
+   on memory is stopped by `[C2]`, and with the tries of `[C2]` taken out too, the probe on
    memory is made in it and its line says so; a window container with one refusal taken out is
    stopped by `[C10]`; a copy whose pair check is taken out, and a copy that counts a mark
    with untried checks without your yes, each fetch without the window or the question the
@@ -88,15 +88,15 @@ this repository is proven in this sense, and in no stronger one:
    without the page container's limit on open files lets the hostile application allow
    itself more (`lostfiles`; the same limit on `curl` has no such copy), and their lines say so. The other conditions have no such copy yet.
 4. It is **proven again when what it rests on changes**: after an update of macOS, or a change
-   of `lzrprf` or of the `selftest` beside it, no page is shown before the attacks were made
+   of `lzrprf` or of the `selftest` beside it, no page is shown before the probes were made
    again `[C11]`. A run of `selftest` takes the mark of what it tests away at its start and
    writes it again only when nothing failed, so a run that fails takes back an earlier proof.
    The one module the test uses that is not part of perl itself (`IO::Socket::SSL`) is loaded
    only after the mark is out.
 
-So a run that held is evidence for the attacks it names, each with its control outside the
+So a run that held is evidence for the probes it names, each with its control outside the
 container and, for the things named in point 3, the weakened copies it must catch. It is not
-a proof that no other attack exists.
+a proof that no other probe exists.
 
 `selftest` also reads this README when it stands beside it. It fails when the marks cited here
 are not exactly the twelve in `lzrprf`, when a part named here (the word `sub` and a name) is
@@ -160,7 +160,7 @@ window then says that the program on the disk is another file than when the wind
 after an update, and to quit and start again; no report is offered for this (`swapped`,
 `lostswap`, `lostlook`). Release 16 looked once, at the start. Between reading the file and starting it
 there is a moment. Whoever can replace the program can replace that file, and lzrprf, too:
-this finds an update or a damaged file under an open window, not an attacker in your
+this finds an update or a damaged file under an open window, not an intruder in your
 account. It does not have to find one: the program is the part that is assumed hostile, and
 it is kept in the container whichever file it is.
 A program that stands in no application and has no `release` file beside it is not asked: the
@@ -267,13 +267,13 @@ One visit, in order (`sub visit`):
 
 ## The conditions
 
-| mark | the condition | where in `lzrprf` | how `selftest` attacks it |
+| mark | the condition | where in `lzrprf` | how `selftest` probes it |
 | --- | --- | --- | --- |
 | `[C1]` | The application is started in one place only, and only inside the page container. | `sub laid_out`, through `sub contain` | Reads the text: the program is started on one line. A copy that starts it uncontained is stopped by `[C3]`. |
 | `[C2]` | At every start lzrprf tries, inside that same container, what the container must refuse. Nothing starts unless all of it was refused and the same tries worked outside. | `sub holds` | A copy whose container refuses nothing: nothing is started. |
 | `[C3]` | No process is handed a byte of what was fetched, nor the connection to a site, before macOS itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, `curl` among its fixed switches. | `sub inside`, asked in `sub laid_out` and `sub fetch` | Copies without `[C1]` and `[C2]`: the system says "not contained", and the answer, or the connection, is withheld. |
 | `[C4]` | A request is made only for an address from the window's bar, for at most eight pictures the page laid out from it names on that same host (`sub pictured`), or for one of two fixed addresses after you said yes: a report, after you pressed "Send" for it, and the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`). | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has four roads and no fifth. |
-| `[C5]` | Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded. | `sub visit`, `sub fixed`, `sub record` | A kept log that cannot be written: nothing is fetched. For every request the site received in a run that keeps a log, full or hosts only, the line was on the disk first. In a run that keeps nothing, the Log button shows the lines afterwards; that each was in memory before its request is read in `sub record`, not attacked: no test looks into that memory while a request is open. That the lookup comes after the line is read in `sub visit`, not attacked: the test's site is on this computer. |
+| `[C5]` | Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded. | `sub visit`, `sub fixed`, `sub record` | A kept log that cannot be written: nothing is fetched. For every request the site received in a run that keeps a log, full or hosts only, the line was on the disk first. In a run that keeps nothing, the Log button shows the lines afterwards; that each was in memory before its request is read in `sub record`, not probed: no test looks into that memory while a request is open. That the lookup comes after the line is read in `sub visit`, not probed: the test's site is on this computer. |
 | `[C6]` | One place connects to a site, and it connects to a numeric address that was checked and written down. | `sub reach` | Reads the text: two `connect` lines, this one and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
 | `[C7]` | What a site is sent is made from the address alone: the same request from every computer, byte for byte, nothing kept from an earlier request. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
 | `[C8]` | A host inside your own network is fetched only after your yes to exactly that, once. | `sub own_network` | A no: nothing is fetched, and the no is in the log. |
@@ -393,7 +393,7 @@ One more thing fetches, and it is not lzrprf. After you pressed "Install it" for
 lzrprf writes a short file that Terminal runs (`sub installer_file`), and that file fetches the
 installer with the system's `curl`, from the two places the release names. `curl` is started
 with `-q` there, so that no settings file of yours changes how it checks a site. Those fetches do not
-go through `sub fetch`. They happen after your click and your Return in Terminal, in a window where you see them, and lzrprf
+go through `sub fetch`. They happen right after your click, in a Terminal window where you see them, and lzrprf
 writes into the log that you asked for them, and from where, before the file exists
 (`sub newer`). See "A newer release".
 
@@ -623,7 +623,7 @@ each time you ask for a page: about 2 GiB of address space, as the system counts
 processor core until its 30 seconds of processor time are used. Then it is ended. Memory the
 kernel holds for a process (what is in its pipes, and in messages it sends to itself) is not
 counted in that limit; it is bounded only by the 30 seconds, after which the process and what
-was held for it are gone. No attack of the test tries that. And a flaw in macOS itself, in its
+was held for it are gone. No probe of the test tries that. And a flaw in macOS itself, in its
 kernel or its sandbox, is outside what lzrprf can refuse.
 
 ### It cannot read or change your files
@@ -638,7 +638,7 @@ and `lzrprf` itself, and to put a setting of its own in its place. Each is refus
 
 No. See "What "proof" means here". It rests on parts nobody has proven: the macOS kernel and
 its sandbox, the system's `perl`, `curl` and `osascript`. What this repository gives instead is
-short enough to read, attacked on your own Mac, and attacked again whenever macOS changes.
+short enough to read, probed on your own Mac, and probed again whenever macOS changes.
 
 ## What is kept
 
@@ -754,13 +754,13 @@ choice by choice.
 | an address | fetching it: the site sees your internet address and the address you typed | the bar of the window (`sub visit`) | say "go ADDRESS" as if you had typed it, as often as it likes. Each one is a line before it is fetched `[C5]` |
 | a host inside your own network | yes: this computer, your router or another device of yours is asked, this once | the window, each time such an address is typed (`sub own_network`) | say such an address and answer "Yes, this once" itself. The address and the yes are lines before anything is fetched |
 | looking for a newer release | yes: GitHub sees your internet address at each start | the window, when lzrprf asks: at a first start, and again when a release names another address or `~/.lzrprf/look` was deleted (`sub newer`) | answer yes while that question is open. It cannot open the question. The yes is a line of the log before it is kept, and each look is a line before it is made |
-| installing a newer release | "Install it", then two Returns of your own | the window, then Terminal (`sub installer_file`) | press "Install it" when a newer release is published, which brings a file up in Terminal. That file fetches nothing before your first Return, and runs nothing it fetched before your second |
+| installing a newer release | "Install it": it runs through in Terminal by itself | the window, then Terminal (`sub installer_file`) | press "Install it" when a newer release is published, which starts a file in Terminal. That file fetches the installer from the addresses the release names, from both places, and runs it only when the two copies are the same: the most a press can do is install the release the maker published |
 | a report after a failure | "Send": the maker's server sees your internet address and three values | the window, when a page was not shown (`sub fault`) | say that a page it was handed could not be drawn, once for each page (`sub behind`), and press "Send" to the question that follows: the three values, written in the log first |
 
 Only the first row can be closed entirely, and it is: nothing in the window keeps more. In the
 other rows the window is where you answer, so a taken-over window process could answer too.
-Installing ends outside the window: what "Install it" starts waits in Terminal for a Return,
-and the window's process commands no other program `[C10]`. What holds in the other rows is `[C5]`: nothing leaves this computer before its line exists, and with
+Installing ends outside the window: what "Install it" starts runs in Terminal, from the fixed
+addresses of the release file and nothing the window says, and the window's process commands no other program `[C10]`. What holds in the other rows is `[C5]`: nothing leaves this computer before its line exists, and with
 nothing kept that line is in the memory of lzrprf's process, which the window's process
 cannot write.
 
@@ -801,18 +801,22 @@ asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you 
   start; the installer's first lines have the same limit, said where they are
   described below. Its `curl` follows no redirect. It leaves two things behind: itself (`~/.lzrprf/install.command`,
   replaced the next time) and a temporary folder that holds the installer it fetched.
-- It first says where the installer comes from and waits for your Return. Before that it
-  fetches nothing, so a press of "Install it" alone reaches no site.
+- It first says where the installer comes from, then fetches it at once: the press of
+  "Install it" is the yes, and no key is pressed after it.
 - Then it fetches the installer from two places, when the release names a second one (the line
   `same`; the release on record here does): `install.sh` in this repository, and the site. It
   stops, with nothing installed changed (its temporary folder with the copies stays), unless
   the two copies are the same byte for byte
   (`/usr/bin/cmp -s install.sh second`). Then it says where the file is, so that you can read
-  it, shows its SHA-256, and runs it only after you press Return again. Nothing is piped into a shell.
+  it, shows its SHA-256, and runs it at once, in auto (`sh install.sh auto`): each question the
+  installer asks is printed with its yes, and when it ends the window stays open with every
+  line in it, to read. Nothing is piped into a shell.
   This is the one moment on this road when the maker's site is asked for anything: it sees your
   internet address then, as GitHub does.
-- The installer then asks its own questions, refuses to put an older release over a newer one,
-  and says so and asks when the release would replace `lzrprf` itself. It takes no test setting
+- The installer, in auto, prints each of its questions with its yes, refuses to put an older
+  release over a newer one, and says so when the release would replace `lzrprf` itself. Run by
+  hand (`sh install.sh`), each question takes y (yes, and the next is asked), n (no), or a
+  (auto: yes to it and to every one after it). It takes no test setting
   from a variable of your shell unless every file comes from this computer (see "The
   installer"), so a variable cannot point this road elsewhere.
 
@@ -836,14 +840,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 25
+    release 26
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin b3959cc9b9485a6cae609a1953b2e94a4a717cee98a55e00ea7368b966903e18
-    lzrprf 69bd85540338b09722032a6085095ec1ef8a36d366ff6b49b4159c2712ee4ae1
+    file lzrbrwsr-bin 66876972311bba96ce9927612f53ef3e778eb3eaa88b94e1a5c5ddb08726b472
+    lzrprf 51f0cc7b73faa9d75e9aed91639d9336b0a9c074152029805958d95e98221c3e
 
 ## When a page cannot be shown
 
@@ -921,8 +925,8 @@ narrows down who could have sent a report. The question shows the build before y
     press of either button of the question that is open ("Send", "Yes, look", "Install it",
     "Clear the log" and the buttons that keep less among them), or a request for the
     log. Each of these that fetches is in the log before it has an effect outside your Mac,
-    and "Install it" ends in Terminal, where nothing is fetched before a Return of your own and
-    the installer runs only after a second one. A
+    and "Install it" ends in Terminal, where the installer of the published release, the same
+    from both places, runs through by itself. A
     press cannot make lzrprf keep more: the buttons that change what is kept only keep less
     (`sub choose_keeping`), and the change is a line of the log (`sub changed`). Two presses
     clear the log on this computer: a kept log then says so in its first line, and with
@@ -1112,7 +1116,7 @@ narrows down who could have sent a report. The question shows the build before y
     perl lzrprf request TEXT             the exact bytes a site is sent for TEXT
     perl lzrprf public NUMBER            whether a numeric address is public, and how this computer sends to it
     perl lzrprf mark                     this build of macOS, this lzrprf and the selftest beside it, as one line
-    perl selftest                        attack it on this computer; about half a minute, no window
+    perl selftest                        probe it on this computer; about half a minute, no window
 
 Three lines of the log, for one request (time, number of the run, what happened), as a log of
 full addresses holds them; a log of hosts only holds `https://example.com` in each:
@@ -1127,13 +1131,13 @@ questions that keep less (`sub log_shown`).
 
 `selftest` prints five kinds of line under eleven numbered headings, then a count and a
 verdict. `now`: what the test is doing at this moment, printed while it runs; the installer
-shows these as its steps. `works`: an attack tried outside every container, where it must
-succeed. `held`: an attack that failed inside, or a promise checked against what the test site
+shows these as its steps. `works`: a probe tried outside every container, where it must
+succeed. `held`: a probe that failed inside, or a promise checked against what the test site
 itself received. `UNTESTED`: something this Mac gave no way to try, with the reason; the mark
 the run writes names each. `FAILED`:
-an attack that succeeded, or a promise that did not hold. A line that begins `selftest:` says
+a probe that succeeded, or a promise that did not hold. A line that begins `selftest:` says
 why the test could not run at all. The hostile application is the text `$hostile` in
-`selftest`: read it, add an attack of your own, run it again. The test uses no host outside
+`selftest`: read it, add a probe of your own, run it again. The test uses no host outside
 this computer. Its tries at an address outside go to 192.0.2.1, which is kept for
 documentation and which no host answers: made outside every container, where they must not
 be refused, they can put the opening packet of a connection on your network, with nothing of
@@ -1398,7 +1402,7 @@ What stands where Apple's notarization would stand, and what does not:
 
 | notarization gives | here |
 | --- | --- |
-| Apple's scan found no known malware in the program. | Nothing is assumed about the program. It runs with no network, no file of yours, nowhere to write and no other program, in a container whose every line is in this repository, and that container is attacked on your Mac before a file is put in place (`selftest`) and proves itself again at every start `[C2]`. |
+| Apple's scan found no known malware in the program. | Nothing is assumed about the program. It runs with no network, no file of yours, nowhere to write and no other program, in a container whose every line is in this repository, and that container is probed on your Mac before a file is put in place (`selftest`) and proves itself again at every start `[C2]`. |
 | The bytes are the ones the maker handed in. | The SHA-256 of the installer, of the download and of each file in it is on public record here (`release.txt`). The installer and the download stand in two places that must agree, and the installer stops on any other byte (`get` in `install.sh`). |
 | A named maker, and a ticket Apple can take back. | Not here. No identity stands behind a release, nothing is signed with a key, and a release cannot be taken back from a Mac it is on: a newer one can only be offered. A signing key of the maker's own, kept away from the computer that builds, would give the first half. It is not built. |
 
@@ -1540,7 +1544,7 @@ what the code and the system make impossible, and how you checked it.
    say then, and what does `sub proven` do with such a mark before an address is taken?
 9. If you can run commands on my Mac, ask me first, then:
    - clone the repository and run `perl selftest`; show me the result, every `UNTESTED` line
-     included; add one attack of your own to `$hostile` and run it again;
+     included; add one probe of your own to `$hostile` and run it again;
    - if LZRBRWSR is installed, compare `shasum -a 256 ~/.lzrprf/lzrprf` with the file at the
      commit the installer names, and the files in /Applications/LZRBRWSR.app with `release.txt`;
    - print `/Applications/LZRBRWSR.app/Contents/MacOS/lzrbrwsr`. It must be the short plain-text

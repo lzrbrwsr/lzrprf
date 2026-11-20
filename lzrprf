@@ -1118,7 +1118,7 @@ sub fetch {
             '--cacert', $roots, '--max-time', $FETCH_SECONDS, '--max-filesize', $FETCH_BYTES,
             '-H', 'User-Agent:', '-H', 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close',
             '--unix-socket', $way, '--', $url);
-        if ($PEER ne '-' && open my $instead, '<', "$DIR/fetcher") { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to attack this container too
+        if ($PEER ne '-' && open my $instead, '<', "$DIR/fetcher") { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to probe this container too
         become(undef, $out, undef, '/bin/sh', '-c', $FETCH_LIMITS, 'lzrprf', contain($FETCH, shift @curl, '-D', "WAY=$way", '-D', "ROOTS=$roots"), @curl);    # the memory limit first, then the container
     }
     close $out;
@@ -1206,7 +1206,7 @@ sub public4 {
 # and a report you chose to send (above). An address that is not on the
 # public internet is not fetched for either. A third address, the
 # installer's, is never fetched by lzrprf: after "Install it" it is written
-# into a file that runs in Terminal, in front of you.                    # [C4]
+# into a file that runs in Terminal, in front of you, at once.           # [C4]
 sub fixed {
     my ($line, $url, $host) = @_;
     $UNSAID = 0;
@@ -1254,8 +1254,9 @@ sub beside {
 # the same request from every computer, so it says nothing about you or about
 # which release you run, and it is written in the log like any other. When
 # the number there is larger than the one beside the program, the window says
-# so and offers the installer. The installer then runs in Terminal, in front
-# of you, and asks before it prints itself and before it changes anything.
+# so and offers the installer. "Install it" is the yes: the installer then
+# runs in Terminal at once, in front of you, in auto, every question it asks
+# printed with its yes and every step left in the window to read.
 sub newer {
     my ($release, $newest, undef, $installer, $same) = beside();
     return unless $newest && $installer;
@@ -1280,23 +1281,26 @@ sub newer {
     my $got = fixed("lzrprf looks for a newer release: $newest", $newest, $host) // return;
     my ($there) = $got =~ m{\AHTTP/1\.1 200 .*?\r\n\r\n(?:[0-9a-f]{1,4}\r\n)?(\d{1,6})\s*(?:0\r\n\r\n)?\z}s or return;    # one number and nothing else, or the answer counts for nothing
     return unless $there > $release;
-    return unless ask("A newer release of $APP is published: $there. You run $release. The installer runs in Terminal, where you see every step, and it asks before it changes anything.", 'Later', 'Install it') == 2;
+    return unless ask("A newer release of $APP is published: $there. You run $release. Install it runs the installer in Terminal at once, with no further question: every step is shown there and stays in the window to read.", 'Later', 'Install it') == 2;
     my ($file, $text) = ("$DIR/install.command", installer_file($installer, $same));
     return unless length $text;
-    record("you chose to install release $there: Terminal fetches the installer from " . join ' and from ', $installer, defined $same ? $same : ()) or return;    # these fetches are Terminal's, made by the file below after your Return; lzrprf writes down that you asked for them
+    record("you chose to install release $there: Terminal fetches the installer from " . join ' and from ', $installer, defined $same ? $same : ()) or return;    # these fetches are Terminal's, made by the file below at once; lzrprf writes down that you asked for them
     unlink $file;
     sysopen(my $out, $file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0700) or return;
     print $out $text;
     close $out;
     said(20, '/usr/bin/open', $file) unless $TRY;    # "lzrprf try" only: the file is written and nothing is opened
-    closed("The installer is in Terminal. Close $APP now, and start it again when the installer is done.");
+    closed("The installer runs in Terminal by itself. Start $APP again when it says it is done.");
 }
 
-# What "Install it" runs, in Terminal. It names the places and waits for a
-# Return before it fetches anything: a press of "Install it" alone, which the
-# window's process could make, reaches no site. The installer is fetched into a file,
-# not into a shell: the file stays where you can read it, its SHA-256 is
-# shown, and it runs only after you pressed Return a second time. When the release file
+# What "Install it" runs, in Terminal, at once and with no key to press: the
+# press of "Install it" is the yes. It names the places, fetches the installer
+# into a file, not into a shell (the file stays where you can read it, and its
+# SHA-256 is shown), and runs it in auto, so each question the installer asks
+# is printed with its yes, and the window stays open with every line in it.
+# What a press of "Install it" can reach is only this: the installer at the
+# address the application's release file names, the one that release
+# published. When the release file
 # names a second place for the same installer, it is fetched from both, and
 # it runs only when the two copies are the same byte for byte: somebody who
 # changed the installer in one place would have had to change it in the other
@@ -1333,19 +1337,18 @@ END
     my $places = "echo '  $installer'\n" . (defined $same ? "echo '  $same'\n" : '');
     return <<"END";
 #!/bin/sh
-# Written by lzrprf when "Install it" was pressed in its window.
+# Written by lzrprf when "Install it" was pressed in its window. It runs through by itself.
 # It goes on only when what it would hand on to a program it starts is nothing but the kind of terminal as one plain word, the system's own PATH and names a shell sets for itself (PWD, SHLVL, _; zsh also OLDPWD and LOGNAME). With anything else there, or with a line break or another control character inside one of those values, it starts itself once more through env -i with the first two only, so no variable of the Terminal's reaches the curl or the shell that go on. No mark says "already clean": what counts is what is there, read by a perl that is itself started through env -i. Two names a shell may have read for itself are unset first.
 unset IFS ARGV0; case "\${PATH-}\${TERM-}\${SHLVL-}\${LOGNAME-}\${OLDPWD-}\${PWD-}\${_-}" in *[[:cntrl:]]*) plain= ;; *) plain=one ;; esac; case "\$plain\$(/usr/bin/env | /usr/bin/env -i /usr/bin/perl -e 'my (\$user, \$login, %at) = (scalar(getpwuid(\$<)), scalar(getlogin())); while (defined(my \$line = <STDIN>)) { chomp \$line; next if \$line eq "PATH=/usr/bin:/bin:/usr/sbin:/sbin" || \$line =~ m{^(?:TERM=[A-Za-z0-9._+-]+|SHLVL=[0-9]+|_=/[A-Za-z0-9._/+-]*)\\z}; if (\$line =~ m{^(PWD|OLDPWD)=(/.*)\\z}) { \$at{\$1} = \$2; next } next if grep { defined(\$_) && \$line eq "LOGNAME=\$_" } \$user, \$login; print "other"; exit } print exists \$at{OLDPWD} && \$at{OLDPWD} ne (\$at{PWD} // "") ? "other" : "only"')" in oneonly) ;; *) case "\${1:-}" in again) /bin/echo 'This file could not be started with only the kind of terminal and the PATH of the system. Nothing was fetched.'; exit 1 ;; esac; case "\${TERM:-}" in ''|*[!A-Za-z0-9._+-]*) TERM=dumb ;; esac; exec /usr/bin/env -i TERM="\$TERM" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/sh "\$0" again ;; esac
-echo 'A newer release: its installer would be fetched from'
-${places}printf 'Press Return to fetch it, or close this window and nothing is fetched. '
-read answer || exit 1
-cd "\$(/usr/bin/mktemp -d)" || exit 1
+echo 'A newer release: its installer is fetched now from'
+${places}cd "\$(/usr/bin/mktemp -d)" || exit 1
 /usr/bin/curl -q -fsS --proto =https -o install.sh '$installer' || { echo 'The installer could not be fetched. Nothing was changed.'; exit 1; }
-${twice}echo "The installer is in this file, to read before it runs: \$PWD/install.sh"
+${twice}echo "The installer is in this file, to read: \$PWD/install.sh"
 echo "Its SHA-256: \$(/usr/bin/shasum -a 256 install.sh | /usr/bin/cut -d' ' -f1)"
-printf 'Press Return to run it, or close this window and nothing is changed. '
-read answer || exit 1
-exec /bin/sh install.sh
+echo 'It runs now in auto: each question it asks is printed here with its yes.'
+/bin/sh install.sh auto
+printf 'Every line above stays here to read. Close this window when you are done. '
+read answer
 END
 }
 
@@ -1743,12 +1746,12 @@ sub show {
     if (open my $in, '<', "$DIR/log") { print <$in> } else { print "(nothing on this computer)\n" }
 }
 
-# The proof for this computer. "selftest" attacks this file on this Mac and,
-# when every attack was held, writes down the mark of what it tested: the
+# The proof for this computer. "selftest" probes this file on this Mac and,
+# when every probe was held, writes down the mark of what it tested: the
 # build of macOS, the SHA-256 of this file and the SHA-256 of the selftest
-# beside it, the file that made the attacks. Nothing is shown unless that
+# beside it, the file that made the probes. Nothing is shown unless that
 # mark is the mark of now. So after macOS was updated, or this file or the
-# selftest beside it changed, no page is shown before the attacks were made
+# selftest beside it changed, no page is shown before the probes were made
 # again. Where no selftest can be read beside this file, there is no mark,
 # and nothing counts as proven.
 # When the test held but could not try every check on this Mac, it writes
@@ -1799,11 +1802,11 @@ sub proven {
     my $found = $is->();
     return $without->($found) if length $found;
     my $test = dirname($SELF) . '/selftest';
-    if (ask("lzrprf has not been tested on this Mac as it is now: macOS was updated, or lzrprf or its selftest is new. The test attacks lzrprf with a hostile application and takes about half a minute. $APP shows a page only when every attack was held. Test now?", 'Not now', 'Test now') != 2) {
+    if (ask("lzrprf has not been tested on this Mac as it is now: macOS was updated, or lzrprf or its selftest is new. The test runs hostile tries we made ourselves, just to be sure, and lzrprf must deflect every one; it takes about half a minute. $APP shows a page only when all were deflected. Test now?", 'Not now', 'Test now') != 2) {
         window('quit');
         leave();
     }
-    busy('lzrprf is being attacked with a hostile application. This takes about half a minute.');
+    busy('lzrprf is deflecting hostile tries we made ourselves, just to be sure. This takes about half a minute.');
     my ($report) = -f $test ? said(900, '/usr/bin/perl', $test) : ("there is no selftest beside $SELF\n");
     unlink "$DIR/selftest.txt";
     if (sysopen my $out, "$DIR/selftest.txt", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out $report }

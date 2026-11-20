@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# selftest: attacks lzrprf with a hostile application, in each of lzrprf's
+# selftest: probes lzrprf with a hostile application, in each of lzrprf's
 # three containers, and says what the application managed to do. Run it from
 # the folder that holds lzrprf:
 #
@@ -18,18 +18,18 @@
 # off the screen. Everything else is the code "lzrprf run" uses.
 #
 # The hostile application is the text "$hostile" below. It is the published
-# attack: read it, add to it, run it again.
+# probe: read it, add to it, run it again.
 #
 # Five kinds of line are printed under eleven numbered headings, and after
 # them a count and a verdict. A line that begins "selftest:" says why the
 # test could not run at all.
 #   now       what the test is doing at this moment. It is printed while the
 #             test runs, so that whoever started it can show where it is.
-#   works     an attack tried outside every container first, where it must
+#   works     a probe tried outside every container first, where it must
 #             succeed: so a refusal inside is the container's, not a try that
 #             could never have worked.
-#   held      an attack that failed, or a promise that was checked.
-#   FAILED    an attack that succeeded, or a promise that did not hold.
+#   held      a probe that failed, or a promise that was checked.
+#   FAILED    a probe that succeeded, or a promise that did not hold.
 #   UNTESTED  something this computer gave no way to try, with the reason.
 # The test site keeps its own record of every connection and every byte it
 # received, and what lzrprf says it did is compared with that record.
@@ -70,13 +70,16 @@ my ($failures, $untested, $held) = (0, 0, 0);
 my @not_tried;                            # each check the test could not try, as "what (why)": named in the mark this run writes
 sub check($$$);                           # each of the three is taken as one value. Without this, a comparison that
 sub works($$$);                           # fails where a list is expected gives no value at all, the two after it
-sub untested($$);                         # move up, and the line of a failed attack reads "held"
+sub untested($$);                         # move up, and the line of a failed probe reads "held"
 my $outside = $$;
 $| = 1;                                   # each line is printed when it is made: whoever started the test can show where it is
 print "now    A test site is built on this computer: no host outside this computer is used.\n";
 my $made = mkdir "$home/.lzrprf", 0700;   # lzrprf keeps its state here; what is already there is left as it is
 open my $alone, '>>', "$home/.lzrprf/selftest.lock" or die "selftest: cannot write in $home/.lzrprf: $!\n";
-flock $alone, LOCK_EX | LOCK_NB or die "selftest: another selftest is running\n";
+flock $alone, LOCK_EX | LOCK_NB or do {   # another test is running on this Mac (an installer's, or one by hand): this one waits for it, and never runs beside it
+    print "now    Another selftest runs on this Mac: this one waits until it has ended.\n";
+    flock $alone, LOCK_EX or die "selftest: cannot wait for the other selftest: $!\n";
+};
 # The order: the lock first, so two tests never write the file of marks at
 # once; then the mark of what is tested is taken out, before anything else
 # can stop the test. Only a test that cannot say what it tests, or that is
@@ -92,7 +95,7 @@ $mark =~ /, selftest \Q$own\E$/ or die "selftest: the selftest beside lzrprf is 
 unmark();                                 # a run that fails must not leave standing the mark an earlier run wrote for this same copy
 require IO::Socket::SSL;
 my ($paired) = $mark =~ /, lzrprf ([0-9a-f]{64}),/ or die "selftest: the mark does not name lzrprf's SHA-256\n";    # the SHA-256 of the lzrprf under test, as the release file of an application names it
-# The file in the home folder that the attacks try to read. It is made here,
+# The file in the home folder that the probes try to read. It is made here,
 # while the lock is held and before anything of the test is made or started,
 # so a refusal leaves nothing behind. A run that was killed leaves its file:
 # a plain file of yours, no link, that holds the test's own line and nothing
@@ -1151,14 +1154,14 @@ my $gate_split = do { local %ENV = (PATH => "/usr/bin:/bin:/usr/sbin:/sbin\nPWD=
 my $twice_early = slurp("$base.uptwo/install.command");
 check(@asks == 2 && $asks[0] =~ m{^May lzrprf look for a newer release of Test at each start\? It fetches one fixed address, \Q$t\E/latest-yes,} && $asks[1] =~ /^A newer release of Test is published: 7\. You run 3\./ && slurp("$base.upyes/look") eq "yes $t/latest-yes", 'a newer release: you are asked once whether lzrprf may look at each start, and again before anything is installed', scalar(@asks) . ' questions');
 check((log_of('upyes'))[0] eq "you allowed lzrprf to look for a newer release at each start: $t/latest-yes" && (log_of('upyes'))[1] eq "lzrprf looks for a newer release: $t/latest-yes" && asked('/latest-yes') == 1, 'the look is one request for one fixed address, written in the log like every other, and the yes that allows it at each start is a line before it', (log_of('upyes'))[1] // 'nothing');
-check($command =~ m{^/usr/bin/curl -q -fsS --proto =https -o install\.sh '\Q$t\E/install\.sh' }m && $command !~ /curl[^\n]* -[A-Za-z]*L|--location/ && $command =~ /^read answer \|\| exit 1\nexec \/bin\/sh install\.sh\n\z/m && $command !~ /\|\s*(?:\/bin\/)?sh\b/, 'the installer is fetched into a file you can read, its SHA-256 is shown, and it runs after you press Return: nothing is piped into a shell', length($command) . ' bytes written, nothing started');
-check($command =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\Q$gate\E\n|echo '[^'\n]*'\n|printf '[^'\n]*'\n)+read answer \|\| exit 1\ncd } && $twice_early =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\Q$gate\E\n|echo '[^'\n]*'\n|printf '[^'\n]*'\n)+read answer \|\| exit 1\ncd } && system('/bin/sh', '-n', "$base.upyes/install.command") == 0 && system('/bin/sh', '-n', "$base.uptwo/install.command") == 0, 'the file for Terminal looks at its environment first, says where the installer comes from and waits for a first Return: before it there is nothing but that one line and words, so a press of "Install it" alone fetches nothing', 'words only before the first Return');
+check($command =~ m{^/usr/bin/curl -q -fsS --proto =https -o install\.sh '\Q$t\E/install\.sh' }m && $command !~ /curl[^\n]* -[A-Za-z]*L|--location/ && $command =~ /^\/bin\/sh install\.sh auto\nprintf '[^'\n]*'\nread answer\n\z/m && $command !~ /\|\s*(?:\/bin\/)?sh\b/, 'the installer is fetched into a file you can read, its SHA-256 is shown, and it runs in auto with no key to press, the window left open to read: nothing is piped into a shell', length($command) . ' bytes written, nothing started');
+check($command =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\Q$gate\E\n|echo '[^'\n]*'\n)+cd } && $twice_early =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\Q$gate\E\n|echo '[^'\n]*'\n)+cd } && system('/bin/sh', '-n', "$base.upyes/install.command") == 0 && system('/bin/sh', '-n', "$base.uptwo/install.command") == 0, 'the file for Terminal looks at its environment first and says where the installer comes from: before the fetch there is nothing but that one line and words', 'words only before the first Return');
 check($gate_clean =~ m{^PATH=/usr/bin:/bin:/usr/sbin:/sbin$}m && $gate_clean =~ /^TERM=dumb$/m && $gate_clean !~ /^(?!PATH=|TERM=|PWD=|SHLVL=|_=|OLDPWD=|LOGNAME=)/m && $gate_clean !~ /PERL5OPT|SSL_CERT_FILE|nowhere|LZRPRF_CLEAN|two words/ && $gate_again =~ /^This file could not be started with only the kind of terminal and the PATH of the system\. Nothing was fetched\.$/ && $gate_again !~ /PATH=/ && $gate_plain =~ /^TERM=xterm$/m && $gate_plain !~ /Nothing was fetched/ && $gate_split =~ /^This file could not be started with only the kind of terminal and the PATH of the system\. Nothing was fetched\.$/ && $gate_split !~ /PATH=|nowhere/,
     'that one line, run here with a module for perl, a file of certificates, another home folder, the mark of older releases and a kind of terminal in two words in its environment: what runs after it sees the PATH of the system, a plain kind of terminal and what the shell itself sets, and nothing else; told that it was started again already, with the same environment, it stops and fetches nothing; told so with nothing but a plain PATH and kind of terminal, it goes on; told so with a PATH and a kind of terminal that each carry a line break and a second line, it stops', ($gate_clean =~ tr/\n//) . ' variables after the line: ' . join(' ', map { /^([^=]*)=/ ? $1 : '?' } split /\n/, $gate_clean));
 check(!asked('/install.sh'), 'lzrprf itself never fetches the installer', 'the site was not asked for it');
 my $twice = slurp("$base.uptwo/install.command");
-check(asked('/latest-yes?two') == 1 && $twice =~ m{^/usr/bin/curl -q -fsS --proto =https -o install\.sh '\Q$t\E/install\.sh' .*\n/usr/bin/curl -q -fsS --proto =https -o second '\Q$t\E/second/install\.sh' \|\| \{ [^\n]*exit 1; \}\n/usr/bin/cmp -s install\.sh second \|\| \{ [^\n]*exit 1; \}\n}m && $twice =~ /^read answer \|\| exit 1\nexec \/bin\/sh install\.sh\n\z/m && index($twice, '/usr/bin/cmp') < rindex($twice, 'read answer') && !asked('/second/install.sh'),
-    'a release that names a second place for its installer: the file fetches both copies and stops unless they are the same byte for byte, before it asks you to run anything', length($twice) . ' bytes written, nothing started');
+check(asked('/latest-yes?two') == 1 && $twice =~ m{^/usr/bin/curl -q -fsS --proto =https -o install\.sh '\Q$t\E/install\.sh' .*\n/usr/bin/curl -q -fsS --proto =https -o second '\Q$t\E/second/install\.sh' \|\| \{ [^\n]*exit 1; \}\n/usr/bin/cmp -s install\.sh second \|\| \{ [^\n]*exit 1; \}\n}m && $twice =~ /^\/bin\/sh install\.sh auto\nprintf '[^'\n]*'\nread answer\n\z/m && index($twice, '/usr/bin/cmp') < rindex($twice, 'read answer') && !asked('/second/install.sh'),
+    'a release that names a second place for its installer: the file fetches both copies and stops unless they are the same byte for byte, before it runs anything', length($twice) . ' bytes written, nothing started');
 check($command =~ /^echo 'The installer comes from one place: /m && $command !~ /cmp/, 'a release that names one place says so in the file', 'one place');
 check((grep { $_ eq "you chose to install release 7: Terminal fetches the installer from $t/install.sh and from $t/second/install.sh" } log_of('uptwo')) == 1 && (grep { $_ eq "you chose to install release 7: Terminal fetches the installer from $t/install.sh" } log_of('upyes')) == 1, 'what Terminal will fetch after "Install it" is written in the log before the file exists: those fetches are Terminal\'s, not lzrprf\'s, and the log still says that you asked for them', (grep { /^you chose to install/ } log_of('uptwo'))[0] // 'no line');
 check(asked('/latest-yes?bad') == 1 && words('uptwobad', 'ask') == 1 && !-e "$base.uptwobad/install.command" && !-e "$site_folder/quoted", 'a second place whose address is no address, or would end the quote it stands in: no file is written, and the installer does not quietly come from one place', 'no file');
@@ -1225,7 +1228,7 @@ check(out('lostmemory') =~ /^busy The container did not hold on this Mac a momen
 check(grep({ $_->[0] eq 'allow itself more processor time' && $_->[1] eq 'allowed' } tried(err('lostsoft'), 'page container')) == 1, 'a page container whose limits may be raised again: the try at more processor time in the page container notices', join('/', map { $_->[0] eq 'allow itself more processor time' ? $_->[1] : () } tried(err('lostsoft'), 'page container')) || 'nothing came of it');
 if ($few_files) { untested('the limit of 256 open files, in both containers', "this test was started with a limit of $hard_files open files that no process may raise, so a try at 300 is refused with or without a container") }
 else { check(grep({ $_->[0] eq 'allow itself more than 256 open files' && $_->[1] eq 'allowed' } tried(err('lostfiles'), 'page container')) == 1, 'a page container without its limit on open files: the try at more in the page container notices', join('/', map { $_->[0] eq 'allow itself more than 256 open files' ? $_->[1] : () } tried(err('lostfiles'), 'page container')) || 'nothing came of it'); }
-check(grep({ $_->[0] eq 'take 3 GiB of memory' && $_->[1] eq 'made' } tried(err('lostmemoryprobe'), 'page container')) == 1, 'the same, with the tries at the start taken out too: the attack on memory in the page container notices', join('/', map { $_->[0] eq 'take 3 GiB of memory' ? $_->[1] : () } tried(err('lostmemoryprobe'), 'page container')) || 'nothing came of it');
+check(grep({ $_->[0] eq 'take 3 GiB of memory' && $_->[1] eq 'made' } tried(err('lostmemoryprobe'), 'page container')) == 1, 'the same, with the tries at the start taken out too: the probe on memory in the page container notices', join('/', map { $_->[0] eq 'take 3 GiB of memory' ? $_->[1] : () } tried(err('lostmemoryprobe'), 'page container')) || 'nothing came of it');
 check((out('lostwindow') . err('lostwindow')) =~ /^test closed The system did not say that this window is in its container, so Test shows no page\./m && !asked('/lostwindow'), 'the window started in a container that lets it open things through the system: the system says so, and nothing is shown', (out('lostwindow') . err('lostwindow')) =~ /^(test closed .{0,60})/m ? $1 : 'nothing came of it');
 check((out('lostservices') . err('lostservices')) =~ /^test closed The system did not say that this window is in its container, so Test shows no page\./m && !asked('/lostservices'), 'the window started in a container that does not refuse the system\'s services: the system says so, and nothing is shown', (out('lostservices') . err('lostservices')) =~ /^(test closed .{0,60})/m ? $1 : 'nothing came of it');
 
