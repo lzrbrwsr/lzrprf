@@ -700,7 +700,10 @@ the window alone, and nothing in it comes from a page.
   yours and an address lzrprf does not fetch are passed over; a bookmarks folder that is a link
   is not read and nothing is written through it. The star of a page you bookmarked opens the
   same modal to change it or Remove it. Opening a bookmark is a visit like a typed one `[C4]`.
-  The cogwheel's "Show bookmarks bar" is kept in `~/.lzrprf/marksbar`.
+  The cogwheel's "Show bookmarks bar" is kept in `~/.lzrprf/marksbar`. The bar shows one folder,
+  `Bookmarks bar` (Chrome's name for it), which the star's modal offers first; the first time the
+  folder is read without it, the bookmarks at its top, which the bar showed until then, move into it
+  by a change of name each (`sub marks_into_bar`).
 - **Clearing.** "Clear browsing history" empties the addresses the tabs went to; the log is
   cleared by its own button and by nothing else. Clearing the sessions also drops every page
   lzrprf keeps for a tab. lzrprf sends no cookie and keeps none `[C7]`, so no login was kept by
@@ -733,7 +736,14 @@ the window alone, and nothing in it comes from a page.
   into it (`sub engine_fit`). The choice is one line in one plain file of yours,
   `~/.lzrprf/search`; the cogwheel's "Search engine..." changes it. A search is a visit like a
   typed address, written in the log first as `you searched with` `[C4]`.
-- **The bookmarks page.** The cogwheel's "Bookmarks", the home screen's button and Cmd-Shift-B
+- **The cogwheel's menu.** A panel of the window's own glass, opened under the cogwheel inside the
+  window, each item with the keys that do it too; a press outside it closes it and reaches nothing.
+- **Keys.** Chrome's keys for what LZRBRWSR has: Cmd-L, Cmd-[, Cmd-], Cmd-R, Cmd-T, Cmd-W, Cmd-D
+  (bookmark the page), Cmd-Shift-B (the bookmarks bar), Cmd-Option-B (the bookmarks page),
+  Cmd-Shift-Delete (clear history), Cmd-Comma (the cogwheel's menu), Cmd-1 to Cmd-8 and Cmd-9
+  (a tab, the last tab), Ctrl-Tab and Ctrl-Shift-Tab, Cmd-Option-Right and Left (the next and the
+  previous tab), Cmd-Shift-A (the tabs page). Each does what its button does, and only then.
+- **The bookmarks page.** The cogwheel's "Bookmarks", the home screen's button and Cmd-Option-B
   list every bookmark by folder; the back arrow returns to the page.
 - **The lock.** Pointing at the lock in the bar, or pressing it to keep it open, shows what
   lzrprf knows of the page shown (`sub secured`): the address, the server's IP address it
@@ -939,14 +949,14 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 43
+    release 44
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin ed1b16dbede7d42d445946a747418a727825028a925276aef3b00dbd32bf65ea
-    lzrprf 744974775c254f8445af956e08e34dec29644c88777e21348ea54fa59379c489
+    lzrprf 14c00af890f5797b6ca3921f927ec1cadc0d7855353fcc4c81517f2e63c31507
 
 ## When a page cannot be shown
 

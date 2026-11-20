@@ -1423,6 +1423,27 @@ my $PART = qr/[A-Za-z0-9_-][A-Za-z0-9 ._-]{0,63}/;    # one name in the bookmark
 
 sub marks_root { "$DIR/bookmarks" }
 
+# The bookmarks bar shows one folder, "Bookmarks bar" (Chrome's own name for it), and nothing
+# else; the star's modal offers it first. Before the bar had a folder of its own it showed the
+# bookmarks at the top of the folder, so the first time the folder is read without it, those move
+# into it, each by one change of name, and the bar shows what it showed. The folder is made then
+# even when there is nothing to move, so a bookmark kept at the top later stays there.
+my $BAR = 'Bookmarks bar';                # the owner's order of 2026-11-20
+
+sub marks_into_bar {
+    my $root = marks_root();
+    return unless owned_folder($root);
+    my $bar = "$root/$BAR";
+    return if -e $bar || -l $bar;
+    mkdir $bar, 0700 or return;
+    opendir(my $in, $root) or return;
+    for my $entry (grep { /^$PART\z/ && /\.mark\z/ } readdir $in) {
+        my @is = lstat "$root/$entry" or next;
+        rename "$root/$entry", "$bar/$entry" if -f _ && $is[3] == 1 && $is[4] == $<;
+    }
+    synced();
+}
+
 sub owned_folder { my @is = lstat $_[0]; return @is && -d _ && $is[4] == $< }    # a folder of yours, and no link to one
 
 sub marks_read {
@@ -1466,6 +1487,7 @@ sub plain_name {                          # a name to show: at most $TITLE chara
 }
 
 sub marks_told {
+    marks_into_bar();
     my ($found, $folders) = marks_read();
     @MARKS = @$found;
     window('marks begin', (map { "mark F $_" } @$folders), (map { "mark B $_ $MARKS[$_][3]\t$MARKS[$_][1]\t$MARKS[$_][2]" } 0 .. $#MARKS), 'marks end');
@@ -1494,6 +1516,7 @@ sub mark_saved {
         $dir .= "/$part" if length $part;
         mkdir $dir, 0700 unless -e $dir || -l $dir;
         return idle("The bookmark was not saved: $dir is not a folder of yours.") unless owned_folder($dir);
+        marks_into_bar() unless length $part;    # the top folder may be new: the bar's folder is made before anything is kept at the top
     }
     $name = plain_name($name);
     my $base = substr($name =~ s/[^A-Za-z0-9 ._-]/_/gr =~ s/^[ .]+//r, 0, 50) =~ s/ +\z//r;
@@ -2561,8 +2584,8 @@ var again = false, viewing = '';    // the list being drawn is the page shown la
 var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
 var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
 var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
-var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
-var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 26, TOP = TABS_HIGH + BAR_ROW, MARGIN = 16, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
+var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
+var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 26, TOP = TABS_HIGH + BAR_ROW, MARGIN = 22, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
 var root, homeView, listScroll, listView, secureBox, secureScroll, secureText, engineField, listing = null, pageShown = false, navState = [0, 0, 0], searchSet = false, searchNext = null, secureLines = null, securePinned = false;    // the frame every view stands in, the home page, the list page, the lock's panel; which list is open; whether a page is drawn; what back, forward and reload would do; whether a search engine is chosen and what follows its choice; the lock's lines
 
 function say(line) { to.writeData($(line + '\n').dataUsingEncoding(4)); }
@@ -2631,7 +2654,7 @@ function strip(parts, open, question) {
 function place() {
     if (!homeView) return;    // a size told before the window's views are made
     var outer = win.contentView.frame.size;
-    MARGIN = (win.styleMask & 16384) ? 0 : 16;    // full screen: no margin
+    MARGIN = (win.styleMask & 16384) ? 0 : 22;    // full screen: no margin. DECLARED(the widest glow of the frame reaches 16 points past its edge, the floor's 18.5; 22 lets each fade to nothing inside the window, so the window's own square edge never cuts one)
     root.frame = $.NSMakeRect(MARGIN + 1, MARGIN + 1, Math.max(1, outer.width - 2 * MARGIN - 2), Math.max(1, outer.height - 2 * MARGIN - 2));
     win.contentView.needsDisplay = true;
     TOP = TABS_HIGH + BAR_ROW + (marksOn ? MARKS_ROW : 0);
@@ -2660,6 +2683,7 @@ function place() {
     redrawn();
     fit();
     securePlaced();
+    cogPlaced();
     placeModal();
 }
 
@@ -2845,7 +2869,7 @@ function stroked(path, colour, width, halo, blur) {    // a line, with its glow 
 function titled(item, words) { item.attributedTitle = styled(words, inked(sans(13), WHITE)); }
 
 function sent(line) { free = false; bar.enabled = false; logs.enabled = false; redrawn(); say(line); }
-function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
+function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox].forEach(function (one) { if (one) one.needsDisplay = true; }); }
 function takes() { return free && !modalOpen; }    // whether the chrome takes a press now
 
 // The frame: the window is clear, and this draws, MARGIN points in from its edges, the glass every
@@ -2859,15 +2883,15 @@ function paintFrame() {
     if (MARGIN) {
         var floor = $.NSBezierPath.bezierPath, left = edge.origin.x + RADIUS * 2, right = edge.origin.x + edge.size.width - RADIUS * 2;
         floor.moveToPoint($.NSMakePoint(left, edge.origin.y)); floor.lineToPoint($.NSMakePoint(right, edge.origin.y));
-        stroked(floor, FAINT, 8, GREEN, 26);
+        stroked(floor, FAINT, 5, GREEN, 16);
     }
     $.NSGraphicsContext.saveGraphicsState;
-    if (MARGIN) glow(HALO, 20);
+    if (MARGIN) glow(HALO, 14);
     DARK.setFill;
     path.fill;
     $.NSGraphicsContext.restoreGraphicsState;
     $.NSGradient.alloc.initWithStartingColorEndingColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(0.06, 0.075, 0.09, 1), $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.025, 0.033, 0.04, 1)).drawInBezierPathAngle(path, -90);
-    if (MARGIN) { stroked(path, FAINT, 3, GREEN, 12); stroked(path, GREEN, 1.5, GREEN, 6); }
+    if (MARGIN) { stroked(path, FAINT, 2, GREEN, 9); stroked(path, GREEN, 1.1, GREEN, 4.5); }
 }
 
 function frameClicked(event) { win.performWindowDragWithEvent(event); }
@@ -3080,19 +3104,85 @@ function paintCog() {
     stroked(path, hover.cog && lit ? WHITE : lit ? ICON : GREY, 1.4, hover.cog && lit ? GREEN : null, 8);
 }
 
+// The cogwheel's menu: a panel of the window's own glass under the cogwheel, its right edge on the
+// cogwheel's, so it opens inside the window and never over its border; a window too low for it
+// has it rise over the bar, still inside. Each item has the keys that do it too, as in Chrome. A
+// press outside it closes it and reaches nothing under it, as a menu's does.
+var cogBox = null, cogCatch = null, cogOpen = false, COG_ROW = 32, COG_PAD = 8;
+function cogItems() {
+    return [['Show bookmarks bar', '⇧⌘B', marksOn, function () { if (takes()) sent('menu bookmarks-bar'); }],
+        ['Bookmarks', '⌥⌘B', null, function () { if (takes()) listOpened('marks'); }],
+        ['Search engine...', '', null, function () { if (takes()) engineAsked(); }],
+        ['Clear browsing history', '⇧⌘⌫', null, clearing],
+        ['Make current page the home page', '', null, function () { if (takes()) sent('menu home'); }],
+        ['Show the log', '', null, function () { if (logs.enabled && !modalOpen) sent('log'); }]];
+}
+
 function cogClicked() {
+    if (cogOpen) return cogHidden();
     if (!takes()) return;
     secureHidden();
-    var menu = $.NSMenu.alloc.initWithTitle($(''));
-    menu.autoenablesItems = false;
-    [['Show bookmarks bar', 'marksBar:', marksOn], ['Bookmarks', 'bookmarks:'], ['Search engine...', 'engine:'], ['Clear browsing history', 'clearing:'], ['Make current page the home page', 'homing:'], ['Show the log', 'log:']].forEach(function (one) {
-        var item = menu.addItemWithTitleActionKeyEquivalent($(one[0]), one[1], $(''));
-        item.target = hand;
-        titled(item, one[0]);
-        if (one.length > 2) item.state = one[2] ? 1 : 0;
+    cogOpen = true;
+    hover.cogRow = -1;
+    cogCatch.hidden = false;
+    cogBox.hidden = false;
+    cogPlaced();
+}
+
+function cogPlaced() {
+    if (!cogOpen || !cogBox) return;
+    var items = cogItems(), w = 0, all = root.frame.size, at = cog.convertRectToView(cog.bounds, root);
+    items.forEach(function (one) { w = Math.max(w, $(one[0]).sizeWithAttributes(inked(sans(13), WHITE)).width + (one[1] ? $(one[1]).sizeWithAttributes(inked(sans(12), GREY)).width + 28 : 0)); });
+    w = Math.ceil(Math.max(250, w + 50));
+    var h = items.length * COG_ROW + 2 * COG_PAD, x = Math.max(8, Math.min(all.width - w - 8, at.origin.x + at.size.width - w)), y = Math.max(8, at.origin.y - 6 - h);
+    cogCatch.frame = $.NSMakeRect(0, 0, all.width, all.height);
+    cogBox.frame = $.NSMakeRect(x, y, w, h);
+    cogBox.needsDisplay = true;
+}
+
+function cogHidden() {
+    if (!cogBox || !cogOpen) return;
+    cogOpen = false;
+    hover.cogRow = -1;
+    cogBox.hidden = true;
+    cogCatch.hidden = true;
+    redrawn();
+}
+
+function cogRowAt(event) {
+    var at = cogBox.convertPointFromView(event.locationInWindow, $()), size = cogBox.frame.size, i = Math.floor((size.height - COG_PAD - at.y) / COG_ROW);
+    return at.x >= 0 && at.x <= size.width && i >= 0 && i < cogItems().length ? i : -1;
+}
+
+function cogMenuClicked(event) {
+    var i = cogRowAt(event);
+    if (i < 0) return;
+    var act = cogItems()[i][3];
+    cogHidden();
+    act();
+}
+
+function paintCogMenu() {
+    var size = cogBox.frame.size, box = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(0.5, 0.5, size.width - 1, size.height - 1), 12, 12);
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.035, 0.045, 0.055, 0.98).setFill;
+    box.fill;
+    glass(box, true);
+    stroked(box, GREEN, 1.1);
+    cogItems().forEach(function (one, i) {
+        var top = size.height - COG_PAD - (i + 1) * COG_ROW, mid = top + COG_ROW / 2, hot = i == hover.cogRow;
+        if (hot) {
+            var pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(6, top + 2, size.width - 12, COG_ROW - 4), 8, 8);
+            glass(pill, true);
+            $.NSGraphicsContext.saveGraphicsState; glow(GREEN, 6); DIM.setStroke; pill.stroke; $.NSGraphicsContext.restoreGraphicsState;
+        }
+        if (one[2]) {    // a check, drawn with the beam
+            var tick = $.NSBezierPath.bezierPath;
+            tick.moveToPoint($.NSMakePoint(13, mid)); tick.lineToPoint($.NSMakePoint(17, mid - 4)); tick.lineToPoint($.NSMakePoint(24, mid + 4));
+            stroked(tick, GREEN, 1.6, GREEN, 5);
+        }
+        $(one[0]).drawAtPointWithAttributes($.NSMakePoint(32, mid - 8.5), inked(sans(13), hot ? WHITE : ICON));
+        if (one[1]) { var keys = $(one[1]), kw = keys.sizeWithAttributes(inked(sans(12), GREY)).width; keys.drawAtPointWithAttributes($.NSMakePoint(size.width - 16 - kw, mid - 8), inked(sans(12), GREY)); }
     });
-    menu.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
-    menu.popUpMenuPositioningItemAtLocationInView($(), $.NSMakePoint(0, -6), cog);
 }
 
 function clearing() {
@@ -3129,20 +3219,22 @@ function paintStar() {
     stroked(path, kept ? GREEN : hover.star && lit ? WHITE : lit ? ICON : GREY, 1.3, kept || hover.star && lit ? GREEN : null, 7);
 }
 
-function folderLabel(path) { return path ? path.split('/').join(' / ') : 'Bookmarks'; }
+var BAR = 'Bookmarks bar';    // the folder the bookmarks bar shows (lzrprf's $BAR)
+function folderLabel(path) { return path ? path.split('/').join(' / ') : 'Other bookmarks'; }
 
 function starClicked() {
     if (!takes() || !current) return;
     var one = marked();
     editing = one ? one.id : null;
-    modal(one ? 'Edit bookmark' : 'Add bookmark', one ? 'This page is a bookmark. Change it, or remove it.' : 'A bookmark is kept in ' + 'your lzrprf folder, as a name and an address.',
+    modal(one ? 'Edit bookmark' : 'Add bookmark', one ? 'This page is a bookmark. Change it, or remove it.' : 'A bookmark is kept in ' + 'your lzrprf folder, as a name and an address. The bookmarks bar shows the ones in its folder.',
         [['Cancel', closeModal]].concat(one ? [['Remove', function () { closeModal(); sent('mark remove ' + one.id); }]] : []).concat([['Save', markSave]]), 'form');
     nameField.stringValue = $(one ? one.name : tabs[selected] && tabs[selected].title || current);
     addressField.stringValue = $(one ? one.url : current);
     folderPop.removeAllItems;
-    [''].concat(folders).forEach(function (path) { folderPop.addItemWithTitle($(folderLabel(path))); folderPop.lastItem.representedObject = $(path); });
+    var places = [BAR, ''].concat(folders.filter(function (f) { return f != BAR; }));    // the bar's folder first, as Chrome offers it, then the top, then each folder
+    places.forEach(function (path) { folderPop.addItemWithTitle($(folderLabel(path))); folderPop.lastItem.representedObject = $(path); });
     folderPop.addItemWithTitle($('New folder...'));
-    folderPop.selectItemAtIndex(one ? Math.max(0, [''].concat(folders).indexOf(one.folder)) : 0);
+    folderPop.selectItemAtIndex(one ? Math.max(0, places.indexOf(one.folder)) : 0);
     newFolderField.stringValue = $('');
     newFolderField.hidden = true;
     win.makeFirstResponder(nameField);
@@ -3163,9 +3255,9 @@ function markSave() {
 // The bookmarks bar, under the bar's row when it is shown: the bookmarks and folders at the top,
 // side by side; a folder opens a menu of what is in it, a folder in it a menu of its own. What does
 // not fit is in the menu of the last place.
-function marksAtTop() {
-    var all = folders.filter(function (f) { return f.indexOf('/') < 0; }).map(function (f) { return { folder: f, name: f }; });
-    return all.concat(marks.filter(function (m) { return m.folder === ''; }).map(function (m) { return { mark: m, name: m.name }; }));
+function marksAtTop() {    // what is in the bar's folder: its folders, then its bookmarks
+    var all = folders.filter(function (f) { return f.slice(0, BAR.length + 1) == BAR + '/' && f.indexOf('/', BAR.length + 1) < 0; }).map(function (f) { return { folder: f, name: f.slice(BAR.length + 1) }; });
+    return all.concat(marks.filter(function (m) { return m.folder === BAR; }).map(function (m) { return { mark: m, name: m.name }; }));
 }
 
 function marksLaid() {
@@ -3182,7 +3274,7 @@ function marksLaid() {
 function paintMarks() {
     var size = marksView.frame.size, high = size.height;
     marksPlaced = marksLaid();    // on the frame's glass, with no fill of its own
-    if (!marksPlaced.length) $('No bookmarks yet: the star beside the address keeps the page shown.').drawAtPointWithAttributes($.NSMakePoint(16, high / 2 - 7), inked(sans(12), GREY));
+    if (!marksPlaced.length) $('No bookmarks in the bookmarks bar yet: the star beside the address adds the page shown.').drawAtPointWithAttributes($.NSMakePoint(16, high / 2 - 7), inked(sans(12), GREY));
     marksPlaced.forEach(function (one, i) {
         var hot = i == hover.mark && takes(), pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(one.x, 4, one.w, high - 8), 9, 9);
         if (hot) { glass(pill, true); $.NSGraphicsContext.saveGraphicsState; glow(GREEN, 6); DIM.setStroke; pill.stroke; $.NSGraphicsContext.restoreGraphicsState; }
@@ -3466,6 +3558,7 @@ function paintSecure() {
 // it, the page or the chrome, is reached while it is open. Kinds: small, tall (a redirect), form
 // (a bookmark), big (the installer).
 function modal(title, about, choices, kind) {
+    cogHidden();
     modalOpen = true;
     modalKind = kind;
     panelTitle.stringValue = $(title);
@@ -3604,6 +3697,7 @@ function hovered(view, event) {
     else if (view == 'marks') hover.mark = event ? markAt(event) : -1;
     else if (view == 'home') hover.home = event ? homeAt(event) : -1;
     else if (view == 'list') hover.list = event ? listAt(event) : -1;
+    else if (view == 'cogmenu') hover.cogRow = event ? cogRowAt(event) : -1;
     else if (view == 'belt') {
         var at = event ? belt.convertPointFromView(event.locationInWindow, $()) : null, over = !!at && lockAt(at);
         hover.nav = at ? navAt(at) : -1;
@@ -3828,6 +3922,20 @@ ObjC.registerSubclass({ name: 'LzrprfList', superclass: 'NSView', methods: {
     'mouseExited:': { implementation: function (event) { hovered('list', null); } }
 } });
 
+ObjC.registerSubclass({ name: 'LzrprfCogMenu', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintCogMenu(); } },
+    'mouseDown:': { implementation: function (event) { cogMenuClicked(event); } },
+    'mouseMoved:': { implementation: function (event) { hovered('cogmenu', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('cogmenu', null); } }
+} });
+
+// Under the cogwheel's open menu, over all else: a press anywhere outside the menu closes it and reaches nothing.
+ObjC.registerSubclass({ name: 'LzrprfCatch', superclass: 'NSView', methods: {
+    'mouseDown:': { implementation: function (event) { cogHidden(); } },
+    'rightMouseDown:': { implementation: function (event) { cogHidden(); } },
+    'scrollWheel:': { implementation: function (event) { cogHidden(); } }
+} });
+
 ObjC.registerSubclass({ name: 'LzrprfSecure', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paintSecure(); } },
     'mouseDown:': { implementation: function (event) { } }
@@ -3913,6 +4021,12 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'bookmarks:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) listOpened('marks'); } },
     'engine:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) engineAsked(); } },
     'marksBar:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('menu bookmarks-bar'); } },
+    'markThis:': { types: ['void', ['id']], implementation: function (sender) { starClicked(); } },
+    'settings:': { types: ['void', ['id']], implementation: function (sender) { cogClicked(); } },
+    'tabsPage:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) listOpened('tabs'); } },
+    'nextTab:': { types: ['void', ['id']], implementation: function (sender) { tabMoved(1); } },
+    'previousTab:': { types: ['void', ['id']], implementation: function (sender) { tabMoved(-1); } },
+    'tabNumber:': { types: ['void', ['id']], implementation: function (sender) { var n = sender.tag < 0 ? tabs.length - 1 : sender.tag; if (takes() && n >= 0 && n < tabs.length && n != selected) tabSaid('tab select ' + n); } },
     'markMenu:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('mark open ' + sender.tag); } },
     'folderChosen:': { types: ['void', ['id']], implementation: function (sender) { folderChosen(); } },
     'controlTextDidBeginEditing:': { types: ['void', ['id']], implementation: function (note) { belt.needsDisplay = true; } },
@@ -3948,21 +4062,35 @@ function button(title, action) {
     return one;
 }
 
+// The menus, with Chrome's keys for what LZRBRWSR has (Chrome for Mac's own list): Cmd-L,
+// Cmd-[ and Cmd-], Cmd-R, Cmd-T, Cmd-W, Cmd-D, Cmd-Shift-B, Cmd-Option-B, Cmd-Shift-Delete,
+// Cmd-Comma, Cmd-1 to Cmd-8, Cmd-9, Ctrl-Tab, Ctrl-Shift-Tab, Cmd-Option-Right and Left,
+// Cmd-Shift-A. Each does only what its button does, and only when the chrome takes a press.
+var CMD = 1 << 20, SHIFT = 1 << 17, OPTION = 1 << 19, CONTROL = 1 << 18;
 function menus() {
-    var main = $.NSMenu.alloc.initWithTitle($('')), kept = [];
-    [[NAME, [['Quit ' + NAME, 'terminate:', 'q', false]]],
+    var main = $.NSMenu.alloc.initWithTitle($(''));
+    var tabKeys = [1, 2, 3, 4, 5, 6, 7, 8].map(function (n) { return ['Tab ' + n, 'tabNumber:', String(n), true, CMD, n - 1]; }).concat([['Last Tab', 'tabNumber:', '9', true, CMD, -1]]);
+    [[NAME, [['Settings...', 'settings:', ',', true], ['Quit ' + NAME, 'terminate:', 'q', false]]],
      ['Edit', [['Undo', 'undo:', 'z', false], ['Redo', 'redo:', 'Z', false], ['Cut', 'cut:', 'x', false], ['Copy', 'copy:', 'c', false], ['Paste', 'paste:', 'v', false], ['Select All', 'selectAll:', 'a', false]]],
-     ['Go', [['Address', 'bar:', 'l', true], ['Back', 'back:', '[', true], ['Forward', 'forward:', ']', true], ['Reload', 'reload:', 'r', true], ['Bookmarks', 'bookmarks:', 'B', true], ['New Tab', 'newTab:', 't', true], ['Close Tab', 'closeTab:', 'w', true], ['Log', 'log:', '', true]]]].forEach(function (one) {
+     ['Go', [['Address', 'bar:', 'l', true], ['Back', 'back:', '[', true], ['Forward', 'forward:', ']', true], ['Reload', 'reload:', 'r', true], ['Clear Browsing History...', 'clearing:', String.fromCharCode(8), true, CMD | SHIFT], ['Log', 'log:', '', true]]],
+     ['Bookmarks', [['Bookmark This Tab...', 'markThis:', 'd', true], ['Show Bookmarks Bar', 'marksBar:', 'b', true, CMD | SHIFT], ['Bookmark Manager', 'bookmarks:', 'b', true, CMD | OPTION]]],
+     ['Tab', [['New Tab', 'newTab:', 't', true], ['Close Tab', 'closeTab:', 'w', true], ['Show All Tabs', 'tabsPage:', 'a', true, CMD | SHIFT],
+        ['Select Next Tab', 'nextTab:', String.fromCharCode(0xF703), true, CMD | OPTION], ['Select Previous Tab', 'previousTab:', String.fromCharCode(0xF702), true, CMD | OPTION],
+        ['Next Tab', 'nextTab:', '\t', true, CONTROL], ['Previous Tab', 'previousTab:', '\t', true, CONTROL | SHIFT]].concat(tabKeys)]].forEach(function (one) {
         var item = $.NSMenuItem.alloc.init, menu = $.NSMenu.alloc.initWithTitle($(one[0]));
         one[1].forEach(function (entry) {
             var made = menu.addItemWithTitleActionKeyEquivalent($(entry[0]), entry[1], $(entry[2]));
             if (entry[3]) made.target = hand;
+            if (entry[4]) made.keyEquivalentModifierMask = entry[4];
+            if (entry.length > 5) made.tag = entry[5];
         });
         item.submenu = menu;
         main.addItem(item);
     });
     app.mainMenu = main;
 }
+
+function tabMoved(by) { if (takes() && tabs.length > 1) tabSaid('tab select ' + ((selected + by + tabs.length) % tabs.length)); }
 
 // The four places a test replaces, to keep the window off the screen and to read what it holds.
 function kind() { return 0; }                // an application with a window and a place in the Dock
@@ -4124,6 +4252,13 @@ function run(argv) {
     secureScroll.documentView = secureText;
     secureBox.addSubview(secureScroll);
     root.addSubview(secureBox);
+    cogCatch = $.LzrprfCatch.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 720));
+    cogCatch.hidden = true;
+    root.addSubview(cogCatch);
+    cogBox = $.LzrprfCogMenu.alloc.initWithFrame($.NSMakeRect(0, 0, 260, 208));
+    cogBox.hidden = true;
+    root.addSubview(cogBox);
+    tracked(cogBox);
     veil = $.LzrprfVeil.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 720));    // last, so it is over everything
     veil.hidden = true;
     panel = $.LzrprfPanel.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
