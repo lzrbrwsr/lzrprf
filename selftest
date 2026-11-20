@@ -1558,6 +1558,9 @@ my @opened = map { [steady($_->{hello})] } @https;
 my @resumed = grep { $_->[1] } @opened;
 if (@opened > 1 && !grep { !defined $_->[0] || $_->[0] ne $opened[0][0] } @opened) { check(!@resumed, 'the bytes that open the encryption are the same for every request, apart from the random values the protocol requires; no earlier connection is taken up again', scalar(@opened) . ' requests from ' . scalar(@order) . ' starts, ' . length($opened[0][0]) . ' bytes each') }
 else { untested('the bytes that open the encryption are the same for every request', 'the system\'s curl varies them on this build of macOS, or the test site could not read them') }
+my @offers = map { join ' ', offered($_->{hello}) } @https;
+my $pinned = 'ciphers 1303 1302 1301 c02b c02f c02c c030 cca9 cca8 00ff curves 001d 0017';
+check(@offers && !grep({ $_ ne $pinned } @offers), 'every connection offers the site the same ciphers and curves, the ones lzrprf names, not the list the system\'s library would offer, so the first message of a connection does not tell which macOS it came from', @offers ? $offers[0] : 'no connection');
 my @plain_seen = grep { $_->{kind} eq 'plain' } @seen;
 check(@plain_seen == 1 && $plain_seen[0]{bytes} =~ /^\x16\x03/ && $plain_seen[0]{bytes} !~ /GET /, 'a site without encryption is sent the opening of an encryption and nothing readable', @plain_seen ? length($plain_seen[0]{bytes}) . ' bytes' : 'nothing arrived');
 check(last_said('plain') =~ /^Nothing is shown: / && !@{ [tried(err('plain'), 'page container')] }, 'and nothing of it is shown', last_said('plain'));
@@ -2034,6 +2037,25 @@ exit 0;
 # The bytes that open an encryption, with the values that must differ from one
 # connection to the next set to zero: the random number, the session number,
 # the key that is offered. And whether an earlier connection is taken up again.
+sub offered {                            # the ciphers and curves the first message of a connection offers, as hex
+    my ($hello) = @_;
+    return unless length $hello > 48 && ord($hello) == 22 && ord(substr $hello, 5, 1) == 1;
+    my $at = 9 + 2 + 32;
+    $at += 1 + ord substr $hello, $at, 1;
+    my $long = unpack 'n', substr $hello, $at, 2;
+    my @ciphers = map { sprintf '%04x', $_ } unpack 'n*', substr $hello, $at + 2, $long;
+    $at += 2 + $long;
+    $at += 1 + ord substr $hello, $at, 1;
+    my $end = $at + 2 + unpack 'n', substr $hello, $at, 2;
+    $at += 2;
+    my @curves;
+    while ($at + 4 <= $end) {
+        my ($type, $size) = unpack 'nn', substr $hello, $at, 4;
+        @curves = map { sprintf '%04x', $_ } unpack 'n*', substr $hello, $at + 6, $size - 2 if $type == 10;
+        $at += 4 + $size;
+    }
+    return ('ciphers', @ciphers, 'curves', @curves);
+}
 sub steady {
     my ($hello) = @_;
     return unless length $hello > 48 && ord($hello) == 22 && ord(substr $hello, 5, 1) == 1;

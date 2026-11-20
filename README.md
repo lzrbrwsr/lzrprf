@@ -1056,16 +1056,16 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 50
-    new Tor on one click: the onion icon in the bottom bar connects you through Tor, and you watch it connect
+    release 51
+    new Nothing a page reads tells your Mac from another: the same clock, arithmetic and connection everywhere
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin e42a8ff18ec666e7a758ccbd290789a346c6fbc9e44f698ff9e3c4470828b67a
+    file lzrbrwsr-bin eba6f1020d6920cbe2b90f4127e620a6d23cec91238bbf6698b49408aae4bdd3
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-    lzrprf 4ed172fc4af4057e5eb282de430fe66d58dfd1adb1148201c3e8e731e7759d07
+    lzrprf 1b0eca8c3423d13ce78179449d666c39a28f36d107ff3aa6afba94b37cd54d23
 
 ## When a page cannot be shown
 
