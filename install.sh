@@ -161,12 +161,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="d599f068122a277c2857c55624f3ba10b996ac237530c829948460bcefbe287c"
-RELEASE="47"
-LZRPRF_COMMIT="b98bc78590c9c48d8a3e79e327ae85aa9f409fe4"
+SHA256="96fe7a106d4f1bf34436dd9b2fa90f49dc7ca6d6919527078580860ba4a4e52e"
+RELEASE="48"
+LZRPRF_COMMIT="f14830fd2f149592b794e1286af247d6eb6c8812"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="e18372836d89362d33deaec6f441b9f0c999b11e31d0e0a19697b7fedc30e53a"
-SELFTEST_SHA256="15d1c28572a924a8cf350c37a688df3a97251b54bccc1c700658eee0e1781417"
+LZRPRF_SHA256="6f92a8ad9fed278e04f9bee1a913844b2e355a91211515e2f656ffd9a4797b17"
+SELFTEST_SHA256="e6ed458c0e5ee258141ea677caefb5898925484dc7e93721fe2b37944b87e879"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -503,17 +503,18 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 47
-new The window resizes from its sides and corners, and opens at the size and place you left it, or as large as the desktop if it was full screen
-new Importing from a Chrome whose files macOS keeps out says the two ways in instead of greying Chrome out
-new What a page is made of opens in the large centred panel, and the Dock shows the current icon after an update
+release 48
+new Check for updates in the cogwheel menu, which says when it last looked and what it found
+new The cogwheel menu shows an icon beside each item, and the item that is on is lit
+new A page sees the window only in steps of 160 by 128 points, so no site learns its exact size
+new The lasers of the home page are straight beams, as a laser is
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
 file lzrbrwsr-bin e42a8ff18ec666e7a758ccbd290789a346c6fbc9e44f698ff9e3c4470828b67a
-lzrprf e18372836d89362d33deaec6f441b9f0c999b11e31d0e0a19697b7fedc30e53a
+lzrprf 6f92a8ad9fed278e04f9bee1a913844b2e355a91211515e2f656ffd9a4797b17
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
