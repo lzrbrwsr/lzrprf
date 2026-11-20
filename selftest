@@ -421,6 +421,23 @@ sub live_page {                           # a page kept running, as the applicat
             else { print "=ready\n" }
         }
         elsif ($kind eq 'livebad') { print "=again\nPp0\nQnot a line of any kind\n=ready\n" }    # a list with a line of no kind: the page must end, its first drawing stays
+        elsif ($kind eq 'livefetch' && $line =~ /^=click /) {    # [C19] on a click its script asks for an address of its own host, then one of another host, each by a request to lzrprf and its one reply; it draws what came, and as its engine does, an answer from another host without its allowance as an error
+            my @drawn;
+            for my $to ("$origin/out/livefetchdata", 'https://other.test/out/livefetchother') {
+                print "=fetch GET 0 - $to\n";
+                while ($held !~ /\n/) { sysread(STDIN, $held, 4096, length $held) or exit 0 }
+                my ($status, $headlen, $bodylen) = $held =~ /\A=fetched ([0-9]+) ([0-9]+) ([0-9]+)\n/ or exit 0;
+                substr($held, 0, $+[0], '');
+                while (length $held < $headlen + $bodylen) { sysread(STDIN, $held, 65536, length $held) or exit 0 }
+                my $head = substr($held, 0, $headlen, '');
+                my $body = substr($held, 0, $bodylen, '');
+                print STDERR "live\t$address\treply $to $status " . join(',', map { /^([^:]+):/ ? $1 : '?' } split /\n/, $head) . " $bodylen\n";
+                my $own = index($to, "$origin/") == 0;
+                my $allowed = $own || $head =~ /^access-control-allow-origin: (?:\*|\Q$origin\E)$/m;
+                push @drawn, $status && $allowed ? "came $status " . ($body =~ s/\n//gr) : 'an error';
+            }
+            print "=again\nPp0\nT\@" . join(' / ', @drawn) . "\n=ready\n";
+        }
         else { print "=ready\n" }
     }
 }
@@ -753,6 +770,7 @@ my %about = (
     liveform => q{A field takes text only once it has the focus, and its GET form is fetched as a typed address},
     liveend => q{A tab that goes elsewhere tells its page =end, and the page is gone},
     livebad => q{A page kept running that draws an unfit list is ended, its first drawing kept},
+    livefetch => q{A page kept running asks lzrprf for an address of its own host and of another, and is handed the replies},
     upown => q{An update address that is a bare number is never fetched},
     upmoved => q{A yes given for another update address is asked again},
     upold => q{A yes kept without an address is asked again},
@@ -1085,6 +1103,7 @@ run_of('liveclick', typed => "$t/out/liveclick,,=page click 10 20,,=page click 3
 run_of('liveform', typed => "$t/out/liveform,,=page text early,,=page click 5 5,,=page key a,,=page text \xc3\xa4,,=page key Space,,=page key B shift,,=page key Enter", fetches => ['/out/liveform', '/out/sent?q=a%C3%A4%20B']);    # text before any field has the focus, a click into the field, keys and text, Enter sends the form with GET
 run_of('liveend', typed => "$t/out/liveend,,$t/out/afterlive", fetches => ['/out/liveend', '/out/afterlive']);    # the tab goes elsewhere: the page kept running is told =end and is gone
 run_of('livebad', typed => "$t/out/livebad,,=page click 1 1,,=page click 2 2", fetches => ['/out/livebad']);    # an answer that draws a line of no kind: the page is ended, its first drawing stays, and the next click reaches nothing
+run_of('livefetch', typed => "$t/out/livefetch,,=page click 3 3", fetches => ['/out/livefetch', '/out/livefetchdata']);    # [C19] a click whose script asks for an address of the page's own host, written down first and fetched, and for one of another host, which fails
 run_of('upbad', app => bundle('upbad', @release, "newest $t/latest-html"), fetches => ['/latest-html'], prepare => looks("$t/latest-html"));
 run_of('upown', app => bundle('upown', @release, 'newest https://127.0.0.1/latest-own'), prepare => looks('https://127.0.0.1/latest-own'));
 run_of('upmoved', app => bundle('upmoved', @release, "newest $t/latest-moved"), answer => 'deny', prepare => looks("$t/latest-before"));
@@ -1872,6 +1891,17 @@ check(join('/', @bad_heard) eq '=click 1 1/=end/ended' && !drawings('livebad', '
     && join('/', words('livebad', 'live')) eq 'on 0/end it drew a list that is not fit; it ended by itself/off 0',
     'a page kept running whose answer holds a line of no kind is ended: nothing of that answer is drawn, the first drawing stays, and the next click reaches nothing',
     join('/', @bad_heard) . ' live=' . join('/', words('livebad', 'live')));
+my @fetch_heard = grep { !/^pid / } live_heard('livefetch', 'livefetch');
+my @fetch_log = log_of('livefetch');
+my ($fetch_asked) = grep { $fetch_log[$_] eq "the page $t/out/livefetch asked for $t/out/livefetchdata (GET)" } 0 .. $#fetch_log;
+my ($fetch_connects) = grep { index($fetch_log[$_], "$t/out/livefetchdata -> lzrprf connects ") == 0 } 0 .. $#fetch_log;
+my @fetch_site = asked('/out/livefetchdata');
+check(join('/', @fetch_heard[0 .. 2]) eq "=click 3 3/reply $t/out/livefetchdata 200 content-type 26/reply https://other.test/out/livefetchother 0  0"
+    && join("\n", drawings('livefetch', 'relaid')) eq "Pp0\nT\@came 200 the page of the test site / an error"
+    && @fetch_site == 1 && $fetch_site[0]{bytes} eq request_for('/out/livefetchdata') && $fetch_site[0]{logged} && defined $fetch_asked && defined $fetch_connects && $fetch_asked < $fetch_connects
+    && (grep { $_ eq "the page $t/out/livefetch asked for https://other.test/out/livefetchother (GET, from site.test)" } @fetch_log) == 1 && (grep { index($_, 'https://other.test/out/livefetchother failed: ') == 0 } @fetch_log) == 1,
+    'a page kept running that asks for an address ("=fetch") is answered once ("=fetched"): one of its own host is written down first, fetched with the request of its address alone and handed back with its status, its type and its body and no other header (no Set-Cookie); one of another host is written down, carries the page\'s Origin, and failing, is told 0, which the page draws as an error',
+    join('/', @fetch_heard) . ' drawn=' . join('|', drawings('livefetch', 'relaid')) . ' asked=' . scalar(@fetch_site) . ' log=' . join('|', grep { /livefetch(?:data|other)/ } @fetch_log));
 my ($tor_container) = $text_of_lzrprf =~ /^my \$TOR_CONTAINER = <<'END';\n(.*?)^END\n/ms;
 mkdir "$base.torbox";
 if (open my $out, '>', "$base.torbox/inside") { print $out "inside\n"; close $out }
@@ -1992,8 +2022,8 @@ my @opens = grep { m{/usr/bin/open} } split /\n/, $text_of_lzrprf;
 check(@opens == 1 && $opens[0] eq "            become(undef, undef, undef, '/usr/bin/open', '-n', \$app);", 'lzrprf names "open" on one line, which opens the application it ran from and nothing else (Close and restart after a done install)', scalar(@opens) . ' lines');
 check(join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these twelve: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
 my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted';
-check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '4 1 3 1 3 3 1' && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^            \(\$shown\) = pictured\(\$checked, \$live->\{paths\}, \$live->\{host\}, undef, undef, \$live->\{pictures\}\);/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ typed\(\$1\) \}}m && $text_of_lzrprf =~ m{^sub typed \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ m{^sub navigated \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    \@WAY = \(\);\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n    return newer_looked\(/m && $text_of_lzrprf =~ /^    return newer_looked\(.*, 1\) if \$asked;\n/m && $text_of_lzrprf =~ /^sub newer_looked \{\n(?:    .*\n){3}    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
-    'a request has four roads and no fifth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures and style sheets of its page on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); and "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; "fetch" is called from those four and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
+check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '5 1 3 1 3 3 1' && $text_of_lzrprf =~ /^        \(\$got, \$why, \$from\) = fetch\(\$url, \$where, \{ method => \$method, /m && $text_of_lzrprf =~ /^sub live_fetched \{/m && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^            \(\$shown\) = pictured\(\$checked, \$live->\{paths\}, \$live->\{host\}, undef, undef, \$live->\{pictures\}\);/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ typed\(\$1\) \}}m && $text_of_lzrprf =~ m{^sub typed \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ m{^sub navigated \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    \@WAY = \(\);\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n    return newer_looked\(/m && $text_of_lzrprf =~ /^    return newer_looked\(.*, 1\) if \$asked;\n/m && $text_of_lzrprf =~ /^sub newer_looked \{\n(?:    .*\n){3}    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
+    'a request has five roads and no sixth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures and style sheets of its page on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; and "live_fetched", for an address a page kept running asked for [C19]; "fetch" is called from those five and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
 my %marks = map { $_ => 1 } $text_of_lzrprf =~ /^#   \[(C\d+)\]/mg;
 my ($head, $body) = split /^use strict;$/m, $text_of_lzrprf, 2;
 my %marked = map { $_ => 1 } ($body // '') =~ /\[(C\d+)\]/g;
@@ -2004,7 +2034,7 @@ my ($in_time, $gone) = hears();
 check(defined $in_time && $in_time eq '' && !defined $gone, 'the two ends of a question are told apart: "sub hear" of lzrprf, run against a pipe of the test\'s own, gives an empty line when nothing is said in time, so "sub ask" answers 1, and nothing when the window is gone, so lzrprf ends', defined $in_time ? (defined $gone ? 'the same for both' : 'time over: an empty line; window gone: nothing') : 'time over: nothing, as if the window were gone');
 my @no_folder = grep { my $pid = open(my $in, '-|') // die "selftest: cannot fork: $!\n"; if (!$pid) { open STDERR, '>&', \*STDOUT; { no warnings; exec '/usr/bin/perl', $cli, 'try', "$base.keepcli/$_", '-', '-', 'deny', '/usr/bin/true'; } POSIX::_exit(127) } my $all = do { local $/; <$in> } // ''; close $in; $all !~ /^usage: lzrprf run / } '.', '..', '.x';    # nothing is typed and every answer is the first button, so a folder that was taken would have nothing done in it
 check(!@no_folder, 'the door for tests takes no folder named ".", ".." or with a dot first, so it cannot be pointed at the folder lzrprf itself keeps its state in', @no_folder ? "taken: @no_folder" : 'usage, three times');
-check(keys %marks == 18 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 18 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
+check(keys %marks == 19 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 19 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
 my $readme = slurp("$here/README.md");
 if (length $readme) {
     my %cited = map { $_ => 1 } $readme =~ /\[(C\d+)\]/g;
@@ -2183,7 +2213,7 @@ sub plain_mark { $_[0] =~ s/, untested: [^\n]*//r }    # a line of the file of m
 sub hears {                               # "sub hear" of lzrprf, taken out and run here against a pipe: what it returns when nothing is said in time, then when the other end is gone
     my ($text) = $text_of_lzrprf =~ /^(sub hear \{.*?^\})/ms;
     defined $text && pipe(my $from, my $to) or return ('x', 'x');
-    my @got = eval "package Heard; no warnings; my \$FROM = \$from; my \$FROM_HELD = ''; my \@EVENTS; my \@HELD; my \@LIVE; my \$TRY = 0; sub now { require Time::HiRes; Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) } $text; my \$quiet = hear(0.2); close \$to; (\$quiet, scalar hear(0.2))";    # with no page kept running, which it also hears
+    my @got = eval "package Heard; no warnings; my \$FROM = \$from; my \$FROM_HELD = ''; my \@EVENTS; my \@HELD; my \@LIVE; my \$TRY = 0; my \$TRY_QUIET = 2; sub now { require Time::HiRes; Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) } $text; my \$quiet = hear(0.2); close \$to; (\$quiet, scalar hear(0.2))";    # with no page kept running, which it also hears
     return @got == 2 ? @got : ('x', 'x');
 }
 
