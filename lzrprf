@@ -48,6 +48,7 @@
 #   [C16] An incognito window writes nothing that outlives it. Its log, history, tabs, suggestions and everything it fetched are held in its memory or in one folder it makes for itself, readable by you alone, in your own temporary folder (TMPDIR, /private/var/folders/.../T), named lzrprf-i.<its process number>.<12 random hex digits>. Of ~/.lzrprf it reads, and never writes, the self-test's result (proven, untested, selftest.lock), the home page, the search address, whether the bookmarks bar is shown and the bookmarks. The folder is removed when the window ends, however it ends: quit, its last window closed, a signal, its process dying; and a folder left by a run whose processes are all gone is removed at the next start of any lzrprf window.
 #   [C17] Tor is off until you turn it on in the window, and while it is off no Tor client runs. Turned on, lzrprf starts the client that stands beside the program, named by its SHA-256 in the release file, in a container of its own (its own folder and the network, nothing of yours), and every address is then fetched through it, the site's host its SOCKS user so each site has its own circuit; nothing is looked up or fetched directly, also while it connects or when it does not. Turned off, the client is ended.
 #   [C15] Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: Local State and each profile's Bookmarks of Chrome, Edge, Brave and Vivaldi, Firefox's profiles.ini and newest bookmarkbackups/*.jsonlz4, Safari's Bookmarks.plist, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import [C12].
+#   [C18] A page kept running with its tab is handed three kinds of line and nothing else: a click, a key, and text typed while it says a field of it has the focus, each checked in the window and here; what it writes back is checked as a first list is, an address it asks for is a visit like a typed one, and it ends with its tab, at most three at once.
 #
 # This file is the whole program. Its parts, in order: the containers, the
 # proof that they hold, one visit, the fetch, the window's side, the log, the
@@ -101,6 +102,13 @@ my $LOOKED = 16;                          # the most addresses of one name that 
 my $PAGE_BYTES = 12 * 1024 * 1024;        # the most one page container may write: room for the 32 tiles of a laid page, 32 x 262,656 bytes of base64, about 8.4 MB, and the rest of the page
 my $PAGE_SECONDS = 30;                    # a page container is ended after this, whatever it is doing
 my $PAGE_ROOM = 2097152;                 # the address space, in KiB, a page container may take on top of what the shell that starts it holds: 2 GiB. What the application itself holds at its start is not measured
+my $LIVE_SECONDS = 1800;                  # DECLARED(half an hour: a page kept running with its tab, sub live_kept, is ended after this whatever it does, and its last drawing stays; reading a long form takes minutes, not hours)
+my $LIVE_BYTES = 4 * $PAGE_BYTES;         # DECLARED(the most a page kept running may write in all after its first list: four full laid pages of tiles; a page that redraws more than that is ended and its last drawing stays)
+my $LIVE_MOST = 3;                        # DECLARED(the most pages kept running at once, each in a container of up to $PAGE_ROOM: three stay under 8 GiB of a 16 GB Mac; the oldest is ended first, its drawing kept)
+my $LIVE_INPUT = 64;                      # DECLARED(LONGEST_INPUT of the application's scripted module in page.rs: the longest input line it reads, its line end not counted)
+my $LIVE_TEXT = 48;                       # DECLARED(LONGEST_TEXT of the same module: the most bytes of the text of one "=text" line)
+my $LIVE_HELD = 4096;                     # DECLARED(the most input the keeper holds for a page that does not read it: 64 lines of $LIVE_INPUT; beyond it the keeper reads no more, the pipe from lzrprf fills, and lzrprf ends the page when a line cannot be written at once)
+my $LIVE_END_SECONDS = 1;                 # DECLARED(what a page is given to end by itself after "=end" before it is ended: the application reads the line and returns at once)
 my $PIECES = 50_000;                      # the most lines one page may have
 my $BOXES = 2000;                         # the most grey boxes among them
 my $BLOCK = 20_000;                       # the most one block of a page may hold, from one line that begins a block to the next: a line of text counts its characters, a line break one, a grey box $BOX
@@ -146,6 +154,9 @@ my $KEPT_MOST = 3650;                     # a setting of more days than this is 
 my ($TRY, $PEER, $TYPED, $ANSWER, $RUN, $APP, $PROGRAM, @ARGUMENTS) = (0, '-', '-', 'ask', 0, 'the application', '');
 my $BEGAN;                                # the SHA-256 of the program when this window began: see "sub laid_out"
 my ($FROM, @EVENTS);                      # what the window says; or, without a window, what a test has typed
+my $FROM_HELD = '';                       # what the window said that is not a whole line yet (sub hear)
+my @LIVE;                                 # the pages kept running with their tabs, the oldest first (sub live_kept)
+my @LIVE_TOLD = ('off', 0);               # what the window was last told of the selected tab's page kept running (sub live_told)
 my $DRAWN = 0;                            # a page was handed to the window, and the window has not said yet that it could not draw it
 my @VIEW_WIDE = (320, 1600);              # the narrowest and the widest a page is laid out: a window's width outside them is taken as the nearer one, and the application refuses a =view frame outside them
 my @VIEW_HIGH = (240, 2160);              # the same for the height of its first screen, which a page's vh is taken from
@@ -661,8 +672,10 @@ sub behind {
     window('marksbar ' . (marks_bar() ? 'on' : 'off'), 'search ' . (engine() ? 'set' : 'none'));
     nav_told();
     if (my $home = home()) { go($home, 'you opened your home page') }    # [C4] an address that came from the bar, kept when you made it the home page
-    while (defined(my $event = hear())) {
+    while (defined(my $event = hear(undef, 1))) {
         if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { typed($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window; a size said while it was fetched and laid out is the size it is laid out again at
+        elsif ($event eq 'live') { live_turn() }    # a page kept running with its tab answered, or is to end (sub live_answered)
+        elsif ($event =~ /^page (click (?:0|[1-9][0-9]{0,5}) (?:0|[1-9][0-9]{0,5})|key (?:[\x21-\x7e]|Space|Escape|Enter|Tab|Backspace|Delete|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown)(?: shift)?|text [^\x00-\x1f\x7f]{1,$LIVE_TEXT})$/) { live_input($1) }    # a click in the page, a key while it has the keyboard, text typed into its field: handed to the page kept running, and to nothing else
         elsif (viewing($event)) { relaid() }    # the window's page has a new size: the page shown is laid out again at its width, from what was kept, and nothing is fetched
         elsif ($event =~ /^tab (new|select|close)(?: (0|[1-9][0-9]?))?$/) { tabbed($1, $2); relaid() }    # a tab chosen in the strip: its page is laid out again from what was kept, and nothing is fetched, unless a new tab opens the home page
         elsif ($event =~ /^menu (clear-history|clear-sessions|home|bookmarks-bar)$/) { menu($1) }
@@ -738,6 +751,8 @@ sub unnamed {                             # the first thing in the program's fol
 }
 
 sub leave {
+    my @live = @LIVE;
+    live_end($_, 'the window closed', 1) for @live;    # no page kept running outlives its window
     kill 'KILL', $witness if $witness;
     tor_off();                            # the Tor client ends with the window that started it
     unlink "$DIR/way.$$";
@@ -762,6 +777,8 @@ sub visit {
     return idle('lzrprf does not fetch that. An address must be https, a host by its name, port 443, in plain characters without a space.') unless $url;
     window("address $url");                 # the bar shows what will be sent, exactly
     my $tab = $TABS[$TAB];
+    my @left = grep { $_->{tab} && $_->{tab} == $tab } @LIVE;
+    live_end($_, 'its tab went elsewhere') for @left;    # the page this tab kept running is told "=end" and ended before anything else is asked
     @$tab{qw(url title)} = ($url, '');
     window("title $TAB ");                  # the tab's title is the page's, once it is shown
     if (($how // '') =~ /redirect to$/ && $tab->{at} >= 0) { $tab->{visited}[$tab->{at}] = $url }    # a redirect followed takes the place of the address that redirected, so back does not land on it again
@@ -815,27 +832,34 @@ sub visit {
         return idle("Nothing is shown: $url redirects " . (defined $to ? "to $to " : '') . "($status), and lzrprf did not go there." . (length $why ? " $why" : ''));
     }
     busy("$APP lays the page out, in its container.");
-    my ($lines, $hosts, $paths, $said, $named) = laid_out($url, $got, "=sheets\n");    # [C14] a first run is told that no style sheet came with the answer
+    my ($lines, $hosts, $paths, $said, $named, $live) = laid_out($url, $got, "=sheets\n", 1);    # [C14] a first run is told that no style sheet came with the answer; $live: the run, when the application keeps its page running (sub contained)
     return fault($hosts) unless $lines;
     my $styled = '';                        # what the bar says of the page's style sheets
     my ($with_sheets, $two) = ("=sheets\n", 0);    # the frame of style sheets the page shown was laid with, and whether that was a second run: what a new width lays it with again
     if (@$named) {                          # [C14] the page names style sheets on its own host: they are fetched, and the page is laid out once more with them
+        $live = live_dropped($live);        # the first run is not the one kept running: a page shown as it was laid out first, because its second run is not shown, runs no more
         my ($frame, $with) = sheeted($named, $host, $where, $kept) or return idle($UNWRITTEN);
         busy("$APP lays the page out again with its style sheets, in its container.");
-        my @again = laid_out($url, $got, $frame);
+        my @again = laid_out($url, $got, $frame, 1);
         my ($n, $one) = (scalar @$named, @$named == 1);
         if ($again[0] && !@{ $again[4] }) {    # a second run that names style sheets again is not shown, and nothing starts a third
             ($lines, $hosts, $paths, $said) = @again;
             ($with_sheets, $two) = ($frame, 1);
+            $live = $again[5];              # the run shown is the one kept running
             $styled = "$APP laid the page out again with $with of the $n " . ($one ? 'style sheet' : 'style sheets') . " it names on $host itself. ";
-        } else { $styled = "$APP did not use the $n " . ($one ? 'style sheet' : 'style sheets') . " the page names on $host itself: the page is shown as it was laid out first. " }
+        } else {
+            live_end($again[5], 'it is not shown', 1) if $again[5];
+            $styled = "$APP did not use the $n " . ($one ? 'style sheet' : 'style sheets') . " the page names on $host itself: the page is shown as it was laid out first. ";
+        }
     }
     my $title = $TITLED;                    # the title the run that is shown wrote
     my ($shown, $fetched, $wanted, $decoded) = pictured($lines, $paths, $host, $where, $kept);
-    return idle($UNWRITTEN) unless $shown;
+    return live_dropped($live, $UNWRITTEN) unless $shown;
     window('page', @$shown, '.');
     $DRAWN = 1;
     $SHOWN = { url => $url, got => $got, frame => $with_sheets, two => $two, host => $host, pictures => $decoded, wide => $LAID_WIDE };
+    live_kept($live, $tab, $lines, $paths, $host, $decoded, $shown) if $live;    # the page goes on with this tab: clicks and keys in it reach it, and what it draws again is checked as this list was
+    live_told();
     $tab->{secure} = secured($url, $from, $got, $certs);
     window('secure begin', (map { "secure line $_" } @{ $tab->{secure} }), 'secure end');
     $tab->{title} = $title;
@@ -850,14 +874,16 @@ sub visit {
 # sheets it is given ("=sheets" and a line end on a first run). Returns the
 # checked lines, the other hosts the page names, the paths of the pictures it
 # names on its own host, its statement ('' for none) and the paths of the style
-# sheets it names; or nothing, and one word for what went wrong.
+# sheets it names; or nothing, and one word for what went wrong. With $keep,
+# the run is asked to keep its page running with the tab (sub contained), and
+# the run that does so comes last; a first list that is unfit ends it.
 sub laid_out {
-    my ($url, $got, $sheets) = @_;
+    my ($url, $got, $sheets, $keep) = @_;
     $LAID_WIDE = $VIEW[0];                # the width contained asks for in its =view frame, and the one width sub laid takes
-    my ($wrote, $why) = contained($url, $got, $sheets);
+    my ($wrote, $why, $live) = contained($url, $got, $sheets, $keep);
     return (undef, $why) unless defined $wrote;
-    my ($lines, $hosts, $paths, $said, $named) = checked($wrote) or return (undef, 'unfit');    # [C9]
-    return ($lines, $hosts, $paths, $said, $named);
+    my ($lines, $hosts, $paths, $said, $named) = checked($wrote) or return (live_dropped($live), 'unfit');    # [C9]
+    return ($lines, $hosts, $paths, $said, $named, $live);
 }
 
 # The fonts a page is drawn with, as one frame in front of its answer:
@@ -886,10 +912,30 @@ sub faces {                               # [C13]
 # window's page first, "=view", its width and its height in points and a line
 # end, then the fonts, then the frame of its style sheets, $sheets, none of
 # which a picture run has.
+#
+# A page kept running with its tab. With $keep (a page run, never a picture
+# run) the answer goes in the frame "=live", its length in bytes and a line
+# end, then the answer; the application's half is page.rs, module scripted.
+# An application that keeps the page (an HTML page its engines read) writes
+# its first list and then a line "=ready", and stays: its keeper keeps its
+# input open and hands it the lines lzrprf writes into a third pipe, the
+# relay, which only lzrprf and that keeper hold. lzrprf reads the first list
+# up to "=ready", within the same $PAGE_SECONDS and $PAGE_BYTES, checks it as
+# every first list, and returns the run with it: the page, its keeper, the
+# relay, the pipe the page writes to and lzrprf's end of the keeper's pipe,
+# which still ends the page when lzrprf ends by whatever way. An application
+# that does not keep the page writes its list and ends, and is read to its end
+# as before. Every line that reaches a page kept running is written by lzrprf
+# from a line of the window it checked (sub live_input); every answer of the
+# page is checked before anything of it is drawn (sub live_answered).
 sub contained {
-    my ($url, $got, $sheets) = @_;
+    my ($url, $got, $sheets, $keep) = @_;
     return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # read again before every run: the program on the disk is the file this window began with, or nothing is laid out
+    $keep = 0 unless defined $sheets;     # a picture run is never kept
     my $frame = defined $sheets ? "=view $VIEW[0] $VIEW[1]\n" . faces() . $sheets : '';    # the size first, numbers lzrprf holds to its bounds (sub viewing); [C13] [C14] the fonts read here, before the keeper is a copy of this process, so once in a window; handed over by the keeper alone, after the same word as the answer
+    $frame .= '=live ' . length($got) . "\n" if $keep;
+    my ($input, $relay);                  # the keeper's end of the relay and lzrprf's, for a page kept running
+    if ($keep) { pipe($input, $relay) or return (undef, 'unstarted') }
     pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) && pipe(my $held, my $hold) or return (undef, 'unstarted');
     my $page = fork // return (undef, 'unstarted');
     if (!$page) {
@@ -905,11 +951,12 @@ sub contained {
         return (undef, 'unstarted');
     }
     if (!$feeder) {                       # the keeper of this page
-        close $_ for $from_page, $hold;
-        keeper($held, $answer_in, $frame . $got, $page);
+        close $_ for $from_page, $hold, grep { defined } $relay, map { @$_{qw(relay from hold)} } @LIVE;    # and lzrprf's ends of every page kept running: the end of lzrprf is the end of each of their pipes, held by nobody else
+        keeper($held, $answer_in, $frame . $got, $page, $input);
         POSIX::_exit(0);                  # the keeper never returns; were it ever to, it ends here and does not go on as a second lzrprf
     }
-    close $_ for $answer_in, $held;
+    close $_ for $answer_in, $held, grep { defined } $input;
+    fcntl($relay, POSIX::F_SETFL(), O_NONBLOCK) if $relay;    # lzrprf never waits in a write to a page: a line it cannot write at once ends the page (sub live_input)
     if (!inside($page)) {                 # [C3] the system did not say so: the answer stays here; the application was told the address and nothing else
         kill 'STOP', $page;               # held still before anything else: the keeper's end closes the application's input, and an application the system does not call contained is not to go on at that while it waits to be ended
         kill 'KILL', $feeder;             # the keeper first, here and below: it acts on the application's number, and is gone before the system may give that number to another process
@@ -924,12 +971,19 @@ sub contained {
         waitpid $_, 0 for $feeder, $page;
         return (undef, 'unstarted');
     }
-    my ($wrote, $until, $open) = ('', now() + $PAGE_SECONDS, 1);
+    my ($wrote, $until, $open, $looked, $ready_at) = ('', now() + $PAGE_SECONDS, 1, 0, -1);
     while ($open && now() < $until && length $wrote <= $PAGE_BYTES && alive()) {
         my $ready = '';
         vec($ready, fileno $from_page, 1) = 1;
         select($ready, undef, undef, 1) > 0 or next;
         $open = sysread($from_page, $wrote, 65536, length $wrote) // $!{EINTR};
+        next unless $keep;
+        $ready_at = index($wrote, "\n=ready\n", $looked > 7 ? $looked - 7 : 0);    # a line no list holds: every line of a list begins with a letter, or is "=page" and the lines of its head
+        $looked = length $wrote;
+        last if $ready_at >= 0;
+    }
+    if ($ready_at >= 0 && length $wrote <= $PAGE_BYTES) {    # the page is kept running: its first list, and what it wrote after "=ready" is the beginning of its next answer
+        return (substr($wrote, 0, $ready_at + 1), undef, { page => $page, keeper => $feeder, relay => $relay, from => $from_page, hold => $hold, held => substr($wrote, $ready_at + 8), looked => 0, wide => $VIEW[0], until => now() + $LIVE_SECONDS, bytes => length($wrote) - $ready_at - 8, waiting => 0, focus => 0 });
     }
     kill 'KILL', $feeder, $page;
     waitpid $_, 0 for $feeder, $page;
@@ -952,8 +1006,14 @@ sub contained {
 # away only once the application has ended and been cleared away, which is
 # the one moment this cannot rule out. An application that does not read
 # changes nothing: the keeper never waits in a write.
+# The keeper of a page kept running has one pipe more, the relay ($input),
+# whose other end only lzrprf holds: what lzrprf writes there it hands on
+# after the answer, in the same way, and it keeps the application's input
+# open until the relay ends. It holds at most $LIVE_HELD bytes that are not
+# handed on yet and reads no more until they are, so lzrprf, which writes
+# without waiting, finds the relay full and ends the page.
 sub keeper {
-    my ($held, $to, $data, $page) = @_;
+    my ($held, $to, $data, $page, $input) = @_;
     $SIG{PIPE} = 'IGNORE';                # an application that closes what it reads does not end its keeper
     my $over = sub { kill 'KILL', $page; POSIX::_exit(0) };
     my ($word, $go, $sent) = ('', undef, 0);
@@ -961,14 +1021,20 @@ sub keeper {
     $over->() unless $go;                 # lzrprf ended, or ended this page, before the system said that the application is contained
     fcntl($to, POSIX::F_SETFL(), O_NONBLOCK) or $over->();
     while (1) {
-        if ($to && $sent >= length $data) { close $to; undef $to }    # all of the answer is handed over: what the application reads ends here
+        if ($to && $sent >= length $data && !$input) { close $to; undef $to }    # all of the answer is handed over, and of a page kept running the relay has ended: what the application reads ends here
         my ($read, $write) = ('', '');
         vec($read, fileno $held, 1) = 1;
-        vec($write, fileno $to, 1) = 1 if $to;
-        select($read, $to ? $write : undef, undef, undef) > 0 or next;
+        vec($read, fileno $input, 1) = 1 if $input && length($data) - $sent < $LIVE_HELD;
+        vec($write, fileno $to, 1) = 1 if $to && $sent < length $data;
+        select($read, $write, undef, undef) > 0 or next;
         if (vec($read, fileno $held, 1)) {
             my $more = sysread($held, $word, 1);
             $over->() if defined $more ? !$more : !$!{EINTR};    # nothing more to read: lzrprf is gone
+        }
+        if ($input && vec($read, fileno $input, 1)) {
+            my $more = sysread($input, my $lines, 4096);
+            if ($more) { substr($data, 0, $sent, ''); $sent = 0; $data .= $lines }    # what was handed on already is let go
+            elsif (defined $more || !$!{EINTR}) { undef $input }    # lzrprf closed the relay ("=end" is in it): what is held is handed on, then the input ends
         }
         next unless $to && vec($write, fileno $to, 1);
         my $left = length($data) - $sent;
@@ -1269,12 +1335,17 @@ sub relaid {
             last if $SHOWN->{wide} == $VIEW[0];    # the latest size is the width shown already
         }
         $SHOWN->{wide} = $VIEW[0];
-        my @again = laid_out($SHOWN->{url}, $SHOWN->{got}, $SHOWN->{frame});
-        next unless $again[0] && !($SHOWN->{two} && @{ $again[4] });
+        my $kept = live_of($TABS[$TAB]);
+        if ($kept && $kept->{wide} == $VIEW[0] && $kept->{shown}) { window('relaid', @{ $kept->{shown} }, '.'); $DRAWN = 1; next }    # the page kept running was laid at this width: its last drawing, as its scripts left it, and nothing is laid out
+        my @again = laid_out($SHOWN->{url}, $SHOWN->{got}, $SHOWN->{frame}, 1);
+        if (!$again[0] || $SHOWN->{two} && @{ $again[4] }) { live_dropped($again[5]); next }    # not shown: the page as it is shown stays, and so does the run kept running with it
         my ($shown) = pictured($again[0], $again[2], $SHOWN->{host}, undef, undef, $SHOWN->{pictures});
         window('relaid', @$shown, '.');
         $DRAWN = 1;
+        live_end($kept, 'it was laid out anew at another width', 1) if $kept;    # the new run is the page kept running now, laid at the width shown
+        live_kept($again[5], $TABS[$TAB], $again[0], $again[2], $SHOWN->{host}, $SHOWN->{pictures}, $shown) if $again[5];
     }
+    live_told();
 }
 
 # The tabs. The window shows them in a strip of lzrprf's own above the bar,
@@ -1297,6 +1368,8 @@ sub tabbed {
     if ($how eq 'new' && !defined $n && @TABS < $TABS_MOST) { push @TABS, fresh_tab(); $TAB = $#TABS; $opened = 1 }
     elsif ($how eq 'select' && defined $n && $n < @TABS) { $TAB = $n }
     elsif ($how eq 'close' && defined $n && $n < @TABS) {
+        my $live = live_of($TABS[$n]);
+        live_end($live, 'its tab was closed') if $live;
         splice @TABS, $n, 1;
         @TABS = (fresh_tab()) unless @TABS;
         $TAB-- if $TAB > $n || $TAB > $#TABS;
@@ -1359,6 +1432,8 @@ sub menu {
     window('history clear');               # the pages the bar suggests go with the history
     return idle("The history was cleared: $count " . ($count == 1 ? 'address' : 'addresses') . ' that the tabs went to. The pages shown stay. The log is cleared by its own button.') if $what eq 'clear-history';
     @$_{qw(url title shown says secure)} = ('', '', undef, undef, undef) for @TABS;
+    my @live = @LIVE;
+    live_end($_, 'the sessions were cleared') for @live;    # a page kept running holds what its site sent, too
     undef $SHOWN;
     tab_shown("The history and the sessions were cleared: $count " . ($count == 1 ? 'address' : 'addresses') . ', and every page lzrprf kept for a tab. lzrprf sends no cookie to any site, so no login was kept by it. The log is cleared by its own button.');
 }
@@ -2928,7 +3003,7 @@ sub body_of {                             # the body of an answer 200, as curl g
 # Return, which of two buttons you pressed, that you asked for the log, that
 # it could not draw a list, the size of its page, a tab opened, chosen or
 # closed ("tab new", "tab select N", "tab close N"), and an item of the
-# cogwheel's menu ("menu clear-history", "menu clear-sessions", "menu home", "menu bookmarks-bar"), a bookmark opened, saved or removed ("mark open N", "mark save ...", "mark remove N", sub mark_saved), its size and place once you have moved or resized it ("frame X Y W H" or "frame full", sub frame_said), and buttons up to three for a question in a modal ("redirect"). The words lzrprf says are in a
+# cogwheel's menu ("menu clear-history", "menu clear-sessions", "menu home", "menu bookmarks-bar"), a bookmark opened, saved or removed ("mark open N", "mark save ...", "mark remove N", sub mark_saved), its size and place once you have moved or resized it ("frame X Y W H" or "frame full", sub frame_said), and buttons up to three for a question in a modal ("redirect"). Three more come only while the page shown is kept running ("live on"): a click in it ("page click X Y", in the laid page's points after scrolling), a key ("page key NAME" or "page key NAME shift", a printable character or one of the named keys) and text typed while a field of it has the focus ("page text ...", at most $LIVE_TEXT bytes); lzrprf hands each to that page and to nothing else (sub live_input), and tells the window "live on|off 0|1" and "live end WHY" (sub live_told). The words lzrprf says are in a
 # strip of their own between the bar and the page, where no page can write:
 # the one thing of the application's that lzrprf says there is up to four of
 # the other hosts its page names, each in the shape of a host name, and how
@@ -2961,16 +3036,189 @@ sub stated {
 }
 
 sub hear {                                # the next thing the window says; nothing (undef) when the window is gone, an empty line when it said nothing in time
-    my ($seconds) = @_;
+    my ($seconds, $main) = @_;            # $main: the loop of sub behind, the one place that takes "live", the word that a page kept running answered or is to end (sub live_turn); elsewhere what such a page writes is read and held, and taken there later
     return shift @HELD if @HELD;
-    return shift @EVENTS unless $FROM;
-    my $ready = '';
-    vec($ready, fileno $FROM, 1) = 1;
-    return '' if defined $seconds && select($ready, undef, undef, $seconds) <= 0;    # the time is over, and the window is still there
-    my $line = readline($FROM) // return;
-    chomp $line;
-    print STDERR "$line\n" if $TRY && $line =~ /^(?:test|fault) /;    # "lzrprf try" only: what a test's own text in the window reports
-    return $line;
+    my $until = defined $seconds ? now() + $seconds : undef;
+    while (1) {
+        return 'live' if $main && grep { live_due($_) } @LIVE;
+        return shift @EVENTS unless $FROM || $main && grep { $_->{waiting} } @LIVE;    # "lzrprf try": the test's next line, once every page kept running answered the one before
+        if ($FROM && (my $end = index($FROM_HELD, "\n")) >= 0) {
+            my $line = substr($FROM_HELD, 0, $end + 1, '');
+            chomp $line;
+            print STDERR "$line\n" if $TRY && $line =~ /^(?:test|fault) /;    # "lzrprf try" only: what a test's own text in the window reports
+            return $line;
+        }
+        my ($ready, $wait) = ('', defined $until ? $until - now() : undef);
+        return '' if defined $wait && $wait <= 0;    # the time is over, and the window is still there
+        vec($ready, fileno $FROM, 1) = 1 if $FROM;
+        for my $live (grep { !live_due($_) } @LIVE) {    # a page kept running is heard while the window is waited for, up to its own end of time
+            vec($ready, fileno $live->{from}, 1) = 1;
+            my $left = $live->{until} - now();
+            $wait = $left < 0 ? 0 : $left if !defined $wait || $left < $wait;
+        }
+        select($ready, undef, undef, $wait) > 0 or next;
+        live_read($_) for grep { !live_due($_) && vec($ready, fileno $_->{from}, 1) } @LIVE;
+        next unless $FROM && vec($ready, fileno $FROM, 1);
+        my $got = sysread($FROM, $FROM_HELD, 65536, length $FROM_HELD);
+        return if defined $got ? !$got : !$!{EINTR};    # the window is gone
+    }
+}
+
+# Pages kept running with their tabs (sub contained). Each is bound to the tab
+# it was shown in; at most $LIVE_MOST run at once, and the oldest is ended
+# when one more is kept. A page is ended, with "=end" and then for certain,
+# when its tab goes elsewhere or is closed, when the sessions are cleared,
+# when it was laid out anew, when it wrote anything out of its form, more than
+# $LIVE_BYTES in all or more than $PAGE_BYTES in one answer, after
+# $LIVE_SECONDS, and when the window closes. Its last good drawing stays.
+sub live_of { my ($tab) = @_; my ($live) = grep { $_->{tab} && $_->{tab} == $tab } @LIVE; return $live }
+
+sub live_kept {
+    my ($live, $tab, $lines, $paths, $host, $decoded, $shown) = @_;
+    my @made;                             # what the page is made of, the U lines of its first list: an answer is checked with them, as the first list was
+    for (@$lines) { last unless /^U/; push @made, $_ }
+    @$live{qw(tab made paths host pictures shown)} = ($tab, \@made, [@$paths], $host, $decoded // {}, $shown);
+    push @LIVE, $live;
+    live_end($LIVE[0], 'more pages were kept running than lzrprf keeps') while @LIVE > $LIVE_MOST;
+}
+
+sub live_dropped {                        # a run that kept its page and is not shown: ended at once; the words, when there are any, are said
+    my ($live, $words) = @_;
+    live_end($live, 'it is not shown', 1) if $live;
+    return defined $words ? idle($words) : undef;
+}
+
+sub live_told {                           # the window is told whether the page shown is kept running, and whether a text field of it has the focus: "live on|off 1|0"
+    my $live = live_of($TABS[$TAB]);
+    my @now = $live ? ('on', $live->{focus} ? 1 : 0) : ('off', 0);
+    return if "@now" eq "@LIVE_TOLD";
+    @LIVE_TOLD = @now;
+    window("live @now");
+}
+
+sub live_end {                            # "=end" for the page, then its keeper and the page are ended, the keeper first (sub contained); $now: at once, and nothing said to the window
+    my ($live, $why, $now) = @_;
+    @LIVE = grep { $_ != $live } @LIVE;
+    return if $live->{ended}++;
+    my $gone = 0;
+    syswrite($live->{relay}, "=end\n");    # never waited for: a page that reads nothing is ended below all the same
+    close $live->{relay};
+    my $until = now() + ($now ? 0 : $LIVE_END_SECONDS);
+    while (!$gone && (my $left = $until - now()) > 0) {    # the page is given a moment to end by itself: its end is the end of what it writes
+        my $ready = '';
+        vec($ready, fileno $live->{from}, 1) = 1;
+        select($ready, undef, undef, $left) > 0 or next;
+        my $more = sysread($live->{from}, my $rest, 65536);
+        $gone = 1 if defined $more ? !$more : !$!{EINTR};
+    }
+    kill 'KILL', $live->{keeper};         # the keeper first: it acts on the page's number, and is gone before the system may give that number to another process
+    waitpid $live->{keeper}, 0;
+    kill 'KILL', $live->{page};
+    waitpid $live->{page}, 0;
+    close $_ for @$live{qw(from hold)};
+    return if $now;
+    window("live end $why; " . ($gone ? 'it ended by itself' : 'lzrprf ended it'));
+    live_told();
+}
+
+sub live_read {                           # what a page kept running wrote, held until it is a whole answer; its end is noted
+    my ($live) = @_;
+    my $got = sysread($live->{from}, $live->{held}, 65536, length $live->{held});
+    return if !defined $got && $!{EINTR};
+    $live->{gone} = 1 unless $got;
+    $live->{bytes} += $got // 0;
+}
+
+sub live_due {                            # a page kept running has a whole answer held (up to a line "=ready"), ended, wrote too much, or its time is over
+    my ($live) = @_;
+    return 1 if defined $live->{whole} || $live->{gone} || $live->{bytes} > $LIVE_BYTES || length $live->{held} > $PAGE_BYTES || now() >= $live->{until};
+    if (substr($live->{held}, 0, 7) eq "=ready\n") { $live->{whole} = -1; return 1 }
+    my $at = index($live->{held}, "\n=ready\n", $live->{looked} > 7 ? $live->{looked} - 7 : 0);
+    $live->{looked} = length $live->{held};
+    return 0 if $at < 0;
+    $live->{whole} = $at;
+    return 1;
+}
+
+sub live_turn {
+    my @due = grep { live_due($_) } @LIVE;
+    live_answered($_) for @due;
+}
+
+# A line of the window for the page kept running with the selected tab, in a
+# form sub behind checked: "click X Y" in CSS pixels of the laid page, where
+# the window found the pointer after its own scrolling, at most 200000 each
+# way; "key NAME" or "key NAME shift"; "text TEXT", only while a text field of
+# the page has the focus, of 1 to $LIVE_TEXT bytes of UTF-8 with no control
+# or format character. It is written to the page as "=click", "=key" or
+# "=text", at most $LIVE_INPUT bytes, and nothing else ever is; a tab with no
+# page kept running takes none.
+sub live_input {                          # [C18]
+    my ($what) = @_;
+    my $live = live_of($TABS[$TAB]) or return;
+    return if $what =~ /^click ([0-9]+) ([0-9]+)$/ && ($1 > 200_000 || $2 > 200_000);
+    if ($what =~ /^text (.*)\z/s) {
+        my $text = $1;
+        return unless $live->{focus} && utf8::decode($text) && $text !~ /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/;
+    }
+    my $line = "=$what\n";
+    return unless length $line <= $LIVE_INPUT + 1;
+    my $took = syswrite($live->{relay}, $line);
+    return live_end($live, 'it does not read what it is given') unless ($took // 0) == length $line;
+    $live->{waiting}++;
+}
+
+# An answer of a page kept running, up to its line "=ready", each part only
+# when there is one and in this order:
+#
+#   =focus 1|0          a text field of the page took the focus, or none has it now: whether text typed goes to it
+#   =go ADDRESS         an address the page asks to go to: a link followed, or a form sent with GET; it is
+#                       checked and fetched exactly as an address typed into the bar (sub go), in the tab shown
+#   =statement WORDS    1 to 200 plain printable characters, shown in lzrprf's strip as plain text
+#   =again              then the page's lines, as a first list has them after its head: checked by sub checked
+#                       with the first list's =pictures paths and U lines in front, at the width it was laid at,
+#                       and drawn in place of the drawing before, its decoded pictures placed again
+#
+# Anything else, a line of no form, a part out of its order, a line that
+# begins with "=" among the lines after =again, or lines that sub checked does
+# not let through, ends the page; its last good drawing stays. Nothing of an
+# answer reaches the window before the whole of it was checked.
+sub live_answered {                       # [C18]
+    my ($live) = @_;
+    while (!$live->{ended} && live_due($live)) {
+        return live_end($live, $live->{gone} ? 'it ended' : now() >= $live->{until} ? 'its time was over' : 'it wrote more than lzrprf takes') unless defined $live->{whole};
+        my $at = delete $live->{whole};
+        my $answer = $at < 0 ? '' : substr($live->{held}, 0, $at + 1);
+        substr($live->{held}, 0, $at < 0 ? 7 : $at + 8, '');
+        $live->{looked} = 0;
+        $live->{waiting}-- if $live->{waiting};
+        my @lines = split /\n/, $answer;
+        my ($stage, $focus, $go, $words, $shown) = (0);
+        while (@lines && $lines[0] ne '=again') {
+            my $line = shift @lines;
+            if ($stage < 1 && $line =~ /^=focus ([01])$/) { ($stage, $focus) = (1, $1) }
+            elsif ($stage < 2 && $line =~ /^=go ([\x21-\x7e]{1,8192})$/) { ($stage, $go) = (2, $1) }    # the longest the application writes (LONGEST_GO); sub address takes 2000 at most, and says so
+            elsif ($stage < 3 && $line =~ /^=statement ([\x20-\x7e]{1,200})$/) { ($stage, $words) = (3, $1) }
+            else { return live_end($live, 'it wrote a line of no form') }
+        }
+        if (shift @lines) {                # "=again"
+            return live_end($live, 'it wrote a line of no form') if grep { /^=/ } @lines;
+            my $list = join '', map { "$_\n" } '=page', @{ $live->{paths} } ? '=pictures ' . join(' ', @{ $live->{paths} }) : (), @{ $live->{made} }, @lines;
+            my ($wide, $title) = ($LAID_WIDE, $TITLED);
+            $LAID_WIDE = $live->{wide};
+            my ($checked) = checked($list);    # [C9] the same checks as a first list
+            ($LAID_WIDE, $TITLED) = ($wide, $title);
+            return live_end($live, 'it drew a list that is not fit') unless $checked;
+            ($shown) = pictured($checked, $live->{paths}, $live->{host}, undef, undef, $live->{pictures});    # its decoded pictures only: nothing is fetched
+            $live->{shown} = $shown;
+        }
+        $live->{focus} = $focus if defined $focus;
+        next unless $live->{tab} == $TABS[$TAB];    # a tab not selected draws when it is chosen again (sub relaid), and follows no address
+        if ($shown) { window('relaid', @$shown, '.'); $DRAWN = 1 }    # where it was read in the page is kept
+        live_told();
+        idle($words) if defined $words;
+        return go($go, 'you followed the page to') if defined $go;    # [C4] a visit like a typed address; it ends this page first (sub visit)
+    }
 }
 
 # A question, in lzrprf's strip of the window, with two buttons, or with one
@@ -3474,6 +3722,44 @@ var root, homeView, listScroll, listView, secureBox, secureScroll, secureText, e
 
 function say(line) { to.writeData($(line + '\n').dataUsingEncoding(4)); }
 
+// A page kept running with its tab (lzrprf's "live on"): a click in it is told to lzrprf as "page click X Y", in
+// CSS pixels of the laid page, which are the laid view's own bounds after lzrprf's scrolling; it then has the
+// keyboard, and a key is told as "page key NAME" (one printable character, or a name below, " shift" when shift
+// is held), and what the writing system finishes (a letter such as ä) as "page text TEXT" while a text field of the
+// page has the focus ("live on 1"). Nothing is told while lzrprf is busy or asks, and nothing with Command or
+// Control, which are the menus'. lzrprf checks every line again and hands the page nothing else.
+var liveOn = false, liveFocus = false;
+var PAGE_KEYS = { 53: 'Escape', 36: 'Enter', 76: 'Enter', 48: 'Tab', 51: 'Backspace', 117: 'Delete', 126: 'ArrowUp', 125: 'ArrowDown', 123: 'ArrowLeft', 124: 'ArrowRight', 115: 'Home', 119: 'End', 116: 'PageUp', 121: 'PageDown', 49: 'Space' };    // the keys by their key codes on a Mac keyboard
+function liveTold(rest) {
+    var parts = rest.split(' ');
+    if (parts[0] != 'on' && parts[0] != 'off') return;    // "live end ...": lzrprf's words why a page kept running ended; "live off" follows
+    liveOn = parts[0] == 'on';
+    liveFocus = liveOn && parts[1] == '1';
+    if (!liveOn && canvas && win.firstResponder.isEqual(canvas)) win.makeFirstResponder(win);
+}
+function pageClicked(event) {
+    if (!liveOn || !sheet || !free || modalOpen) return;
+    win.makeFirstResponder(canvas);
+    var at = pointIn(canvas, event), x = Math.round(at.x), y = Math.round(at.y);
+    if (x < 0 || y < 0 || x >= sheet.wide || y >= sheet.high || x > 200000 || y > 200000) return;
+    say('page click ' + x + ' ' + y);
+}
+function pageKey(event) {
+    if (!liveOn || !sheet || !free || modalOpen) return;
+    var flags = event.modifierFlags, shift = (flags & SHIFT) ? ' shift' : '', named = PAGE_KEYS[event.keyCode], typed = event.characters.js;
+    if (flags & (CMD | CONTROL)) return;
+    if (named) return say('page key ' + named + shift);
+    if (/^[\x21-\x7e]$/.test(typed)) return say('page key ' + typed + shift);
+    if (!liveFocus) return;
+    var text = '', bytes = 0;
+    Array.from(typed.replace(/[\x00-\x1f\x7f-\x9f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g, '')).some(function (one) {
+        var size = encodeURIComponent(one).replace(/%[0-9A-F]{2}/g, 'x').length;    // its bytes in UTF-8
+        if (bytes + size > 48) return true;    // DECLARED(lzrprf $LIVE_TEXT: the most bytes of one "page text" line)
+        text += one; bytes += size; return false;
+    });
+    if (text) say('page text ' + text);
+}
+
 // What lzrprf says, one line at a time.
 function heard(line) {
     if (list) {
@@ -3505,6 +3791,7 @@ function heard(line) {
     else if (word == 'mark') markTold(rest);
     else if (word == 'marksbar') { marksOn = rest == 'on'; marksView.hidden = !marksOn; place(); }
     else if (word == 'redirect') redirectTold(rest);
+    else if (word == 'live') liveTold(rest);
     else if (word == 'quit') app.terminate($());
     told(word, rest);
 }
@@ -5509,7 +5796,10 @@ ObjC.registerSubclass({ name: 'LzrprfPage', superclass: 'NSTextView', methods: {
 ObjC.registerSubclass({ name: 'LzrprfLaid', superclass: 'NSView', methods: {
     // A laid page is measured from its top, as the application laid it out. It has no menu of its own.
     'isFlipped': { implementation: function () { return true; } },
-    'drawRect:': { implementation: function (dirty) { paint(dirty); } }
+    'drawRect:': { implementation: function (dirty) { paint(dirty); } },
+    'acceptsFirstResponder': { implementation: function () { return liveOn; } },    // the keyboard only for a page kept running
+    'mouseDown:': { implementation: function (event) { pageClicked(event); } },
+    'keyDown:': { implementation: function (event) { pageKey(event); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfFrame', superclass: 'NSView', methods: {
