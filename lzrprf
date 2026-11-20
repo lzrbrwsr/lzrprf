@@ -49,7 +49,7 @@
 #   [C17] Tor is off until you turn it on in the window, and while it is off no Tor client runs. Turned on, lzrprf starts the client that stands beside the program, named by its SHA-256 in the release file, in a container of its own (its own folder and the network, nothing of yours), and every address is then fetched through it, the site's host its SOCKS user so each site has its own circuit; nothing is looked up or fetched directly, also while it connects or when it does not. Turned off, the client is ended.
 #   [C15] Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: Local State and each profile's Bookmarks of Chrome, Edge, Brave and Vivaldi, Firefox's profiles.ini and newest bookmarkbackups/*.jsonlz4, Safari's Bookmarks.plist, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import [C12].
 #   [C18] A page kept running with its tab is handed three kinds of line and nothing else: a click, a key, and text typed while it says a field of it has the focus, each checked in the window and here; what it writes back is checked as a first list is, an address it asks for is a visit like a typed one, and it ends with its tab, at most three at once.
-#   [C19] A page kept running with its tab may ask lzrprf for an address with GET, HEAD or POST, one at a time and at most 600 times in its life: each is checked as an address typed into the bar is, written down first and fetched through the one place that connects, carrying the fixed request of [C7] with nothing added but, for a POST, at most 64 KiB of the page's body and one of three types, and for another host the page's own Origin; the page is handed back the status, six headers and the body, and nothing else.
+#   [C19] A page kept running with its tab, from the moment it is read, may ask lzrprf for an address with GET, HEAD or POST, one at a time and at most 600 times in its life: each is checked as an address typed into the bar is, written down first and fetched through the one place that connects, carrying the fixed request of [C7] with nothing added but, for a POST, at most 64 KiB of the page's body and one of three types, and for another host the page's own Origin; the page is handed back the status, six headers and the body, and nothing else.
 #
 # This file is the whole program. Its parts, in order: the containers, the
 # proof that they hold, one visit, the fetch, the window's side, the log, the
@@ -977,19 +977,27 @@ sub contained {
         waitpid $_, 0 for $feeder, $page;
         return (undef, 'unstarted');
     }
-    my ($wrote, $until, $open, $looked, $ready_at) = ('', now() + $PAGE_SECONDS, 1, 0, -1);
+    my ($wrote, $until, $open, $looked, $ready_at, $early) = ('', now() + $PAGE_SECONDS, 1, 0, -1);
     while ($open && now() < $until && length $wrote <= $PAGE_BYTES && alive()) {
         my $ready = '';
         vec($ready, fileno $from_page, 1) = 1;
         select($ready, undef, undef, 1) > 0 or next;
         $open = sysread($from_page, $wrote, 65536, length $wrote) // $!{EINTR};
         next unless $keep;
+        while (substr($wrote, 0, 7) eq '=fetch ') {    # [C19] a request of the page while it is read (an external script), before its first list: answered as one after it, within the same $PAGE_SECONDS, and counted in the same $LIVE_FETCH_MOST of its life
+            $early //= { page => $page, keeper => $feeder, relay => $relay, from => $from_page, hold => $hold, looked => 0, url => $url, host => (address($url))[1] // '', fetches => 0 };
+            $early->{held} = $wrote;
+            my $asked = live_asked($early) or last;    # not all there yet
+            live_fetched($early, $asked);
+            return (undef, 'ended') if $early->{ended};    # a request of no form, or a reply the page did not take: it is ended as a page kept running is (sub live_end)
+            ($wrote, $looked) = ($early->{held}, 0);
+        }
         $ready_at = index($wrote, "\n=ready\n", $looked > 7 ? $looked - 7 : 0);    # a line no list holds: every line of a list begins with a letter, or is "=page" and the lines of its head
         $looked = length $wrote;
         last if $ready_at >= 0;
     }
     if ($ready_at >= 0 && length $wrote <= $PAGE_BYTES) {    # the page is kept running: its first list, and what it wrote after "=ready" is the beginning of its next answer
-        return (substr($wrote, 0, $ready_at + 1), undef, { page => $page, keeper => $feeder, relay => $relay, from => $from_page, hold => $hold, held => substr($wrote, $ready_at + 8), looked => 0, wide => $VIEW[0], until => now() + $LIVE_SECONDS, bytes => length($wrote) - $ready_at - 8, waiting => 0, focus => 0, url => $url, fetches => 0, heard => now() });
+        return (substr($wrote, 0, $ready_at + 1), undef, { page => $page, keeper => $feeder, relay => $relay, from => $from_page, hold => $hold, held => substr($wrote, $ready_at + 8), looked => 0, wide => $VIEW[0], until => now() + $LIVE_SECONDS, bytes => length($wrote) - $ready_at - 8, waiting => 0, focus => 0, url => $url, fetches => $early ? $early->{fetches} : 0, heard => now() });
     }
     kill 'KILL', $feeder, $page;
     waitpid $_, 0 for $feeder, $page;
@@ -3174,9 +3182,10 @@ sub live_turn {
     live_answered($_) for @due;
 }
 
-# A request of a page kept running ([C19]). While it is kept, the page may
-# write, in place of an answer, one request at a time, and waits for its
-# reply before it writes anything else (page.rs, module scripted):
+# A request of a page kept running ([C19]). While it is kept, and while it is
+# read before its first list (sub contained), the page may write, in place of
+# an answer, one request at a time, and waits for its reply before it writes
+# anything else (page.rs, module scripted):
 #
 #   =fetch METHOD BODYLEN TYPE URL   then exactly BODYLEN bytes of its body
 #       METHOD   GET, HEAD or POST

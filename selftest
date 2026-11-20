@@ -402,11 +402,26 @@ if ($answer =~ /\A=sheets((?: (?:0|[1-9][0-9]{0,6}))*)\n/) { require Digest::SHA
 print STDERR "sheets\t$address\t$sheets\n" if $kind =~ /^sheets/;
 my $after = '';                           # what came after the answer in its =live frame: the first lines lzrprf sends a page kept running
 if ($answer =~ s/\A=live ([0-9]+)\n//) { $after = substr($answer, $1); $answer = substr($answer, 0, $1) }
+sub live_reply {                          # [C19] the one reply lzrprf writes to a request of the page, read from what is held and the input: its status, header lines and body; the page ends when there is none
+    my ($held) = @_;
+    while ($$held !~ /\n/) { sysread(STDIN, $$held, 4096, length $$held) or exit 0 }
+    my ($status, $headlen, $bodylen) = $$held =~ /\A=fetched ([0-9]+) ([0-9]+) ([0-9]+)\n/ or exit 0;
+    substr($$held, 0, $+[0], '');
+    while (length $$held < $headlen + $bodylen) { sysread(STDIN, $$held, 65536, length $$held) or exit 0 }
+    return ($status, substr($$held, 0, $headlen, ''), substr($$held, 0, $bodylen, ''));
+}
 sub live_page {                           # a page kept running, as the application's scripted module keeps one (page.rs): its first list and "=ready", then one answer, ending in "=ready", for each line lzrprf sends; every line is reported
     print STDERR "live\t$address\tpid $$\n";
-    print "=page\nPp0\nT\@before any click\n=ready\n";
     my ($held, $typed) = ($after, '');
     my ($origin) = $address =~ m{^(https://[^/]+)};
+    my $first = "=page\nPp0\nT\@before any click\n";
+    if ($kind eq 'livescript') {          # [C19] its reader meets <script src="/s.js"> and asks lzrprf for it while the page is read, before its first list, as the application's loading.rs does through page.rs; the script writes what came into the page's text
+        print "=fetch GET 0 - $origin/s.js\n";
+        my ($status, $head, $body) = live_reply(\$held);
+        print STDERR "live\t$address\tscript $status " . length($body) . "\n";
+        $first = "=page\nPp0\nT\@" . ($status == 200 ? 'script ' . ($body =~ s/\n//gr) : 'no script') . "\n";
+    }
+    print "$first=ready\n";
     while (1) {
         while ($held !~ /\n/) { sysread(STDIN, $held, 4096, length $held) or do { print STDERR "live\t$address\tits input ended\n"; exit 0 } }
         $held =~ s/\A([^\n]*)\n//;
@@ -425,13 +440,8 @@ sub live_page {                           # a page kept running, as the applicat
             my @drawn;
             for my $to ("$origin/out/livefetchdata", 'https://other.test/out/livefetchother') {
                 print "=fetch GET 0 - $to\n";
-                while ($held !~ /\n/) { sysread(STDIN, $held, 4096, length $held) or exit 0 }
-                my ($status, $headlen, $bodylen) = $held =~ /\A=fetched ([0-9]+) ([0-9]+) ([0-9]+)\n/ or exit 0;
-                substr($held, 0, $+[0], '');
-                while (length $held < $headlen + $bodylen) { sysread(STDIN, $held, 65536, length $held) or exit 0 }
-                my $head = substr($held, 0, $headlen, '');
-                my $body = substr($held, 0, $bodylen, '');
-                print STDERR "live\t$address\treply $to $status " . join(',', map { /^([^:]+):/ ? $1 : '?' } split /\n/, $head) . " $bodylen\n";
+                my ($status, $head, $body) = live_reply(\$held);
+                print STDERR "live\t$address\treply $to $status " . join(',', map { /^([^:]+):/ ? $1 : '?' } split /\n/, $head) . ' ' . length($body) . "\n";
                 my $own = index($to, "$origin/") == 0;
                 my $allowed = $own || $head =~ /^access-control-allow-origin: (?:\*|\Q$origin\E)$/m;
                 push @drawn, $status && $allowed ? "came $status " . ($body =~ s/\n//gr) : 'an error';
@@ -771,6 +781,7 @@ my %about = (
     liveend => q{A tab that goes elsewhere tells its page =end, and the page is gone},
     livebad => q{A page kept running that draws an unfit list is ended, its first drawing kept},
     livefetch => q{A page kept running asks lzrprf for an address of its own host and of another, and is handed the replies},
+    livescript => q{A page kept running asks lzrprf for its external script while it is read, and its first list shows what the script did},
     upown => q{An update address that is a bare number is never fetched},
     upmoved => q{A yes given for another update address is asked again},
     upold => q{A yes kept without an address is asked again},
@@ -1104,6 +1115,7 @@ run_of('liveform', typed => "$t/out/liveform,,=page text early,,=page click 5 5,
 run_of('liveend', typed => "$t/out/liveend,,$t/out/afterlive", fetches => ['/out/liveend', '/out/afterlive']);    # the tab goes elsewhere: the page kept running is told =end and is gone
 run_of('livebad', typed => "$t/out/livebad,,=page click 1 1,,=page click 2 2", fetches => ['/out/livebad']);    # an answer that draws a line of no kind: the page is ended, its first drawing stays, and the next click reaches nothing
 run_of('livefetch', typed => "$t/out/livefetch,,=page click 3 3", fetches => ['/out/livefetch', '/out/livefetchdata']);    # [C19] a click whose script asks for an address of the page's own host, written down first and fetched, and for one of another host, which fails
+run_of('livescript', typed => "$t/out/livescript", fetches => ['/out/livescript', '/s.js']);    # [C19] a page whose reader asks for its external script before its first list, written down first and fetched once
 run_of('upbad', app => bundle('upbad', @release, "newest $t/latest-html"), fetches => ['/latest-html'], prepare => looks("$t/latest-html"));
 run_of('upown', app => bundle('upown', @release, 'newest https://127.0.0.1/latest-own'), prepare => looks('https://127.0.0.1/latest-own'));
 run_of('upmoved', app => bundle('upmoved', @release, "newest $t/latest-moved"), answer => 'deny', prepare => looks("$t/latest-before"));
@@ -1902,6 +1914,15 @@ check(join('/', @fetch_heard[0 .. 2]) eq "=click 3 3/reply $t/out/livefetchdata 
     && (grep { $_ eq "the page $t/out/livefetch asked for https://other.test/out/livefetchother (GET, from site.test)" } @fetch_log) == 1 && (grep { index($_, 'https://other.test/out/livefetchother failed: ') == 0 } @fetch_log) == 1,
     'a page kept running that asks for an address ("=fetch") is answered once ("=fetched"): one of its own host is written down first, fetched with the request of its address alone and handed back with its status, its type and its body and no other header (no Set-Cookie); one of another host is written down, carries the page\'s Origin, and failing, is told 0, which the page draws as an error',
     join('/', @fetch_heard) . ' drawn=' . join('|', drawings('livefetch', 'relaid')) . ' asked=' . scalar(@fetch_site) . ' log=' . join('|', grep { /livefetch(?:data|other)/ } @fetch_log));
+my @script_heard = grep { !/^pid / } live_heard('livescript', 'livescript');
+my @script_log = log_of('livescript');
+my ($script_asked) = grep { $script_log[$_] eq "the page $t/out/livescript asked for $t/s.js (GET)" } 0 .. $#script_log;
+my ($script_connects) = grep { index($script_log[$_], "$t/s.js -> lzrprf connects ") == 0 } 0 .. $#script_log;
+my @script_site = asked('/s.js');
+check(($script_heard[0] // '') eq 'script 200 26' && ((drawings('livescript', 'page'))[-1] // '') eq "Pp0\nT\@script the page of the test site"
+    && @script_site == 1 && $script_site[0]{bytes} eq request_for('/s.js') && $script_site[0]{logged} && defined $script_asked && defined $script_connects && $script_asked < $script_connects,
+    'a page kept running that asks for its external script ("=fetch") while it is read, before its first list, is answered once ("=fetched"): the address is written down first, fetched once with the request of its address alone, and the first list drawn is the one the script changed',
+    join('/', @script_heard) . ' drawn=' . join('|', drawings('livescript', 'page')) . ' asked=' . scalar(@script_site) . ' log=' . join('|', grep { m{/s\.js} } @script_log));
 my ($tor_container) = $text_of_lzrprf =~ /^my \$TOR_CONTAINER = <<'END';\n(.*?)^END\n/ms;
 mkdir "$base.torbox";
 if (open my $out, '>', "$base.torbox/inside") { print $out "inside\n"; close $out }
