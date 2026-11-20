@@ -161,12 +161,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="ab09c548893969b524383a5dc422d7af34f79a91ec4f1c6242768d98539215d3"
-RELEASE="56"
-LZRPRF_COMMIT="08e4665431e9e9ce27d3d425e9948707cd424fcc"
+SHA256="322a4a07945891f43ca088cae19eee5ef6f11c341fe86960c6e09c48d1fc12d6"
+RELEASE="57"
+LZRPRF_COMMIT="810324e44cf69e6f094d522177a03add420354ac"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="9a0c1221185389c5106141f727b924cd2be70ade88bd5b6ffa77f72aadcc550d"
-SELFTEST_SHA256="f256af9e71ad13ecd4592e24701b0b91fc21b6643d93c3618e08198cd2bb32e0"
+LZRPRF_SHA256="7f9473dab643dca03318fbf4c94cf368366586c27cfaa4ddd359bdc27f86be8f"
+SELFTEST_SHA256="26e8c9bf35160dd8a2d8cd661a270b11ef58d4ed3ccb121cca3df10579b9cc89"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -503,8 +503,8 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 56
-new Scripts a page's own script adds run too, the way sites load their tools, and scripts are read in the page's own encoding
+release 57
+new The whole top of the window moves it, and a tab dragged along the strip moves among the tabs
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
@@ -512,7 +512,7 @@ report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
 file lzrbrwsr-bin 5b752d7749cb36c788b64e10925b80a0c3e9f5bc88864750920129934f09e18a
 file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-lzrprf 9a0c1221185389c5106141f727b924cd2be70ade88bd5b6ffa77f72aadcc550d
+lzrprf 7f9473dab643dca03318fbf4c94cf368366586c27cfaa4ddd359bdc27f86be8f
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
