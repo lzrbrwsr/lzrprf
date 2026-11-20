@@ -3538,13 +3538,14 @@ function strip(parts, open, question) {
 // at the right), the bookmarks bar when it is shown, the page with the pane under it and Log at its
 // bottom right, and lzrprf's strip at the very bottom. A tab with no page shows the home page in
 // place of the page and the pane; the bookmarks or the tabs page stands there too while it is open.
-// Everything sits in a frame of its own with a glowing edge (paintFrame), MARGIN points inside the
-// window, which itself is clear: the glow is drawn in that margin. All of it is set again whenever
-// the window's size or the strip changes.
+// Everything sits in a frame with a glowing edge (paintFrame) that is the window's own edge: nothing
+// of the window lies outside what you see, so its sides are held where they are seen. The views
+// stand MARGIN points inside it; that band is the frame's edge, where a press resizes the window,
+// and its beam glows inward only. All of it is set again whenever the window's size or the strip changes.
 function place() {
     if (!homeView) return;    // a size told before the window's views are made
     var outer = win.contentView.frame.size;
-    MARGIN = (win.styleMask & 16384) ? 0 : 22;    // full screen: no margin. DECLARED(the widest glow of the frame reaches 16 points past its edge, the floor's 18.5; 22 lets each fade to nothing inside the window, so the window's own square edge never cuts one)
+    MARGIN = (win.styleMask & 16384) ? 0 : 5;    // full screen: no band. DECLARED(the band of the edge a press resizes from: 5 points is as wide as the macOS window edge one grabs, and holds the beam and its inward glow)
     root.frame = $.NSMakeRect(MARGIN + 1, MARGIN + 1, Math.max(1, outer.width - 2 * MARGIN - 2), Math.max(1, outer.height - 2 * MARGIN - 2));
     win.contentView.needsDisplay = true;
     win.invalidateCursorRectsForView(frameView);    // the sides' pointers follow the new size (frameCursors)
@@ -3785,29 +3786,27 @@ function sent(line) { free = false; bar.enabled = false; logs.enabled = false; r
 function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox, logs, techs, torIcon, torView, suggestBox, wizardView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
 function takes() { return free && !modalOpen; }    // whether the chrome takes a press now
 
-// The frame: the window is clear, and this draws, MARGIN points in from its edges, the glass every
-// view stands on, its rounded edge as a thin cyan beam, the glow of that beam around it, and a
-// brighter glow under the bottom edge, as if the window stood on a lit floor.
+// The frame: the window is clear outside its rounded corners, and this draws, at its very edge,
+// the glass every view stands on and its rounded edge as a thin cyan beam. The beam's glow falls
+// inward: the window ends at the beam, so nothing is drawn, or reserved, outside what you see.
 function paintFrame() {
-    var out = win.contentView.bounds, r = root.frame, edge = $.NSMakeRect(r.origin.x - 0.5, r.origin.y - 0.5, r.size.width + 1, r.size.height + 1);
+    var out = win.contentView.bounds, r = root.frame, edge = MARGIN ? $.NSInsetRect(out, 0.75, 0.75) : $.NSMakeRect(r.origin.x - 0.5, r.origin.y - 0.5, r.size.width + 1, r.size.height + 1);    // DECLARED(0.75: half the beam's faint 1.5-point width, so the whole line is inside the window)
     var path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(edge, MARGIN ? RADIUS : 0, MARGIN ? RADIUS : 0);
     (MARGIN ? $.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 0, 0, 0.012) : $.NSColor.clearColor).setFill;    // the margin is all but clear: a point with nothing drawn passes the mouse to the window under it, so its sides could not be held to resize. DECLARED(3 of 255, the least the screen keeps for certain, never seen)
     $.NSRectFillUsingOperation(out, 1);
-    if (MARGIN) {
-        var floor = $.NSBezierPath.bezierPath, left = edge.origin.x + RADIUS * 2, right = edge.origin.x + edge.size.width - RADIUS * 2;
-        floor.moveToPoint($.NSMakePoint(left, edge.origin.y)); floor.lineToPoint($.NSMakePoint(right, edge.origin.y));
-        stroked(floor, FAINT, 5, GREEN, 16);
-    }
-    $.NSGraphicsContext.saveGraphicsState;
-    if (MARGIN) glow(HALO, 14);
     DARK.setFill;
     path.fill;
-    $.NSGraphicsContext.restoreGraphicsState;
     $.NSGradient.alloc.initWithStartingColorEndingColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(0.06, 0.075, 0.09, 1), $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.025, 0.033, 0.04, 1)).drawInBezierPathAngle(path, -90);
-    if (MARGIN) { stroked(path, FAINT, 2, GREEN, 9); stroked(path, GREEN, 1.1, GREEN, 4.5); }
+    if (MARGIN) {    // the beam, its glow kept inside the frame: what would fall outside is clipped away
+        $.NSGraphicsContext.saveGraphicsState;
+        path.addClip;
+        stroked(path, FAINT, 3, GREEN, 9);
+        stroked(path, GREEN, 1.5, GREEN, 4.5);
+        $.NSGraphicsContext.restoreGraphicsState;
+    }
 }
 
-// The margin around the frame holds its sides: pressed there and dragged, the window is resized from
+// The band of the frame's edge holds its sides: pressed there and dragged, the window is resized from
 // that side, from a corner within two corner radii of one; anywhere else on the frame it is moved.
 function edgesAt(p, r, corner) {
     var e = { left: p.x < r.x, right: p.x > r.x + r.w, bottom: p.y < r.y, top: p.y > r.y + r.h };
@@ -3840,7 +3839,7 @@ function frameClicked(event) {
     frameSaid();
 }
 
-function frameCursors() {    // the pointer shows which way a side resizes, over the margin of each side
+function frameCursors() {    // the pointer shows which way a side resizes, over the band of each side's edge
     if (!MARGIN || !root) return;
     var b = frameView.bounds, r = root.frame, x0 = r.origin.x, y0 = r.origin.y, x1 = x0 + r.size.width, y1 = y0 + r.size.height, c = RADIUS * 2;
     var across = $.NSCursor.resizeLeftRightCursor, along = $.NSCursor.resizeUpDownCursor;
@@ -5804,7 +5803,7 @@ function run(argv) {
     win.titlebarAppearsTransparent = true;
     [0, 1, 2].forEach(function (k) { var one = win.standardWindowButton(k); if (one && !one.isNil()) one.hidden = true; });    // the strip draws the three dots itself (paintTabs)
     win.opaque = false;
-    win.hasShadow = false;    // the frame's glow is its shadow
+    win.hasShadow = true;    // the system's own shadow, drawn outside the window and taking no press: the frame's glow falls inward now
     win.releasedWhenClosed = false;
     win.minSize = $.NSMakeSize(560, 360);
     opened(argv[2] || 'none');
