@@ -2104,23 +2104,38 @@ function picture(wide, high, rows) {
         all.appendData(bytes);
     });
     if (rows.length != high || all.length != wide * high * 4) throw 'a picture is not as large as it says';
-    return bitmap(all, wide, high, 4);
+    return bitmap(all, wide, high);
 }
 
-// A tile: red, green and blue, a byte each, and no alpha (Core Graphics' 0), since a tile is
-// opaque. Its rows have no "=", so joined they are one base64 text, decoded once: a handful of
-// calls to the system for the tile, where a picture makes some for every row.
+// A tile: red, green and blue, a byte each, and no alpha, since a tile is opaque. Its rows have
+// no "=", so joined they are one base64 text, decoded once: a handful of calls to the system for
+// the tile, where a picture makes some for every row. Three bytes a pixel is not how the screen
+// is drawn, though: such an image needs the graphics card to be taught a new step, and the
+// teacher is a service the window's container does not reach, so the window would close the
+// moment a tile came on the screen. The tile is therefore drawn once, on the processor, into
+// the Mac's own form (blue, green, red, alpha, premultiplied: Core Graphics' 8194), the form
+// every picture on the screen already comes in.
 function tile(wide, high, rows) {
     var all = $.NSData.alloc.initWithBase64EncodedStringOptions($(rows.map(function (row) { return row.slice(1); }).join('')), 0);
     if (all.isNil()) throw 'a tile is not base64';
     if (rows.length != high || all.length != wide * high * 3) throw 'a tile is not as large as it says';
-    return bitmap(all, wide, high, 3);
+    if (!space) space = $.CGColorSpaceCreateWithName($.kCGColorSpaceSRGB);
+    var given = $.CGDataProviderCreateWithCFData(all), flat = $.CGImageCreate(wide, high, 8, 24, wide * 3, space, 0, given, null, false, 0);
+    var into = $.CGBitmapContextCreate(null, wide, high, 8, wide * 4, space, 8194);
+    $.CGContextDrawImage(into, $.CGRectMake(0, 0, wide, high), flat);
+    var image = $.CGBitmapContextCreateImage(into), made = $.NSBitmapImageRep.alloc.initWithCGImage(image);
+    $.CGImageRelease(image);
+    $.CGContextRelease(into);
+    $.CGImageRelease(flat);
+    $.CGDataProviderRelease(given);
+    if (made.isNil()) throw 'a tile could not be made';
+    return made;
 }
 
-// The bytes given to the system as an image, each pixel that many bytes in the sRGB colours.
-function bitmap(all, wide, high, each) {
+// The bytes given to the system as an image, four a pixel (red, green, blue, alpha) in the sRGB colours.
+function bitmap(all, wide, high) {
     if (!space) space = $.CGColorSpaceCreateWithName($.kCGColorSpaceSRGB);
-    var given = $.CGDataProviderCreateWithCFData(all), image = $.CGImageCreate(wide, high, 8, each * 8, wide * each, space, each == 4 ? 3 : 0, given, null, false, 0), made = $.NSBitmapImageRep.alloc.initWithCGImage(image);
+    var given = $.CGDataProviderCreateWithCFData(all), image = $.CGImageCreate(wide, high, 8, 32, wide * 4, space, 3, given, null, false, 0), made = $.NSBitmapImageRep.alloc.initWithCGImage(image);
     $.CGImageRelease(image);
     $.CGDataProviderRelease(given);
     if (made.isNil()) throw 'a picture could not be made';

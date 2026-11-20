@@ -891,6 +891,9 @@ function drawn(lines, characters) {
         var from = Date.now(), whole = canvas.bounds, into = canvas.bitmapImageRepForCachingDisplayInRect(whole);
         canvas.cacheDisplayInRectToBitmapImageRep(whole, into);
         got += ' drawn_ms=' + (Date.now() - from);
+        var forms = {};                        // the form of every picture and tile the page holds: one the screen draws without teaching the graphics card a new step
+        sheet.ops.forEach(function (op) { if (op[2] == 'M') forms[op[5].bitsPerPixel + '/' + $.CGImageGetBitmapInfo(op[5].CGImage)] = 1; });
+        got += ' forms=' + Object.keys(forms).sort().join(',');
     }
 }
 function told(word, rest) {
@@ -1388,8 +1391,11 @@ check(($at{made} // '') eq 'What Test says this page is made of: 5 things, 2 of 
 check(($at{logmade} // '') eq 'Here Test lists what it says a page is made of. Nothing is listed for what is shown now.', 'when the log stands where the page stood, that list is empty and says so', $at{logmade} // 'nothing came of it');
 check(($at{log} // '') =~ m{^Every address lzrprf fetched for \S+ in this window is below\. Nothing is kept after this window closes\. To keep a log, type in Terminal: perl \S+ keep hosts\. No button of this window makes lzrprf keep more\.\|This window.*you typed \Q$t\E/window\?q=1}, 'the log is shown in the same window: this window\'s lines, with nothing kept on the disk and no question that keeps anything', substr($at{log} // 'nothing came of it', 0, 80));
 my %heavy_at = map { /^test (heavy\w+) (.*)$/ ? ($1 => $2) : () } split /\n/, out('heavy') . err('heavy');
-my @heavy_ms = map { ($heavy_at{"heavy$_"} // '') =~ /^lines=\d+ characters=\d+ set_ms=(\d+) laid_ms=(\d+)(?: drawn_ms=(\d+))?$/ ? $1 + $2 + ($3 // 0) : undef } 0 .. $#heavy;
-my @heavy_drawn = map { ($heavy_at{"heavy$_"} // '') =~ / drawn_ms=(\d+)$/ ? " of them $1 ms drawing it" : '' } 0 .. $#heavy;    # a laid page only
+my @heavy_ms = map { ($heavy_at{"heavy$_"} // '') =~ /^lines=\d+ characters=\d+ set_ms=(\d+) laid_ms=(\d+)(?: drawn_ms=(\d+) forms=[\d\/,]*)?$/ ? $1 + $2 + ($3 // 0) : undef } 0 .. $#heavy;
+my @heavy_drawn = map { ($heavy_at{"heavy$_"} // '') =~ / drawn_ms=(\d+) / ? " of them $1 ms drawing it" : '' } 0 .. $#heavy;    # a laid page only
+my ($tile_at) = grep { $heavy[$_] eq 'heavytiles' } 0 .. $#heavy;
+my %forms = map { ($heavy_at{"heavy$_"} // '') =~ / forms=([\d\/,]*)$/ ? map({ $_ => 1 } split /,/, $1) : () } 0 .. $#heavy;
+check((($heavy_at{"heavy$tile_at"} // '') =~ / forms=([\d\/,]*)$/)[0] eq '32/8194' && !grep({ $_ ne '32/8194' && $_ ne '32/3' } keys %forms), 'every tile on a laid page is an image of four bytes a pixel in the Mac\'s own form, and every picture of four in the form pictures always had: three bytes a pixel needs the graphics card taught a new step by a service the window\'s container does not reach, and the window closed the moment such a tile came on the screen', join(' ', sort keys %forms) || 'no form reported');
 check(!grep({ !defined || $_ >= 30_000 } @heavy_ms) && ($heavy_at{heavylog} // '') =~ /^\d+ ms Every address lzrprf fetched/, 'the heaviest pages the limits allow of each kind that was measured slow are each fetched, checked, drawn by the real window and set to their last line in under 30 seconds on this Mac, and the window answers a press after them: the most lines, the most blocks, and full blocks of text in two other scripts, of marks on one letter, of one word, of words parted by no-break spaces, of marks and joining characters of another kind in turn, of eight scripts in turn, and 32 tiles of a laid page placed 1024 times', join(', ', map { "$heavy[$_] " . (defined $heavy_ms[$_] ? "$heavy_ms[$_] ms$heavy_drawn[$_]" : $heavy_at{"heavy$_"} // 'nothing came of it') } 0 .. $#heavy));
 
 # 9. The text of lzrprf itself.                               [C1] [C6]
