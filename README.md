@@ -366,6 +366,13 @@ called from three places, and `selftest` reads `lzrprf` and counts them:
   them share one clock of 20 seconds) or wrong is the grey box it was before. The line under
   the bar says how many of the pictures were fetched and shown, and it still says that no
   other host was asked.
+
+  After the line `=pictures`, or where it would stand, the application may write one line
+  `=statement TEXT`: in its own words, why it shows the page in compatibility-statement mode,
+  1 to 200 plain printable characters (bytes 0x20 to 0x7e). lzrprf shows those words as plain
+  text at the end of the line under the bar, and reads them for nothing else; they name no
+  address and cause no fetch. A second such line, or one too long or with any other byte,
+  makes the page no page (`sub stated`).
 - `sub fixed`, which runs for two fixed addresses, each only after your yes in the window: the
   newest release number (`sub newer`) and a report you chose to send (`sub fault`). For the
   newest release number the yes is given once and kept with its address in `~/.lzrprf/look`:
@@ -846,8 +853,8 @@ here:
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin 66876972311bba96ce9927612f53ef3e778eb3eaa88b94e1a5c5ddb08726b472
-    lzrprf 51f0cc7b73faa9d75e9aed91639d9336b0a9c074152029805958d95e98221c3e
+    file lzrbrwsr-bin 377d4b59276fdfbd76efdace1622d3d67fcb7ad1668f3a3b068b12e46476d197
+    lzrprf 9b1e6ed1076df8e5da3a356874d1919c9675555fbe8555708e0ef77dafc41d5b
 
 ## When a page cannot be shown
 

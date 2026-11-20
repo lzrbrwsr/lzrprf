@@ -457,6 +457,14 @@ my %list = (
     picturesbad => "=page\n=pictures out/pixgood\nL960x400\nG0,0,5,5\n",
     picturesmany => "=page\n=pictures" . join('', map { " /p$_" } 1 .. 9) . "\nL960x400\nG0,0,5,5\n",
     picturesrange => "=page\n=pictures /out/pixgood\nL960x400\nI0,0,20,20,1\n",
+    stated => "=page\n=statement Not supported yet: Grid, inline scripts, and 1 more.\nUd+HTML\t5\nL960x400\nG0,0,5,5\n",
+    statedfull => "=page\n=statement " . '~' x 199 . "x\nPp0\nT\@x\n",
+    statedcontrol => "=page\n=statement Not supported\e[2J yet.\nL960x400\nG0,0,5,5\n",
+    statedother => "=page\n=statement Not supported yet: \xc3\xa4.\nPp0\nT\@x\n",
+    statedlong => "=page\n=statement " . 'x' x 201 . "\nPp0\nT\@x\n",
+    statedtwice => "=page\n=statement Not supported yet: Grid.\n=statement Not supported yet: Grid.\nPp0\nT\@x\n",
+    statedempty => "=page\n=statement \nPp0\nT\@x\n",
+    statedfirst => "=page\n=statement Not supported yet: Grid.\n=pictures /out/pixgood\nL960x400\nG0,0,5,5\n",
 );
 if (exists $heavy{$kind}) { my $whole = $heavy{$kind}->(); utf8::encode($whole); print $whole }
 else { print exists $list{$kind} ? $list{$kind} : $good }
@@ -489,6 +497,8 @@ my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 big
 my @fit = qw(big control noread madefull manyfull boxesfull blockfull hung long joined);    # each is judged by itself below; "big" is the one of them that is not drawn
 my @laid_unfit = qw(laidrange laidzero laidnarrow laidmany laidmix laidflow laidrows laidrowlong laidbase64 laidpad laidpixels picturesbad picturesmany picturesrange);    # laid pages, each broken in one way
 my @laid_fit = qw(laidgood laidcontrol pictured);
+my @stated_unfit = qw(statedcontrol statedother statedlong statedtwice statedempty statedfirst);    # a =statement line, each broken in one way
+my @stated_fit = qw(stated statedfull);
 my @pixel_paths = map { "/out/$_" } qw(pixgood pixrow pixhex pixnone);    # the pictures "pictured" names on its own host, each fetched once
 my @heavy = qw(heavylines heavyblocks heavytext heavymarks heavyword heavyspaced heavyjoined heavymixed);    # the heaviest pages the limits allow of each kind that was measured slow, drawn by the real window in a run of their own
 my $t = 'https://site.test';
@@ -645,7 +655,7 @@ my $lost_code = mutant('lostcode', qq{(deny file-map-executable)\n} => '');    #
 run_of('lostcode', lzrprf => $lost_code, app => bundle('lostcode', 'release 3', pair_line($lost_code)), typed => "$t/lostcode", fetches => ['/lostcode']);
 run_of('alias', app => bundle('alias', 'release 3'), typed => "$t/alias", fetches => ['/alias']);    # the same program in the page container: its own folder is the one place in your account it may read
 run_of('deny', typed => "$t/denied", answer => 'deny');
-run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit), fetches => [(map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit), @pixel_paths]);
+run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), fetches => [(map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), @pixel_paths]);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large", fetches => ['/elsewhere', '/pieces', '/large']);
 run_of('untrusted', peer => 'untrusted', typed => "$t/untrusted");
 run_of('plain', peer => 'plain', typed => "$t/plain");
@@ -1004,6 +1014,12 @@ my @pictured = ("Ud+HTML\t5", 'L960x400', 'M0,0,20,20,2,2', 'm' . encode_base64(
 my $pictured = visit('output', "$t/out/pictured");
 check($pictured->{page} && "@{ $pictured->{page} }" eq "@pictured" && $pictured->{said} =~ /\b1 of the 4 pictures the page draws from site\.test itself was fetched and shown\. The page names no other host\.$/, 'a picture the page names on its own host is fetched, decoded by the application in a container of its own, and given to the window as pixels lzrprf wrote; a picture with a row of the wrong length, with a character that is not hex, or none at all is drawn as the grey box', $pictured->{page} ? scalar(@{ $pictured->{page} }) . " lines; $pictured->{said}" : $pictured->{said});
 
+my $stated = visit('output', "$t/out/stated");
+check($stated->{page} && "@{ $stated->{page} }" eq "Ud+HTML\t5 L960x400 G0,0,5,5" && $stated->{said} =~ /^site\.test answered \d+ bytes\. The page names no other host\. Not supported yet: Grid, inline scripts, and 1 more\.$/, 'a line =statement is the application\'s own words for why the page is in compatibility-statement mode: they are shown as plain text at the end of lzrprf\'s strip, and are no line of the page', $stated->{page} ? scalar(@{ $stated->{page} }) . " lines; $stated->{said}" : $stated->{said});
+my $stated_full = visit('output', "$t/out/statedfull");
+check($stated_full->{page} && "@{ $stated_full->{page} }" eq 'Pp0 T@x' && $stated_full->{said} =~ / The page names no other host\. ~{199}x$/, 'the longest statement there may be, 200 plain characters, is shown whole', $stated_full->{page} ? length($stated_full->{said}) . ' characters said' : $stated_full->{said});
+my @stated_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @stated_unfit;
+check(!@stated_passed, 'a page with a line =statement broken in any one way is not drawn at all, and nothing of it is said: a control code in it, a character that is not plain ASCII, 201 characters, a second such line, no words, a line =statement before the line =pictures', @stated_passed ? "passed: @stated_passed" : scalar(@stated_unfit) . ' pages, none drawn');
 # 4. What a site is sent.                                [C4] [C5] [C6] [C7]
 print "\n4. What a site is sent: by the test site's own record.\n";
 my @https = grep { $_->{kind} eq 'trusted' && length $_->{bytes} } @seen;

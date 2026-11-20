@@ -618,26 +618,26 @@ sub visit {
     close $request;
     return idle("Nothing is shown: $why.") if $why;
     busy("$APP lays the page out, in its container.");
-    my ($lines, $hosts, $paths) = laid_out($url, $got);
+    my ($lines, $hosts, $paths, $said) = laid_out($url, $got);
     return fault($hosts) unless $lines;
     my ($shown, $fetched, $wanted) = pictured($lines, $paths, $host, $where, $kept);
     return idle($UNWRITTEN) unless $shown;
     window('page', @$shown, '.');
     $DRAWN = 1;
-    idle("$host answered " . length($got) . ' bytes. ' . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.'));
+    idle("$host answered " . length($got) . ' bytes. ' . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
 }
 
 # The request is over and the connection to the site is closed. Only now does
 # the application see the answer, in a page container, and only after the
 # system said that this very process is contained. Returns the checked lines,
-# the other hosts the page names and the paths of the pictures it names on its
-# own host; or nothing, and one word for what went wrong.
+# the other hosts the page names, the paths of the pictures it names on its own
+# host and its statement ('' for none); or nothing, and one word for what went wrong.
 sub laid_out {
     my ($url, $got) = @_;
     my ($wrote, $why) = contained($url, $got);
     return (undef, $why) unless defined $wrote;
-    my ($lines, $hosts, $paths) = checked($wrote) or return (undef, 'unfit');    # [C9]
-    return ($lines, $hosts, $paths);
+    my ($lines, $hosts, $paths, $said) = checked($wrote) or return (undef, 'unfit');    # [C9]
+    return ($lines, $hosts, $paths, $said);
 }
 
 # One run of the application in a page container, for a page or for one
@@ -736,7 +736,7 @@ sub keeper {
 }
 
 # What the application may write, and nothing else: a first line that names
-# the other hosts the page asks for, and then lines of five kinds, or a laid page.
+# the other hosts the page asks for, its =pictures and =statement lines (sub stated), and then lines of five kinds, or a laid page.
 #
 #   U<kind><s><name>   a thing the application says the page is made of; <s> is + when it says its own code supports the thing and - when not; a tab and a version may follow
 #   P<style><depth>    a paragraph begins: plain, heading 1 2 3, list item, quote, code, rule; how far it is set in, 0 to 9
@@ -821,7 +821,7 @@ sub checked {
         return unless shift(@lines) =~ m{^=pictures((?: /[A-Za-z0-9._~/%?=&-]{0,511}){1,$PICTURES})$};
         @paths = split ' ', $1;
     }
-    my ($boxes, $made, $block, $row, $word, $tail, $before, $begun) = (0, 0, 0, '', 0, '');
+    my ($said, $boxes, $made, $block, $row, $word, $tail, $before, $begun) = ((stated(\@lines) // return), 0, 0, 0, '', 0, '');    # the words of the one =statement line, '' for none; a malformed one makes the page unfit
     for (@lines) {
         if (!$begun && /^U([dcjlmasx])[+-]([\x21-\x7e](?:[\x20-\x7e]{0,58}[\x21-\x7e])?)(?:\t[\x21-\x7e](?:[\x20-\x7e]{0,28}[\x21-\x7e])?)?$/) {    # only plain characters, so nothing in such a line acts on the display
             my $key = index('dcjlmasx', $1) . $2;
@@ -829,7 +829,7 @@ sub checked {
             $before = $key;
             next;
         }
-        return laid(\@lines, \@hosts, $made, \@paths) if !$begun++ && /^L/;    # from the first line of another kind on, a line that begins with U is no line at all; and that first line says whether the page is laid
+        return laid(\@lines, \@hosts, $made, \@paths, $said) if !$begun++ && /^L/;    # from the first line of another kind on, a line that begins with U is no line at all; and that first line says whether the page is laid
         if (/^T[\@-O]./s) {
             s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/\x{fffd}/g;    # the last: a number above every character there is, which Perl would pass on and the window could not read
             return unless ($block += length($_) - 2) <= $BLOCK;    # counted as the application wrote it, before anything is put in below
@@ -843,7 +843,7 @@ sub checked {
         else { return unless /^P[p123lqcr][0-9]$/; $block = 0 }
     }
     utf8::encode($_) for @lines;
-    return (\@lines, \@hosts, \@paths);
+    return (\@lines, \@hosts, \@paths, $said);
 }
 
 # A laid page. The application has laid the page out itself and says where
@@ -872,7 +872,7 @@ sub checked {
 # to give it to, it puts the bytes into the pixels as they are.
 my $N = qr/(0|[1-9][0-9]{0,5})/;          # a number in its one form
 sub laid {
-    my ($lines, $hosts, $from, $paths) = @_;
+    my ($lines, $hosts, $from, $paths, $said) = @_;
     no warnings 'utf8';
     my ($wide, $high) = $lines->[$from] =~ /^L${N}x$N$/ or return;
     return unless $wide >= 320 && $wide <= 2400 && $high >= 1 && $high <= 200_000;
@@ -904,7 +904,7 @@ sub laid {
     }
     return if $rows;                      # a picture with rows missing
     utf8::encode($_) for @$lines;
-    return ($lines, $hosts, $paths);
+    return ($lines, $hosts, $paths, $said);
 }
 
 # The pictures of a laid page. A page may name up to eight paths on its own
@@ -1370,6 +1370,24 @@ sub window {
 
 sub busy { window('busy ' . $_[0] =~ s/\s+/ /gr) }
 sub idle { window('idle ' . $_[0] =~ s/\s+/ /gr); return }
+
+# The =statement line of a page, which comes right after its =pictures line (or
+# its first line): the application's own words, in one sentence, for why it
+# shows the page in compatibility-statement mode. At most one such line, of
+# 1 to $STATEMENT bytes that are each a plain printable character (0x20 to
+# 0x7e), so nothing in it acts on the window; a second one is a line of no kind
+# and makes the page unfit, as does one too long or with any other byte. The
+# words are shown as they are, as plain text, at the end of the bottom bar
+# (sub visit); they are never read for anything. Takes the checked page's
+# lines and takes the line off them. Returns its words, '' when there is none,
+# or nothing for a line that is not one.
+sub stated {
+    my ($lines) = @_;
+    my $STATEMENT = 200;                  # the most bytes of the words: one sentence the bottom bar holds beside its own
+    return '' unless @$lines && $lines->[0] =~ /^=statement/;
+    my ($words) = shift(@$lines) =~ /^=statement ([\x20-\x7e]{1,$STATEMENT})\z/ or return;
+    return $words;
+}
 
 sub hear {                                # the next thing the window says; nothing (undef) when the window is gone, an empty line when it said nothing in time
     my ($seconds) = @_;
