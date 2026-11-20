@@ -4464,6 +4464,7 @@ function techToggled() {
 
 function techHidden() {
     if (!techOpen) return;
+    if (modalOpen && modalKind == 'tech') flyBack();
     techOpen = false;
     under.hidden = true;
     if (modalOpen && modalKind == 'tech') closeModal();
@@ -4788,6 +4789,7 @@ function modal(title, about, choices, kind) {
     win.makeFirstResponder($());
     redrawn();
     buttons(choices);
+    flyOut();
 }
 
 function buttons(choices) {
@@ -4812,13 +4814,78 @@ function buttons(choices) {
 
 function closeModal() {
     if (!modalOpen) return;
+    var back = flyBack();    // before anything in the panel changes, so the picture that flies is the panel as it was
     if (techOpen) { techOpen = false; under.hidden = true; }
     modalOpen = false;
-    veil.hidden = true;
+    veil.hidden = !back;
     bar.enabled = free;
     logs.enabled = free;
     redrawn();
     if (free) win.makeFirstResponder(bar);
+}
+
+// A modal opened from an icon of the bottom bar flies out of that icon into its place, and back
+// into it when it closes, so the eye sees where it came from and where it went. One picture of the
+// panel is taken once the modal is laid out and drawn larger (or smaller) each frame, eased, for
+// FLIGHT_SECONDS; the panel itself is clear meanwhile and the veil fades with it. Every icon of the
+// bar flies the same way: a press names its icon in flyNext, and the modal that opens within
+// FLIGHT_ASKED milliseconds takes it. With Reduce motion on, nothing flies.
+var FLIGHT_SECONDS = 0.3, FLIGHT_ASKED = 3000, flyNext = null, modalFrom = null, flight = null, flyer;
+function boxOf(rect) { return { x: rect.origin.x, y: rect.origin.y, w: rect.size.width, h: rect.size.height }; }
+function flightAllowed() { return !$.NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion; }
+function flyOut() {
+    var asked = flyNext && Date.now() - flyNext.at < FLIGHT_ASKED ? flyNext.icon : null;
+    flyNext = null;
+    modalFrom = asked && !asked.hidden ? asked : null;
+    if (!modalFrom || !flightAllowed()) return flightEnded();
+    flightBegun(boxOf(modalFrom.frame), boxOf(panel.frame), true);    // the picture is taken at the first frame, once the caller has laid the panel out
+}
+function flyBack() {
+    if (flight && !flight.opening) return true;
+    var to = modalFrom;
+    modalFrom = null;
+    if (!to || to.hidden || !flightAllowed() || !veil || veil.hidden) { flightEnded(); return false; }
+    flightBegun(boxOf(panel.frame), boxOf(to.frame), false);
+    flew(Date.now());    // the picture now, while the panel is as it was
+    return true;
+}
+function flightBegun(from, to, opening) {
+    if (flight) flight.timer.invalidate;
+    if (!flyer) { flyer = $.NSImageView.alloc.initWithFrame($.NSMakeRect(0, 0, 10, 10)); flyer.imageScaling = 1; flyer.imageFrameStyle = 0; }
+    flyer.removeFromSuperview;
+    root.addSubview(flyer);    // last, over the veil
+    flyer.hidden = true;
+    flight = { from: from, to: to, opening: opening, began: 0, timer: $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(1 / 60, hand, 'flown:', $(), true) };
+}
+function flew(now) {
+    if (!flight) return;
+    if (!flight.began) {    // the first frame: the panel's picture, then the panel goes clear
+        var r = panel.bounds, rep = panel.bitmapImageRepForCachingDisplayInRect(r);
+        panel.cacheDisplayInRectToBitmapImageRep(r, rep);
+        var picture = $.NSImage.alloc.initWithSize(r.size);
+        picture.addRepresentation(rep);
+        flyer.image = picture;
+        panel.alphaValue = 0;
+        flyer.hidden = false;
+        flight.began = now;
+    }
+    var t = Math.max(0, Math.min(1, (now - flight.began) / 1000 / FLIGHT_SECONDS));
+    var e = flight.opening ? 1 - Math.pow(1 - t, 3) : t * t * t;    // out of the icon fast and settling; into it slowly, then quickly
+    var a = flight.from, b = flight.to, at = function (one, two) { return one + (two - one) * e; };
+    flyer.frame = $.NSMakeRect(at(a.x, b.x), at(a.y, b.y), Math.max(1, at(a.w, b.w)), Math.max(1, at(a.h, b.h)));
+    flyer.alphaValue = flight.opening ? 0.35 + 0.65 * e : 1 - 0.75 * e;
+    veil.alphaValue = flight.opening ? e : 1 - e;
+    if (t >= 1) flightEnded();
+}
+function flightEnded() {
+    if (flight) flight.timer.invalidate;
+    var was = flight;
+    flight = null;
+    if (flyer) flyer.hidden = true;
+    if (!panel) return;
+    panel.alphaValue = 1;
+    veil.alphaValue = 1;
+    if (was && !was.opening) { veil.hidden = !modalOpen; redrawn(); }
 }
 
 function placeModal() {
@@ -5293,8 +5360,9 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     } },
     'first:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 1'); } } },
     'second:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 2'); } } },
-    'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled && !modalOpen) { techHidden(); sent('log'); } } },
-    'techs:': { types: ['void', ['id']], implementation: function (sender) { techToggled(); } },
+    'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled && !modalOpen) { techHidden(); flyNext = { icon: logs, at: Date.now() }; sent('log'); } } },
+    'techs:': { types: ['void', ['id']], implementation: function (sender) { flyNext = { icon: techs, at: Date.now() }; techToggled(); } },
+    'flown:': { types: ['void', ['id']], implementation: function (timer) { flew(Date.now()); } },
     'importing:': { types: ['void', ['id']], implementation: function (sender) { if (!INCOGNITO) importOpened(); } },
     'incognito:': { types: ['void', ['id']], implementation: function (sender) { say('incognito'); } },    // lzrprf starts a second lzrprf, in incognito: this process starts nothing
     'controlTextDidChange:': { types: ['void', ['id']], implementation: function (note) { if (note.object.isEqual(bar)) suggestUpdate(); } },

@@ -1055,18 +1055,15 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 48
-    new Check for updates in the cogwheel menu, which says when it last looked and what it found
-    new The cogwheel menu shows an icon beside each item, and the item that is on is lit
-    new A page sees the window only in steps of 160 by 128 points, so no site learns its exact size
-    new The lasers of the home page are straight beams, as a laser is
+    release 49
+    new Each panel of the bottom bar flies out of its icon when it opens and back into it when it closes
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin e42a8ff18ec666e7a758ccbd290789a346c6fbc9e44f698ff9e3c4470828b67a
-    lzrprf 6f92a8ad9fed278e04f9bee1a913844b2e355a91211515e2f656ffd9a4797b17
+    lzrprf 52bbc1948422b3501f9d408c7f0bb6fd2c25de49167fdaa11b3b95eea1d202b2
 
 ## When a page cannot be shown
 
