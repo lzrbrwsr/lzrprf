@@ -3,17 +3,17 @@ This record, the installer and the download each stand in two places: https://lz
 https://github.com/lzrbrwsr/lzrprf. Compare them. A difference means one place does not hold this
 release: a copy that was changed, an older answer from a cache, or a release on its way. Fetch both again
 before you conclude, and install nothing while they differ.
-lzrprf and selftest are the files of that repository at commit 41f5c51aa466096457c311c94c3cd11db2b8e977.
+lzrprf and selftest are the files of that repository at commit f411aeb39ecec3dac5c674652f6e69a1d584da6d.
 Check a file with: shasum -a 256 FILE
 
-6e7980144c3afbbcb48044468be6ea3ba2136ad1623866cbf677d1f74d67504a  install.sh
-7d402cb3001b046d9a44cf6bb074cbd934ccb782d6609e528220d98279ac9588  lzrbrwsr-macos-arm64.tar.gz
+7c4988f928c52b72356f41ca30470a77cc72991d22ff7f2e9b0a0a54bf609096  install.sh
+cee5121ca05508429ad6803a9c8f4991e446664ec0b23d16384343298fc45d57  lzrbrwsr-macos-arm64.tar.gz
 e90b0a714519f5959185152fa2acfd4cac03662896ab77a86392e988f87d30b4  LZRBRWSR.app/Contents/Info.plist
 b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444  LZRBRWSR.app/Contents/MacOS/arti
 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
-e8edaf7a127aed9e31a693b2557afc6a6e2812b0329f30c7dc1abb979364ad37  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
+74c36f13c76a78e2605026c31aa5845fe4e9b186d609d51d71c46d869e7bc295  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
 6ac700043a5fdb204381ff0c6fcdde89eea55dbacee977e10674fa5a59b7c4d1  LZRBRWSR.app/Contents/Resources/LICENSE.txt
 7cbea3d9d37e2dbef99a70c56ecda8814a1ee191ba5e4c81e5241a457aaac398  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
-0697b259baddfe9c0616caf2b08f290521b1d4d286069c20bc63c42a72b4e76d  LZRBRWSR.app/Contents/Resources/release
-e3e81b2ff023d11f466b7b018fe1b14067afdcfd747cfdb24201cd28d7f5bdad  lzrprf
-1c8de27ed58132f82e27fca591a1dce2a16b0e7ebd39c3426f2fe8bf1ed0f0a8  selftest
+24699416df24d85aaaf0fe5bc768472c8f2942b0575ef3e15e9f29f17004ad6c  LZRBRWSR.app/Contents/Resources/release
+1ed0175fd95d0ad0a981900ac0449504298eb4cae8d02497e27503484081e7b9  lzrprf
+49c3345ffb07db9fbe80e3a4afd8837942cdddbf2aaf9e3bcfc89959b8ed712a  selftest
