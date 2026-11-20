@@ -161,12 +161,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="5ceacae8fa236fc3cf855c6c2ec35662a9dcc65b262172a9c7b16c868e0393b7"
-RELEASE="43"
-LZRPRF_COMMIT="6f3a12023e4be953943493f6b37ed7293d43b909"
+SHA256="32da53c178b90094197f6b37eb2a0e571a51a70e7cbe26a6a6ecd4c7072018d8"
+RELEASE="44"
+LZRPRF_COMMIT="23716eaa1aa78e62813a64d283026395191ebcc0"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="744974775c254f8445af956e08e34dec29644c88777e21348ea54fa59379c489"
-SELFTEST_SHA256="40592fd9e23b30aeaf0138a43553cfef5d565986272cf3592a914719f770280d"
+LZRPRF_SHA256="14c00af890f5797b6ca3921f927ec1cadc0d7855353fcc4c81517f2e63c31507"
+SELFTEST_SHA256="e15d9ca0c4b69fa81127d7c7f5d3509608f8ddfe07b6062fc87a79f376d84f32"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -503,14 +503,14 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 43
+release 44
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
 file lzrbrwsr-bin ed1b16dbede7d42d445946a747418a727825028a925276aef3b00dbd32bf65ea
-lzrprf 744974775c254f8445af956e08e34dec29644c88777e21348ea54fa59379c489
+lzrprf 14c00af890f5797b6ca3921f927ec1cadc0d7855353fcc4c81517f2e63c31507
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
