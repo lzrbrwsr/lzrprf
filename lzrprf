@@ -2600,12 +2600,12 @@ function view() {
 // While the window is resized the page is scaled at once (fit), and lzrprf is told the new size
 // once the resizing has rested for 120 ms, or at once when it ends or full screen begins or ends.
 function resting() {
-    $.NSObject.cancelPreviousPerformRequestsWithTargetSelectorObject(hand, 'viewed:', null);
-    hand.performSelectorWithObjectAfterDelay('viewed:', null, 0.12);
+    $.NSObject.cancelPreviousPerformRequestsWithTargetSelectorObject(hand, 'viewed:', $());
+    hand.performSelectorWithObjectAfterDelay('viewed:', $(), 0.12);
 }
 
 function viewNow() {
-    $.NSObject.cancelPreviousPerformRequestsWithTargetSelectorObject(hand, 'viewed:', null);
+    $.NSObject.cancelPreviousPerformRequestsWithTargetSelectorObject(hand, 'viewed:', $());
     view();
 }
 
@@ -2753,7 +2753,7 @@ function paintTabs() {
 }
 
 function tabAt(event) {    // the tab under the pointer, the number of tabs for the +, or -1
-    var at = tabsView.convertPointFromView(event.locationInWindow, null), wide = tabWide(), x = at.x - 8, i = Math.floor(x / wide);
+    var at = tabsView.convertPointFromView(event.locationInWindow, $()), wide = tabWide(), x = at.x - 8, i = Math.floor(x / wide);
     if (x >= 0 && i < tabs.length) return [i, at.x >= 8 + (i + 1) * wide - 28 && closable(wide, i == selected)];
     var px = 8 + tabs.length * wide + 8;
     return [at.x >= px && at.x <= px + 26 && tabs.length < 32 ? tabs.length : -1, false];
@@ -2789,7 +2789,7 @@ function paintBelt() {
 function beltClicked(event) {
     if (!bar.enabled) return;
     win.makeFirstResponder(bar);
-    var editor = bar.currentEditor, at = belt.convertPointFromView(event.locationInWindow, null);
+    var editor = bar.currentEditor, at = belt.convertPointFromView(event.locationInWindow, $());
     if (editor && !editor.isNil()) editor.selectedRange = $.NSMakeRange(at.x < bar.frame.origin.x ? 0 : bar.stringValue.length, 0);
     belt.needsDisplay = true;
 }
@@ -2824,7 +2824,7 @@ function cogClicked() {
         if (one.length > 2) item.state = one[2] ? 1 : 0;
     });
     menu.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
-    menu.popUpMenuPositioningItemAtLocationInView(null, $.NSMakePoint(0, -6), cog);
+    menu.popUpMenuPositioningItemAtLocationInView($(), $.NSMakePoint(0, -6), cog);
 }
 
 function clearing() {
@@ -2942,7 +2942,7 @@ function paintMarks() {
 }
 
 function markAt(event) {
-    var at = marksView.convertPointFromView(event.locationInWindow, null);
+    var at = marksView.convertPointFromView(event.locationInWindow, $());
     for (var i = 0; i < marksPlaced.length; i++) if (at.x >= marksPlaced[i].x && at.x < marksPlaced[i].x + marksPlaced[i].w) return i;
     return -1;
 }
@@ -2967,7 +2967,7 @@ function marksClicked(event) {
     if (i < 0 || !takes()) return;
     var one = marksPlaced[i];
     if (one.item && one.item.mark) return sent('mark open ' + one.item.mark.id);
-    folderMenu(one.item ? one.item.folder : '', one.more).popUpMenuPositioningItemAtLocationInView(null, $.NSMakePoint(one.x, -2), marksView);
+    folderMenu(one.item ? one.item.folder : '', one.more).popUpMenuPositioningItemAtLocationInView($(), $.NSMakePoint(one.x, -2), marksView);
 }
 
 // The modal: centred over the whole window, over a veil that takes every click, so nothing under
@@ -2986,7 +2986,7 @@ function modal(title, about, choices, kind) {
     veil.hidden = false;
     bar.enabled = false;
     logs.enabled = false;
-    win.makeFirstResponder(null);
+    win.makeFirstResponder($());
     redrawn();
     buttons(choices);
 }
@@ -3123,7 +3123,7 @@ function hovered(view, event) {
     if (JSON.stringify(hover) != was) redrawn();
 }
 
-function tracked(view) { view.addTrackingArea($.NSTrackingArea.alloc.initWithRectOptionsOwnerUserInfo($.NSZeroRect, 0x1 | 0x2 | 0x20 | 0x200, view, null)); }    // entered and exited, moved, while the window is key, over the view as it is
+function tracked(view) { view.addTrackingArea($.NSTrackingArea.alloc.initWithRectOptionsOwnerUserInfo($.NSZeroRect, 0x1 | 0x2 | 0x20 | 0x200, view, $())); }    // entered and exited, moved, while the window is key, over the view as it is
 
 function colour(hex) {
     if (!inks[hex]) inks[hex] = $.NSColor.colorWithSRGBRedGreenBlueAlpha(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255,
@@ -3212,7 +3212,7 @@ function paint(dirty) {
         });
     } catch (fault) {
         sheet = null;
-        hand.performSelectorWithObjectAfterDelay('unlaid:', null, 0);    // the view is not taken away while it draws
+        hand.performSelectorWithObjectAfterDelay('unlaid:', $(), 0);    // the view is not taken away while it draws
         say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200));
     }
 }
@@ -3443,7 +3443,7 @@ function menus() {
 
 // The four places a test replaces, to keep the window off the screen and to read what it holds.
 function kind() { return 0; }                // an application with a window and a place in the Dock
-function shown() { win.makeKeyAndOrderFront(null); app.activateIgnoringOtherApps(true); }
+function shown() { win.makeKeyAndOrderFront($()); app.activateIgnoringOtherApps(true); }
 function drawn(lines, characters) { }
 function told(word, rest) { }
 
