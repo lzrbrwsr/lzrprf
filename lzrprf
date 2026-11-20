@@ -544,7 +544,7 @@ sub run {
     my $more = '';
     if ($TRY && open my $test, '<', kept_in() . '/window') { local $/; $more = <$test> }    # "lzrprf try" only: the test's own text after the window's, so a test can keep the window off the screen and read what it holds
     die "lzrprf: the home folder's path holds a character lzrprf does not pass on\n" if $HOME =~ /["\\\n]/;
-    become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP, $INCOGNITO ? 'incognito' : ());
+    become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP, $INCOGNITO ? 'incognito' : 'window', frame_kept());    # the size and place the last window was left at (sub frame_kept), so it opens there and does not jump
 }
 
 # An incognito window [C16]. Its folder is made the way mkdtemp makes one: a
@@ -663,6 +663,7 @@ sub behind {
         elsif ($event =~ /^search (brave|duckduckgo|google)$/) { search_set($ENGINES{$1}) }
         elsif ($event =~ /^search custom\t([\x21-\x7e]{1,2000})$/) { search_set($1) }
         elsif ($event eq 'log') { log_shown() }
+        elsif ($event =~ /^frame (full|-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4})$/) { frame_said($1) }    # the window was moved, resized or made full screen: kept for the next window
         elsif ($event eq 'incognito') { incognito_opened() }
         elsif ($event =~ /^import (sources|go)$/) { $1 eq 'go' ? import_go() : import_sources() }    # [C15] "Import bookmarks..." in the window's wizard: nothing is read before a browser is chosen, nothing written before Import
         elsif ($event =~ /^import profiles (chrome|edge|brave|vivaldi|firefox|safari|file)$/) { import_profiles($1) }
@@ -1658,6 +1659,26 @@ sub mark_moved {                          # a bookmark's address made the one it
     return 1;
 }
 
+# The window's size and place, kept so the next window opens as this one was left: one line in a
+# plain file of yours, frame, "X Y W H" in points from the bottom left of the main screen, or "full"
+# when it filled the screen (full screen, or as large as the screen lets it), which opens the next
+# window as large as the desktop lets it. An incognito window reads it and writes nothing.    # [C16]
+sub frame_kept {
+    sysopen(my $in, kept_in() . '/frame', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 'none';
+    my @is = stat $in;
+    return 'none' unless -f _ && $is[4] == $<;
+    defined sysread($in, my $text, 64) or return 'none';
+    return $text =~ /\A(full|-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4})\n?\z/ ? $1 : 'none';
+}
+
+sub frame_said {
+    my ($frame) = @_;
+    return if $INCOGNITO || frame_kept() eq $frame;
+    unlink "$DIR/frame.new";
+    put("$DIR/frame.new", O_EXCL, $frame) && rename("$DIR/frame.new", "$DIR/frame");
+    return;
+}
+
 sub marks_bar {                           # whether the bookmarks bar is shown: one line "on" in a plain file of yours
     return $HELD_BAR if $INCOGNITO && defined $HELD_BAR;
     sysopen(my $in, kept_in() . '/marksbar', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 0;
@@ -1746,6 +1767,8 @@ my %BROWSERS = (chrome => ['Chrome', 'Library/Application Support/Google/Chrome'
 my @BROWSERS = qw(chrome edge brave firefox safari vivaldi);    # in the wizard's order; Vivaldi is the owner's pick of a sixth
 my ($IMPORT, $IMPORT_KEY, @IMPORT_FROM);    # what the last preview read: [the source's name, its bar, the rest]; the browser chosen; its profiles or files: [what the window shows, the file]
 my $IMPORT_SEEN = 0;                      # how many bookmarks and folders the file being read has given so far
+my %IMPORT_BLOCKED;                       # the browsers whose files macOS kept lzrprf from reading (its privacy protection of another app's data): shown as such, never as not found
+my $IMPORT_PROBE = 32;                    # DECLARED(Chrome names its profiles Default and Profile 1, 2, ...: when its Local State cannot be read, this many are looked for by name)
 
 sub import_home { $TRY ? "$DIR/home" : $HOME }    # "lzrprf try": the test's own folder stands for the home folder
 
@@ -1944,7 +1967,8 @@ sub import_profiles_of {                  # a browser's profiles that hold bookm
     my $base = import_home() . '/' . $BROWSERS{$key}[1];
     return ['Safari', "$base/Bookmarks.plist"] if $key eq 'safari';
     if ($key eq 'firefox') {
-        my ($ini) = import_read("$base/profiles.ini");
+        my ($ini, $why) = import_read("$base/profiles.ini");
+        $IMPORT_BLOCKED{$key} = 1 if !defined $ini && $why eq 'refused';
         return unless defined $ini;
         my (@found, %one);
         for my $line (split /\r?\n/, "$ini\n[end]") {
@@ -1959,11 +1983,14 @@ sub import_profiles_of {                  # a browser's profiles that hold bookm
         }
         return @found;
     }
-    my ($state) = import_read("$base/Local State");
+    my ($state, $why) = import_read("$base/Local State");
+    $IMPORT_BLOCKED{$key} = 1 if !defined $state && $why eq 'refused';
     my $cache = defined $state ? (import_json($state) // {})->{profile} : undef;
-    $cache = ref $cache eq 'HASH' && ref $cache->{info_cache} eq 'HASH' ? $cache->{info_cache} : { Default => { name => 'Default' } };
-    return map { [plain_name(do { my $n = ref $cache->{$_} eq 'HASH' ? $cache->{$_}{name} // $_ : $_; utf8::encode($n) if utf8::is_utf8($n); $n }), "$base/$_/Bookmarks"] }
+    $cache = ref $cache eq 'HASH' && ref $cache->{info_cache} eq 'HASH' ? $cache->{info_cache} : { map { $_ => { name => $_ } } 'Default', map { "Profile $_" } 1 .. $IMPORT_PROBE };    # no Local State to read: its profiles are looked for by their usual names
+    my @found = map { [plain_name(do { my $n = ref $cache->{$_} eq 'HASH' ? $cache->{$_}{name} // $_ : $_; utf8::encode($n) if utf8::is_utf8($n); $n }), "$base/$_/Bookmarks"] }
         grep { /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}\z/ && -f "$base/$_/Bookmarks" && !-l "$base/$_/Bookmarks" } sort keys %$cache;
+    delete $IMPORT_BLOCKED{$key} if @found && defined((import_read($found[0][1]))[0]);    # Local State kept out but the bookmarks themselves readable: not blocked
+    return @found;
 }
 
 sub import_files {                        # the bookmarks files in Downloads, Desktop and Documents, the newest first: [the name shown, the file]
@@ -1986,7 +2013,7 @@ sub import_files {                        # the bookmarks files in Downloads, De
 sub import_sources {
     return import_refused("$UNKEPT, so it imports no bookmarks.") if $INCOGNITO;    # [C16]
     undef $IMPORT;
-    window('import begin', (map { my @of = import_profiles_of($_); my $there = $_ eq 'safari' ? (-e $of[0][1] || $!{EPERM} || $!{EACCES} ? 1 : 0) : @of ? 1 : 0; "import source $_ $there " . ($_ eq 'safari' ? 1 : scalar @of) . " $BROWSERS{$_}[0]" } @BROWSERS),
+    window('import begin', (map { my @of = import_profiles_of($_); my $there = $IMPORT_BLOCKED{$_} ? 2 : $_ eq 'safari' ? (-e $of[0][1] || $!{EPERM} || $!{EACCES} ? 1 : 0) : @of ? 1 : 0; "import source $_ $there " . ($_ eq 'safari' ? 1 : scalar @of) . " $BROWSERS{$_}[0]" } @BROWSERS),
         'import source file 1 ' . scalar(my @files = import_files()) . ' A bookmarks file (HTML)', 'import step source');
     return idle('Choose the browser to import bookmarks from. Nothing is read before you choose, and nothing is written before you press Import.');
 }
@@ -1995,7 +2022,9 @@ sub import_profiles {
     return import_refused("$UNKEPT, so it imports no bookmarks.") if $INCOGNITO;    # [C16]
     my ($key) = @_;
     $IMPORT_KEY = $key;
+    delete $IMPORT_BLOCKED{$key};
     @IMPORT_FROM = $key eq 'file' ? import_files() : import_profiles_of($key);
+    return import_refused("macOS does not let $APP read the files of $BROWSERS{$key}[0]. Two ways: in $BROWSERS{$key}[0], export the bookmarks as an HTML file (Chrome: Bookmarks, Bookmark Manager, the three dots, Export bookmarks) and choose A bookmarks file (HTML) here; or give $APP Full Disk Access in System Settings, Privacy & Security, and open the import again.") if $IMPORT_BLOCKED{$key};
     return import_preview($key, 0) if $key ne 'file' && @IMPORT_FROM == 1;
     return import_refused("lzrprf found no profile of $BROWSERS{$key}[0] with bookmarks on this Mac.") if $key ne 'file' && !@IMPORT_FROM;
     window('import begin', (map { "import profile $_ $IMPORT_FROM[$_][0]" } 0 .. $#IMPORT_FROM), 'import step profile');
@@ -2693,7 +2722,7 @@ sub body_of {                             # the body of an answer 200, as curl g
 # Return, which of two buttons you pressed, that you asked for the log, that
 # it could not draw a list, the size of its page, a tab opened, chosen or
 # closed ("tab new", "tab select N", "tab close N"), and an item of the
-# cogwheel's menu ("menu clear-history", "menu clear-sessions", "menu home", "menu bookmarks-bar"), a bookmark opened, saved or removed ("mark open N", "mark save ...", "mark remove N", sub mark_saved), and buttons up to three for a question in a modal ("redirect"). The words lzrprf says are in a
+# cogwheel's menu ("menu clear-history", "menu clear-sessions", "menu home", "menu bookmarks-bar"), a bookmark opened, saved or removed ("mark open N", "mark save ...", "mark remove N", sub mark_saved), its size and place once you have moved or resized it ("frame X Y W H" or "frame full", sub frame_said), and buttons up to three for a question in a modal ("redirect"). The words lzrprf says are in a
 # strip of their own between the bar and the page, where no page can write:
 # the one thing of the application's that lzrprf says there is up to four of
 # the other hosts its page names, each in the shape of a host name, and how
@@ -3310,6 +3339,7 @@ function place() {
     MARGIN = (win.styleMask & 16384) ? 0 : 22;    // full screen: no margin. DECLARED(the widest glow of the frame reaches 16 points past its edge, the floor's 18.5; 22 lets each fade to nothing inside the window, so the window's own square edge never cuts one)
     root.frame = $.NSMakeRect(MARGIN + 1, MARGIN + 1, Math.max(1, outer.width - 2 * MARGIN - 2), Math.max(1, outer.height - 2 * MARGIN - 2));
     win.contentView.needsDisplay = true;
+    win.invalidateCursorRectsForView(frameView);    // the sides' pointers follow the new size (frameCursors)
     TOP = TABS_HIGH + BAR_ROW + (marksOn ? MARKS_ROW : 0);
     var all = root.frame, wide = all.size.width, high = all.size.height, tall = asking ? 96 : STRIP;
     var row = high - TABS_HIGH - BAR_ROW, pillAt = 146, pillWide = Math.max(160, wide - pillAt - 64);
@@ -3551,7 +3581,7 @@ function takes() { return free && !modalOpen; }    // whether the chrome takes a
 function paintFrame() {
     var out = win.contentView.bounds, r = root.frame, edge = $.NSMakeRect(r.origin.x - 0.5, r.origin.y - 0.5, r.size.width + 1, r.size.height + 1);
     var path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(edge, MARGIN ? RADIUS : 0, MARGIN ? RADIUS : 0);
-    $.NSColor.clearColor.setFill;
+    (MARGIN ? $.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 0, 0, 0.012) : $.NSColor.clearColor).setFill;    // the margin is all but clear: a point with nothing drawn passes the mouse to the window under it, so its sides could not be held to resize. DECLARED(3 of 255, the least the screen keeps for certain, never seen)
     $.NSRectFillUsingOperation(out, 1);
     if (MARGIN) {
         var floor = $.NSBezierPath.bezierPath, left = edge.origin.x + RADIUS * 2, right = edge.origin.x + edge.size.width - RADIUS * 2;
@@ -3567,7 +3597,81 @@ function paintFrame() {
     if (MARGIN) { stroked(path, FAINT, 2, GREEN, 9); stroked(path, GREEN, 1.1, GREEN, 4.5); }
 }
 
-function frameClicked(event) { win.performWindowDragWithEvent(event); }
+// The margin around the frame holds its sides: pressed there and dragged, the window is resized from
+// that side, from a corner within two corner radii of one; anywhere else on the frame it is moved.
+function edgesAt(p, r, corner) {
+    var e = { left: p.x < r.x, right: p.x > r.x + r.w, bottom: p.y < r.y, top: p.y > r.y + r.h };
+    if (e.left || e.right) { if (p.y < r.y + corner) e.bottom = true; if (p.y > r.y + r.h - corner) e.top = true; }
+    if (e.top || e.bottom) { if (p.x < r.x + corner) e.left = true; if (p.x > r.x + r.w - corner) e.right = true; }
+    return e;
+}
+
+function resizedFrame(e, f, dx, dy, minW, minH) {    // the frame f, its held sides moved by the pointer's dx, dy, never under the least size; the sides not held stay where they were
+    var n = { x: f.x, y: f.y, w: f.w, h: f.h };
+    if (e.right) n.w = Math.max(minW, f.w + dx);
+    if (e.left) { n.w = Math.max(minW, f.w - dx); n.x = f.x + f.w - n.w; }
+    if (e.top) n.h = Math.max(minH, f.h + dy);
+    if (e.bottom) { n.h = Math.max(minH, f.h - dy); n.y = f.y + f.h - n.h; }
+    return n;
+}
+
+function frameClicked(event) {
+    var r = root.frame, p = frameView.convertPointFromView(event.locationInWindow, $());
+    var e = MARGIN ? edgesAt({ x: p.x, y: p.y }, { x: r.origin.x, y: r.origin.y, w: r.size.width, h: r.size.height }, RADIUS * 2) : null;
+    if (!e || !(e.left || e.right || e.top || e.bottom)) return win.performWindowDragWithEvent(event);
+    var w0 = win.frame, f = { x: w0.origin.x, y: w0.origin.y, w: w0.size.width, h: w0.size.height }, start = $.NSEvent.mouseLocation, least = win.minSize;
+    for (;;) {    // the drag, until the button is let go: 6 is a drag of the left button, 2 its release
+        var next = win.nextEventMatchingMaskUntilDateInModeDequeue((1 << 6) | (1 << 2), $.NSDate.distantFuture, $('NSEventTrackingRunLoopMode'), true);
+        if (!next || next.isNil() || next.type == 2) break;
+        var at = $.NSEvent.mouseLocation, n = resizedFrame(e, f, at.x - start.x, at.y - start.y, least.width, least.height);
+        win.setFrameDisplay($.NSMakeRect(n.x, n.y, n.w, n.h), true);
+    }
+    viewNow();
+    frameSaid();
+}
+
+function frameCursors() {    // the pointer shows which way a side resizes, over the margin of each side
+    if (!MARGIN || !root) return;
+    var b = frameView.bounds, r = root.frame, x0 = r.origin.x, y0 = r.origin.y, x1 = x0 + r.size.width, y1 = y0 + r.size.height, c = RADIUS * 2;
+    var across = $.NSCursor.resizeLeftRightCursor, along = $.NSCursor.resizeUpDownCursor;
+    frameView.addCursorRectCursor($.NSMakeRect(0, y0 + c, x0, Math.max(0, y1 - y0 - 2 * c)), across);
+    frameView.addCursorRectCursor($.NSMakeRect(x1, y0 + c, b.size.width - x1, Math.max(0, y1 - y0 - 2 * c)), across);
+    frameView.addCursorRectCursor($.NSMakeRect(x0 + c, 0, Math.max(0, x1 - x0 - 2 * c), y0), along);
+    frameView.addCursorRectCursor($.NSMakeRect(x0 + c, y1, Math.max(0, x1 - x0 - 2 * c), b.size.height - y1), along);
+}
+
+// The size and place the window opens at: as the last window was left (sub frame_kept), kept on a
+// screen that is there now and no larger than it; "full" opens it as large as the desktop lets it.
+function fitted(f, v, minW, minH) {
+    var w = Math.min(Math.max(f.w, minW), v.w), h = Math.min(Math.max(f.h, minH), v.h);
+    return { x: Math.min(Math.max(f.x, v.x), v.x + v.w - w), y: Math.min(Math.max(f.y, v.y), v.y + v.h - h), w: w, h: h };
+}
+
+function opened(kept) {
+    var screens = $.NSScreen.screens, screen = $.NSScreen.mainScreen, m = /^(-?[0-9]+) (-?[0-9]+) ([0-9]+) ([0-9]+)$/.exec(kept);
+    if (kept == 'full' && screen && !screen.isNil()) return win.setFrameDisplay(screen.visibleFrame, false);
+    if (!m || !screen || screen.isNil()) return win.center;
+    var f = { x: +m[1], y: +m[2], w: +m[3], h: +m[4] }, cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+    for (var i = 0; i < screens.count; i++) {
+        var o = screens.objectAtIndex(i).visibleFrame;
+        if (cx >= o.origin.x && cx <= o.origin.x + o.size.width && cy >= o.origin.y && cy <= o.origin.y + o.size.height) { screen = screens.objectAtIndex(i); break; }
+    }
+    var v = screen.visibleFrame, n = fitted(f, { x: v.origin.x, y: v.origin.y, w: v.size.width, h: v.size.height }, win.minSize.width, win.minSize.height);
+    win.setFrameDisplay($.NSMakeRect(n.x, n.y, n.w, n.h), false);
+}
+
+var frameLast = '';
+function frameSaid() {    // said to lzrprf once the window has rested from a move or a resize, not at every step of it
+    $.NSObject.cancelPreviousPerformRequestsWithTargetSelectorObject(hand, 'framed:', $());
+    hand.performSelectorWithObjectAfterDelay('framed:', $(), 0.6);
+}
+
+function framed() {
+    var f = win.frame, s = win.screen, v = s && !s.isNil() ? s.visibleFrame : null;
+    var full = (win.styleMask & 16384) || v && f.size.width >= v.size.width - 1 && f.size.height >= v.size.height - 1;
+    var line = 'frame ' + (full ? 'full' : [f.origin.x, f.origin.y, f.size.width, f.size.height].map(Math.round).join(' '));
+    if (line != frameLast) { frameLast = line; say(line); }
+}
 
 // The tabs.
 function tabsTold(rest) {
@@ -4274,48 +4378,30 @@ function paintIcon(view, glyph, hot, on, lit) {
     stroked(glyph(cx, cy), lit ? GREEN : hot && on ? WHITE : on ? ICON : EDGE, 1.3, lit || hot && on ? GREEN : null, 7);
 }
 
-// What the page is made of, in a panel of its own over the page's lower right, as the lock's panel
-// stands under the lock: the application's list as lzrprf checked it, and lzrprf's sentence that
-// it checked the form of the list and not its truth. A press of the icon opens and closes it; a
-// press of other chrome closes it.
-var techBox = null, techOpen = false;
+// What the page is made of, in the modal every other panel uses (centred, over the veil), larger
+// than the others: the application's list as lzrprf checked it, and lzrprf's sentence that it
+// checked the form of the list and not its truth. A press of the icon opens it; Close, Escape or a
+// second press closes it.
+var techOpen = false, TECH_WIDE = 900, TECH_HIGH = 720;    // DECLARED(as wide as a list row of 120 characters reads at 12.5 points, and as tall as most laptop windows leave)
 function techToggled() {
     if (techOpen) return techHidden();
     if (modalOpen) return;
     secureHidden();
-    cogHidden();
     suggestHidden();
+    modal('What this page is made of', '', [['Close', techHidden]], 'tech');
     techOpen = true;
-    techBox.hidden = false;
-    techPlaced();
-    redrawn();
+    under.hidden = false;
+    placeModal();
 }
 
-function techHidden() { if (!techBox || !techOpen) return; techOpen = false; techBox.hidden = true; redrawn(); }
-
-function techPlaced() {
-    if (!techBox || !techOpen) return;
-    var all = root.frame.size, tall = asking ? 96 : STRIP, w = Math.min(640, all.width - 24), room = all.height - TOP - tall - 20;
-    made.textContainer.containerSize = $.NSMakeSize(w - 52, 100000);
-    made.layoutManager.ensureLayoutForTextContainer(made.textContainer);
-    var used = made.layoutManager.usedRectForTextContainer(made.textContainer).size.height, h = Math.round(Math.max(130, Math.min(room, used + 84)));
-    techBox.frame = $.NSMakeRect(all.width - w - 12, tall + 6, w, h);
-    under.frame = $.NSMakeRect(20, 14, w - 36, h - 64);
-    made.setFrameSize($.NSMakeSize(w - 36, Math.max(h - 64, used + 12)));
-    techBox.needsDisplay = true;
+function techHidden() {
+    if (!techOpen) return;
+    techOpen = false;
+    under.hidden = true;
+    if (modalOpen && modalKind == 'tech') closeModal();
 }
 
-function paintTech() {
-    var size = techBox.frame.size, box = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(0.5, 0.5, size.width - 1, size.height - 1), 14, 14);
-    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.035, 0.045, 0.055, 0.98).setFill;
-    box.fill;
-    glass(box, true);
-    stroked(box, GREEN, 1.1);
-    stroked(techGlyph(30, size.height - 30), GREEN, 1.3, GREEN, 6);
-    $('What this page is made of').drawAtPointWithAttributes($.NSMakePoint(48, size.height - 40), inked(sans(15, true), WHITE));
-    LINE.setStroke;
-    $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(20, size.height - 52.5), $.NSMakePoint(size.width - 20, size.height - 52.5));
-}
+function techPlaced() { if (techOpen) placeModal(); }
 
 // Suggestions under the bar while you type, as in Chrome: the pages shown in this window (lzrprf
 // tells each, "history add ADDRESS<tab>TITLE", and "history clear" when the history is cleared;
@@ -4441,7 +4527,8 @@ function suggestKey(name) {    // a key the bar's editor was given: true when th
 // add ("import preview ..."), then Import ("import go") and what was added ("import done ...").
 // lzrprf answers "import begin", "import source KEY FOUND COUNT NAME", "import profile N NAME",
 // "import preview|done MARKS FOLDERS BAR SKIPPED LEFT<tab>FOLDER<tab>WHY", "import refused WORDS",
-// and "import step source|profile|preview|done". A browser not found is shown grey, "Not found".
+// and "import step source|profile|preview|done". A browser not found is shown grey, "Not found"; FOUND 2 is one
+// whose files macOS keeps lzrprf from reading, shown as such and chosen to learn the two ways in.
 var wiz = null, wizardView = null, pathField = null, WIZ_ROW = 54;
 function importOpened() {
     if (!takes()) return;
@@ -4456,7 +4543,7 @@ function importTold(rest) {
     if (!wiz) return;
     var at = rest.indexOf(' '), word = at < 0 ? rest : rest.slice(0, at), more = at < 0 ? '' : rest.slice(at + 1);
     if (word == 'begin') { wiz.comingSources = []; wiz.comingProfiles = []; return; }
-    if (word == 'source') { var p = more.split(' '); return wiz.comingSources.push({ key: p[0], found: p[1] == '1', count: +p[2], name: p.slice(3).join(' ') }); }
+    if (word == 'source') { var p = more.split(' '); return wiz.comingSources.push({ key: p[0], found: p[1] == '1' || p[1] == '2', blocked: p[1] == '2', count: +p[2], name: p.slice(3).join(' ') }); }
     if (word == 'profile') { var gap = more.indexOf(' '); return wiz.comingProfiles.push(more.slice(gap + 1)); }
     if (word == 'preview') { wiz.preview = counted(more); return; }
     if (word == 'done') { wiz.done = counted(more); return; }
@@ -4557,7 +4644,7 @@ function paintWizard() {
             if (s == 'source') monogram(one, row.x + 30, row.y + row.h / 2, on ? (picked ? GREEN : ICON) : EDGE, picked);
             else monogram({ key: one.key, name: one.name || '?' }, row.x + 30, row.y + row.h / 2, picked ? GREEN : ICON, picked);
             $.NSGraphicsContext.restoreGraphicsState;
-            var sub = s == 'profile' ? (wiz.key == 'file' ? 'A bookmarks file' : 'A profile of ' + wiz.label) : !on ? 'Not found' : one.key == 'file' ? (one.count ? one.count + (one.count == 1 ? ' file found' : ' files found') + ', or type a path' : 'Exported by any browser') : one.count > 1 ? one.count + ' profiles' : 'Found on this Mac';
+            var sub = s == 'profile' ? (wiz.key == 'file' ? 'A bookmarks file' : 'A profile of ' + wiz.label) : !on ? 'Not found' : one.blocked ? 'Kept out by macOS: choose it to see the way in' : one.key == 'file' ? (one.count ? one.count + (one.count == 1 ? ' file found' : ' files found') + ', or type a path' : 'Exported by any browser') : one.count > 1 ? one.count + ' profiles' : 'Found on this Mac';
             $(one.name).drawInRectWithAttributes($.NSMakeRect(row.x + 54, row.y + 9, row.w - 64, 19), inked(sans(13.5, true), on ? WHITE : GREY, true));
             $(sub).drawInRectWithAttributes($.NSMakeRect(row.x + 54, row.y + 29, row.w - 64, 17), inked(sans(11.5), on ? GREY : EDGE, true));
         });
@@ -4617,6 +4704,7 @@ function modal(title, about, choices, kind) {
     panelTitle.textColor = WHITE;
     panelSub.stringValue = $(about);
     panelSub.textColor = WHITE;
+    panelSub.hidden = kind == 'tech';    // the list says its own first sentence
     panelText.string = $('');
     panelScroll.hidden = kind != 'big';
     form.hidden = kind != 'form';
@@ -4656,6 +4744,7 @@ function buttons(choices) {
 
 function closeModal() {
     if (!modalOpen) return;
+    if (techOpen) { techOpen = false; under.hidden = true; }
     modalOpen = false;
     veil.hidden = true;
     bar.enabled = free;
@@ -4667,7 +4756,7 @@ function closeModal() {
 function placeModal() {
     if (!veil) return;
     var all = root.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
-    var wizard = modalKind == 'wizard', w = Math.min(big ? 780 : wizard ? 660 : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : 230;
+    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : 230;
     veil.frame = $.NSMakeRect(0, 0, wide, high);
     panel.frame = $.NSMakeRect(Math.round((wide - w) / 2) - M, Math.round((high - h) / 2) - M, w + 2 * M, h + 2 * M);
     panel.needsDisplay = true;
@@ -4679,6 +4768,13 @@ function placeModal() {
     wizardView.frame = $.NSMakeRect(M + 26, M + 64 + (withPath ? 38 : 0), w - 52, Math.max(40, h - 64 - 116 - (withPath ? 38 : 0)));
     panelScroll.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 170));
     form.frame = $.NSMakeRect(M + 26, M + 64, w - 52, h - 154);
+    if (tech) {    // the list fills the panel between its title and its Close button
+        var listHigh = Math.max(40, h - 134);
+        under.frame = $.NSMakeRect(M + 26, M + 64, w - 52, listHigh);
+        made.textContainer.containerSize = $.NSMakeSize(w - 68, 100000);
+        made.layoutManager.ensureLayoutForTextContainer(made.textContainer);
+        made.setFrameSize($.NSMakeSize(w - 52, Math.max(listHigh, made.layoutManager.usedRectForTextContainer(made.textContainer).size.height + 12)));
+    }
     var fw = w - 52 - 90;
     [[nameLabel, nameField], [addressLabel, addressField], [folderLabelView, folderPop]].forEach(function (row, i) {
         var y = h - 154 - 34 - i * 40;
@@ -4992,7 +5088,8 @@ ObjC.registerSubclass({ name: 'LzrprfLaid', superclass: 'NSView', methods: {
 
 ObjC.registerSubclass({ name: 'LzrprfFrame', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paintFrame(); } },
-    'mouseDown:': { implementation: function (event) { frameClicked(event); } }
+    'mouseDown:': { implementation: function (event) { frameClicked(event); } },
+    'resetCursorRects': { implementation: function () { frameCursors(); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfHome', superclass: 'NSView', methods: {
@@ -5036,10 +5133,6 @@ ObjC.registerSubclass({ name: 'LzrprfTechIcon', superclass: 'NSButton', methods:
     'mouseExited:': { implementation: function (event) { hovered('techIcon', null); } }
 } });
 
-ObjC.registerSubclass({ name: 'LzrprfTech', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintTech(); } },
-    'mouseDown:': { implementation: function (event) { } }
-} });
 
 ObjC.registerSubclass({ name: 'LzrprfSuggest', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paintSuggest(); } },
@@ -5114,10 +5207,12 @@ ObjC.registerSubclass({ name: 'LzrprfPanel', superclass: 'NSView', methods: {
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
-    'windowDidResize:': { types: ['void', ['id']], implementation: function (note) { place(); resting(); } },
+    'windowDidResize:': { types: ['void', ['id']], implementation: function (note) { place(); resting(); frameSaid(); } },
+    'windowDidMove:': { types: ['void', ['id']], implementation: function (note) { frameSaid(); } },
+    'framed:': { types: ['void', ['id']], implementation: function (sender) { framed(); } },
     'windowDidEndLiveResize:': { types: ['void', ['id']], implementation: function (note) { viewNow(); } },
-    'windowDidEnterFullScreen:': { types: ['void', ['id']], implementation: function (note) { viewNow(); } },
-    'windowDidExitFullScreen:': { types: ['void', ['id']], implementation: function (note) { viewNow(); } },
+    'windowDidEnterFullScreen:': { types: ['void', ['id']], implementation: function (note) { viewNow(); frameSaid(); } },
+    'windowDidExitFullScreen:': { types: ['void', ['id']], implementation: function (note) { viewNow(); frameSaid(); } },
     'viewed:': { types: ['void', ['id']], implementation: function (sender) { view(); } },
     'unlaid:': { types: ['void', ['id']], implementation: function (sender) { unlaid(); page.string = $(''); listed([]); } },
     // Return was pressed in the bar. What was typed goes to lzrprf as it is. A character that is not
@@ -5271,7 +5366,7 @@ function run(argv) {
     win.hasShadow = false;    // the frame's glow is its shadow
     win.releasedWhenClosed = false;
     win.minSize = $.NSMakeSize(560, 360);
-    win.center;
+    opened(argv[2] || 'none');
     win.delegate = hand;
     laser();
     win.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
@@ -5342,7 +5437,7 @@ function run(argv) {
     scroll.backgroundColor = page.backgroundColor;
     scroll.documentView = page;
     root.addSubview(scroll);
-    under = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));    // in the panel of what the page is made of (techBox)
+    under = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));    // in the modal of what the page is made of (techToggled)
     under.hasVerticalScroller = true;
     under.borderType = 0;
     under.drawsBackground = false;
@@ -5384,10 +5479,6 @@ function run(argv) {
     secureScroll.documentView = secureText;
     secureBox.addSubview(secureScroll);
     root.addSubview(secureBox);
-    techBox = $.LzrprfTech.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
-    techBox.hidden = true;
-    techBox.addSubview(under);
-    root.addSubview(techBox);
     suggestBox = $.LzrprfSuggest.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 200));
     suggestBox.hidden = true;
     root.addSubview(suggestBox);
@@ -5456,6 +5547,8 @@ function run(argv) {
     panelText.autoresizingMask = 2;
     panelScroll.documentView = panelText;
     panel.addSubview(panelScroll);
+    under.hidden = true;
+    panel.addSubview(under);    // the list of what the page is made of, shown in the modal (techToggled)
     root.addSubview(veil);
     listed([]);
     menus();

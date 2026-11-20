@@ -1055,17 +1055,17 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 46
-    new Incognito windows (Shift-Cmd-N or the cog menu): nothing of them is kept after they close
-    new Pictures drawn in a page's own code (inline SVG) now show, styled by the page
-    new The site shows a measured audit against Chrome, Chromium, Brave and Firefox, renewed with every release
+    release 47
+    new The window resizes from its sides and corners, and opens at the size and place you left it, or as large as the desktop if it was full screen
+    new Importing from a Chrome whose files macOS keeps out says the two ways in instead of greying Chrome out
+    new What a page is made of opens in the large centred panel, and the Dock shows the current icon after an update
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin e42a8ff18ec666e7a758ccbd290789a346c6fbc9e44f698ff9e3c4470828b67a
-    lzrprf a6cf1cc5878eb509b4a770a9b968cad8149e6294fac10fff3076d031d1ac3f02
+    lzrprf e18372836d89362d33deaec6f441b9f0c999b11e31d0e0a19697b7fedc30e53a
 
 ## When a page cannot be shown
 
