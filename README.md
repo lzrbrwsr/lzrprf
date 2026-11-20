@@ -672,12 +672,14 @@ No. See "What "proof" means here". It rests on parts nobody has proven: the macO
 its sandbox, the system's `perl`, `curl` and `osascript`. What this repository gives instead is
 short enough to read, probed on your own Mac, and probed again whenever macOS changes.
 
-## Tabs, the home page, bookmarks, redirects
+## Tabs, the home page, bookmarks, search, the lock, redirects
 
 All of this is drawn by lzrprf's window, in strips of its own above the page where no page
-draws: the strip of tabs on top, then the bar with the star and the cogwheel, then the
-bookmarks bar when you chose to show it. The look is lzrprf's too, the laser green on black of
-the site, and nothing in it comes from a page.
+draws: the strip of tabs on top, then back, forward and reload, the bar with its lock and star,
+and the cogwheel, then the bookmarks bar when you chose to show it. The look is lzrprf's too,
+the neon laser: near black glass inside a thin glowing cyan edge, curved beams of light, light
+grey line icons and the system's own face, the logo set wide. It is drawn on the processor by
+the window alone, and nothing in it comes from a page.
 
 - **Tabs.** Each tab keeps its own page as lzrprf keeps the page shown: its address, the
   answer, the style sheets it was laid out with and its pictures, its title, the addresses it
@@ -715,6 +717,31 @@ the site, and nothing in it comes from a page.
   one line first (`example.com redirected to www.example.com (301); followed, the same site`).
 - **Undo.** The bar and the modal's fields undo and redo typing step by step: Cmd-Z and
   Cmd-Shift-Z, in an Edit menu that also cuts, copies, pastes and selects all.
+- **Back, forward, reload.** The arrows left of the bar, and Cmd-[, Cmd-] and Cmd-R, walk the
+  addresses the tab went to (`sub navigated`). Each step is a new visit to that address, with
+  every check of a typed one and its line in the log first (`you went back to`, `you reloaded`)
+  `[C4]`: lzrprf keeps no copy of an earlier page to show instead. A redirect followed on the way
+  takes the place of the address it came from, so back does not land on it again.
+- **The home screen.** An empty tab shows the logo, LZRBRWSR over BROWSE WITH ZERO TRUST, and
+  four buttons: search, bookmarks, the open tabs, and a new tab. Nothing on it is fetched.
+- **Search.** Words typed into the bar that are no address (no `://`, and a space or no dot)
+  go to the search engine you chose: Brave, DuckDuckGo, Google, or one of your own (`sub typed`).
+  Nothing is sent before you choose: the first search, and the home screen's search button,
+  ask in lzrprf's modal. A search engine of your own is given as an address with `%s` once where
+  your words go, for example `https://search.example.com/search?q=%s`; it must be https, a host
+  by its name, port 443, plain characters without a space, and lzrprf percent-encodes your words
+  into it (`sub engine_fit`). The choice is one line in one plain file of yours,
+  `~/.lzrprf/search`; the cogwheel's "Search engine..." changes it. A search is a visit like a
+  typed address, written in the log first as `you searched with` `[C4]`.
+- **The bookmarks page.** The cogwheel's "Bookmarks", the home screen's button and Cmd-Shift-B
+  list every bookmark by folder; the back arrow returns to the page.
+- **The lock.** Pointing at the lock in the bar, or pressing it to keep it open, shows what
+  lzrprf knows of the page shown (`sub secured`): the address, the server's IP address it
+  connected to, the encryption, the answer's status line, that no cookie was sent or kept, every
+  redirect on the way here and who followed it, and each certificate the server presented (up to
+  6): subject, issuer, valid from and until, serial number, signature, public key and the names
+  it covers. The certificates are as `curl` read them in the same connection that fetched the
+  page; nothing is fetched to show them.
 
 ## What is kept
 
@@ -912,14 +939,14 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 41
+    release 42
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin ed1b16dbede7d42d445946a747418a727825028a925276aef3b00dbd32bf65ea
-    lzrprf 119fb6e67d92dd2cd54ab8b0ace731e206fdebbdaa8b3dc288b997289544eb0d
+    lzrprf 744974775c254f8445af956e08e34dec29644c88777e21348ea54fa59379c489
 
 ## When a page cannot be shown
 

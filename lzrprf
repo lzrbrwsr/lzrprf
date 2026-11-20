@@ -141,10 +141,13 @@ my $TITLE = 200;                          # the most characters of a page's titl
 my $VISITED = 100;                        # the most addresses a tab's history holds, the oldest dropped first: a list nothing is fetched from, emptied by "Clear history"
 my $INSTALL_SECONDS = 1800;               # the installer of a newer release is ended after this long: the slowest install measured by hand took under two minutes
 my $INSTALL_LINE = 2000;                  # the most characters of one line the installer printed that the window is given; a longer one is given in parts
-sub fresh_tab { return { url => '', title => '', visited => [], shown => undef, says => undef } }    # a tab: the address in its bar, its page's title, the addresses it went to, its page shown as $SHOWN keeps it, lzrprf's last words in it
+sub fresh_tab { return { url => '', title => '', visited => [], at => -1, shown => undef, says => undef, secure => undef } }    # a tab: the address in its bar, its page's title, the addresses it went to and where in them it stands (back and forward), its page shown as $SHOWN keeps it, lzrprf's last words in it, what lzrprf saw of the connection its page came over
 my @TABS = (fresh_tab());                 # the window's tabs, in the order the window shows them; the page of the selected one is the only one shown, and it is $SHOWN while it is selected
 my $TAB = 0;                              # which tab is selected
 my $NEXT;                                 # set by sub visit when you chose to follow a redirect: [its address, how its log line begins, undef] (sub go)
+my @WAY;                                  # the redirects of one go, each "FROM answered STATUS, to TO (how)": what the lock tells of how the page shown was reached (sub go, sub secured)
+my %ENGINES = (brave => 'https://search.brave.com/search?q=%s', duckduckgo => 'https://html.duckduckgo.com/html/?q=%s', google => 'https://www.google.com/search?q=%s');    # the search addresses offered by name (sub typed)
+my $WROTE = "\nlzrprf-certificates\n";    # the line curl writes after the whole answer, before the certificates it checked (sub fetch)
 my @MARKS;                                # the bookmarks as last told to the window, by number: [its file, its name, its address, its folder] (sub marks_told)
 my $TITLED = '';                          # the title of the page the last checked run wrote, '' for none (sub checked)
 my %MORE = (nothing => 0, hosts => 1, all => 2);    # what is kept, from less to more
@@ -550,16 +553,20 @@ sub behind {
     newer();
     idle("$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
     marks_told();
-    window('marksbar ' . (marks_bar() ? 'on' : 'off'));
+    window('marksbar ' . (marks_bar() ? 'on' : 'off'), 'search ' . (engine() ? 'set' : 'none'));
+    nav_told();
     if (my $home = home()) { go($home, 'you opened your home page') }    # [C4] an address that came from the bar, kept when you made it the home page
     while (defined(my $event = hear())) {
-        if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { go($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window; a size said while it was fetched and laid out is the size it is laid out again at
+        if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { typed($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window; a size said while it was fetched and laid out is the size it is laid out again at
         elsif (viewing($event)) { relaid() }    # the window's page has a new size: the page shown is laid out again at its width, from what was kept, and nothing is fetched
         elsif ($event =~ /^tab (new|select|close)(?: (0|[1-9][0-9]?))?$/) { tabbed($1, $2); relaid() }    # a tab chosen in the strip: its page is laid out again from what was kept, and nothing is fetched, unless a new tab opens the home page
         elsif ($event =~ /^menu (clear-history|clear-sessions|home|bookmarks-bar)$/) { menu($1) }
         elsif ($event =~ /^mark open (0|[1-9][0-9]{0,2})$/) { $MARKS[$1] ? go($MARKS[$1][2], 'you opened a bookmark', $1) : idle('That bookmark is no longer there.') }    # [C4] an address kept from the bar or typed into the window's own modal
         elsif ($event =~ /^mark remove (0|[1-9][0-9]{0,2})$/) { mark_removed($1) }
         elsif ($event =~ /^mark save\t(-|0|[1-9][0-9]{0,2})\t([A-Za-z0-9 ._\/-]{0,300})\t([^\t\x00-\x1f\x7f]{1,800})\t([\x20-\x7f]{1,2100})$/) { mark_saved($1, $2, $3, $4) }
+        elsif ($event =~ /^nav (back|forward|reload)$/) { navigated($1) }    # [C4] an address this tab went to already, from its own list
+        elsif ($event =~ /^search (brave|duckduckgo|google)$/) { search_set($ENGINES{$1}) }
+        elsif ($event =~ /^search custom\t([\x21-\x7e]{1,2000})$/) { search_set($1) }
         elsif ($event eq 'log') { log_shown() }
         elsif ($event =~ /^fault / && $DRAWN) { $DRAWN = 0; fault('undrawn') }    # the window could not draw a list that "checked" let through: it shows nothing of it. Taken once for a page that was handed over, and never without one: the window's process cannot open the question about a report whenever it likes
     }
@@ -642,8 +649,16 @@ sub visit {
     my $tab = $TABS[$TAB];
     @$tab{qw(url title)} = ($url, '');
     window("title $TAB ");                  # the tab's title is the page's, once it is shown
-    push @{ $tab->{visited} }, $url;
-    shift @{ $tab->{visited} } while @{ $tab->{visited} } > $VISITED;
+    if (($how // '') =~ /redirect to$/ && $tab->{at} >= 0) { $tab->{visited}[$tab->{at}] = $url }    # a redirect followed takes the place of the address that redirected, so back does not land on it again
+    elsif (($how // '') !~ /^you (?:went (?:back|forward) to|reloaded)$/) {    # back, forward and reload stand where sub navigated put them
+        splice @{ $tab->{visited} }, $tab->{at} + 1;
+        push @{ $tab->{visited} }, $url;
+        shift @{ $tab->{visited} } while @{ $tab->{visited} } > $VISITED;
+        $tab->{at} = $#{ $tab->{visited} };
+    }
+    $tab->{secure} = undef;
+    window('secure none');
+    nav_told();
     return fault('changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # before a site is asked: a program that is no longer the file this window began with is given no page, so none is fetched for it
     $UNEXPIRED = !expire_log() if $UNEXPIRED;
     open my $request, '>>', "$DIR/busy" or return idle($UNWRITTEN);
@@ -653,12 +668,12 @@ sub visit {
     busy("Looking up $host.");
     my ($where, $why) = find($host);
     $why = own_network($host, $where, $kept) if $where && grep { $_->{own} } @$where;    # [C8]
-    my ($got, $from, $tried);
+    my ($got, $from, $tried, $certs);
     if (!$why) {
         record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return idle($UNWRITTEN);    # [C5] written down first, connected second
         busy("Fetching $url");
         $tried = 1;
-        ($got, $why, $from) = fetch($url, $where);
+        ($got, $why, $from, $certs) = fetch($url, $where);
     }
     record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return idle($tried ? $UNENDED : $UNWRITTEN);    # an answer whose line could not be recorded is not shown, and the window says the fetch was tried
     close $request;
@@ -669,12 +684,14 @@ sub visit {
         my $rest = sub { $_[0] =~ s{^https://[^/]+}{}r };
         if (defined $fit && !$auto && $rest->($fit) eq $rest->($url) && ($there eq "www.$host" || $host eq "www.$there")) {    # the same address with www. put in front of its host or taken off: followed once a visit, written down first
             record("$host redirected to $there ($status); followed, the same site", $kept) or return idle($UNWRITTEN);
+            push @WAY, "$url answered $status, to $fit (followed by lzrprf: the same site)";
             $NEXT = [$fit, 'lzrprf follows that redirect to', $mark, 1];
             return idle("$host redirected to $there ($status): the same site, so lzrprf follows it.");
         }
         my $why = !defined $to ? 'The answer names no address to go to.' : defined $fit ? '' : unfit($to);
         my $press = asked("redirect $status\t$url\t" . ($to // '') . "\t$why", 'Cancel', defined $fit ? ('Proceed', defined $mark ? 'Proceed and update bookmark' : ()) : ());
         if ($press >= 2 && defined $fit) {
+            push @WAY, "$url answered $status, to $fit (you chose to follow it)";
             my $moved = $press == 3 ? (mark_moved($mark, $fit) ? ' The bookmark now holds that address.' : ' The bookmark could not be changed.') : '';
             $NEXT = [$fit, 'you chose to follow a redirect to', undef];
             return idle("$url redirects to $fit ($status). lzrprf goes there as a new request.$moved");
@@ -704,6 +721,8 @@ sub visit {
     window('page', @$shown, '.');
     $DRAWN = 1;
     $SHOWN = { url => $url, got => $got, frame => $with_sheets, two => $two, host => $host, pictures => $decoded, wide => $LAID_WIDE };
+    $tab->{secure} = secured($url, $from, $got, $certs);
+    window('secure begin', (map { "secure line $_" } @{ $tab->{secure} }), 'secure end');
     $tab->{title} = $title;
     window("title $TAB $title");            # checked: plain characters, no control or format character, at most $TITLE (sub checked)
     idle("$host answered " . length($got) . ' bytes. ' . $styled . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
@@ -1171,6 +1190,8 @@ sub tab_shown {
     window('tabs ' . @TABS . " $TAB", map { "title $_ $TABS[$_]{title}" } 0 .. $#TABS);
     window("address $tab->{url}");
     window('page', '.');                  # the page of the tab before is gone before anything of this one is shown
+    window($tab->{secure} ? ('secure begin', (map { "secure line $_" } @{ $tab->{secure} }), 'secure end') : 'secure none');
+    nav_told();
     $DRAWN = 0;
     $SHOWN->{wide} = 0 if $SHOWN;         # no width: sub relaid lays it out again at the window's
     idle($says // $tab->{says} // 'A new tab. Type an address above and press Return.');
@@ -1208,11 +1229,102 @@ sub menu {
     }
     my $count = 0;
     $count += @{ $_->{visited} } for @TABS;
-    $_->{visited} = [] for @TABS;
+    @$_{qw(visited at)} = ([], -1) for @TABS;
+    nav_told();
     return idle("The history was cleared: $count " . ($count == 1 ? 'address' : 'addresses') . ' that the tabs went to. The pages shown stay. The log is cleared by its own button.') if $what eq 'clear-history';
-    @$_{qw(url title shown says)} = ('', '', undef, undef) for @TABS;
+    @$_{qw(url title shown says secure)} = ('', '', undef, undef, undef) for @TABS;
     undef $SHOWN;
     tab_shown("The history and the sessions were cleared: $count " . ($count == 1 ? 'address' : 'addresses') . ', and every page lzrprf kept for a tab. lzrprf sends no cookie to any site, so no login was kept by it. The log is cleared by its own button.');
+}
+
+# Back, forward and reload: the addresses this tab went to, as sub visit keeps
+# them, and where in them the tab stands. Back and forward visit the address
+# before or after, reload the address in the bar, each with the checks every
+# typed address gets [C4] and written in the log first, as "you went back to",
+# "you went forward to" or "you reloaded". The window is told what each would
+# do now: "nav BACK FORWARD RELOAD", each 1 or 0.
+sub nav_told {
+    my $tab = $TABS[$TAB];
+    window(join ' ', 'nav', $tab->{at} > 0 ? 1 : 0, $tab->{at} >= 0 && $tab->{at} < $#{ $tab->{visited} } ? 1 : 0, length $tab->{url} ? 1 : 0);
+}
+
+sub navigated {
+    my ($way) = @_;
+    my $tab = $TABS[$TAB];
+    return length $tab->{url} ? go($tab->{url}, 'you reloaded') : idle('This tab shows no address to load again.') if $way eq 'reload';
+    my $to = $tab->{at} + ($way eq 'back' ? -1 : 1);
+    return idle("There is no page to go $way to in this tab.") unless $tab->{at} >= 0 && $to >= 0 && $to <= $#{ $tab->{visited} };
+    $tab->{at} = $to;
+    go($tab->{visited}[$to], "you went $way to");
+}
+
+# Search. Words typed into the bar that are no address (no "://", and a space
+# or no dot) go to the search address you chose, kept in one plain file of
+# yours, search, one line: an https address lzrprf fetches with %s once where
+# the words go, percent-encoded. Three are offered by name; any other is typed
+# into the window's own modal. Nothing is sent before one is chosen: the
+# window is told "search ask" and asks. The address made is a visit like a
+# typed one [C4], written in the log first as "you searched with".
+
+sub engine_fit {                          # a search address lzrprf takes: https, a host by its name, port 443, plain characters, %s exactly once
+    my ($text) = @_;
+    return unless $text =~ /\A[\x21-\x7e]{1,2000}\z/ && $text =~ m{\Ahttps://}i && (() = $text =~ /%s/g) == 1;
+    return (address($text =~ s/%s/x/r))[0] ? $text : undef;
+}
+
+sub engine {
+    sysopen(my $in, "$DIR/search", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return;
+    my @is = stat $in;
+    return unless -f _ && $is[4] == $<;
+    defined sysread($in, my $text, 2002) or return;
+    my ($line) = $text =~ /\A([\x21-\x7e]{1,2000})\n?\z/ or return;
+    return engine_fit($line);
+}
+
+sub search_set {
+    my ($text) = @_;
+    my $fit = engine_fit($text) or return idle('That search address was not kept: it must be https, a host by its name, port 443, in plain characters, with %s exactly once where the words go.');
+    unlink "$DIR/search.new";
+    return idle('The search address could not be kept: its file could not be written. Nothing was changed.') unless put("$DIR/search.new", O_EXCL, $fit) && rename("$DIR/search.new", "$DIR/search");
+    synced();
+    window('search set');
+    idle('Searches go to ' . ($fit =~ m{^https://([^/?#]+)}i)[0] . ' now: words typed into the bar that are no address are sent there.');
+}
+
+sub typed {
+    my ($text) = @_;
+    my $words = $text =~ s/^[ \t]+|[ \t]+$//gr;
+    return go($text) if (address($text))[0] || $words =~ m{://} || $words !~ /[ \t]/ && $words =~ /\./ || !length $words;
+    my $engine = engine() or do { window('search ask'); return idle('Choose a search engine first, and the words are sent there. Nothing was sent.') };
+    my $query = $words =~ s/([^A-Za-z0-9._~-])/sprintf('%%%02X', ord $1)/ger;
+    return go($engine =~ s/%s/$query/r, 'you searched with');
+}
+
+# What the lock beside the bar tells of the page shown: the address, the
+# server lzrprf connected to, the answer's first line, the redirects on the
+# way, and the certificates curl checked, as curl wrote them after the answer
+# ("--write-out", sub fetch), each field plain characters and cut, so nothing
+# in them acts on the window. Lines "# HEADING" or "NAME: VALUE".
+sub secured {
+    my ($url, $from, $got, $certs) = @_;
+    my $plain = sub { my $one = $_[0] // ''; $one =~ s/[^\x20-\x7e]/?/g; return substr($one, 0, $_[1] // 300) };
+    my ($status) = ($got // '') =~ /\A(HTTP\/[0-9.]+ [0-9]{3}[^\r\n]{0,80})/;
+    my @lines = ('# Connection', 'Address: ' . $plain->($url, 2100), 'Server: ' . $plain->($from // 'unknown'),
+        'Encryption: TLS 1.2 or newer, HTTP/1.1; the certificate checked against the roots lzrprf holds', 'Answer: ' . $plain->($status // 'unknown'),
+        'Cookies: none sent and none kept by lzrprf', '# Redirects on the way here');
+    push @lines, @WAY ? map { ($_ + 1) . '. ' . $plain->($WAY[$_], 600) } 0 .. $#WAY : 'None: the address answered with the page itself.';
+    my @chain = grep { /\S/ } split /-----END CERTIFICATE-----/, $certs // '';
+    my %named = ('Subject' => 'Subject', 'Issuer' => 'Issuer', 'Start date' => 'Valid from', 'Expire date' => 'Valid until', 'Serial Number' => 'Serial number',
+        'Signature Algorithm' => 'Signature', 'Public Key Algorithm' => 'Public key', 'X509v3 Subject Alternative Name' => 'Names it covers');
+    for my $at (0 .. ($#chain < 5 ? $#chain : 5)) {
+        push @lines, '# Certificate ' . ($at + 1) . ' of ' . @chain . ($at == 0 ? ': the site' : $at == $#chain ? ': the root side' : ': an issuer');
+        for my $field ('Subject', 'Issuer', 'Start date', 'Expire date', 'Serial Number', 'Signature Algorithm', 'Public Key Algorithm', 'X509v3 Subject Alternative Name') {
+            my ($value) = $chain[$at] =~ /^\Q$field\E:[ \t]*([^\r\n]*)/m or next;
+            push @lines, "$named{$field}: " . $plain->($value, $field =~ /Alternative/ ? 500 : 300);
+        }
+    }
+    push @lines, '# Certificate', 'curl wrote no certificate for this answer.' unless @chain;
+    return \@lines;
 }
 
 sub home {                                # the home page you set, when it is still an address lzrprf fetches; a plain file of yours and no link
@@ -1229,6 +1341,7 @@ sub home {                                # the home page you set, when it is st
 # typed (sub visit checks it the same way). Every one of them needs your yes.
 sub go {
     my @next = @_;
+    @WAY = ();
     while (@next) {
         undef $NEXT;
         visit(@next);
@@ -1608,7 +1721,7 @@ sub fetch {
     if (!$curl) {
         %ENV = ();                        # curl takes no setting from the environment
         my @curl = ($CURL, '-q', '-g', '-s', '-i', '--raw', '--path-as-is', '--proto', '=https', '--tlsv1.2', '--http1.1', '--noproxy', '*', '--no-sessionid',
-            '--cacert', $roots, '--max-time', $FETCH_SECONDS, '--max-filesize', $FETCH_BYTES,
+            '--cacert', $roots, '--max-time', $FETCH_SECONDS, '--max-filesize', $FETCH_BYTES, '--write-out', "$WROTE%{certs}",
             '-H', "User-Agent: $BROWSER", '-H', 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close',
             '--unix-socket', $way, '--', $url);
         if ($PEER ne '-' && open my $instead, '<', "$DIR/fetcher") { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to probe this container too
@@ -1654,6 +1767,9 @@ sub fetch {
         if (vec($read, fileno $from_curl, 1)) { sysread($from_curl, $got, 65536, length $got) or ($done = 1, last) }
     }
     my $late = now() >= $until;
+    my $at = rindex $got, $WROTE;            # curl writes the certificates after the whole answer, so the last such line is curl's own, whatever the answer holds
+    my $certs = $at >= 0 ? substr($got, $at + length $WROTE) : '';
+    substr($got, $at) = '' if $at >= 0;
     unlink $way;
     my $how = ended($curl, $done ? 2 : 0);    # curl is gone, whatever it was doing, before anything is said about the answer
     my $exit = $how >> 8;
@@ -1662,7 +1778,7 @@ sub fetch {
     return (undef, $none) if @links && $links[0][4] > $SENT_BYTES;
     return (undef, 'could not connect') if $unreached;
     return (undef, 'the site did not answer in time') if $late || $exit == 28;
-    return ($got, undef, $peer) if $how == 0 && length $got && defined $peer;
+    return ($got, undef, $peer, $certs) if $how == 0 && length $got && defined $peer;
     return (undef, 'the certificate does not prove the host') if grep { $exit == $_ } 51, 53, 54, 58, 59, 60, 66, 77, 80, 82, 83, 90, 91;
     return (undef, 'no secure connection could be made') if $exit == 35;
     return (undef, $none);
@@ -2445,8 +2561,9 @@ var again = false, viewing = '';    // the list being drawn is the page shown la
 var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
 var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
 var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
-var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
-var TABS_HIGH = 36, BAR_ROW = 44, MARKS_ROW = 30, TOP = TABS_HIGH + BAR_ROW, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI;    // the heights of the strip of tabs, the bar's row and the bookmarks bar, in points; the laser's colours
+var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
+var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 26, TOP = TABS_HIGH + BAR_ROW, MARGIN = 16, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
+var root, homeView, listScroll, listView, secureBox, secureScroll, secureText, engineField, listing = null, pageShown = false, navState = [0, 0, 0], searchSet = false, searchNext = null, secureLines = null, securePinned = false;    // the frame every view stands in, the home page, the list page, the lock's panel; which list is open; whether a page is drawn; what back, forward and reload would do; whether a search engine is chosen and what follows its choice; the lock's lines
 
 function say(line) { to.writeData($(line + '\n').dataUsingEncoding(4)); }
 
@@ -2458,6 +2575,7 @@ function heard(line) {
         list = null;
         try { draw(lines); } catch (fault) { unlaid(); page.string = $(''); listed([]); say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); }
         again = false;
+        if (pageShown != lines.length > 0) { pageShown = lines.length > 0; pieces(); }
         return;
     }
     var at = line.indexOf(' '), word = at < 0 ? line : line.slice(0, at), rest = at < 0 ? '' : line.slice(at + 1);
@@ -2467,12 +2585,15 @@ function heard(line) {
     else if (word == 'title') { var gap = rest.indexOf(' '), which = +rest.slice(0, gap); if (tabs[which]) tabs[which].title = rest.slice(gap + 1); tabsView.needsDisplay = true; }
     else if (word == 'install') installTold(rest);
     else if (word == 'ask') { asked++; strip(rest.split('\t'), false, true); }
-    else if (word == 'address') { bar.stringValue = $(rest); current = rest; redrawn(); }
-    else if (word == 'marks') { if (rest == 'begin') { marks = []; folders = []; } else redrawn(); }
+    else if (word == 'address') { bar.stringValue = $(rest); current = rest; listing = null; pieces(); redrawn(); }
+    else if (word == 'nav') { navState = rest.split(' ').map(Number); belt.needsDisplay = true; }
+    else if (word == 'search') { searchSet = rest != 'none' ? searchSet || rest == 'set' : false; if (rest == 'ask') { searchNext = 'go ' + bar.stringValue.js.replace(/[^\x20-\x7e]/g, '\x7f').slice(0, 2100); engineAsked(); } }
+    else if (word == 'secure') { if (rest == 'begin') secureLines = []; else if (rest.slice(0, 5) == 'line ' && secureLines) secureLines.push(rest.slice(5)); else if (rest == 'none') secureLines = null; if (!secureBox.hidden && rest != 'begin' && rest.slice(0, 5) != 'line ') secureShown(); }
+    else if (word == 'marks') { if (rest == 'begin') { marks = []; folders = []; } else { listSized(); redrawn(); } }
     else if (word == 'mark') markTold(rest);
     else if (word == 'marksbar') { marksOn = rest == 'on'; marksView.hidden = !marksOn; place(); }
     else if (word == 'redirect') redirectTold(rest);
-    else if (word == 'quit') app.terminate(null);
+    else if (word == 'quit') app.terminate($());
     told(word, rest);
 }
 
@@ -2490,33 +2611,65 @@ function strip(parts, open, question) {
     logs.enabled = free && !modalOpen;
     redrawn();
     place();
-    if (free && !modalOpen && (focusing || win.firstResponder.isEqual(win))) { win.makeFirstResponder(bar); focusing = false; }    // a new tab: the bar, to type into
+    if (free && !modalOpen && searchSet && searchNext) {    // a search engine was just chosen: the bar to type into, or the words typed before it was asked for
+        var next = searchNext;
+        searchNext = null;
+        if (next == 'focus') barChosen();
+        else if (next.length > 3) { bar.stringValue = $(next.slice(3)); sent(next); }
+    }
+    else if (free && !modalOpen && (focusing || win.firstResponder.isEqual(win))) { win.makeFirstResponder(bar); focusing = false; }    // a new tab: the bar, to type into
 }
 
-// The window from the top: the strip of tabs, the bar's row (the bar centred in the whole window,
-// the cogwheel on its right), lzrprf's strip, the page, and the pane under it with Log at its
-// bottom right. All of it is set again whenever the window's size or the strip changes.
+// The window from the top: the strip of tabs (the window's own three dots at its left), the bar's
+// row (back, forward and reload, the bar as a pill with the lock and the star in it, the cogwheel
+// at the right), the bookmarks bar when it is shown, the page with the pane under it and Log at its
+// bottom right, and lzrprf's strip at the very bottom. A tab with no page shows the home page in
+// place of the page and the pane; the bookmarks or the tabs page stands there too while it is open.
+// Everything sits in a frame of its own with a glowing edge (paintFrame), MARGIN points inside the
+// window, which itself is clear: the glow is drawn in that margin. All of it is set again whenever
+// the window's size or the strip changes.
 function place() {
+    if (!homeView) return;    // a size told before the window's views are made
+    var outer = win.contentView.frame.size;
+    MARGIN = (win.styleMask & 16384) ? 0 : 16;    // full screen: no margin
+    root.frame = $.NSMakeRect(MARGIN + 1, MARGIN + 1, Math.max(1, outer.width - 2 * MARGIN - 2), Math.max(1, outer.height - 2 * MARGIN - 2));
+    win.contentView.needsDisplay = true;
     TOP = TABS_HIGH + BAR_ROW + (marksOn ? MARKS_ROW : 0);
-    var all = win.contentView.frame, wide = all.size.width, high = all.size.height, tall = asking ? 96 : 24;
-    var room = high - TOP - tall, low = Math.round(Math.min(room / 2, Math.max(96, Math.min(190, room * 0.3))));    // the pane under the page, set whenever the strip changes: three tenths of what the bar and the strip leave, between 96 and 190, and never more than half
-    var barWide = Math.max(180, Math.min(680, wide - 200)), barAt = Math.round((wide - barWide) / 2), row = high - TABS_HIGH - BAR_ROW;    // centred in the whole window, with room on its right for the star and the cogwheel
+    var all = root.frame, wide = all.size.width, high = all.size.height, tall = asking ? 96 : STRIP;
+    var room = high - TOP - tall, low = Math.round(Math.min(room / 2, Math.max(96, Math.min(190, room * 0.3))));    // the pane under the page: three tenths of what is left, between 96 and 190, and never more than half
+    var row = high - TABS_HIGH - BAR_ROW, pillAt = 146, pillWide = Math.max(160, wide - pillAt - 64);
+    PILL = $.NSMakeRect(pillAt, 10, pillWide, 36);    // in the bar's row
     tabsView.frame = $.NSMakeRect(0, high - TABS_HIGH, wide, TABS_HIGH);
     belt.frame = $.NSMakeRect(0, row, wide, BAR_ROW);
-    bar.frame = $.NSMakeRect(barAt, row + 11, barWide, 22);
-    star.frame = $.NSMakeRect(barAt + barWide + 16, row + 7, 30, 30);
-    cog.frame = $.NSMakeRect(barAt + barWide + 48, row + 7, 30, 30);
+    bar.frame = $.NSMakeRect(pillAt + 42, row + 18, pillWide - 42 - 44, 20);
+    star.frame = $.NSMakeRect(pillAt + pillWide - 40, row + 13, 30, 30);
+    cog.frame = $.NSMakeRect(wide - 50, row + 13, 30, 30);
     marksView.frame = $.NSMakeRect(0, row - MARKS_ROW, wide, MARKS_ROW);
-    stripBack.frame = $.NSMakeRect(0, high - TOP + 6 - tall - 4, wide, tall + 6);
+    stripBack.frame = $.NSMakeRect(0, 0, wide, tall);
+    words.frame = asking ? $.NSMakeRect(20, 10, wide - 340, tall - 18) : $.NSMakeRect(20, 4, wide - 40, 17);
+    first.frame = $.NSMakeRect(wide - 304, (tall - 30) / 2, 132, 30);
+    second.frame = $.NSMakeRect(wide - 162, (tall - 30) / 2, 138, 30);
+    var pageTop = high - TOP;
+    under.frame = $.NSMakeRect(0, tall, wide, low);
+    scroll.frame = $.NSMakeRect(0, tall + low, wide, Math.max(1, pageTop - tall - low));
+    logs.frame = $.NSMakeRect(wide - 96, tall + 8, 72, 28);
+    homeView.frame = $.NSMakeRect(0, tall, wide, Math.max(1, pageTop - tall));
+    listScroll.frame = homeView.frame;
+    pieces();
+    listSized();
     redrawn();
-    words.frame = $.NSMakeRect(12, high - TOP + 6 - tall, wide - (asking ? 300 : 24), tall);
-    first.frame = $.NSMakeRect(wide - 284, high - TOP + 6 - 62, 132, 30);
-    second.frame = $.NSMakeRect(wide - 148, high - TOP + 6 - 62, 138, 30);
-    scroll.frame = $.NSMakeRect(0, low, wide, high - TOP - tall - low);
-    under.frame = $.NSMakeRect(0, 0, wide, low);
-    logs.frame = $.NSMakeRect(wide - 96, 8, 72, 28);
     fit();
+    securePlaced();
     placeModal();
+}
+
+// Which of the page, the home page and a list page stands between the bar's row and the strip.
+function pieces() {
+    var home = !current && !pageShown && !listing;
+    homeView.hidden = !home;
+    listScroll.hidden = !listing;
+    scroll.hidden = under.hidden = logs.hidden = home || !!listing;
+    homeView.needsDisplay = true;
 }
 
 function look(font, size, kind) {
@@ -2618,19 +2771,20 @@ function fit() {
     canvas.needsDisplay = true;
 }
 
-// lzrprf's chrome, drawn by this window alone and never by a page: the strip of tabs, the bar's row
-// with the star and the cogwheel, the bookmarks bar, lzrprf's strip and the modal. A tab's title
-// is the page's =title line as lzrprf checked it, drawn as plain text on one line and cut at its
-// end; the icon is a laser globe for every tab until lzrprf has a way to take a page's own icon
-// (there is none yet). Every press here is one line to lzrprf in a shape it checks ("tab ...",
-// "menu ...", "mark ...", "button N K"), and only while lzrprf waits for one: after it, nothing is
-// taken until lzrprf says it is idle again. The look is lzrbrwsr.com's: black, the laser green
-// with its glow, yellow and bright white sparks, a monospaced face; drawn here on the processor,
-// with no blur of the system's, which would need the graphics card's compiler.
+// lzrprf's chrome, drawn by this window alone and never by a page: the frame with its glowing edge,
+// the strip of tabs, the bar's row, the bookmarks bar, the home page, the lists, the lock's panel,
+// lzrprf's strip and the modal. A tab's title is the page's =title line as lzrprf checked it, drawn
+// as plain text on one line and cut at its end. Every press here is one line to lzrprf in a shape it
+// checks ("tab ...", "nav ...", "search ...", "menu ...", "mark ...", "button N K"), and only while
+// lzrprf waits for one: after it, nothing is taken until lzrprf says it is idle again. The look is
+// the neon laser: near black glass, thin cyan beams with their glow, light grey line icons, the
+// system's face, and the logo in its wide cut with letters set far apart; drawn here on the
+// processor, with no blur of the system's, which would need the graphics card's compiler.
 function laser() {
     function rgb(r, g, b, a) { return $.NSColor.colorWithSRGBRedGreenBlueAlpha(r / 255, g / 255, b / 255, a === undefined ? 1 : a); }
-    GREEN = rgb(0, 255, 65); DIM = rgb(11, 143, 44); YELLOW = rgb(255, 236, 64); WHITE = rgb(244, 255, 246); DARK = rgb(5, 22, 11);
-    GREY = rgb(138, 163, 144); LINE = rgb(13, 58, 24); GLASS = rgb(0, 255, 65, 0.045); GLASS_HI = rgb(0, 255, 65, 0.1);
+    GREEN = rgb(72, 221, 255); DIM = rgb(40, 128, 150); YELLOW = rgb(255, 196, 92); WHITE = rgb(236, 242, 246); DARK = rgb(8, 11, 14);
+    GREY = rgb(138, 150, 158); LINE = rgb(40, 49, 56); GLASS = rgb(72, 221, 255, 0.035); GLASS_HI = rgb(72, 221, 255, 0.08);
+    ICON = rgb(206, 214, 220); EDGE = rgb(66, 76, 84); FILL = rgb(15, 19, 23); HALO = rgb(72, 221, 255, 0.55); FAINT = rgb(72, 221, 255, 0.16);
 }
 
 function mono(size, bold) {
@@ -2639,9 +2793,17 @@ function mono(size, bold) {
     return one;
 }
 
+function sans(size, bold) { return $.NSFont.systemFontOfSizeWeight(size, bold ? 0.23 : 0); }    // the system's face, regular or medium
+
+function wide(size, weight) {    // the system's face in its expanded width, for the logo; the plain face where the system has no width
+    var one = null;
+    try { one = $.NSFont.systemFontOfSizeWeightWidth(size, weight, 0.2); } catch (fault) { one = null; }
+    return !one || one.isNil() ? $.NSFont.systemFontOfSizeWeight(size, weight) : one;
+}
+
 function glow(colour, blur) { var one = $.NSShadow.alloc.init; one.shadowColor = colour; one.shadowBlurRadius = blur; one.shadowOffset = $.NSMakeSize(0, 0); one.set; }
 
-function glass(path, hi) {    // a pane of glass: a soft green wash, lighter at its top
+function glass(path, hi) {    // a pane of glass: a soft cyan wash, lighter at its top
     var wash = $.NSGradient.alloc.initWithStartingColorEndingColor(hi ? GLASS_HI : GLASS, $.NSColor.colorWithWhiteAlpha(0, 0));
     wash.drawInBezierPathAngle(path, -90);
 }
@@ -2661,11 +2823,54 @@ function styled(text, how) {    // an attributed string: this macOS bridges no i
     return one;
 }
 
-function titled(item, words) { item.attributedTitle = styled(words, inked(mono(12), WHITE)); }
+function spaced(text, font, colour, kern) {    // letters set apart by kern points, as the logo's are
+    var how = inked(font, colour);
+    how.setObjectForKey($.NSNumber.numberWithDouble(kern), $.NSKernAttributeName);
+    return styled(text, how);
+}
+
+function centred(said, cx, y, kern) { var size = said.size; said.drawAtPoint($.NSMakePoint(Math.round(cx - (size.width - kern) / 2), y)); }    // the space after the last letter is not counted
+
+function stroked(path, colour, width, halo, blur) {    // a line, with its glow when halo is a colour
+    $.NSGraphicsContext.saveGraphicsState;
+    if (halo) glow(halo, blur || 6);
+    colour.setStroke;
+    path.lineWidth = width;
+    path.lineCapStyle = 1;
+    path.lineJoinStyle = 1;
+    path.stroke;
+    $.NSGraphicsContext.restoreGraphicsState;
+}
+
+function titled(item, words) { item.attributedTitle = styled(words, inked(sans(13), WHITE)); }
 
 function sent(line) { free = false; bar.enabled = false; logs.enabled = false; redrawn(); say(line); }
-function redrawn() { [tabsView, belt, cog, star, marksView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
+function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
 function takes() { return free && !modalOpen; }    // whether the chrome takes a press now
+
+// The frame: the window is clear, and this draws, MARGIN points in from its edges, the glass every
+// view stands on, its rounded edge as a thin cyan beam, the glow of that beam around it, and a
+// brighter glow under the bottom edge, as if the window stood on a lit floor.
+function paintFrame() {
+    var out = win.contentView.bounds, r = root.frame, edge = $.NSMakeRect(r.origin.x - 0.5, r.origin.y - 0.5, r.size.width + 1, r.size.height + 1);
+    var path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(edge, MARGIN ? RADIUS : 0, MARGIN ? RADIUS : 0);
+    $.NSColor.clearColor.setFill;
+    $.NSRectFillUsingOperation(out, 1);
+    if (MARGIN) {
+        var floor = $.NSBezierPath.bezierPath, left = edge.origin.x + RADIUS * 2, right = edge.origin.x + edge.size.width - RADIUS * 2;
+        floor.moveToPoint($.NSMakePoint(left, edge.origin.y)); floor.lineToPoint($.NSMakePoint(right, edge.origin.y));
+        stroked(floor, FAINT, 8, GREEN, 26);
+    }
+    $.NSGraphicsContext.saveGraphicsState;
+    if (MARGIN) glow(HALO, 20);
+    DARK.setFill;
+    path.fill;
+    $.NSGraphicsContext.restoreGraphicsState;
+    $.NSGradient.alloc.initWithStartingColorEndingColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(0.06, 0.075, 0.09, 1), $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.025, 0.033, 0.04, 1)).drawInBezierPathAngle(path, -90);
+    if (MARGIN) { stroked(path, FAINT, 3, GREEN, 12); stroked(path, GREEN, 1.5, GREEN, 6); }
+}
+
+function frameClicked(event) { win.performWindowDragWithEvent(event); }
 
 // The tabs.
 function tabsTold(rest) {
@@ -2690,134 +2895,197 @@ function tabSaid(line, closed) {
 
 function newTab() { if (takes() && tabs.length < 32) { focusing = true; tabSaid('tab new'); } }
 
-// Side by side from the left, each at most 220 points wide, all shrinking to share the strip
-// when there are many; the + after the last.
-function tabWide() { return Math.max(1, Math.min(220, Math.floor((tabsView.frame.size.width - 16 - 40) / tabs.length))); }
+// The window's own three dots at the left of the strip: close, minimise, full screen. Then the
+// tabs side by side, each at most 260 points wide, all shrinking to share the strip when there are
+// many; the + after the last. A tab is a soft trapezoid: the chosen one is outlined by the beam and
+// opens into the bar's row under it, the others are a faint line.
+var TABS_X = 84;
+function tabWide() { return Math.max(1, Math.min(260, Math.floor((tabsView.frame.size.width - TABS_X - 48) / tabs.length))); }
 function closable(wide, on) { return wide - 2 >= 64 || (on && wide - 2 >= 40); }
 
-function globe(x, y, on) {
-    $.NSGraphicsContext.saveGraphicsState;
-    if (on) glow(GREEN, 5);
-    (on ? GREEN : DIM).setStroke;
-    var path = $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(x, y, 12, 12));
-    path.appendBezierPathWithOvalInRect($.NSMakeRect(x + 3.5, y, 5, 12));
-    path.moveToPoint($.NSMakePoint(x, y + 6));
-    path.lineToPoint($.NSMakePoint(x + 12, y + 6));
-    path.lineWidth = 1;
-    path.stroke;
-    $.NSGraphicsContext.restoreGraphicsState;
+function dotAt(at) {    // which of the three dots is under a point of the strip, or -1
+    for (var k = 0; k < 3; k++) if (Math.abs(at.x - (22 + k * 20)) <= 8 && Math.abs(at.y - tabsView.frame.size.height / 2) <= 8) return k;
+    return -1;
+}
+
+function tabShape(x, w, high, closed) {
+    var top = high - 7, s = 11, p = $.NSBezierPath.bezierPath;
+    p.moveToPoint($.NSMakePoint(x - 5, 0));
+    p.curveToPointControlPoint1ControlPoint2($.NSMakePoint(x + s, top), $.NSMakePoint(x + s * 0.5, 0), $.NSMakePoint(x + s * 0.3, top));
+    p.lineToPoint($.NSMakePoint(x + w - s, top));
+    p.curveToPointControlPoint1ControlPoint2($.NSMakePoint(x + w + 5, 0), $.NSMakePoint(x + w - s * 0.3, top), $.NSMakePoint(x + w - s * 0.5, 0));
+    if (closed) p.closePath;
+    return p;
+}
+
+function crossed(cx, cy, r) {
+    var cross = $.NSBezierPath.bezierPath;
+    cross.moveToPoint($.NSMakePoint(cx - r, cy - r)); cross.lineToPoint($.NSMakePoint(cx + r, cy + r));
+    cross.moveToPoint($.NSMakePoint(cx - r, cy + r)); cross.lineToPoint($.NSMakePoint(cx + r, cy - r));
+    return cross;
+}
+
+function plussed(cx, cy, r) {
+    var plus = $.NSBezierPath.bezierPath;
+    plus.moveToPoint($.NSMakePoint(cx - r, cy)); plus.lineToPoint($.NSMakePoint(cx + r, cy));
+    plus.moveToPoint($.NSMakePoint(cx, cy - r)); plus.lineToPoint($.NSMakePoint(cx, cy + r));
+    return plus;
 }
 
 function paintTabs() {
-    var size = tabsView.frame.size, wide = tabWide(), high = size.height, middle = (high - 6) / 2;
-    $.NSColor.blackColor.setFill;
-    $.NSRectFill($.NSMakeRect(0, 0, size.width, high));
+    var size = tabsView.frame.size, wide = tabWide(), high = size.height, middle = (high - 7) / 2 + 1, chosenAt = TABS_X + selected * wide;
+    for (var k = 0; k < 3; k++) {
+        var dot = $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(16 + k * 20, high / 2 - 6, 12, 12));
+        (hover.dot == k ? ICON : $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.42, 0.45, 0.48, 1)).setFill;
+        dot.fill;
+        if (hover.dot >= 0) stroked(k == 0 ? crossed(22 + k * 20, high / 2, 2.6) : k == 1 ? (function () { var p = $.NSBezierPath.bezierPath; p.moveToPoint($.NSMakePoint(39, high / 2)); p.lineToPoint($.NSMakePoint(45, high / 2)); return p; })() : plussed(62, high / 2, 3), DARK, 1.3);
+    }
+    var seam = $.NSBezierPath.bezierPath;
+    seam.moveToPoint($.NSMakePoint(0, 0.5)); seam.lineToPoint($.NSMakePoint(chosenAt - 5, 0.5));
+    seam.moveToPoint($.NSMakePoint(chosenAt + wide + 1, 0.5)); seam.lineToPoint($.NSMakePoint(size.width, 0.5));
+    stroked(seam, LINE, 1);
     tabs.forEach(function (tab, i) {
-        var x = 8 + i * wide, on = i == selected, hot = i == hover.tab && !on, path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(x + 2, -10, wide - 4, high + 4), 10, 10);
-        if (on || hot) glass(path, on);
-        $.NSGraphicsContext.saveGraphicsState;
-        if (on) glow(GREEN, 8);
-        (on ? GREEN : hot ? DIM : LINE).setStroke;
-        path.lineWidth = on ? 1.2 : 1;
-        path.stroke;
-        $.NSGraphicsContext.restoreGraphicsState;
-        if (wide - 4 < 40) return globe(x + (wide - 12) / 2, middle - 6, on);
-        globe(x + 12, middle - 6, on || hot);
-        var closer = closable(wide, on);
-        $(tab.title || 'New tab').drawInRectWithAttributes($.NSMakeRect(x + 31, middle - 8, wide - 31 - (closer ? 26 : 10), 16), inked(mono(11.5, on), on ? WHITE : hot ? GREY : DIM, true));
-        if (closer) {
-            var cross = $.NSBezierPath.bezierPath, cx = x + wide - 17, cy = middle;
-            cross.moveToPoint($.NSMakePoint(cx - 3.5, cy - 3.5)); cross.lineToPoint($.NSMakePoint(cx + 3.5, cy + 3.5));
-            cross.moveToPoint($.NSMakePoint(cx - 3.5, cy + 3.5)); cross.lineToPoint($.NSMakePoint(cx + 3.5, cy - 3.5));
-            $.NSGraphicsContext.saveGraphicsState;
-            if (on) glow(YELLOW, 4);
-            (on ? YELLOW : DIM).setStroke;
-            cross.lineWidth = 1.3;
-            cross.stroke;
-            $.NSGraphicsContext.restoreGraphicsState;
+        var x = TABS_X + i * wide + 2, w = wide - 4, on = i == selected, hot = i == hover.tab && !on;
+        if (on || hot) {
+            var body = tabShape(x, w, high, true);
+            (on ? FILL : $.NSColor.colorWithWhiteAlpha(1, 0.025)).setFill;
+            body.fill;
+            if (on) glass(body, true);
         }
+        stroked(tabShape(x, w, high, false), on ? GREEN : hot ? EDGE : LINE, on ? 1.3 : 1, on ? GREEN : null, 7);
+        if (w < 40) return;
+        var closer = closable(wide, on);
+        $(tab.title || 'New Tab').drawInRectWithAttributes($.NSMakeRect(x + 18, middle - 9, w - 18 - (closer ? 34 : 12), 18), inked(sans(13, on), on ? WHITE : hot ? ICON : GREY, true));
+        if (closer) stroked(crossed(x + w - 20, middle, 4.2), on ? ICON : GREY, 1.4);
     });
     if (tabs.length < 32) {
-        var px = 8 + tabs.length * wide + 14, plus = $.NSBezierPath.bezierPath, lit = takes() && hover.tab == tabs.length;
-        plus.moveToPoint($.NSMakePoint(px, middle)); plus.lineToPoint($.NSMakePoint(px + 12, middle));
-        plus.moveToPoint($.NSMakePoint(px + 6, middle - 6)); plus.lineToPoint($.NSMakePoint(px + 6, middle + 6));
-        $.NSGraphicsContext.saveGraphicsState;
-        if (takes()) glow(lit ? WHITE : GREEN, lit ? 9 : 5);
-        (takes() ? (lit ? WHITE : GREEN) : DIM).setStroke;
-        plus.lineWidth = 1.6;
-        plus.stroke;
-        $.NSGraphicsContext.restoreGraphicsState;
+        var lit = takes() && hover.tab == tabs.length;
+        stroked(plussed(TABS_X + tabs.length * wide + 20, middle, 7), takes() ? (lit ? WHITE : ICON) : GREY, 1.6, lit ? GREEN : null, 8);
     }
-    LINE.setStroke;
-    $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(0, 0.5), $.NSMakePoint(size.width, 0.5));
 }
 
-function tabAt(event) {    // the tab under the pointer, the number of tabs for the +, or -1
-    var at = tabsView.convertPointFromView(event.locationInWindow, $()), wide = tabWide(), x = at.x - 8, i = Math.floor(x / wide);
-    if (x >= 0 && i < tabs.length) return [i, at.x >= 8 + (i + 1) * wide - 28 && closable(wide, i == selected)];
-    var px = 8 + tabs.length * wide + 8;
-    return [at.x >= px && at.x <= px + 26 && tabs.length < 32 ? tabs.length : -1, false];
+function tabAt(event) {    // the tab under the pointer, the number of tabs for the +, or -1; and whether it is over the tab's x
+    var at = tabsView.convertPointFromView(event.locationInWindow, $()), wide = tabWide(), x = at.x - TABS_X, i = Math.floor(x / wide);
+    if (x >= 0 && i < tabs.length) return [i, at.x >= TABS_X + (i + 1) * wide - 34 && closable(wide, i == selected)];
+    var px = TABS_X + tabs.length * wide + 6;
+    return [at.x >= px && at.x <= px + 30 && tabs.length < 32 ? tabs.length : -1, false];
 }
 
 function tabClicked(event) {
+    secureHidden();
+    var dot = dotAt(tabsView.convertPointFromView(event.locationInWindow, $()));
+    if (dot == 0) return win.performClose($());
+    if (dot == 1) return win.performMiniaturize($());
+    if (dot == 2) return win.toggleFullScreen($());
     var hit = tabAt(event);
-    if (hit[0] < 0) return;
+    if (hit[0] < 0) return event.clickCount == 2 ? win.performZoom($()) : win.performWindowDragWithEvent(event);    // the strip is the window's title bar
     if (hit[0] == tabs.length) return newTab();
     if (hit[1]) return tabSaid('tab close ' + hit[0], hit[0]);
     if (hit[0] != selected) tabSaid('tab select ' + hit[0]);
 }
 
-// The bar's row. The bar is a pill of glass with a thin green line that glows when the bar is
-// being typed into. The row is a larger place to click than the bar looks: a click anywhere on it
-// that is not the star or the cogwheel puts the caret into the bar, at its start when left of it
-// and at its end otherwise.
+// The bar's row: back, forward and reload at its left, then the bar, a pill of dark glass with the
+// lock at its start and the star at its end; a cyan beam glows along the pill's lower edge, and
+// all round it while the bar is typed into. The row is a larger place to click than the bar looks:
+// a click on it that is no button puts the caret into the bar, at its start when left of it and at
+// its end otherwise.
 function typing() { var editor = bar.currentEditor; return !!editor && !editor.isNil(); }
 
+function navAt(at) { for (var k = 0; k < 3; k++) if (Math.abs(at.x - (28 + k * 40)) <= 17 && Math.abs(at.y - BAR_ROW / 2) <= 16) return k; return -1; }
+function lockAt(at) { return at.x >= PILL.origin.x + 6 && at.x <= PILL.origin.x + 36 && at.y >= PILL.origin.y && at.y <= PILL.origin.y + PILL.size.height; }
+function navOn(k) { return takes() && (k == 0 ? navState[0] || !!listing : !!navState[k]); }
+
+function arrowed(cx, cy, way) {    // a line arrow, pointing left (-1) or right (1)
+    var p = $.NSBezierPath.bezierPath, tip = cx + 8 * way;
+    p.moveToPoint($.NSMakePoint(cx - 8 * way, cy)); p.lineToPoint($.NSMakePoint(tip, cy));
+    p.moveToPoint($.NSMakePoint(tip - 6.5 * way, cy + 6.5)); p.lineToPoint($.NSMakePoint(tip, cy)); p.lineToPoint($.NSMakePoint(tip - 6.5 * way, cy - 6.5));
+    return p;
+}
+
+function reloaded(cx, cy) {    // a circle open at its upper right, its head turning clockwise
+    var p = $.NSBezierPath.bezierPath, r = 8, start = 62, a = start * Math.PI / 180, tip = $.NSMakePoint(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    p.appendBezierPathWithArcWithCenterRadiusStartAngleEndAngleClockwise($.NSMakePoint(cx, cy), r, start, start + 290, false);
+    var ux = -Math.sin(a), uy = Math.cos(a);    // back along the turn from the head, which turns clockwise
+    [0.65, -0.65].forEach(function (turn) {
+        var bx = ux * Math.cos(turn) - uy * Math.sin(turn), by = ux * Math.sin(turn) + uy * Math.cos(turn);
+        p.moveToPoint(tip); p.lineToPoint($.NSMakePoint(tip.x + 6 * bx, tip.y + 6 * by));
+    });
+    return p;
+}
+
+function locked(cx, cy) {
+    var p = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(cx - 6, cy - 7, 12, 9.5), 2, 2);
+    p.moveToPoint($.NSMakePoint(cx - 3.8, cy + 2.5));
+    p.lineToPoint($.NSMakePoint(cx - 3.8, cy + 4.5));
+    p.appendBezierPathWithArcWithCenterRadiusStartAngleEndAngleClockwise($.NSMakePoint(cx, cy + 4.5), 3.8, 180, 0, true);
+    p.lineToPoint($.NSMakePoint(cx + 3.8, cy + 2.5));
+    p.moveToPoint($.NSMakePoint(cx, cy - 3.6)); p.lineToPoint($.NSMakePoint(cx, cy - 1.6));
+    return p;
+}
+
 function paintBelt() {
-    var at = bar.frame, pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(at.origin.x - 12, at.origin.y - 5, at.size.width + 24, at.size.height + 10), 17, 17), on = typing();
-    $.NSGraphicsContext.saveGraphicsState;
-    glow(GREEN, on ? 12 : 4);
-    $.NSColor.colorWithWhiteAlpha(0, 1).setFill;
+    var size = belt.frame.size, on = typing(), cy = size.height / 2, pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(PILL, 18, 18);
+    [arrowed(28, cy, -1), arrowed(68, cy, 1), reloaded(108, cy)].forEach(function (icon, k) {
+        var can = navOn(k), hot = can && hover.nav == k;
+        stroked(icon, hot ? WHITE : can ? ICON : EDGE, 1.6, hot ? GREEN : null, 8);
+    });
+    FILL.setFill;
     pill.fill;
-    $.NSGraphicsContext.restoreGraphicsState;
-    glass(pill, on);
-    (on ? GREEN : bar.enabled ? DIM : LINE).setStroke;
-    pill.lineWidth = on ? 1.3 : 1;
-    pill.stroke;
+    stroked(pill, on ? DIM : bar.enabled ? EDGE : LINE, 1, on ? GREEN : null, 4);
+    if (true) {    // the beam along the lower edge, brightest in its middle, fading at both ends; longer while the bar is typed into
+        var from = PILL.origin.x + PILL.size.width * (on ? 0.06 : 0.3), to = PILL.origin.x + PILL.size.width - 18, mid = (from + to) / 2, y = PILL.origin.y - 0.2, clear = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 0);
+        var core = $.NSBezierPath.bezierPath;    // one glow under the middle, then the line itself as two smooth gradients meeting there
+        core.moveToPoint($.NSMakePoint(from + (to - from) * 0.25, y + 0.7)); core.lineToPoint($.NSMakePoint(to - (to - from) * 0.25, y + 0.7));
+        stroked(core, FAINT, 1, GREEN, 9);
+        $.NSGradient.alloc.initWithStartingColorEndingColor(clear, GREEN).drawInRectAngle($.NSMakeRect(from, y, mid - from, 1.4), 0);
+        $.NSGradient.alloc.initWithStartingColorEndingColor(GREEN, clear).drawInRectAngle($.NSMakeRect(mid, y, to - mid, 1.4), 0);
+    }
+    var lockLit = hover.lock || securePinned;
+    stroked(locked(PILL.origin.x + 21, cy), lockLit ? GREEN : ICON, 1.4, lockLit ? GREEN : null, 6);
+    $.NSColor.colorWithWhiteAlpha(1, 0.06).setStroke;
+    $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(0, 0.5), $.NSMakePoint(size.width, 0.5));
 }
 
 function beltClicked(event) {
+    var at = belt.convertPointFromView(event.locationInWindow, $()), nav = navAt(at);
+    if (nav >= 0) { secureHidden(); return navPressed(nav); }
+    if (lockAt(at)) return secureToggled();
+    secureHidden();
     if (!bar.enabled) return;
     win.makeFirstResponder(bar);
-    var editor = bar.currentEditor, at = belt.convertPointFromView(event.locationInWindow, $());
+    var editor = bar.currentEditor;
     if (editor && !editor.isNil()) editor.selectedRange = $.NSMakeRange(at.x < bar.frame.origin.x ? 0 : bar.stringValue.length, 0);
     belt.needsDisplay = true;
 }
 
-// The cogwheel: a laser ring of eight teeth with a yellow spark at its hub. Its menu.
+function navPressed(k) {
+    if (!navOn(k)) return;
+    if (k == 0 && listing) { listing = null; return place(); }    // back from the bookmarks or the tabs page to what the tab shows
+    sent('nav ' + ['back', 'forward', 'reload'][k]);
+}
+
+// The cogwheel: a thin line gear of eight teeth around a ring, light grey, with the beam's glow under
+// the pointer. Its menu.
 function paintCog() {
-    var size = cog.frame.size, cx = size.width / 2, cy = size.height / 2, outer = Math.min(cx, cy) - 4, inner = outer - 3.5, path = $.NSBezierPath.bezierPath, lit = takes();
-    for (var k = 0; k < 32; k++) {
-        var turn = (k / 32) * Math.PI * 2 + (hover.cog ? Math.PI / 16 : 0), r = k % 4 < 2 ? outer : inner, point = $.NSMakePoint(cx + r * Math.cos(turn), cy + r * Math.sin(turn));
-        if (k == 0) path.moveToPoint(point); else path.lineToPoint(point);
+    var size = cog.frame.size, cx = size.width / 2, cy = size.height / 2, outer = 10, inner = 7.6, path = $.NSBezierPath.bezierPath, lit = takes();
+    for (var k = 0; k < 8; k++) {
+        var mid = k * Math.PI / 4, half = 0.2, slope = 0.12;
+        [[inner, mid - half - slope], [outer, mid - half], [outer, mid + half], [inner, mid + half + slope]].forEach(function (one, j) {
+            var point = $.NSMakePoint(cx + one[0] * Math.cos(one[1]), cy + one[0] * Math.sin(one[1]));
+            if (k == 0 && j == 0) path.moveToPoint(point); else path.lineToPoint(point);
+        });
     }
     path.closePath;
-    path.appendBezierPathWithOvalInRect($.NSMakeRect(cx - 3.4, cy - 3.4, 6.8, 6.8));
-    $.NSGraphicsContext.saveGraphicsState;
-    glow(hover.cog && lit ? WHITE : GREEN, lit ? (hover.cog ? 11 : 7) : 2);
-    (lit ? GREEN : DIM).setStroke;
-    path.lineWidth = 1.4;
-    path.stroke;
-    $.NSGraphicsContext.restoreGraphicsState;
-    YELLOW.setFill;
-    $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(cx - 1.2, cy - 1.2, 2.4, 2.4)).fill;
+    path.appendBezierPathWithOvalInRect($.NSMakeRect(cx - 3.2, cy - 3.2, 6.4, 6.4));
+    stroked(path, hover.cog && lit ? WHITE : lit ? ICON : GREY, 1.4, hover.cog && lit ? GREEN : null, 8);
 }
 
 function cogClicked() {
     if (!takes()) return;
+    secureHidden();
     var menu = $.NSMenu.alloc.initWithTitle($(''));
     menu.autoenablesItems = false;
-    [['Show bookmarks bar', 'marksBar:', marksOn], ['Clear browsing history', 'clearing:'], ['Make current page the home page', 'homing:']].forEach(function (one) {
+    [['Show bookmarks bar', 'marksBar:', marksOn], ['Bookmarks', 'bookmarks:'], ['Search engine...', 'engine:'], ['Clear browsing history', 'clearing:'], ['Make current page the home page', 'homing:'], ['Show the log', 'log:']].forEach(function (one) {
         var item = menu.addItemWithTitleActionKeyEquivalent($(one[0]), one[1], $(''));
         item.target = hand;
         titled(item, one[0]);
@@ -2848,22 +3116,17 @@ function markTold(rest) {
 
 function marked() { for (var i = 0; i < marks.length; i++) if (marks[i].url == current) return marks[i]; return null; }
 
-// The star: hollow and green, or filled and yellow when the address shown is a bookmark.
+// The star at the end of the bar: a light grey line, or filled with the beam and glowing when the
+// address shown is a bookmark.
 function paintStar() {
     var size = star.frame.size, cx = size.width / 2, cy = size.height / 2, path = $.NSBezierPath.bezierPath, kept = !!current && !!marked(), lit = takes();
     for (var k = 0; k < 10; k++) {
-        var turn = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 3.6 : 8.6, point = $.NSMakePoint(cx + r * Math.cos(turn), cy + r * Math.sin(turn));
+        var turn = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 3.4 : 8, point = $.NSMakePoint(cx + r * Math.cos(turn), cy + r * Math.sin(turn));
         if (k == 0) path.moveToPoint(point); else path.lineToPoint(point);
     }
     path.closePath;
-    path.lineJoinStyle = 1;
-    $.NSGraphicsContext.saveGraphicsState;
-    glow(kept ? YELLOW : hover.star && lit ? WHITE : GREEN, lit ? (hover.star ? 10 : 6) : 2);
-    if (kept) { YELLOW.setFill; path.fill; }
-    (kept ? YELLOW : lit ? GREEN : DIM).setStroke;
-    path.lineWidth = 1.3;
-    path.stroke;
-    $.NSGraphicsContext.restoreGraphicsState;
+    if (kept) { $.NSGraphicsContext.saveGraphicsState; glow(GREEN, 8); GREEN.setFill; path.fill; $.NSGraphicsContext.restoreGraphicsState; }
+    stroked(path, kept ? GREEN : hover.star && lit ? WHITE : lit ? ICON : GREY, 1.3, kept || hover.star && lit ? GREEN : null, 7);
 }
 
 function folderLabel(path) { return path ? path.split('/').join(' / ') : 'Bookmarks'; }
@@ -2908,7 +3171,7 @@ function marksAtTop() {
 function marksLaid() {
     var room = marksView.frame.size.width - 12, x = 12, placed = [], items = marksAtTop();
     for (var i = 0; i < items.length; i++) {
-        var w = Math.min(180, Math.ceil($(items[i].name).sizeWithAttributes(inked(mono(11.5), WHITE)).width) + 36);
+        var w = Math.min(180, Math.ceil($(items[i].name).sizeWithAttributes(inked(sans(12.5), WHITE)).width) + 36);
         if (x + w > room - (i < items.length - 1 ? 40 : 0)) { placed.push({ x: x, w: 34, more: items.slice(i), name: '>>' }); break; }
         placed.push({ x: x, w: w, item: items[i] });
         x += w + 4;
@@ -2918,24 +3181,22 @@ function marksLaid() {
 
 function paintMarks() {
     var size = marksView.frame.size, high = size.height;
-    $.NSColor.blackColor.setFill;
-    $.NSRectFill($.NSMakeRect(0, 0, size.width, high));
-    marksPlaced = marksLaid();
-    if (!marksPlaced.length) $('No bookmarks yet: the star beside the address keeps the page shown.').drawAtPointWithAttributes($.NSMakePoint(16, high / 2 - 7), inked(mono(11), DIM));
+    marksPlaced = marksLaid();    // on the frame's glass, with no fill of its own
+    if (!marksPlaced.length) $('No bookmarks yet: the star beside the address keeps the page shown.').drawAtPointWithAttributes($.NSMakePoint(16, high / 2 - 7), inked(sans(12), GREY));
     marksPlaced.forEach(function (one, i) {
         var hot = i == hover.mark && takes(), pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(one.x, 4, one.w, high - 8), 9, 9);
         if (hot) { glass(pill, true); $.NSGraphicsContext.saveGraphicsState; glow(GREEN, 6); DIM.setStroke; pill.stroke; $.NSGraphicsContext.restoreGraphicsState; }
-        if (one.more) return $('>>').drawAtPointWithAttributes($.NSMakePoint(one.x + 9, high / 2 - 7), inked(mono(11.5, true), GREEN));
+        if (one.more) return $('>>').drawAtPointWithAttributes($.NSMakePoint(one.x + 9, high / 2 - 7), inked(sans(12.5, true), GREEN));
         var mark = one.item.mark, glyph = $.NSBezierPath.bezierPath, gy = high / 2;
-        if (mark) glyph.appendBezierPathWithOvalInRect($.NSMakeRect(one.x + 10, gy - 3, 6, 6));
-        else { glyph.appendBezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(one.x + 8, gy - 4.5, 11, 9), 2, 2); }
-        $.NSGraphicsContext.saveGraphicsState;
-        glow(mark ? GREEN : YELLOW, 4);
-        (mark ? GREEN : YELLOW).setStroke;
-        glyph.lineWidth = 1.2;
-        glyph.stroke;
-        $.NSGraphicsContext.restoreGraphicsState;
-        $(one.item.name).drawInRectWithAttributes($.NSMakeRect(one.x + 25, gy - 8, one.w - 31, 16), inked(mono(11.5), hot ? WHITE : GREY, true));
+        if (mark) {    // a bookmark's ribbon, as on the home page
+            [[9.5, 5.5], [9.5, -5.5], [13, -2.5], [16.5, -5.5], [16.5, 5.5]].forEach(function (p, j) { var at = $.NSMakePoint(one.x + p[0], gy + p[1]); if (j) glyph.lineToPoint(at); else glyph.moveToPoint(at); });
+            glyph.closePath;
+        } else {    // a folder: a tab on a rounded box
+            glyph.appendBezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(one.x + 8, gy - 4.5, 12, 8.5), 1.6, 1.6);
+            glyph.moveToPoint($.NSMakePoint(one.x + 8.5, gy + 4)); glyph.lineToPoint($.NSMakePoint(one.x + 9.5, gy + 5.5)); glyph.lineToPoint($.NSMakePoint(one.x + 13, gy + 5.5)); glyph.lineToPoint($.NSMakePoint(one.x + 14, gy + 4));
+        }
+        stroked(glyph, hot ? GREEN : ICON, 1.2, hot ? GREEN : null, 5);
+        $(one.item.name).drawInRectWithAttributes($.NSMakeRect(one.x + 26, gy - 8.5, one.w - 31, 17), inked(sans(12.5), hot ? WHITE : ICON, true));
     });
     LINE.setStroke;
     $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(0, 0.5), $.NSMakePoint(size.width, 0.5));
@@ -2970,6 +3231,237 @@ function marksClicked(event) {
     folderMenu(one.item ? one.item.folder : '', one.more).popUpMenuPositioningItemAtLocationInView($(), $.NSMakePoint(one.x, -2), marksView);
 }
 
+// The home page, where a tab shows no page: two curved beams through the dark glass, the laser's
+// glint above the name, the name LZRBRWSR in the wide face with its letters far apart, BROWSE WITH
+// ZERO TRUST under it, and four square buttons: search, bookmarks, the tabs, a new tab.
+var HOME_BUTTONS = 4, HOME_SIDE = 60, HOME_GAP = 40;
+function homeLaid() {
+    var size = homeView.frame.size, cx = size.width / 2, group = 300, top = Math.min(size.height - 30, Math.round(size.height / 2 + group / 2 + 18));
+    var y = top - group + 0, left = Math.round(cx - (HOME_BUTTONS * HOME_SIDE + (HOME_BUTTONS - 1) * HOME_GAP) / 2), at = [];
+    for (var k = 0; k < HOME_BUTTONS; k++) at.push($.NSMakeRect(left + k * (HOME_SIDE + HOME_GAP), y, HOME_SIDE, HOME_SIDE));
+    return { cx: cx, top: top, buttons: at };
+}
+
+function beamed(from, c1, c2, to, strength) {    // one curved beam: a wide faint glow, then its bright core
+    var p = $.NSBezierPath.bezierPath;
+    p.moveToPoint(from); p.curveToPointControlPoint1ControlPoint2(to, c1, c2);
+    stroked(p, $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 0.07 * strength), 7, GREEN, 22);
+    stroked(p, $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.6, 0.94, 1, 0.55 * strength), 1.2, GREEN, 7);
+    return p;
+}
+
+function glint(cx, cy, length) {    // the laser's mark: a thin bright lens on a slant, white at its heart
+    var dx = length * 0.7, dy = length * 0.72, p = $.NSBezierPath.bezierPath, nx = -dy / length * 2.2, ny = dx / length * 2.2;
+    p.moveToPoint($.NSMakePoint(cx + dx, cy + dy));
+    p.curveToPointControlPoint1ControlPoint2($.NSMakePoint(cx - dx, cy - dy), $.NSMakePoint(cx + nx, cy + ny), $.NSMakePoint(cx + nx, cy + ny));
+    p.curveToPointControlPoint1ControlPoint2($.NSMakePoint(cx + dx, cy + dy), $.NSMakePoint(cx - nx, cy - ny), $.NSMakePoint(cx - nx, cy - ny));
+    $.NSGraphicsContext.saveGraphicsState;
+    glow(GREEN, 16);
+    GREEN.setFill;
+    p.fill;
+    $.NSGraphicsContext.restoreGraphicsState;
+    $.NSGraphicsContext.saveGraphicsState;
+    glow(WHITE, 6);
+    WHITE.setFill;
+    $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(cx - 4, cy - 1.6, 8, 3.2)).fill;
+    $.NSGraphicsContext.restoreGraphicsState;
+}
+
+function homeIcon(k, cx, cy) {
+    var p = $.NSBezierPath.bezierPath;
+    if (k == 0) { p.appendBezierPathWithOvalInRect($.NSMakeRect(cx - 8, cy - 4, 12, 12)); p.moveToPoint($.NSMakePoint(cx + 2.3, cy - 1.7)); p.lineToPoint($.NSMakePoint(cx + 7.5, cy - 7)); }
+    else if (k == 1) { p.moveToPoint($.NSMakePoint(cx - 6, cy - 9)); p.lineToPoint($.NSMakePoint(cx - 6, cy + 7)); p.appendBezierPathWithArcWithCenterRadiusStartAngleEndAngleClockwise($.NSMakePoint(cx - 4, cy + 7), 2, 180, 90, true); p.lineToPoint($.NSMakePoint(cx + 4, cy + 9)); p.appendBezierPathWithArcWithCenterRadiusStartAngleEndAngleClockwise($.NSMakePoint(cx + 4, cy + 7), 2, 90, 0, true); p.lineToPoint($.NSMakePoint(cx + 6, cy - 9)); p.lineToPoint($.NSMakePoint(cx, cy - 4)); p.closePath; }
+    else if (k == 2) { [[-8, 1], [1, 1], [-8, -8], [1, -8]].forEach(function (o) { p.appendBezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(cx + o[0], cy + o[1], 7, 7), 1.8, 1.8); }); }
+    else p = plussed(cx, cy, 8);
+    return p;
+}
+
+function paintHome() {
+    var size = homeView.frame.size, w = size.width, h = size.height, laid = homeLaid(), cx = laid.cx, lit = takes();
+    beamed($.NSMakePoint(0, h * 0.42), $.NSMakePoint(w * 0.12, h * 0.68), $.NSMakePoint(w * 0.24, h * 0.86), $.NSMakePoint(w * 0.42, h + 2), 0.55);
+    var low = beamed($.NSMakePoint(w * 0.44, -2), $.NSMakePoint(w * 0.62, h * 0.16), $.NSMakePoint(w * 0.82, h * 0.34), $.NSMakePoint(w + 2, h * 0.43), 1);
+    var under = low.copy;    // a faint light on the glass under the lower beam
+    under.lineToPoint($.NSMakePoint(w + 2, -2));
+    under.closePath;
+    $.NSGradient.alloc.initWithStartingColorEndingColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 0.035), $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 0)).drawInBezierPathAngle(under, -60);
+    glint(cx, laid.top - 52, 52);
+    centred(spaced('LZRBRWSR', wide(34, -0.4), WHITE, 17), cx, laid.top - 150, 17);
+    centred(spaced('BROWSE WITH ZERO TRUST', wide(12, 0), GREY, 5.5), cx, laid.top - 182, 5.5);
+    laid.buttons.forEach(function (box, k) {
+        var hot = lit && hover.home == k, square = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(box, 13, 13);
+        $.NSGraphicsContext.saveGraphicsState;
+        if (hot) glow(GREEN, 12);
+        FILL.setFill;
+        square.fill;
+        $.NSGraphicsContext.restoreGraphicsState;
+        glass(square, hot);
+        stroked(square, hot ? GREEN : EDGE, hot ? 1.3 : 1, hot ? GREEN : null, 6);
+        stroked(homeIcon(k, box.origin.x + HOME_SIDE / 2, box.origin.y + HOME_SIDE / 2), hot ? WHITE : lit ? ICON : GREY, 1.6);
+    });
+}
+
+function homeAt(event) {
+    var at = homeView.convertPointFromView(event.locationInWindow, $()), boxes = homeLaid().buttons;
+    for (var k = 0; k < boxes.length; k++) if (at.x >= boxes[k].origin.x && at.x <= boxes[k].origin.x + HOME_SIDE && at.y >= boxes[k].origin.y && at.y <= boxes[k].origin.y + HOME_SIDE) return k;
+    return -1;
+}
+
+function homeClicked(event) {
+    secureHidden();
+    var k = homeAt(event);
+    if (k < 0 || !takes()) return;
+    if (k == 0) searched();
+    else if (k == 1) listOpened('marks');
+    else if (k == 2) listOpened('tabs');
+    else newTab();
+}
+
+// Search. The first press of the search button asks which engine words typed into the bar go to:
+// Brave, DuckDuckGo, Google, or an address of your own in lzrprf's modal. lzrprf keeps the choice
+// ("search NAME" or "search custom<tab>ADDRESS", checked there) and says "search set"; from then on
+// the button puts the caret into the bar with its text chosen, to type over at once.
+function searched() {
+    if (!takes()) return;
+    if (!searchSet) return engineAsked();
+    barChosen();
+}
+
+function barChosen() { win.makeFirstResponder(bar); var editor = bar.currentEditor; if (editor && !editor.isNil()) editor.selectAll($()); belt.needsDisplay = true; }
+
+function engineAsked() {
+    var picked = function (name) { return function () { closeModal(); searchNext = searchNext || 'focus'; sent('search ' + name); }; };
+    modal('Choose your search engine', 'Words you type into the address bar that are not an address are searched with it. You can change it later from the cogwheel. Nothing is sent until you choose.',
+        [['Cancel', function () { searchNext = null; closeModal(); }], ['Custom...', engineOwn], ['Google', picked('google')], ['DuckDuckGo', picked('duckduckgo')], ['Brave', picked('brave')]], 'small');
+}
+
+function engineOwn() {
+    modal('Custom search engine', 'Give the address a search is made at, with %s where your words go, for example\nhttps://search.example.com/search?q=%s\nIt must begin with https://, name a host by its name and not by a number, use port 443, be plain characters without a space, and hold %s exactly once. Your words are percent-encoded in its place.',
+        [['Cancel', function () { searchNext = null; closeModal(); }], ['Back', engineAsked], ['Save', engineSaved]], 'engine');
+    engineField.stringValue = $('');
+    win.makeFirstResponder(engineField);
+}
+
+function engineSaved() {
+    var text = engineField.stringValue.js.trim();
+    if (!/^https:\/\/[\x21-\x7e]+$/i.test(text) || text.split('%s').length != 2) { panelSub.stringValue = $('That is not a search address lzrprf takes: https://, plain characters without a space, and %s exactly once, for example https://search.example.com/search?q=%s'); panelSub.textColor = YELLOW; return; }
+    closeModal();
+    searchNext = searchNext || 'focus';
+    sent('search custom\t' + text);
+}
+
+// The bookmarks page and the tabs page, where the page stands, left by the back arrow: every
+// bookmark under its folder, or every tab; a press opens the bookmark or chooses the tab.
+function listOpened(which) { listing = which; secureHidden(); place(); listView.scrollPoint($.NSMakePoint(0, 0)); }
+
+function listRows() {
+    if (listing == 'tabs') return tabs.map(function (tab, i) { return { tab: i, name: tab.title || 'New Tab', sub: i == selected ? 'The tab chosen now' : 'Tab ' + (i + 1) }; });
+    var rows = [];
+    [''].concat(folders.slice().sort()).forEach(function (folder) {
+        var in_ = marks.filter(function (m) { return m.folder === folder; });
+        if (folder) rows.push({ heading: folderLabel(folder) });
+        in_.forEach(function (m) { rows.push({ mark: m.id, name: m.name, sub: m.url }); });
+    });
+    return rows;
+}
+
+function listPlaced() {    // each row with its top, in the list's flipped view
+    var rows = listRows(), y = 132, wide = Math.min(760, listScroll.frame.size.width - 64), x = Math.round((listScroll.frame.size.width - wide) / 2);
+    rows.forEach(function (row) { row.y = y; row.x = x; row.w = wide; row.h = row.heading ? 36 : 54; y += row.h + (row.heading ? 0 : 8); });
+    return { rows: rows, end: y + 40 };
+}
+
+function listSized() { if (listView) listView.setFrameSize($.NSMakeSize(listScroll.contentSize.width, Math.max(listScroll.contentSize.height, listPlaced().end))); }
+
+function paintList() {
+    if (!listing) return;
+    var size = listView.frame.size, cx = size.width / 2, laid = listPlaced(), count = laid.rows.filter(function (r) { return !r.heading; }).length, lit = takes();
+    var title = spaced(listing == 'tabs' ? 'TABS' : 'BOOKMARKS', wide(26, -0.4), WHITE, 12);
+    title.drawAtPoint($.NSMakePoint(Math.round(cx - (title.size.width - 12) / 2), 34));
+    var about = listing == 'tabs' ? count + (count == 1 ? ' tab' : ' tabs') + '. The back arrow returns to the page.' : count ? count + (count == 1 ? ' bookmark' : ' bookmarks') + '. The back arrow returns to the page.' : 'No bookmarks yet: the star in the address bar keeps the page shown. The back arrow returns to the page.';
+    centred(styled(about, inked(sans(12.5), GREY)), cx, 80, 0);
+    laid.rows.forEach(function (row, i) {
+        if (row.heading) return spaced(row.heading.toUpperCase(), sans(11, true), GREEN, 1.6).drawAtPoint($.NSMakePoint(row.x + 4, row.y + 14));
+        var hot = lit && hover.list == i, box = $.NSMakeRect(row.x, row.y, row.w, row.h), card = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(box, 11, 11);
+        $.NSGraphicsContext.saveGraphicsState;
+        if (hot) glow(GREEN, 10);
+        FILL.setFill;
+        card.fill;
+        $.NSGraphicsContext.restoreGraphicsState;
+        stroked(card, hot ? GREEN : row.tab === selected ? DIM : LINE, hot ? 1.3 : 1, hot ? GREEN : null, 6);
+        var icon = row.tab !== undefined ? $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(row.x + 18, row.y + 19, 16, 13), 3, 3) : homeIcon(1, row.x + 26, row.y + 27);
+        $.NSGraphicsContext.saveGraphicsState;
+        var turn = $.NSAffineTransform.transform;    // the view is flipped: the icons are drawn the right way up
+        turn.translateXByYBy(0, 2 * row.y + row.h);
+        turn.scaleXByYBy(1, -1);
+        turn.concat;
+        stroked(icon, hot ? WHITE : ICON, 1.4);
+        $.NSGraphicsContext.restoreGraphicsState;
+        $(row.name).drawInRectWithAttributes($.NSMakeRect(row.x + 50, row.y + 9, row.w - 70, 19), inked(sans(13.5, true), WHITE, true));
+        $(row.sub).drawInRectWithAttributes($.NSMakeRect(row.x + 50, row.y + 29, row.w - 70, 17), inked(sans(11.5), GREY, true));
+    });
+}
+
+function listAt(event) {
+    var at = listView.convertPointFromView(event.locationInWindow, $()), rows = listPlaced().rows;
+    for (var i = 0; i < rows.length; i++) if (!rows[i].heading && at.y >= rows[i].y && at.y < rows[i].y + rows[i].h && at.x >= rows[i].x && at.x < rows[i].x + rows[i].w) return i;
+    return -1;
+}
+
+function listClicked(event) {
+    var i = listAt(event), row = i >= 0 ? listPlaced().rows[i] : null;
+    if (!row || !takes()) return;
+    if (row.mark !== undefined) { listing = null; place(); return sent('mark open ' + row.mark); }
+    listing = null;
+    place();
+    if (row.tab != selected) tabSaid('tab select ' + row.tab);
+}
+
+// The lock at the start of the bar. Under the pointer, or pressed, it shows what lzrprf saw of the
+// connection the page shown came over, as lzrprf told it: "secure begin", "secure line TEXT" for
+// each line ("# HEADING" or "NAME: VALUE"), "secure end"; or "secure none" when no page is shown.
+// A press keeps the panel open until the next press anywhere in the chrome.
+function secureSaid() {
+    var said = $.NSMutableAttributedString.alloc.init, add = function (text, font, colour, kern) { said.appendAttributedString(kern ? spaced(text, font, colour, kern) : styled(text, inked(font, colour))); };
+    add(secureLines ? 'Encrypted connection' : 'No connection', sans(15, true), WHITE);
+    add(secureLines ? '\nThe page shown came over https, checked by lzrprf.\n' : '\nThis tab shows no page, so there is no connection to tell of.\n', sans(12), GREY);
+    (secureLines || []).forEach(function (line) {
+        if (line.charAt(0) == '#') return add('\n' + line.slice(2).toUpperCase() + '\n', sans(10.5, true), GREEN, 1.2);
+        var gap = line.indexOf(': ');
+        if (gap > 0) { add(line.slice(0, gap) + '   ', sans(12), GREY); add(line.slice(gap + 2) + '\n', sans(12), WHITE); }
+        else add(line + '\n', sans(12), WHITE);
+    });
+    return said;
+}
+
+function secureShown() {
+    secureText.textStorage.setAttributedString(secureSaid());
+    secureBox.hidden = false;
+    securePlaced();
+}
+
+function securePlaced() {
+    if (!secureBox || secureBox.hidden) return;
+    var all = root.frame.size, w = Math.min(600, all.width - 40), top = all.height - TABS_HIGH - BAR_ROW + PILL.origin.y - 4;
+    secureText.textContainer.containerSize = $.NSMakeSize(w - 40, 100000);
+    secureText.layoutManager.ensureLayoutForTextContainer(secureText.textContainer);
+    var used = secureText.layoutManager.usedRectForTextContainer(secureText.textContainer).size.height, h = Math.max(80, Math.min(top - 12, used + 44));
+    secureBox.frame = $.NSMakeRect(Math.max(12, Math.min(PILL.origin.x - 10, all.width - w - 12)), top - h, w, h);
+    secureScroll.frame = $.NSMakeRect(18, 16, w - 36, h - 32);
+    secureText.setFrameSize($.NSMakeSize(w - 36, Math.max(h - 32, used + 8)));
+    secureBox.needsDisplay = true;
+}
+
+function secureHidden() { if (!secureBox) return; securePinned = false; secureBox.hidden = true; belt.needsDisplay = true; }
+function secureToggled() { if (securePinned) return secureHidden(); securePinned = true; secureShown(); belt.needsDisplay = true; }
+
+function paintSecure() {
+    var size = secureBox.frame.size, box = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(0.5, 0.5, size.width - 1, size.height - 1), 14, 14);
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.035, 0.045, 0.055, 0.98).setFill;
+    box.fill;
+    glass(box, true);
+    stroked(box, GREEN, 1.1);
+}
+
 // The modal: centred over the whole window, over a veil that takes every click, so nothing under
 // it, the page or the chrome, is reached while it is open. Kinds: small, tall (a redirect), form
 // (a bookmark), big (the installer).
@@ -2977,13 +3469,15 @@ function modal(title, about, choices, kind) {
     modalOpen = true;
     modalKind = kind;
     panelTitle.stringValue = $(title);
-    panelTitle.textColor = GREEN;
+    panelTitle.textColor = WHITE;
     panelSub.stringValue = $(about);
     panelSub.textColor = WHITE;
     panelText.string = $('');
     panelScroll.hidden = kind != 'big';
     form.hidden = kind != 'form';
+    engineField.hidden = kind != 'engine';
     veil.hidden = false;
+    secureHidden();
     bar.enabled = false;
     logs.enabled = false;
     win.makeFirstResponder($());
@@ -2999,8 +3493,8 @@ function buttons(choices) {
         var one = $.NSButton.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 32));
         one.title = $(choice[0]);
         one.bezelStyle = 1;
-        one.font = mono(12, i == choices.length - 1);
-        if (i == choices.length - 1 && choices.length > 1) one.bezelColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 0.42, 0.13, 1);    // the step forward, in green; the step back stays plain
+        one.font = sans(13, i == choices.length - 1);
+        if (i == choices.length - 1 && choices.length > 1) one.bezelColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.05, 0.42, 0.52, 1);    // the step forward, in the beam's colour; the step back stays plain
         one.target = hand;
         one.action = 'modalPress:';
         one.tag = i;
@@ -3023,13 +3517,14 @@ function closeModal() {
 
 function placeModal() {
     if (!veil) return;
-    var all = win.contentView.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
-    var w = Math.min(big ? 780 : 580, wide - 48), h = big ? Math.min(560, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : 230;
+    var all = root.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
+    var w = Math.min(big ? 780 : 580, wide - 48), h = big ? Math.min(560, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : 230;
     veil.frame = $.NSMakeRect(0, 0, wide, high);
     panel.frame = $.NSMakeRect(Math.round((wide - w) / 2) - M, Math.round((high - h) / 2) - M, w + 2 * M, h + 2 * M);
     panel.needsDisplay = true;
     panelTitle.frame = $.NSMakeRect(M + 26, M + h - 52, w - 52, 28);
-    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
+    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : modalKind == 'engine' ? $.NSMakeRect(M + 26, M + 112, w - 52, h - 172) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
+    engineField.frame = $.NSMakeRect(M + 26, M + 68, w - 52, 26);
     panelScroll.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 170));
     form.frame = $.NSMakeRect(M + 26, M + 64, w - 52, h - 154);
     var fw = w - 52 - 90;
@@ -3049,32 +3544,20 @@ function placeModal() {
 }
 
 function paintPanel() {
-    var size = panel.frame.size, box = $.NSMakeRect(18, 18, size.width - 36, size.height - 36), path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(box, 18, 18);
+    var size = panel.frame.size, box = $.NSMakeRect(18, 18, size.width - 36, size.height - 36), path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(box, 16, 16);
     $.NSGraphicsContext.saveGraphicsState;
-    glow($.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 1, 0.255, 0.55), 22);
-    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.012, 0.03, 0.018, 0.97).setFill;
+    glow(HALO, 20);
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.035, 0.045, 0.055, 0.98).setFill;
     path.fill;
     $.NSGraphicsContext.restoreGraphicsState;
     glass(path, true);
-    GREEN.setStroke;
-    path.lineWidth = 1.2;
-    path.stroke;
-    var top = 18 + box.size.height - 0.6, spark = $.NSBezierPath.bezierPath, shine = $.NSBezierPath.bezierPath;    // a yellow ricochet and a white glint along the top edge
-    spark.moveToPoint($.NSMakePoint(46, top)); spark.lineToPoint($.NSMakePoint(104, top));
-    shine.moveToPoint($.NSMakePoint(110, top)); shine.lineToPoint($.NSMakePoint(122, top));
-    $.NSGraphicsContext.saveGraphicsState;
-    glow(YELLOW, 6);
-    YELLOW.setStroke; spark.lineWidth = 1.5; spark.stroke;
-    WHITE.setStroke; shine.lineWidth = 1.5; shine.stroke;
-    $.NSGraphicsContext.restoreGraphicsState;
+    stroked(path, GREEN, 1.2, GREEN, 5);
 }
 
-function paintBack() {    // behind lzrprf's strip: a pane of glass with a thin line
-    var size = stripBack.frame.size, path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(6.5, 2.5, size.width - 13, size.height - 5), 10, 10);
-    glass(path, false);
-    LINE.setStroke;
-    path.lineWidth = 1;
-    path.stroke;
+function paintBack() {    // behind lzrprf's strip at the bottom: a faint line over it
+    var size = stripBack.frame.size;
+    $.NSColor.colorWithWhiteAlpha(1, 0.06).setStroke;
+    $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(0, size.height - 0.5), $.NSMakePoint(size.width, size.height - 0.5));
 }
 
 // A redirect, as lzrprf asks about it: "redirect STATUS<tab>FROM<tab>TO<tab>BUTTONS...". A press
@@ -3103,7 +3586,7 @@ function installTold(rest) {
     else if (word == 'end') {
         var done = more.slice(0, 5) == 'done ';
         panelTitle.stringValue = $(done ? 'The install is done' : 'The install failed');
-        panelTitle.textColor = done ? GREEN : YELLOW;
+        panelTitle.textColor = done ? WHITE : YELLOW;
         buttons(done ? [['Start again', function () { app.terminate(null); }]] : [['Close', closeModal]]);
     }
 }
@@ -3114,11 +3597,19 @@ function installLine(text, ink) {
     panelText.scrollRangeToVisible($.NSMakeRange(store.length, 0));
 }
 
-// Where the pointer is, for the glow of what it is over.
+// Where the pointer is, for the glow of what it is over; over the lock it also shows the lock's panel.
 function hovered(view, event) {
     var was = JSON.stringify(hover);
-    if (view == 'tabs') hover.tab = event ? tabAt(event)[0] : -1;
+    if (view == 'tabs') { hover.tab = event ? tabAt(event)[0] : -1; hover.dot = event ? dotAt(tabsView.convertPointFromView(event.locationInWindow, $())) : -1; }
     else if (view == 'marks') hover.mark = event ? markAt(event) : -1;
+    else if (view == 'home') hover.home = event ? homeAt(event) : -1;
+    else if (view == 'list') hover.list = event ? listAt(event) : -1;
+    else if (view == 'belt') {
+        var at = event ? belt.convertPointFromView(event.locationInWindow, $()) : null, over = !!at && lockAt(at);
+        hover.nav = at ? navAt(at) : -1;
+        if (over != hover.lock && !securePinned) { if (over) secureShown(); else secureBox.hidden = true; }
+        hover.lock = over;
+    }
     else hover[view] = !!event;
     if (JSON.stringify(hover) != was) redrawn();
 }
@@ -3317,6 +3808,31 @@ ObjC.registerSubclass({ name: 'LzrprfLaid', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paint(dirty); } }
 } });
 
+ObjC.registerSubclass({ name: 'LzrprfFrame', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintFrame(); } },
+    'mouseDown:': { implementation: function (event) { frameClicked(event); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfHome', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintHome(); } },
+    'mouseDown:': { implementation: function (event) { homeClicked(event); } },
+    'mouseMoved:': { implementation: function (event) { hovered('home', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('home', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfList', superclass: 'NSView', methods: {
+    'isFlipped': { implementation: function () { return true; } },
+    'drawRect:': { implementation: function (dirty) { paintList(); } },
+    'mouseDown:': { implementation: function (event) { listClicked(event); } },
+    'mouseMoved:': { implementation: function (event) { hovered('list', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('list', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfSecure', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintSecure(); } },
+    'mouseDown:': { implementation: function (event) { } }
+} });
+
 ObjC.registerSubclass({ name: 'LzrprfTabs', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paintTabs(); } },
     'mouseDown:': { implementation: function (event) { tabClicked(event); } },
@@ -3326,7 +3842,9 @@ ObjC.registerSubclass({ name: 'LzrprfTabs', superclass: 'NSView', methods: {
 
 ObjC.registerSubclass({ name: 'LzrprfBelt', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paintBelt(); } },
-    'mouseDown:': { implementation: function (event) { beltClicked(event); } }
+    'mouseDown:': { implementation: function (event) { beltClicked(event); } },
+    'mouseMoved:': { implementation: function (event) { hovered('belt', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('belt', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfCog', superclass: 'NSView', methods: {
@@ -3389,6 +3907,11 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'closeTab:': { types: ['void', ['id']], implementation: function (sender) { tabSaid('tab close ' + selected, selected); } },
     'clearing:': { types: ['void', ['id']], implementation: function (sender) { clearing(); } },
     'homing:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('menu home'); } },
+    'back:': { types: ['void', ['id']], implementation: function (sender) { navPressed(0); } },
+    'forward:': { types: ['void', ['id']], implementation: function (sender) { navPressed(1); } },
+    'reload:': { types: ['void', ['id']], implementation: function (sender) { navPressed(2); } },
+    'bookmarks:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) listOpened('marks'); } },
+    'engine:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) engineAsked(); } },
     'marksBar:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('menu bookmarks-bar'); } },
     'markMenu:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('mark open ' + sender.tag); } },
     'folderChosen:': { types: ['void', ['id']], implementation: function (sender) { folderChosen(); } },
@@ -3421,7 +3944,7 @@ function button(title, action) {
     one.target = hand;
     one.action = action;
     one.autoresizingMask = 1 | 8;
-    win.contentView.addSubview(one);
+    root.addSubview(one);
     return one;
 }
 
@@ -3429,7 +3952,7 @@ function menus() {
     var main = $.NSMenu.alloc.initWithTitle($('')), kept = [];
     [[NAME, [['Quit ' + NAME, 'terminate:', 'q', false]]],
      ['Edit', [['Undo', 'undo:', 'z', false], ['Redo', 'redo:', 'Z', false], ['Cut', 'cut:', 'x', false], ['Copy', 'copy:', 'c', false], ['Paste', 'paste:', 'v', false], ['Select All', 'selectAll:', 'a', false]]],
-     ['Go', [['Address', 'bar:', 'l', true], ['New Tab', 'newTab:', 't', true], ['Close Tab', 'closeTab:', 'w', true], ['Log', 'log:', '', true]]]].forEach(function (one) {
+     ['Go', [['Address', 'bar:', 'l', true], ['Back', 'back:', '[', true], ['Forward', 'forward:', ']', true], ['Reload', 'reload:', 'r', true], ['Bookmarks', 'bookmarks:', 'B', true], ['New Tab', 'newTab:', 't', true], ['Close Tab', 'closeTab:', 'w', true], ['Log', 'log:', '', true]]]].forEach(function (one) {
         var item = $.NSMenuItem.alloc.init, menu = $.NSMenu.alloc.initWithTitle($(one[0]));
         one[1].forEach(function (entry) {
             var made = menu.addItemWithTitleActionKeyEquivalent($(entry[0]), entry[1], $(entry[2]));
@@ -3447,18 +3970,25 @@ function shown() { win.makeKeyAndOrderFront($()); app.activateIgnoringOtherApps(
 function drawn(lines, characters) { }
 function told(word, rest) { }
 
-// The icon in the Dock is drawn here, a black square with a beam of green dots, so the window
-// reads no picture from the closed download.
+// The icon in the Dock is drawn here, a black square with the laser's cyan glint across it, so the
+// window reads no picture from the closed download.
 function icon(S) {
-    var img = $.NSImage.alloc.initWithSize($.NSMakeSize(S, S)), side = S * 824 / 1024, d = S / 64, at = S * 3 / 16, c, i, j, dots = $.NSBezierPath.bezierPath;
+    var img = $.NSImage.alloc.initWithSize($.NSMakeSize(S, S)), side = S * 824 / 1024, c = S / 2, d = S * 0.26, n = S * 0.03, glintPath = $.NSBezierPath.bezierPath;
     img.lockFocus;
-    $.NSColor.blackColor.setFill;
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.03, 0.04, 0.05, 1).setFill;
     $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect((S - side) / 2, (S - side) / 2, side, side), side * 0.225, side * 0.225).fill;
-    for (c = 0; c < 8; c++) for (i = 0; i < 5; i++) for (j = 0; j < 5; j++)
-        if (c > 5 || (c > 3 ? !(i % 2 && j % 2) : c > 1 ? i % 2 == j % 2 : !(i % 2) && !(j % 2)))
-            dots.appendBezierPathWithRect($.NSMakeRect(at + (c * 5 + i) * d, at + (c * 5 + j) * d, d, d));
-    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 1, 0, 1).setFill;
-    dots.fill;
+    glintPath.moveToPoint($.NSMakePoint(c + d, c + d));
+    glintPath.curveToPointControlPoint1ControlPoint2($.NSMakePoint(c - d, c - d), $.NSMakePoint(c - n, c + n), $.NSMakePoint(c - n, c + n));
+    glintPath.curveToPointControlPoint1ControlPoint2($.NSMakePoint(c + d, c + d), $.NSMakePoint(c + n, c - n), $.NSMakePoint(c + n, c - n));
+    var shine = $.NSShadow.alloc.init;
+    shine.shadowColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 1);
+    shine.shadowBlurRadius = S * 0.06;
+    shine.shadowOffset = $.NSMakeSize(0, 0);
+    shine.set;
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.28, 0.87, 1, 1).setFill;
+    glintPath.fill;
+    $.NSColor.whiteColor.setFill;
+    $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(c - S * 0.04, c - S * 0.04, S * 0.08, S * 0.08)).fill;
     img.unlockFocus;
     return img;
 }
@@ -3472,22 +4002,30 @@ function run(argv) {
     hand = $.LzrprfHand.alloc.init;
     app.delegate = hand;
     canvas = $.LzrprfLaid.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 640));
-    win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer($.NSMakeRect(0, 0, 960, 720), 15, 2, false);
+    win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer($.NSMakeRect(0, 0, 1000, 760), 15 | 32768, 2, false);    // titled, closable, minimisable, resizable, its content under the title bar
     win.title = $(NAME);
+    win.titleVisibility = 1;
+    win.titlebarAppearsTransparent = true;
+    [0, 1, 2].forEach(function (k) { var one = win.standardWindowButton(k); if (one && !one.isNil()) one.hidden = true; });    // the strip draws the three dots itself (paintTabs)
+    win.opaque = false;
+    win.hasShadow = false;    // the frame's glow is its shadow
     win.releasedWhenClosed = false;
-    win.minSize = $.NSMakeSize(520, 320);
+    win.minSize = $.NSMakeSize(560, 360);
     win.center;
     win.delegate = hand;
     laser();
     win.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
-    win.backgroundColor = $.NSColor.blackColor;
+    win.backgroundColor = $.NSColor.clearColor;
+    win.contentView = $.LzrprfFrame.alloc.initWithFrame($.NSMakeRect(0, 0, 1000, 760));
+    root = $.NSView.alloc.initWithFrame($.NSMakeRect(17, 17, 966, 726));
+    win.contentView.addSubview(root);
     tabsView = $.LzrprfTabs.alloc.initWithFrame($.NSMakeRect(0, 0, 960, TABS_HIGH));
-    win.contentView.addSubview(tabsView);
+    root.addSubview(tabsView);
     belt = $.LzrprfBelt.alloc.initWithFrame($.NSMakeRect(0, 0, 960, BAR_ROW));    // under the bar and the cogwheel: what they do not take, it takes
-    win.contentView.addSubview(belt);
+    root.addSubview(belt);
     bar = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 24));
-    bar.placeholderAttributedString = styled('Type an https address and press Return', inked(mono(13), DIM));
-    bar.font = mono(13);
+    bar.placeholderAttributedString = styled('Search or enter a website', inked(sans(14), GREY));
+    bar.font = sans(14);
     bar.textColor = WHITE;
     bar.bordered = false;
     bar.bezeled = false;
@@ -3501,28 +4039,28 @@ function run(argv) {
     bar.action = 'go:';
     bar.enabled = false;
     bar.autoresizingMask = 2 | 8;
-    win.contentView.addSubview(bar);
+    root.addSubview(bar);
     star = $.LzrprfStar.alloc.initWithFrame($.NSMakeRect(0, 0, 30, 30));
-    win.contentView.addSubview(star);
+    root.addSubview(star);
     cog = $.LzrprfCog.alloc.initWithFrame($.NSMakeRect(0, 0, 30, 30));
-    win.contentView.addSubview(cog);
+    root.addSubview(cog);
     marksView = $.LzrprfMarks.alloc.initWithFrame($.NSMakeRect(0, 0, 960, MARKS_ROW));
     marksView.hidden = true;
-    win.contentView.addSubview(marksView);
-    [tabsView, cog, star, marksView].forEach(tracked);
+    root.addSubview(marksView);
+    [tabsView, belt, cog, star, marksView].forEach(tracked);
     stripBack = $.LzrprfBack.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 30));
-    win.contentView.addSubview(stripBack);
+    root.addSubview(stripBack);
     words = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 24));
     words.editable = false;
     words.selectable = true;
     words.bordered = false;
     words.drawsBackground = false;
-    words.font = mono(11.5);
+    words.font = sans(11.5);
     words.textColor = GREY;
     words.cell.wraps = true;
     words.stringValue = $('lzrprf is starting ' + NAME + '.');
     words.autoresizingMask = 2 | 8;
-    win.contentView.addSubview(words);
+    root.addSubview(words);
     first = button('', 'first:');
     second = button('', 'second:');
     first.hidden = true;
@@ -3538,11 +4076,13 @@ function run(argv) {
     page.displaysLinkToolTips = false;
     page.textContainerInset = $.NSMakeSize(14, 12);
     page.autoresizingMask = 2;
+    page.backgroundColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.043, 0.055, 0.067, 1);    // the glass, a shade under the frame's
+    scroll.backgroundColor = page.backgroundColor;
     scroll.documentView = page;
-    win.contentView.addSubview(scroll);
+    root.addSubview(scroll);
     under = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));
     under.hasVerticalScroller = true;
-    under.borderType = 1;
+    under.borderType = 0;
     under.autoresizingMask = 2 | 32;
     made = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));
     made.editable = false;
@@ -3552,11 +4092,38 @@ function run(argv) {
     made.displaysLinkToolTips = false;
     made.textContainerInset = $.NSMakeSize(14, 8);
     made.autoresizingMask = 2;
+    made.backgroundColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.03, 0.04, 0.05, 1);
+    under.backgroundColor = made.backgroundColor;
     under.documentView = made;
-    win.contentView.addSubview(under);
+    root.addSubview(under);
     logs = button('Log', 'log:');    // at the bottom right of the pane under the page, over it
     logs.autoresizingMask = 1 | 32;
     logs.enabled = false;
+    homeView = $.LzrprfHome.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 600));
+    root.addSubview(homeView);
+    listScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 600));
+    listScroll.hasVerticalScroller = true;
+    listScroll.drawsBackground = false;
+    listScroll.hidden = true;
+    listView = $.LzrprfList.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 600));
+    listScroll.documentView = listView;
+    root.addSubview(listScroll);
+    [homeView, listView].forEach(tracked);
+    secureBox = $.LzrprfSecure.alloc.initWithFrame($.NSMakeRect(0, 0, 560, 300));
+    secureBox.hidden = true;
+    secureScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 520, 260));
+    secureScroll.hasVerticalScroller = true;
+    secureScroll.drawsBackground = false;
+    secureText = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 520, 260));
+    secureText.editable = false;
+    secureText.richText = false;
+    secureText.drawsBackground = false;
+    secureText.automaticLinkDetectionEnabled = false;
+    secureText.automaticDataDetectionEnabled = false;
+    secureText.textContainerInset = $.NSMakeSize(0, 0);
+    secureScroll.documentView = secureText;
+    secureBox.addSubview(secureScroll);
+    root.addSubview(secureBox);
     veil = $.LzrprfVeil.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 720));    // last, so it is over everything
     veil.hidden = true;
     panel = $.LzrprfPanel.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
@@ -3564,25 +4131,32 @@ function run(argv) {
     panelTitle = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 28));
     panelSub = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 40));
     [panelTitle, panelSub].forEach(function (one) { one.editable = false; one.selectable = true; one.bordered = false; one.drawsBackground = false; one.cell.wraps = true; panel.addSubview(one); });
-    panelTitle.font = mono(17, true);
-    panelSub.font = mono(12.5);
+    panelTitle.font = sans(18, true);
+    panelSub.font = sans(13);
     panelSub.textColor = WHITE;
     form = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, 500, 150));
     form.hidden = true;
     panel.addSubview(form);
-    function label(words) { var one = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 84, 20)); one.editable = false; one.selectable = false; one.bordered = false; one.drawsBackground = false; one.font = mono(12); one.textColor = GREY; one.stringValue = $(words); form.addSubview(one); return one; }
-    function field() { var one = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 300, 26)); one.font = mono(12.5); one.cell.allowsUndo = true; one.cell.usesSingleLineMode = true; one.cell.scrollable = true; form.addSubview(one); return one; }
+    function label(words) { var one = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 84, 20)); one.editable = false; one.selectable = false; one.bordered = false; one.drawsBackground = false; one.font = sans(12.5); one.textColor = GREY; one.stringValue = $(words); form.addSubview(one); return one; }
+    function field() { var one = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 300, 26)); one.font = sans(13); one.cell.allowsUndo = true; one.cell.usesSingleLineMode = true; one.cell.scrollable = true; form.addSubview(one); return one; }
     nameLabel = label('Name'); nameField = field();
     addressLabel = label('Address'); addressField = field();
     folderLabelView = label('Folder');
     folderPop = $.NSPopUpButton.alloc.initWithFramePullsDown($.NSMakeRect(0, 0, 260, 26), false);
-    folderPop.font = mono(12);
+    folderPop.font = sans(12.5);
     folderPop.target = hand;
     folderPop.action = 'folderChosen:';
     form.addSubview(folderPop);
     newFolderField = field();
     newFolderField.placeholderString = $('New folder: a name, or names joined by /');
     newFolderField.hidden = true;
+    engineField = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 400, 26));
+    engineField.font = sans(13);
+    engineField.cell.usesSingleLineMode = true;
+    engineField.cell.scrollable = true;
+    engineField.placeholderString = $('https://search.example.com/search?q=%s');
+    engineField.hidden = true;
+    panel.addSubview(engineField);
     panelScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
     panelScroll.hasVerticalScroller = true;
     panelScroll.borderType = 0;
@@ -3596,7 +4170,7 @@ function run(argv) {
     panelText.autoresizingMask = 2;
     panelScroll.documentView = panelText;
     panel.addSubview(panelScroll);
-    win.contentView.addSubview(veil);
+    root.addSubview(veil);
     listed([]);
     menus();
     place();
