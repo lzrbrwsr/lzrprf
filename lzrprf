@@ -79,7 +79,7 @@ my $SENT_BYTES = 64 * 1024;               # the most that is carried from curl t
 my $FIND_SECONDS = 10;                    # the most a name lookup may take
 my $FOUND = 8;                            # the most addresses of one name that are taken: the first eight this computer has a way to
 my $LOOKED = 16;                          # the most addresses of one name that are looked at for that: what the lookup gave beyond them is left out
-my $PAGE_BYTES = 2 * 1024 * 1024;         # the most one page container may write
+my $PAGE_BYTES = 12 * 1024 * 1024;        # the most one page container may write: room for the 32 tiles of a laid page, 32 x 350,720 bytes of base64, about 11.2 MB
 my $PAGE_SECONDS = 30;                    # a page container is ended after this, whatever it is doing
 my $PAGE_ROOM = 2097152;                 # the address space, in KiB, a page container may take on top of what the shell that starts it holds: 2 GiB. What the application itself holds at its start is not measured
 my $PIECES = 50_000;                      # the most lines one page may have
@@ -92,7 +92,7 @@ my $JOINER = qr/(?!\x{103a})\p{Ccc=9}/;    # a sign that joins the letter after 
 my $HANGS = qr/[\p{M}\p{GCB=Extend}\p{GCB=SpacingMark}\p{GCB=Prepend}\p{GCB=V}\p{GCB=T}]|(?<=\p{GCB=L})\p{GCB=L}|(?<=\p{GCB=Prepend})[^\x{fffd}]|(?<=$JOINER)[^\x{fffd}]|(?<=$JOINER\p{M})[^\x{fffd}]/;    # a character that hangs on the one before it: see "What the window is spared"
 my $SOLID = qr/[^\x{20}\x{1680}\x{2000}-\x{2006}\x{2008}-\x{200a}\x{205f}\x{3000}\x{200b}]/;    # a character where no line may end: all but the spaces that let one end (a no-break space does not)
 my $MADE = 120;                           # the most lines that say what the page is made of
-my %LAID = (R => 20_000, X => 30_000, G => 1000, M => 64, I => 1000);    # a laid page: the most rectangles, runs of text, grey boxes, pictures and places for a fetched picture
+my %LAID = (R => 20_000, X => 30_000, G => 1000, M => 64, I => 1000, K => 32, J => 1024);    # a laid page: the most rectangles, runs of text, grey boxes, pictures, places for a fetched picture, tiles (numbered under K) and places of a tile
 my $RUN_TEXT = 2000;                      # the most characters in one run of text of a laid page
 my $ALL_TEXT = 1_000_000;                 # the most characters in all its runs together
 my $PIXELS = 262_144;                     # the most pixels in all its pictures together: one picture of 512 by 512
@@ -860,6 +860,9 @@ sub checked {
 #   I<x>,<y>,<w>,<h>,<n>                    the picture of the nth path in =pictures (from 0), scaled
 #                                           into that box; lzrprf fetches it and gives the window an M
 #                                           in its place, or a G when there is no picture (sub pictured)
+#   K<n>,<x>,<y>,<w>,<h>                    tile n, 0 to 31, each once, at a corner of the grid of 256: w and h are
+#                                           256, or what is left of the page there; h rows m<base64> follow, as for M
+#   J<n>,<x>,<y>                            tile n of a K above, placed again at a corner where it is cut the same
 #
 # Numbers are written in one way only, without a sign or a 0 in front, and
 # everything stands inside the page. A page is laid or flowing, never both.
@@ -876,8 +879,9 @@ sub laid {
     no warnings 'utf8';
     my ($wide, $high) = $lines->[$from] =~ /^L${N}x$N$/ or return;
     return unless $wide >= 320 && $wide <= 2400 && $high >= 1 && $high <= 200_000;
-    my ($text, $pixels, $rows, $row_bytes, %count) = (0, 0, 0, 0);
+    my ($text, $pixels, $rows, $row_bytes, %count, %tile) = (0, 0, 0, 0);
     my $inside = sub { my ($x, $y, $w, $h) = @_; return $w >= 1 && $h >= 1 && $x + $w <= $wide && $y + $h <= $high };
+    my $cut = sub { my ($x, $y) = @_; return $x % 256 || $y % 256 || $x >= $wide || $y >= $high ? '' : ($wide - $x < 256 ? $wide - $x : 256) . ',' . ($high - $y < 256 ? $high - $y : 256) };    # the one size a tile has at a corner of the grid, or '' for no corner
     for (@$lines[$from + 1 .. $#$lines]) {
         if ($rows) {                      # a row of the picture above: in base64, exactly as long as the picture is wide
             my ($code) = /^m([A-Za-z0-9+\/]+={0,2})$/ or return;
@@ -886,7 +890,7 @@ sub laid {
             $rows--;
             next;
         }
-        my ($kind) = /^([RXGMI])/ or return;
+        my ($kind) = /^([RXGMIKJ])/ or return;
         return unless ++$count{$kind} <= $LAID{$kind};
         if ($kind eq 'R') { return unless /^R$N,$N,$N,$N,[0-9a-f]{8}$/ && $inside->($1, $2, $3, $4) }
         elsif ($kind eq 'G') { return unless /^G$N,$N,$N,$N$/ && $inside->($1, $2, $3, $4) }
@@ -894,7 +898,9 @@ sub laid {
         elsif ($kind eq 'M') {
             return unless /^M$N,$N,$N,$N,$N,$N$/ && $inside->($1, $2, $3, $4) && $5 >= 1 && $5 <= 1024 && $6 >= 1 && $6 <= 1024 && ($pixels += $5 * $6) <= $PIXELS;
             ($rows, $row_bytes) = ($6, $5 * 4);
-        } else {
+        } elsif ($kind eq 'K') { return unless /^K$N,$N,$N,$N,$N$/ && $1 < $LAID{K} && !exists $tile{$1} && ($tile{$1} = $cut->($2, $3)) eq "$4,$5"; ($rows, $row_bytes) = ($5, $4 * 4) }    # a tile is not counted in $PIXELS: 32 at most is its bound
+        elsif ($kind eq 'J') { return unless /^J$N,$N,$N$/ && defined $tile{$1} && $tile{$1} eq $cut->($2, $3) }
+        else {
             my ($head, $x, $y, $size, $chars) = /^(X$N,$N,$N,[\@-O],[0-9a-f]{6},)(.{1,$RUN_TEXT})\z/s or return;
             return unless $x < $wide && $y <= $high && $size >= 6 && $size <= 96 && ($text += length $chars) <= $ALL_TEXT;
             $chars =~ s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/\x{fffd}/g if $chars =~ /[^\x20-\x7e]/;    # as in T; printable ASCII is never replaced, so it is not searched
@@ -1952,12 +1958,14 @@ function named(bold, italic, fixed) {
 function laid(lines, first) {
     inks = {}; typefaces = {};    // what the page before needed is not kept: a page names its own colours and faces; named so that no text added to the window (a test's) is overwritten
     var size = /^L(\d+)x(\d+)$/.exec(lines[first]), next = { wide: +size[1], high: +size[2], ops: [] }, characters = 0;
-    var grey = $.NSColor.colorWithWhiteAlpha(0.55, 0.4);
+    var grey = $.NSColor.colorWithWhiteAlpha(0.55, 0.4), kept = {};    // the tiles of this page, by number: [wide, high, bitmap]
     for (var at = first + 1; at < lines.length; at++) {
         var line = lines[at], kind = line.charAt(0), n = line.slice(1).split(',').map(Number);
         if (kind == 'R') next.ops.push([n[1], n[3], 'R', n[0], n[2], colour(line.split(',')[4])]);    // [top, height, kind, left, width, what draws it, ...]
         else if (kind == 'G') next.ops.push([n[1], n[3], 'G', n[0], n[2], grey]);
         else if (kind == 'M') { next.ops.push([n[1], n[3], 'M', n[0], n[2], picture(n[4], n[5], lines.slice(at + 1, at + 1 + n[5]))]); at += n[5]; }
+        else if (kind == 'K') { kept[n[0]] = [n[3], n[4], picture(n[3], n[4], lines.slice(at + 1, at + 1 + n[4]))]; at += n[4]; next.ops.push([n[2], n[4], 'M', n[1], n[3], kept[n[0]][2]]); }
+        else if (kind == 'J') next.ops.push([n[2], kept[n[0]][1], 'M', n[1], kept[n[0]][0], kept[n[0]][2]]);    // a placed tile draws the bitmap of its K: 32 bitmaps at most, however often they are placed
         else if (kind == 'X') {
             var parts = line.slice(1).split(','), text = parts.slice(5).join(','), high = n[2], look = face(parts[3].charCodeAt(0) - 64, high, parts[4]);
             characters += text.length;
