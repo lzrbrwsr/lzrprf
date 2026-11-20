@@ -33,15 +33,15 @@
 #   [C1]  The application is started in one place only, and only inside the page container.
 #   [C2]  At every start lzrprf tries, from inside that same container, what the container must refuse, and starts nothing unless all of it was refused and the same tries worked outside.
 #   [C3]  No process is handed a byte of what was fetched, nor the connection to a site, before the system itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, curl among its fixed switches.
-#   [C4]  A request is made only for an address that came from the window's bar, or for one of two fixed addresses after you said yes, or for a picture or a style sheet that the page laid out from such an address names on that same host, at most eight of each, by a path lzrprf checked. There is no fourth way to a request.
+#   [C4]  A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in the window, or for one of three fixed addresses of the release file after you said yes (the newest release number, a report, the installer in its one or two places), or for a picture or a style sheet that the page laid out from such an address names on that same host, at most eight of each, by a path lzrprf checked. There is no fourth way to a request.
 #   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
 #   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
-#   [C7]  What a site is sent is made from the address alone: the same request from every computer, byte for byte, with nothing kept from an earlier request.
+#   [C7]  What a site is sent is made from the address alone, with one fixed browser name, LZRBRWSR: the same request from every computer, byte for byte, with nothing kept from an earlier request.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
-#   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line, or a laid page, is not drawn at all.
+#   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line, or a laid page, is not drawn at all. Its title, one line of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else.
 #   [C10] The window's process has no network of its own, writes no file, starts no other program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, lzrprf asks the system about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of that container's text, its list of services among it, is not asked about, and selftest makes its own tries from the real window. Of the system's services it looks up by name only the 41 its container lists and one local name, the clipboard's.
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
-#   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
+#   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log, apart from the one address you made the home page, the bookmarks you made (each a name and an address), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (install.txt); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #   [C13] The application opens no file for its fonts: lzrprf hands it eight fonts of the Mac, by fixed paths, in front of a page's answer and never a picture's, each a plain file and no link of at most 2 MiB that begins as a font, or with length 0; and only after the system said that the application is contained.
 #   [C14] A page is laid out at most twice: a second time only when its first run named style sheets on the page's own host, at most eight, which lzrprf fetches and hands the second run in front of the answer, after the fonts, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown, the first run's page is; there is never a third run, and a picture run is handed no style sheet.
 #
@@ -130,6 +130,23 @@ my ($TRY, $PEER, $TYPED, $ANSWER, $RUN, $APP, $PROGRAM, @ARGUMENTS) = (0, '-', '
 my $BEGAN;                                # the SHA-256 of the program when this window began: see "sub laid_out"
 my ($FROM, @EVENTS);                      # what the window says; or, without a window, what a test has typed
 my $DRAWN = 0;                            # a page was handed to the window, and the window has not said yet that it could not draw it
+my @VIEW_WIDE = (320, 1600);              # the narrowest and the widest a page is laid out: a window's width outside them is taken as the nearer one, and the application refuses a =view frame outside them
+my @VIEW_HIGH = (240, 2160);              # the same for the height of its first screen, which a page's vh is taken from
+my @VIEW = (960, 768);                    # the size of the window's page, in points, as the window last said it and held to those bounds; until it says one, the size every page was laid at before
+my $LAID_WIDE;                            # the width the run being checked was asked to lay its page at: a laid page of any other width is unfit
+my $SHOWN;                                # the page shown, kept to lay it out again when the window's page changes width: its address, its answer, the frame of style sheets it was laid with, whether that was a second run, its host, its decoded pictures, the width it was laid at
+my @HELD;                                 # what the window said while lzrprf looked for its latest size, in order: heard before anything new
+my $TABS_MOST = 32;                       # the most tabs one window holds: the owner's order of 2026-11-20
+my $TITLE = 200;                          # the most characters of a page's title, the =title line, shown in its tab
+my $VISITED = 100;                        # the most addresses a tab's history holds, the oldest dropped first: a list nothing is fetched from, emptied by "Clear history"
+my $INSTALL_SECONDS = 1800;               # the installer of a newer release is ended after this long: the slowest install measured by hand took under two minutes
+my $INSTALL_LINE = 2000;                  # the most characters of one line the installer printed that the window is given; a longer one is given in parts
+sub fresh_tab { return { url => '', title => '', visited => [], shown => undef, says => undef } }    # a tab: the address in its bar, its page's title, the addresses it went to, its page shown as $SHOWN keeps it, lzrprf's last words in it
+my @TABS = (fresh_tab());                 # the window's tabs, in the order the window shows them; the page of the selected one is the only one shown, and it is $SHOWN while it is selected
+my $TAB = 0;                              # which tab is selected
+my $NEXT;                                 # set by sub visit when you chose to follow a redirect: [its address, how its log line begins, undef] (sub go)
+my @MARKS;                                # the bookmarks as last told to the window, by number: [its file, its name, its address, its folder] (sub marks_told)
+my $TITLED = '';                          # the title of the page the last checked run wrote, '' for none (sub checked)
 my %MORE = (nothing => 0, hosts => 1, all => 2);    # what is kept, from less to more
 my $HALF;                                 # the line of a change reached the log, and the system did not say that it is on the disk
 my (@SESSION, $UNMARKED, $MARKED, $UNEXPIRED);    # this window's lines, in the memory of the process behind it and nowhere else; whether a log could not be marked for Time Machine; whether this process marked it; whether the days you chose still wait for another window's request to end
@@ -532,8 +549,17 @@ sub behind {
     $UNEXPIRED = !expire_log();           # [C12] the days you chose, at the start of a window; when a request of another window is open just then, it is tried again before each request of this window and each press of Log, until it is done
     newer();
     idle("$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
+    marks_told();
+    window('marksbar ' . (marks_bar() ? 'on' : 'off'));
+    if (my $home = home()) { go($home, 'you opened your home page') }    # [C4] an address that came from the bar, kept when you made it the home page
     while (defined(my $event = hear())) {
-        if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { visit($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window
+        if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { go($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window; a size said while it was fetched and laid out is the size it is laid out again at
+        elsif (viewing($event)) { relaid() }    # the window's page has a new size: the page shown is laid out again at its width, from what was kept, and nothing is fetched
+        elsif ($event =~ /^tab (new|select|close)(?: (0|[1-9][0-9]?))?$/) { tabbed($1, $2); relaid() }    # a tab chosen in the strip: its page is laid out again from what was kept, and nothing is fetched, unless a new tab opens the home page
+        elsif ($event =~ /^menu (clear-history|clear-sessions|home|bookmarks-bar)$/) { menu($1) }
+        elsif ($event =~ /^mark open (0|[1-9][0-9]{0,2})$/) { $MARKS[$1] ? go($MARKS[$1][2], 'you opened a bookmark', $1) : idle('That bookmark is no longer there.') }    # [C4] an address kept from the bar or typed into the window's own modal
+        elsif ($event =~ /^mark remove (0|[1-9][0-9]{0,2})$/) { mark_removed($1) }
+        elsif ($event =~ /^mark save\t(-|0|[1-9][0-9]{0,2})\t([A-Za-z0-9 ._\/-]{0,300})\t([^\t\x00-\x1f\x7f]{1,800})\t([\x20-\x7f]{1,2100})$/) { mark_saved($1, $2, $3, $4) }
         elsif ($event eq 'log') { log_shown() }
         elsif ($event =~ /^fault / && $DRAWN) { $DRAWN = 0; fault('undrawn') }    # the window could not draw a list that "checked" let through: it shows nothing of it. Taken once for a page that was handed over, and never without one: the window's process cannot open the question about a report whenever it likes
     }
@@ -607,17 +633,23 @@ sub closed {                              # nothing more is done in this run: th
 # conditions. Each "return" below is a place where the chain ends and nothing
 # is fetched. There is no other way to the fetch.
 sub visit {
-    my ($typed) = @_;
+    my ($typed, $how, $mark, $auto) = @_;   # whether a redirect to the same site was followed already in this visit; what was typed, how its line in the log begins ("you typed", "you opened your home page", "you opened a bookmark", "you chose to follow a redirect to"), and the bookmark it came from
     $DRAWN = 0;
+    undef $SHOWN;                         # a page asked for anew is laid out again only once it is shown
     my ($url, $host) = address($typed);
     return idle('lzrprf does not fetch that. An address must be https, a host by its name, port 443, in plain characters without a space.') unless $url;
     window("address $url");                 # the bar shows what will be sent, exactly
+    my $tab = $TABS[$TAB];
+    @$tab{qw(url title)} = ($url, '');
+    window("title $TAB ");                  # the tab's title is the page's, once it is shown
+    push @{ $tab->{visited} }, $url;
+    shift @{ $tab->{visited} } while @{ $tab->{visited} } > $VISITED;
     return fault('changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # before a site is asked: a program that is no longer the file this window began with is given no page, so none is fetched for it
     $UNEXPIRED = !expire_log() if $UNEXPIRED;
     open my $request, '>>', "$DIR/busy" or return idle($UNWRITTEN);
     flock $request, LOCK_SH or return idle($UNWRITTEN);    # from "you typed" until its last line is written, a request keeps the log from being cleared under it
     my ($kept) = keeping();                 # read once: no line of one request is kept at more than this, whatever is chosen while it runs; when less is chosen meanwhile, its later lines are kept at that (sub record)
-    record("you typed $url", $kept) or return idle($UNWRITTEN);  # [C5] before the name is even looked up
+    record(($how // 'you typed') . " $url", $kept) or return idle($UNWRITTEN);  # [C5] before the name is even looked up
     busy("Looking up $host.");
     my ($where, $why) = find($host);
     $why = own_network($host, $where, $kept) if $where && grep { $_->{own} } @$where;    # [C8]
@@ -631,10 +663,30 @@ sub visit {
     record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return idle($tried ? $UNENDED : $UNWRITTEN);    # an answer whose line could not be recorded is not shown, and the window says the fetch was tried
     close $request;
     return idle("Nothing is shown: $why.") if $why;
+    if (my ($status, $to) = redirected($got, $url)) {    # never shown as an answer, never followed blindly: you choose, in lzrprf's own modal (sub redirected)
+        my ($fit) = defined $to ? address($to) : ();
+        my ($there) = defined $fit ? $fit =~ m{^https://([^/]+)} : ();
+        my $rest = sub { $_[0] =~ s{^https://[^/]+}{}r };
+        if (defined $fit && !$auto && $rest->($fit) eq $rest->($url) && ($there eq "www.$host" || $host eq "www.$there")) {    # the same address with www. put in front of its host or taken off: followed once a visit, written down first
+            record("$host redirected to $there ($status); followed, the same site", $kept) or return idle($UNWRITTEN);
+            $NEXT = [$fit, 'lzrprf follows that redirect to', $mark, 1];
+            return idle("$host redirected to $there ($status): the same site, so lzrprf follows it.");
+        }
+        my $why = !defined $to ? 'The answer names no address to go to.' : defined $fit ? '' : unfit($to);
+        my $press = asked("redirect $status\t$url\t" . ($to // '') . "\t$why", 'Cancel', defined $fit ? ('Proceed', defined $mark ? 'Proceed and update bookmark' : ()) : ());
+        if ($press >= 2 && defined $fit) {
+            my $moved = $press == 3 ? (mark_moved($mark, $fit) ? ' The bookmark now holds that address.' : ' The bookmark could not be changed.') : '';
+            $NEXT = [$fit, 'you chose to follow a redirect to', undef];
+            return idle("$url redirects to $fit ($status). lzrprf goes there as a new request.$moved");
+        }
+        window('page', '.');
+        return idle("Nothing is shown: $url redirects " . (defined $to ? "to $to " : '') . "($status), and lzrprf did not go there." . (length $why ? " $why" : ''));
+    }
     busy("$APP lays the page out, in its container.");
     my ($lines, $hosts, $paths, $said, $named) = laid_out($url, $got, "=sheets\n");    # [C14] a first run is told that no style sheet came with the answer
     return fault($hosts) unless $lines;
     my $styled = '';                        # what the bar says of the page's style sheets
+    my ($with_sheets, $two) = ("=sheets\n", 0);    # the frame of style sheets the page shown was laid with, and whether that was a second run: what a new width lays it with again
     if (@$named) {                          # [C14] the page names style sheets on its own host: they are fetched, and the page is laid out once more with them
         my ($frame, $with) = sheeted($named, $host, $where, $kept) or return idle($UNWRITTEN);
         busy("$APP lays the page out again with its style sheets, in its container.");
@@ -642,13 +694,18 @@ sub visit {
         my ($n, $one) = (scalar @$named, @$named == 1);
         if ($again[0] && !@{ $again[4] }) {    # a second run that names style sheets again is not shown, and nothing starts a third
             ($lines, $hosts, $paths, $said) = @again;
+            ($with_sheets, $two) = ($frame, 1);
             $styled = "$APP laid the page out again with $with of the $n " . ($one ? 'style sheet' : 'style sheets') . " it names on $host itself. ";
         } else { $styled = "$APP did not use the $n " . ($one ? 'style sheet' : 'style sheets') . " the page names on $host itself: the page is shown as it was laid out first. " }
     }
-    my ($shown, $fetched, $wanted) = pictured($lines, $paths, $host, $where, $kept);
+    my $title = $TITLED;                    # the title the run that is shown wrote
+    my ($shown, $fetched, $wanted, $decoded) = pictured($lines, $paths, $host, $where, $kept);
     return idle($UNWRITTEN) unless $shown;
     window('page', @$shown, '.');
     $DRAWN = 1;
+    $SHOWN = { url => $url, got => $got, frame => $with_sheets, two => $two, host => $host, pictures => $decoded, wide => $LAID_WIDE };
+    $tab->{title} = $title;
+    window("title $TAB $title");            # checked: plain characters, no control or format character, at most $TITLE (sub checked)
     idle("$host answered " . length($got) . ' bytes. ' . $styled . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
 }
 
@@ -661,6 +718,7 @@ sub visit {
 # sheets it names; or nothing, and one word for what went wrong.
 sub laid_out {
     my ($url, $got, $sheets) = @_;
+    $LAID_WIDE = $VIEW[0];                # the width contained asks for in its =view frame, and the one width sub laid takes
     my ($wrote, $why) = contained($url, $got, $sheets);
     return (undef, $why) unless defined $wrote;
     my ($lines, $hosts, $paths, $said, $named) = checked($wrote) or return (undef, 'unfit');    # [C9]
@@ -689,12 +747,14 @@ sub faces {                               # [C13]
 # picture: it is given what was fetched on descriptor 0, under the same
 # limits, the same keeper and the same clock. Returns what it wrote, not yet
 # checked; or nothing, and one word for what went wrong. A picture run is
-# told one thing more, LZRPRF_PICTURE=1; a page run gets the fonts first and
-# then the frame of its style sheets, $sheets, which a picture run has not.
+# told one thing more, LZRPRF_PICTURE=1; a page run gets the size of the
+# window's page first, "=view", its width and its height in points and a line
+# end, then the fonts, then the frame of its style sheets, $sheets, none of
+# which a picture run has.
 sub contained {
     my ($url, $got, $sheets) = @_;
     return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # read again before every run: the program on the disk is the file this window began with, or nothing is laid out
-    my $frame = defined $sheets ? faces() . $sheets : '';    # [C13] [C14] the fonts read here, before the keeper is a copy of this process, so once in a window; handed over by the keeper alone, after the same word as the answer
+    my $frame = defined $sheets ? "=view $VIEW[0] $VIEW[1]\n" . faces() . $sheets : '';    # the size first, numbers lzrprf holds to its bounds (sub viewing); [C13] [C14] the fonts read here, before the keeper is a copy of this process, so once in a window; handed over by the keeper alone, after the same word as the answer
     pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) && pipe(my $held, my $hold) or return (undef, 'unstarted');
     my $page = fork // return (undef, 'unstarted');
     if (!$page) {
@@ -863,6 +923,14 @@ sub checked {
     my ($first, @lines) = split /\n/, $wrote, -1;
     return unless defined $first && $first =~ /^=page((?: $NAME){0,200})$/ && @lines <= $PIECES;
     my @hosts = split ' ', $1;
+    $TITLED = '';
+    if (@lines && $lines[0] =~ /^=title/) {    # the page's title, shown in its tab and nowhere else: one line of 1 to $TITLE characters; what would act on the display instead of being shown is taken out
+        my ($title) = shift(@lines) =~ /^=title (.{1,$TITLE})\z/s or return;
+        $title =~ s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]//g;
+        $title =~ s/^[ \p{M}]+| +$//g;    # and a mark with no letter before it, which would hang on the tab's own drawing
+        utf8::encode($title);
+        $TITLED = $title;
+    }
     my @paths;
     if (@lines && $lines[0] =~ /^=pictures/) {    # the pictures the page names on its own host, by path alone [C9]
         return unless shift(@lines) =~ m{^=pictures((?: /[A-Za-z0-9._~/%?=&-]{0,511}){1,$PICTURES})$};
@@ -935,7 +1003,7 @@ sub laid {
     my ($lines, $hosts, $from, $paths, $said, $sheets) = @_;
     no warnings 'utf8';
     my ($wide, $high) = $lines->[$from] =~ /^L${N}x$N$/ or return;
-    return unless $wide >= 320 && $wide <= 2400 && $high >= 1 && $high <= 200_000;
+    return unless defined $LAID_WIDE && $wide == $LAID_WIDE && $high >= 1 && $high <= 200_000;    # laid at the width its =view frame asked for, and at no other
     my ($text, $pixels, $rows, $row_bytes, $row_chars, %count, %tile) = (0, 0, 0, 0, 0);    # $row_chars: how long a row of the tile above is, 0 under a picture
     my $inside = sub { my ($x, $y, $w, $h) = @_; return $w >= 1 && $h >= 1 && $x + $w <= $wide && $y + $h <= $high };
     my $cut = sub { my ($x, $y) = @_; return $x % 256 || $y % 256 || $x >= $wide || $y >= $high ? '' : ($wide - $x < 256 ? $wide - $x : 256) . ',' . ($high - $y < 256 ? $high - $y : 256) };    # the one size a tile has at a corner of the grid, or '' for no corner
@@ -991,28 +1059,32 @@ sub laid {
 # the window has no decoder for a file of a site, and every byte of an M and
 # its rows was written by lzrprf from numbers and hex it checked here, so the
 # window is given nothing it was not given before. Returns the lines for the
-# window, how many pictures were fetched and how many were asked for; or
-# nothing when a line of the log could not be written.
+# window, how many pictures were fetched and how many were asked for, and the
+# pictures decoded, by number, which a new width places again; or nothing
+# when a line of the log could not be written.
 sub pictured {
-    my ($lines, $paths, $host, $where, $kept) = @_;
+    my ($lines, $paths, $host, $where, $kept, $decoded) = @_;    # $decoded: the pictures of this page decoded before, by number; given when it is laid out again, and then nothing is fetched (sub relaid)
     my %wanted = map { /^I\d+,\d+,\d+,\d+,(\d+)$/ ? ($1 => 1) : () } @$lines;
-    return ($lines, 0, 0) unless %wanted;
-    open my $request, '>>', "$DIR/busy" or return;
-    flock $request, LOCK_SH or return;    # as in visit: no line of these requests falls into a clearing of the log
-    my ($until, %picture) = (now() + $PICTURE_SECONDS);
-    for my $n (sort { $a <=> $b } keys %wanted) {
-        last unless now() < $until && alive();
-        my $url = "https://$host$paths->[$n]";
-        record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return;    # [C5] written down first, connected second
-        busy("Fetching picture " . ($n + 1) . " of the page: $url");
-        my ($got, $why, $from) = fetch($url, $where);    # [C6] [C7]
-        record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;
-        next if $why;
-        busy("$APP decodes picture " . ($n + 1) . ', in its container.');
-        my ($wrote) = contained($url, $got);    # [C1] [C3] no frame of style sheets: a picture run
-        $picture{$n} = pixels($wrote) if defined $wrote;    # [C9]
+    return ($lines, 0, 0, {}) unless %wanted;
+    my %picture = $decoded ? %$decoded : ();
+    if (!$decoded) {
+        open my $request, '>>', "$DIR/busy" or return;
+        flock $request, LOCK_SH or return;    # as in visit: no line of these requests falls into a clearing of the log
+        my $until = now() + $PICTURE_SECONDS;
+        for my $n (sort { $a <=> $b } keys %wanted) {
+            last unless now() < $until && alive();
+            my $url = "https://$host$paths->[$n]";
+            record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return;    # [C5] written down first, connected second
+            busy("Fetching picture " . ($n + 1) . " of the page: $url");
+            my ($got, $why, $from) = fetch($url, $where);    # [C6] [C7]
+            record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;
+            next if $why;
+            busy("$APP decodes picture " . ($n + 1) . ', in its container.');
+            my ($wrote) = contained($url, $got);    # [C1] [C3] no frame of style sheets: a picture run
+            $picture{$n} = pixels($wrote) if defined $wrote;    # [C9]
+        }
+        close $request;
     }
-    close $request;
     my ($drawn, @shown) = (0);
     for (@$lines) {
         my ($x, $y, $w, $h, $n) = /^I(\d+),(\d+),(\d+),(\d+),(\d+)$/ or (push(@shown, $_), next);
@@ -1020,7 +1092,331 @@ sub pictured {
         if ($one && ($drawn += $one->[0] * $one->[1]) <= $DRAWN_PIXELS) { push @shown, "M$x,$y,$w,$h,$one->[0],$one->[1]", map { "m$_" } @$one[2 .. $#$one] }
         else { push @shown, "G$x,$y,$w,$h" }
     }
-    return (\@shown, scalar(grep { $picture{$_} } keys %picture), scalar(keys %wanted));
+    return (\@shown, scalar(grep { $picture{$_} } keys %picture), scalar(keys %wanted), \%picture);
+}
+
+# A size of the window's page: "view", its width and its height in points,
+# each a number in its one form. A width or height outside the bounds a page
+# is laid in is taken as the nearer bound. Anything else is no size. Returns
+# whether the line was one.
+sub viewing {
+    my ($event) = @_;
+    my ($wide, $high) = $event =~ /^view ([1-9][0-9]{0,4}) ([1-9][0-9]{0,4})$/ or return;
+    @VIEW = ($wide < $VIEW_WIDE[0] ? $VIEW_WIDE[0] : $wide > $VIEW_WIDE[1] ? $VIEW_WIDE[1] : $wide, $high < $VIEW_HIGH[0] ? $VIEW_HIGH[0] : $high > $VIEW_HIGH[1] ? $VIEW_HIGH[1] : $high);
+    return 1;
+}
+
+# The page shown, laid out again at the width the window's page has now: the
+# same answer and the same frame of style sheets that were kept when it was
+# shown, in a page container as every run. Nothing is fetched and nothing is
+# written to the log, since nothing reaches a site. Its pictures are the ones
+# decoded then, placed where the new layout puts them; a place no picture was
+# decoded for stays a grey box. One run at a time: what the window says while
+# it runs waits in its pipe, and before each run every size said so far is
+# read, the latest kept, and the rest of what was said is heard after, in its
+# order. A run that is unfit, late or too large, or a second run that names
+# style sheets again, leaves the page as it is shown, scaled by the window;
+# that width is not tried again until another is said. The window keeps the
+# place it was read at, as a share of the page's height ("relaid").
+sub relaid {
+    while ($SHOWN && $SHOWN->{wide} != $VIEW[0] && alive()) {
+        if ($FROM) {
+            my @later;
+            while (defined(my $more = hear(0))) { last if $more eq ''; push @later, $more unless viewing($more) }
+            push @HELD, @later;
+            last if $SHOWN->{wide} == $VIEW[0];    # the latest size is the width shown already
+        }
+        $SHOWN->{wide} = $VIEW[0];
+        my @again = laid_out($SHOWN->{url}, $SHOWN->{got}, $SHOWN->{frame});
+        next unless $again[0] && !($SHOWN->{two} && @{ $again[4] });
+        my ($shown) = pictured($again[0], $again[2], $SHOWN->{host}, undef, undef, $SHOWN->{pictures});
+        window('relaid', @$shown, '.');
+        $DRAWN = 1;
+    }
+}
+
+# The tabs. The window shows them in a strip of lzrprf's own above the bar,
+# where no page draws, and says which you chose in one of three lines: "tab
+# new", "tab select N" and "tab close N", N a tab that is there, in its one
+# form. Each tab keeps its own page as $SHOWN keeps it (its address, its
+# answer, the frame of style sheets it was laid with, its decoded pictures),
+# its title, the addresses it went to, and lzrprf's last words in it. Only the
+# selected tab's page is shown: choosing another clears the page and lays the
+# chosen tab's page out again from what it kept, at the window's width (sub
+# relaid), so nothing is fetched and nothing is written to the log. At most
+# $TABS_MOST tabs; closing the last one leaves one empty tab. A new tab opens
+# the home page when one is set, and is empty otherwise. After every such
+# line lzrprf tells the window all the tabs again: "tabs COUNT SELECTED" and a
+# line "title N TEXT" for each, the text checked by sub checked.
+sub tabbed {
+    my ($how, $n) = @_;
+    $TABS[$TAB]{shown} = $SHOWN;
+    my $opened;
+    if ($how eq 'new' && !defined $n && @TABS < $TABS_MOST) { push @TABS, fresh_tab(); $TAB = $#TABS; $opened = 1 }
+    elsif ($how eq 'select' && defined $n && $n < @TABS) { $TAB = $n }
+    elsif ($how eq 'close' && defined $n && $n < @TABS) {
+        splice @TABS, $n, 1;
+        @TABS = (fresh_tab()) unless @TABS;
+        $TAB-- if $TAB > $n || $TAB > $#TABS;
+    }
+    $SHOWN = $TABS[$TAB]{shown};
+    tab_shown($how eq 'new' && !$opened ? "A window holds $TABS_MOST tabs at most: close one to open another." : undef);
+    my $home = $opened && home();
+    go($home, 'you opened your home page') if $home;    # [C4] the address kept from the bar when you made it the home page
+}
+
+sub tab_shown {
+    my ($says) = @_;
+    my $tab = $TABS[$TAB];
+    window('tabs ' . @TABS . " $TAB", map { "title $_ $TABS[$_]{title}" } 0 .. $#TABS);
+    window("address $tab->{url}");
+    window('page', '.');                  # the page of the tab before is gone before anything of this one is shown
+    $DRAWN = 0;
+    $SHOWN->{wide} = 0 if $SHOWN;         # no width: sub relaid lays it out again at the window's
+    idle($says // $tab->{says} // 'A new tab. Type an address above and press Return.');
+}
+
+# The cogwheel's menu, each item one line of the window. "menu clear-history"
+# empties the addresses every tab went to; the pages shown stay, and the log
+# is cleared by its own button and by nothing else (sub log_shown).
+# "menu clear-sessions" does that and also drops every page lzrprf keeps for a
+# tab, its answer and its pictures: all that lzrprf holds of what a site sent.
+# lzrprf sends no cookie and keeps none [C7], so no site knows you again
+# through it either way; the window warns, as asked, that pages would need a
+# new login. "menu home" makes the selected tab's address the home page, when
+# it is one lzrprf fetches (sub address), in one plain file of yours, home,
+# one line, written beside it and then given its name. The window asks before
+# a clearing; what it could do by itself is clear, and keep one address that
+# came from the bar.
+sub menu {
+    my ($what) = @_;
+    if ($what eq 'bookmarks-bar') {        # shown or hidden, kept in one plain file of yours, marksbar
+        my $on = !marks_bar();
+        unlink "$DIR/marksbar.new";
+        return idle('The bookmarks bar could not be changed: its setting could not be written.') unless put("$DIR/marksbar.new", O_EXCL, $on ? 'on' : 'off') && rename("$DIR/marksbar.new", "$DIR/marksbar");
+        synced();
+        window('marksbar ' . ($on ? 'on' : 'off'));
+        return idle($on ? 'The bookmarks bar is shown.' : 'The bookmarks bar is hidden.');
+    }
+    if ($what eq 'home') {
+        my ($url) = address($TABS[$TAB]{url});
+        return idle('No home page was set: this tab shows no address lzrprf fetches.') unless $url && length $TABS[$TAB]{url};
+        unlink "$DIR/home.new";
+        return idle('The home page could not be kept: its file could not be written. Nothing was changed.') unless put("$DIR/home.new", O_EXCL, $url) && rename("$DIR/home.new", "$DIR/home");
+        synced();
+        return idle("The home page is set: $url. A new tab and the next window open it.");
+    }
+    my $count = 0;
+    $count += @{ $_->{visited} } for @TABS;
+    $_->{visited} = [] for @TABS;
+    return idle("The history was cleared: $count " . ($count == 1 ? 'address' : 'addresses') . ' that the tabs went to. The pages shown stay. The log is cleared by its own button.') if $what eq 'clear-history';
+    @$_{qw(url title shown says)} = ('', '', undef, undef) for @TABS;
+    undef $SHOWN;
+    tab_shown("The history and the sessions were cleared: $count " . ($count == 1 ? 'address' : 'addresses') . ', and every page lzrprf kept for a tab. lzrprf sends no cookie to any site, so no login was kept by it. The log is cleared by its own button.');
+}
+
+sub home {                                # the home page you set, when it is still an address lzrprf fetches; a plain file of yours and no link
+    sysopen(my $in, "$DIR/home", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return;
+    my @is = stat $in;
+    return unless -f _ && $is[4] == $<;
+    defined sysread($in, my $text, 2102) or return;
+    my ($line) = $text =~ /\A([\x21-\x7e]{1,2100})\n?\z/ or return;
+    return (address($line))[0];
+}
+
+# A visit and what follows from it: a redirect you chose to follow is a new
+# visit, made here after the one before has ended, as if its address had been
+# typed (sub visit checks it the same way). Every one of them needs your yes.
+sub go {
+    my @next = @_;
+    while (@next) {
+        undef $NEXT;
+        visit(@next);
+        @next = $NEXT ? @$NEXT : ();
+        relaid();
+    }
+}
+
+# A redirect. curl follows none [C7]: an answer 301, 302, 303, 307 or 308
+# is never laid out as a page. lzrprf shows it in its own modal: the address
+# you went to, and the address the answer names, resolved against the first,
+# and nothing is fetched for it unless you say so. Proceed is a new visit to
+# it, with the checks every typed address gets; an address lzrprf does not
+# fetch gets Cancel alone, and the modal says why in plain words (sub
+# unfit). One redirect a visit is followed without asking: to the same
+# address with "www." put in front of its host or taken off, https, the same
+# path and query, written in the log first. The Location is read here by
+# lzrprf, before the application sees the answer, and only when it is plain
+# characters (0x21 to 0x7e), so nothing in it acts on the window. Returns the
+# status and the whole address (undef when the answer names none, or one too
+# long), or nothing when the answer is no redirect.
+sub redirected {
+    my ($got, $url) = @_;
+    my ($status, $head) = $got =~ m{\AHTTP/1\.[01] (30[12378])[^\r\n]*\r\n(.*?)(?:\r\n\r\n|\z)}s or return;
+    my ($to) = $head =~ /^location:[ \t]*([\x21-\x7e]{1,2000})[ \t]*\r?$/mi or return ($status, undef);
+    my $whole = resolved($url, $to);
+    return ($status, length $whole <= 2100 ? $whole : undef);
+}
+
+sub unfit {                               # why lzrprf does not fetch an address a page redirects to, in plain words
+    my ($to) = @_;
+    my $rule = 'lzrprf does not open this address: an address must be https, a host by its name, port 443, in plain characters without a space.';
+    my ($scheme, $host, $port) = $to =~ m{^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^/?#\@]*\@)?(\[[^\]/]*\]|[^/?#:]*)(?::([0-9]*))?} or return $rule;
+    my @why;
+    push @why, lc $scheme eq 'http' ? 'This address is not encrypted (http), and lzrprf opens https addresses only, so it cannot be opened.' : "This address is $scheme, not https, and lzrprf opens https addresses only." if lc $scheme ne 'https';
+    push @why, 'Its host is a bare number, not a site name: lzrprf opens a site by its name only.' if $host =~ /^\[|^[0-9.]+\z/;
+    push @why, "It names port $port, and lzrprf opens port 443 only." if defined $port && length $port && $port ne '443';
+    return @why ? join(' ', @why) : $rule;
+}
+
+sub resolved {                            # a Location against the address it came from (RFC 3986 section 5.2, without a base that has a fragment)
+    my ($base, $to) = @_;
+    return $to if $to =~ m{^[A-Za-z][A-Za-z0-9+.-]*:};
+    my ($origin, $path, $query) = $base =~ m{^(https://[^/?#]+)([^?#]*)(\?[^#]*)?};
+    return "https:$to" if $to =~ m{^//};
+    return "$origin$path" . ($query // '') . $to if $to =~ /^#/;
+    return "$origin$path$to" if $to =~ /^\?/;
+    my $joined = $to =~ m{^/} ? $to : ($path =~ s{[^/]*\z}{}r || '/') . $to;
+    my ($rest) = $joined =~ /([?#].*)\z/s;
+    $joined =~ s/[?#].*\z//s;
+    my @out;
+    my @parts = split m{/}, $joined, -1;
+    for my $at (0 .. $#parts) {
+        my $part = $parts[$at];
+        if ($part eq '..') { pop @out if @out > 1; push @out, '' if $at == $#parts }
+        elsif ($part eq '.') { push @out, '' if $at == $#parts }
+        else { push @out, $part }
+    }
+    return $origin . join('/', @out) . ($rest // '');
+}
+
+# Bookmarks. They are files of yours in $DIR/bookmarks: one plain file a
+# bookmark, NAME.mark, of two lines, the name it is shown by and its address;
+# a folder of bookmarks is a real folder. A file or folder name is plain
+# letters, digits, space, dot, underscore and hyphen, never begins with a dot
+# or a space, and is at most 64 characters; anything else there is passed
+# over, as is a link, something not yours, a file of more than 4 KiB, a line
+# that is not in that shape, and an address lzrprf does not fetch (sub
+# address). Folders go at most $MARKS_DEEP deep and at most $MARKS_MOST
+# bookmarks are read. lzrprf reads them and tells the window the whole tree:
+# "marks begin", "mark F FOLDER" for each folder, "mark B N FOLDER\tNAME\tADDRESS"
+# for bookmark N, "marks end". The window says "mark open N", "mark remove N"
+# or "mark save\tN-or-\tFOLDER\tNAME\tADDRESS", each checked here. A
+# bookmark's address came from the window's bar, or was typed into the
+# window's own modal [C4]; opening it is a visit like a typed one.
+my $MARKS_MOST = 1000;                    # the most bookmarks read: the owner's order of 2026-11-20
+my $MARKS_DEEP = 4;                       # how deep folders of bookmarks go: the owner's order of 2026-11-20
+my $PART = qr/[A-Za-z0-9_-][A-Za-z0-9 ._-]{0,63}/;    # one name in the bookmarks folder
+
+sub marks_root { "$DIR/bookmarks" }
+
+sub owned_folder { my @is = lstat $_[0]; return @is && -d _ && $is[4] == $< }    # a folder of yours, and no link to one
+
+sub marks_read {
+    my (@found, @folders);
+    marks_walk('', 0, \@found, \@folders) if owned_folder(marks_root());
+    return (\@found, \@folders);
+}
+
+sub marks_walk {
+    my ($folder, $deep, $found, $folders) = @_;
+    my $dir = length $folder ? marks_root() . "/$folder" : marks_root();
+    opendir(my $in, $dir) or return;
+    for my $entry (sort grep { /^$PART\z/ } readdir $in) {
+        last if @$found >= $MARKS_MOST;
+        my ($path, $inner) = ("$dir/$entry", length $folder ? "$folder/$entry" : $entry);
+        my @is = lstat $path or next;
+        if (-d _) {
+            next unless $deep < $MARKS_DEEP && $is[4] == $<;
+            push @$folders, $inner;
+            marks_walk($inner, $deep + 1, $found, $folders);
+        } elsif (-f _ && $entry =~ /\.mark\z/ && $is[3] == 1 && $is[4] == $< && $is[7] <= 4096) {
+            sysopen(my $file, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or next;
+            defined sysread($file, my $text, 4097) or next;
+            my ($name, $where) = $text =~ /\A([^\n]{1,800})\n([\x21-\x7e]{1,2100})\n?\z/ or next;
+            my ($url) = address($where) or next;
+            push @$found, [$path, plain_name($name), $url, $folder];
+        }
+    }
+}
+
+sub plain_name {                          # a name to show: at most $TITLE characters, nothing that acts on the display, never empty
+    my ($name) = @_;
+    no warnings 'utf8';
+    utf8::decode($name) or $name =~ s/[^\x00-\x7f]/?/g;
+    $name =~ s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]//g;
+    $name =~ s/^[ \p{M}]+| +$//g;
+    $name = substr($name, 0, $TITLE);
+    $name = 'Bookmark' unless length $name;
+    utf8::encode($name);
+    return $name;
+}
+
+sub marks_told {
+    my ($found, $folders) = marks_read();
+    @MARKS = @$found;
+    window('marks begin', (map { "mark F $_" } @$folders), (map { "mark B $_ $MARKS[$_][3]\t$MARKS[$_][1]\t$MARKS[$_][2]" } 0 .. $#MARKS), 'marks end');
+}
+
+sub mark_written {                        # a bookmark's two lines into a new file beside its place, then given its place's name in one step
+    my ($dir, $file, $name, $url) = @_;
+    my $new = "$dir/.new.$$";             # begins with a dot: never read as a bookmark
+    unlink $new;
+    put($new, O_EXCL, $name, $url) && rename($new, $file) or (unlink($new), return 0);
+    synced();
+    return 1;
+}
+
+sub mark_saved {
+    my ($edit, $folder, $name, $where) = @_;
+    my ($url) = address($where);
+    return idle('The bookmark was not saved: lzrprf does not fetch that address. An address must be https, a host by its name, port 443, in plain characters without a space.') unless $url;
+    my @parts = length $folder ? split(m{/}, $folder, -1) : ();
+    return idle("The bookmark was not saved: a folder is at most $MARKS_DEEP deep, and each name in it is letters, digits, space, dot, underscore or hyphen, not beginning with a dot or a space.") if @parts > $MARKS_DEEP || grep { !/^$PART\z/ } @parts;
+    my $old = $edit eq '-' ? undef : $MARKS[$edit] // return idle('The bookmark was not saved: it is no longer there.');
+    my ($found) = marks_read();
+    return idle("The bookmark was not saved: there are $MARKS_MOST bookmarks already.") if !$old && @$found >= $MARKS_MOST;
+    my $dir = marks_root();
+    for my $part ('', @parts) {
+        $dir .= "/$part" if length $part;
+        mkdir $dir, 0700 unless -e $dir || -l $dir;
+        return idle("The bookmark was not saved: $dir is not a folder of yours.") unless owned_folder($dir);
+    }
+    $name = plain_name($name);
+    my $base = substr($name =~ s/[^A-Za-z0-9 ._-]/_/gr =~ s/^[ .]+//r, 0, 50) =~ s/ +\z//r;
+    $base = 'bookmark' unless length $base;
+    my $file = "$dir/$base.mark";
+    for (my $n = 2; ($old ? $file ne $old->[0] : 1) && (-e $file || -l $file); $n++) { return idle('The bookmark was not saved: too many of that name.') if $n > 999; $file = "$dir/$base $n.mark" }
+    return idle('The bookmark could not be written. Nothing was changed.') unless mark_written($dir, $file, $name, $url);
+    unlink $old->[0] if $old && $old->[0] ne $file && -f $old->[0] && !-l $old->[0];
+    marks_told();
+    return idle(($old ? 'The bookmark was changed: ' : 'The bookmark was added: ') . "$name, $url.");
+}
+
+sub mark_removed {
+    my ($n) = @_;
+    my $mark = $MARKS[$n] // return idle('That bookmark is no longer there.');
+    my @is = lstat $mark->[0];
+    unlink $mark->[0] if @is && -f _;
+    marks_told();
+    return idle("The bookmark was removed: $mark->[1].");
+}
+
+sub mark_moved {                          # a bookmark's address made the one its page redirects to, after you said so
+    my ($n, $url) = @_;
+    my $mark = $MARKS[$n] or return 0;
+    my ($dir) = $mark->[0] =~ m{\A(.*)/[^/]+\z} or return 0;
+    mark_written($dir, $mark->[0], $mark->[1], $url) or return 0;
+    marks_told();
+    return 1;
+}
+
+sub marks_bar {                           # whether the bookmarks bar is shown: one line "on" in a plain file of yours
+    sysopen(my $in, "$DIR/marksbar", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 0;
+    my @is = stat $in;
+    return 0 unless -f _ && $is[4] == $<;
+    defined sysread($in, my $text, 8) or return 0;
+    return $text =~ /\Aon\n?\z/ ? 1 : 0;
 }
 
 # The style sheets a page names. Its first run may write a line
@@ -1170,16 +1566,20 @@ sub reach {
 }
 
 # What a site is sent, inside the encryption, for an address: these bytes,
-# made from the address and from nothing else. No cookie, no name of a
-# browser, no language, no page you came from, no number of this computer or
-# of this copy. Every computer that runs lzrprf sends the same bytes for the
-# same address, so they tell a site nothing about which one you are. curl is
+# made from the address and from nothing else but one fixed browser name,
+# LZRBRWSR: no version, no other word, the same from every computer and every
+# release (some sites answer a request with no browser name only with a
+# redirect, so it names one). No cookie, no language, no page you came from,
+# no number of this computer or of this copy. Every computer that runs lzrprf
+# sends the same bytes for the same address, so they tell a site nothing
+# about which one you are. curl is
 # told to send exactly this (the switches in "fetch"), and selftest compares
 # these bytes with the bytes its test site really received.              # [C7]
+my $BROWSER = 'LZRBRWSR';                # DECLARED: the one browser name every request carries, the owner's order of 2026-11-20; a fixed word, never a version or anything of this computer
 sub request {
     my ($url) = @_;
     my ($host, $rest) = $url =~ m{^https://([^/]+)(/.*)$} or return '';
-    return "GET $rest HTTP/1.1\r\nHost: $host\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+    return "GET $rest HTTP/1.1\r\nHost: $host\r\nUser-Agent: $BROWSER\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
 }
 
 # The request. curl does the https, and it is told the address and nothing
@@ -1209,7 +1609,7 @@ sub fetch {
         %ENV = ();                        # curl takes no setting from the environment
         my @curl = ($CURL, '-q', '-g', '-s', '-i', '--raw', '--path-as-is', '--proto', '=https', '--tlsv1.2', '--http1.1', '--noproxy', '*', '--no-sessionid',
             '--cacert', $roots, '--max-time', $FETCH_SECONDS, '--max-filesize', $FETCH_BYTES,
-            '-H', 'User-Agent:', '-H', 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close',
+            '-H', "User-Agent: $BROWSER", '-H', 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close',
             '--unix-socket', $way, '--', $url);
         if ($PEER ne '-' && open my $instead, '<', "$DIR/fetcher") { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to probe this container too
         become(undef, $out, undef, '/bin/sh', '-c', $FETCH_LIMITS, 'lzrprf', contain($FETCH, shift @curl, '-D', "WAY=$way", '-D', "ROOTS=$roots"), @curl);    # the memory limit first, then the container
@@ -1293,13 +1693,12 @@ sub public4 {
     return 1;
 }
 
-# The two fixed addresses. Besides what you type, lzrprf fetches two things,
+# The fixed addresses. Besides what you type, lzrprf fetches three things,
 # each only after you said yes in the window, each written in the log first,
 # each sent the way a typed address is: the newest release number (below),
-# and a report you chose to send (above). An address that is not on the
-# public internet is not fetched for either. A third address, the
-# installer's, is never fetched by lzrprf: after "Install it" it is written
-# into a file that runs in Terminal, in front of you, at once.           # [C4]
+# a report you chose to send (above), and after "Install it" the installer,
+# from the one or two places the release file names (sub installed). An
+# address that is not on the public internet is not fetched for any.     # [C4]
 sub fixed {
     my ($line, $url, $host) = @_;
     $UNSAID = 0;
@@ -1348,8 +1747,9 @@ sub beside {
 # which release you run, and it is written in the log like any other. When
 # the number there is larger than the one beside the program, the window says
 # so and offers the installer. "Install it" is the yes: the installer then
-# runs in Terminal at once, in front of you, in auto, every question it asks
-# printed with its yes and every step left in the window to read.
+# runs at once, in a modal of lzrprf's own in this window, in auto: it shows
+# no question, since nobody is there choosing, and every line it prints is
+# shown there and kept in install.txt (sub installed).
 sub newer {
     my ($release, $newest, undef, $installer, $same) = beside();
     return unless $newest && $installer;
@@ -1374,83 +1774,148 @@ sub newer {
     my $got = fixed("lzrprf looks for a newer release: $newest", $newest, $host) // return;
     my ($there) = $got =~ m{\AHTTP/1\.1 200 .*?\r\n\r\n(?:[0-9a-f]{1,4}\r\n)?(\d{1,6})\s*(?:0\r\n\r\n)?\z}s or return;    # one number and nothing else, or the answer counts for nothing
     return unless $there > $release;
-    return unless ask("A newer release of $APP is published: $there. You run $release. Install it runs the installer in Terminal at once, with no further question: every step is shown there and stays in the window to read.", 'Later', 'Install it') == 2;
-    my ($file, $text) = ("$DIR/install.command", installer_file($installer, $same));
-    return unless length $text;
-    record("you chose to install release $there: Terminal fetches the installer from " . join ' and from ', $installer, defined $same ? $same : ()) or return;    # these fetches are Terminal's, made by the file below at once; lzrprf writes down that you asked for them
-    unlink $file;
-    sysopen(my $out, $file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0700) or return;
-    print $out $text;
-    close $out;
-    said(20, '/usr/bin/open', $file) unless $TRY;    # "lzrprf try" only: the file is written and nothing is opened
-    closed("The installer runs in Terminal by itself. Start $APP again when it says it is done.");
+    return unless ask("A newer release of $APP is published: $there. You run $release. Install it fetches the installer and runs it here, in this window, with no further question: every line it prints is shown and kept in $DIR/install.txt.", 'Later', 'Install it') == 2;
+    installed($there, $installer, $same);
 }
 
-# What "Install it" runs, in Terminal, at once and with no key to press: the
-# press of "Install it" is the yes. It names the places, fetches the installer
-# into a file, not into a shell (the file stays where you can read it, and its
-# SHA-256 is shown), and runs it in auto, so each question the installer asks
-# is printed with its yes, and the window stays open with every line in it.
-# What a press of "Install it" can reach is only this: the installer at the
-# address the application's release file names, the one that release
-# published. When the release file
-# names a second place for the same installer, it is fetched from both, and
-# it runs only when the two copies are the same byte for byte: somebody who
-# changed the installer in one place would have had to change it in the other
-# too. Before anything else the file looks at what it would hand on to a
-# program it starts, and goes on only when that is nothing but the kind of
-# terminal as one plain word, the system's own PATH and names a shell sets for
-# itself, each in its plain shape (PWD, SHLVL, _; zsh also OLDPWD and
-# LOGNAME): with anything else there, or with a line break or another control
-# character inside one of those values, it starts itself once more through
-# env -i with the first two only. So no variable of the Terminal's (a proxy, a
-# file of certificates, a home folder) reaches the curl or the installer it
-# starts, and no mark says "already clean" that a starter could set. What that
-# line cannot see or undo is what /bin/sh took in for itself at its own start
-# and does not hand on (bash reads SHELLOPTS and PS4: a command in PS4 runs
-# before the line, as the starter's own program; the second start has
-# neither. zsh, where it was made the /bin/sh, reads ARGV0 for itself: the
-# line unsets it, and IFS with it). curl
-# is started with -q, so it reads no settings file of yours that could switch
-# off its checking of the site, and it follows no redirect: the installer
-# comes from the address you read, or not at all. lzrprf itself replaces nothing: not the application, and not this
-# file. Whatever is replaced is replaced by that installer, in front of you,
-# after it asked.
-sub installer_file {
-    my ($installer, $same) = @_;
-    my $plain = qr{^https://[A-Za-z0-9./_~%?=&+:-]+$};    # an address stands between quotes in the file below: one that could end the quote is not written at all
-    return '' unless $installer =~ $plain && (!defined $same || $same =~ $plain);
-    my $twice = defined $same ? <<"END" : "echo 'The installer comes from one place: $installer'\n";
-/usr/bin/curl -q -fsS --proto =https -o second '$same' || { echo 'The second copy of the installer could not be fetched. Nothing was changed.'; exit 1; }
-/usr/bin/cmp -s install.sh second || { echo 'The two places hold different installers. Nothing was changed.'; echo '  $installer'; echo '  $same'; exit 1; }
-echo 'The installer was fetched from two places, and both hold the same file:'
-echo '  $installer'
-echo '  $same'
-END
-    my $places = "echo '  $installer'\n" . (defined $same ? "echo '  $same'\n" : '');
-    return <<"END";
-#!/bin/sh
-# Written by lzrprf when "Install it" was pressed in its window. It runs through by itself.
-# It goes on only when what it would hand on to a program it starts is nothing but the kind of terminal as one plain word, the system's own PATH and names a shell sets for itself (PWD, SHLVL, _; zsh also OLDPWD and LOGNAME). With anything else there, or with a line break or another control character inside one of those values, it starts itself once more through env -i with the first two only, so no variable of the Terminal's reaches the curl or the shell that go on. No mark says "already clean": what counts is what is there, read by a perl that is itself started through env -i. Two names a shell may have read for itself are unset first.
-unset IFS ARGV0; case "\${PATH-}\${TERM-}\${SHLVL-}\${LOGNAME-}\${OLDPWD-}\${PWD-}\${_-}" in *[[:cntrl:]]*) plain= ;; *) plain=one ;; esac; case "\$plain\$(/usr/bin/env | /usr/bin/env -i /usr/bin/perl -e 'my (\$user, \$login, %at) = (scalar(getpwuid(\$<)), scalar(getlogin())); while (defined(my \$line = <STDIN>)) { chomp \$line; next if \$line eq "PATH=/usr/bin:/bin:/usr/sbin:/sbin" || \$line =~ m{^(?:TERM=[A-Za-z0-9._+-]+|SHLVL=[0-9]+|_=/[A-Za-z0-9._/+-]*)\\z}; if (\$line =~ m{^(PWD|OLDPWD)=(/.*)\\z}) { \$at{\$1} = \$2; next } next if grep { defined(\$_) && \$line eq "LOGNAME=\$_" } \$user, \$login; print "other"; exit } print exists \$at{OLDPWD} && \$at{OLDPWD} ne (\$at{PWD} // "") ? "other" : "only"')" in oneonly) ;; *) case "\${1:-}" in again) /bin/echo 'This file could not be started with only the kind of terminal and the PATH of the system. Nothing was fetched.'; exit 1 ;; esac; case "\${TERM:-}" in ''|*[!A-Za-z0-9._+-]*) TERM=dumb ;; esac; exec /usr/bin/env -i TERM="\$TERM" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/sh "\$0" again ;; esac
-echo 'A newer release: its installer is fetched now from'
-${places}cd "\$(/usr/bin/mktemp -d)" || exit 1
-/usr/bin/curl -q -fsS --proto =https -o install.sh '$installer' || { echo 'The installer could not be fetched. Nothing was changed.'; exit 1; }
-${twice}echo "The installer is in this file, to read: \$PWD/install.sh"
-echo "Its SHA-256: \$(/usr/bin/shasum -a 256 install.sh | /usr/bin/cut -d' ' -f1)"
-echo 'It runs now in auto: each question it asks is printed here with its yes.'
-/bin/sh install.sh auto
-printf 'Every line above stays here to read. Close this window when you are done. '
-read answer
-END
+# What "Install it" does, with no key to press after it: the press is the yes.
+# What it can reach is only this: the installer at the address the
+# application's release file names. lzrprf fetches it the way it fetches a
+# typed address, with its line in the log first [C5], through the one place
+# that connects [C6], by a curl held to https that follows no redirect and is
+# contained [C3], and from the public internet only. When the release file
+# names a second place for the same installer, it is fetched from there too,
+# and it runs only when the two copies are the same byte for byte: somebody
+# who changed the installer in one place would have had to change it in the
+# other too. A second place that is named and is no address counts as one
+# that does not agree. The installer is written into a folder of its own
+# under $DIR, as a plain file, its SHA-256 is shown in the window and written
+# in the log, and it is started there, with nothing of lzrprf's own
+# environment: env -i, the system's PATH, your home folder, and TERM=dumb,
+# in auto, so it asks nothing and needs no terminal. Every line it prints is
+# given to the window, which shows it in a modal of its own over everything
+# (no page draws there), and appended to $DIR/install.txt. A colour the
+# installer asks for in a line becomes one letter the window draws in, and
+# every escape and control character is taken out, so nothing it prints acts
+# on the window. The window cannot close the modal while it runs; at the end
+# it says done or failed. After done, lzrprf takes nothing more in this
+# window: the application was replaced, and is started again. lzrprf itself
+# replaces nothing: whatever is replaced is replaced by that installer.
+my %INK = (31 => 'r', 32 => 'g', 33 => 'y', 34 => 'b', 35 => 'm', 36 => 'c', 37 => 'w', 91 => 'r', 92 => 'g', 93 => 'y', 94 => 'b', 95 => 'm', 96 => 'c', 97 => 'w');    # the colours of a terminal, as one letter each
+my $INSTALL_LOG;                          # $DIR/install.txt while an installer runs
+sub installed {
+    my ($there, $installer, $same) = @_;
+    window('install begin');
+    sysopen($INSTALL_LOG, "$DIR/install.txt", O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600) or undef $INSTALL_LOG;
+    my @is = $INSTALL_LOG ? stat $INSTALL_LOG : ();
+    undef $INSTALL_LOG unless @is && -f _ && $is[3] == 1 && $is[4] == $<;
+    return install_end(0, "$DIR/install.txt could not be written, so nothing was fetched.") unless $INSTALL_LOG;
+    print {$INSTALL_LOG} line("you chose to install release $there"), "\n";    # the time, the run, what happened: as a line of the log
+    return install_end(0, 'The second place the release file names is not an address lzrprf fetches. Nothing was fetched.') if defined $same && !length $same;
+    my @from = ($installer, defined $same ? $same : ());
+    my @copies;
+    for my $url (@from) {
+        install_line("Fetching the installer from $url");
+        my ($host) = $url =~ m{^https://([^/:]+)};
+        my $got = fixed("you chose to install release $there: lzrprf fetches the installer: $url", $url, $host);
+        my $body = defined $got ? body_of($got) : undef;
+        return install_end(0, "The installer could not be fetched from $url. Nothing was changed.") unless defined $body && length $body;
+        push @copies, $body;
+    }
+    return install_end(0, "The two places hold different installers. Nothing was changed: $from[0] and $from[1].") if @copies == 2 && $copies[0] ne $copies[1];
+    my ($folder, $out) = ("$DIR/install.$$");
+    mkdir $folder, 0700;
+    my @folder = lstat $folder;
+    my $file = "$folder/install.sh";
+    unlink $file;
+    return install_end(0, "The installer could not be written to $file. Nothing was changed.") unless @folder && -d _ && $folder[4] == $< && sysopen($out, $file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) && print({$out} $copies[0]) && close($out);
+    my $sum = Digest::SHA->new(256)->add($copies[0])->hexdigest;
+    install_line(@copies == 2 ? 'The installer was fetched from two places, and both hold the same file.' : 'The installer comes from one place.');
+    install_line("It is in this file, to read: $file");
+    install_line("Its SHA-256: $sum");
+    window("install sum $sum");
+    record("the installer of release $there has SHA-256 $sum, and runs now in auto: $file") or return install_end(0, $UNWRITTEN);    # [C5]
+    return install_end(0, 'lzrprf try: the installer was written and is not run.') if $TRY;
+    install_line('It runs now by itself: no question is shown, and each line it prints is shown here.');
+    pipe(my $from, my $to) or return install_end(0, 'The installer could not be started. Nothing was changed.');
+    my $child = fork // return install_end(0, 'The installer could not be started. Nothing was changed.');
+    if (!$child) {
+        close $from;
+        chdir $folder or POSIX::_exit(127);
+        become(undef, $to, $to, '/usr/bin/env', '-i', 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', "HOME=$HOME", 'TERM=dumb', '/bin/sh', 'install.sh', 'auto');
+    }
+    close $to;
+    my ($held, $until) = ('', now() + $INSTALL_SECONDS);
+    while ((my $left = $until - now()) > 0) {
+        my $ready = '';
+        vec($ready, fileno $from, 1) = 1;
+        select($ready, undef, undef, $left > 1 ? 1 : $left) > 0 or next;
+        my $got = sysread($from, $held, 65536, length $held);
+        next if !defined $got && $!{EINTR};
+        last unless $got;
+        install_line($1) while $held =~ s/\A([^\n]*)\n//;
+        install_line(substr($held, 0, $INSTALL_LINE, '')) while length $held > 4 * $INSTALL_LINE;    # a line with no end yet is given in parts once it is this long
+    }
+    install_line($held) if length $held;
+    my $late = now() >= $until;
+    my $how = ended($child, 5);
+    return install_end(0, "The installer was ended after $INSTALL_SECONDS seconds. What it printed is above.") if $late;
+    return install_end(0, 'The installer ended with an error (' . ($how >> 8) . '). What it printed is above.') unless $how == 0;
+    install_end(1, "The installer says it is done. Start $APP again to run the new release.");
+    closed("The installer says it is done. Start $APP again to run the new release.");
+}
+
+sub install_line {                        # one line the installer printed: in the window's modal, with its colour as one letter, and in install.txt
+    my ($text) = @_;
+    my ($ink) = map { $INK{$_} // () } map { split /;/ } $text =~ /\e\[([0-9;]*)m/g;
+    $text =~ s/\e\][^\a\e]*(?:\a|\e\\)?//g;    # a title or a link a terminal would take: nothing of it is shown
+    $text =~ s/\e\[[0-9;?]*[ -\/]*[\@-~]//g;
+    $text =~ s/\e.?//gs;
+    $text =~ s/\A.*\r(?=.)//s;            # a line written over itself: what stands last
+    no warnings 'utf8';
+    utf8::decode($text) or $text =~ s/[^\x00-\x7f]/?/g;
+    $text =~ s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]//g;
+    for my $part ($text =~ /(.{1,$INSTALL_LINE})/gs, length $text ? () : '') {
+        utf8::encode($part);
+        print STDOUT 'install line ' . ($ink // '-') . " $part\n";    # not "window": when the window is gone the installer is not left without its reader
+        print {$INSTALL_LOG} "$part\n" if $INSTALL_LOG;
+    }
+}
+
+sub install_end {                         # how the install ended, said in the modal, in install.txt and in the log; returns nothing
+    my ($done, $words) = @_;
+    install_line($words);
+    print STDOUT 'install end ' . ($done ? 'done' : 'failed') . " $words\n";
+    if ($INSTALL_LOG) { $INSTALL_LOG->flush; $^O eq 'darwin' ? fcntl($INSTALL_LOG, 51, 0) : $INSTALL_LOG->sync; close $INSTALL_LOG; undef $INSTALL_LOG }
+    record('the install ' . ($done ? 'is done' : "failed: $words"));
+    return;
+}
+
+sub body_of {                             # the body of an answer 200, as curl gave it raw: whole, or in chunks that are all there; nothing for anything else
+    my ($got) = @_;
+    my ($head, $body) = $got =~ m{\AHTTP/1\.1 200 [^\r\n]*\r\n(.*?)\r\n\r\n(.*)\z}s or return;
+    return $body unless $head =~ /^transfer-encoding:[ \t]*chunked[ \t]*\r?$/mi;
+    my ($whole, $at) = ('', 0);
+    while (substr($body, $at) =~ /\A([0-9a-fA-F]{1,8})[^\r\n]*\r\n/) {
+        my $n = hex $1;
+        $at += length $&;
+        return $whole unless $n;
+        return unless length($body) >= $at + $n + 2 && substr($body, $at + $n, 2) eq "\r\n";
+        $whole .= substr($body, $at, $n);
+        $at += $n + 2;
+    }
+    return;
 }
 
 # The window's side. The window is lzrprf's: the text at the end of this file,
 # run by the system's own osascript in the window container. It is told what
-# to show in lines, and says what you did in lines. Five things can come from
-# it, and nothing the application wrote is among them: that it is ready, what
-# you typed into the bar when you pressed Return, which of two buttons you
-# pressed, that you asked for the log, and that it could not draw a list. The words lzrprf says are in a
+# to show in lines, and says what you did in lines. Ten kinds of line can come
+# from it, each in a shape lzrprf checks, and nothing the application wrote is
+# among them: that it is ready, what you typed into the bar when you pressed
+# Return, which of two buttons you pressed, that you asked for the log, that
+# it could not draw a list, the size of its page, a tab opened, chosen or
+# closed ("tab new", "tab select N", "tab close N"), and an item of the
+# cogwheel's menu ("menu clear-history", "menu clear-sessions", "menu home", "menu bookmarks-bar"), a bookmark opened, saved or removed ("mark open N", "mark save ...", "mark remove N", sub mark_saved), and buttons up to three for a question in a modal ("redirect"). The words lzrprf says are in a
 # strip of their own between the bar and the page, where no page can write:
 # the one thing of the application's that lzrprf says there is up to four of
 # the other hosts its page names, each in the shape of a host name, and how
@@ -1462,7 +1927,7 @@ sub window {
 }
 
 sub busy { window('busy ' . $_[0] =~ s/\s+/ /gr) }
-sub idle { window('idle ' . $_[0] =~ s/\s+/ /gr); return }
+sub idle { my $says = $_[0] =~ s/\s+/ /gr; $TABS[$TAB]{says} = $says; window("idle $says"); return }    # the words are the selected tab's, shown again when it is chosen again
 
 # The =statement line of a page, which comes right after its =pictures and
 # =sheets lines (or its first line): the application's own words, in one sentence, for why it
@@ -1484,6 +1949,7 @@ sub stated {
 
 sub hear {                                # the next thing the window says; nothing (undef) when the window is gone, an empty line when it said nothing in time
     my ($seconds) = @_;
+    return shift @HELD if @HELD;
     return shift @EVENTS unless $FROM;
     my $ready = '';
     vec($ready, fileno $FROM, 1) = 1;
@@ -1503,19 +1969,22 @@ sub hear {                                # the next thing the window says; noth
 # answers: a press that comes late, after its question ran out of time, is
 # not taken as the answer to the next one.
 my $ASKED = 0;
-sub ask {
-    my ($words, @buttons) = @_;
+sub ask { my ($words, @buttons) = @_; return asked('ask ' . $words =~ s/\s+/ /gr, @buttons) }
+
+sub asked {                               # a question in a line of its own kind: "ask" in the strip, "redirect" in a modal; up to three buttons
+    my ($line, @buttons) = @_;
     $ASKED++;
-    window(join "\t", 'ask ' . $words =~ s/\s+/ /gr, @buttons);
+    window(join "\t", $line, @buttons);
     if (!$FROM) {                         # "lzrprf try" only: the test's answer
-        my $press = $ANSWER eq 'allow' ? 2 : $ANSWER =~ s/^([12])// ? $1 : 1;
+        my $press = $ANSWER eq 'allow' ? 2 : $ANSWER =~ s/^([123])// ? $1 : 1;    # a digit for each question in turn; a third button is answered by 3
         window("answered $press");
         return $press;
     }
     my $until = now() + $ANSWER_SECONDS;
     while ((my $left = $until - now()) > 0) {
         my $event = hear($left) // leave();
-        return $1 if $event =~ /^button $ASKED ([12])$/;
+        return $1 if $event =~ /^button $ASKED ([123])$/ && $1 <= @buttons;
+        viewing($event);                  # a new size of the window's page said meanwhile is still its size; the page is laid out at it after the question (sub relaid)
     }
     return 1;
 }
@@ -1972,6 +2441,12 @@ var NAME = 'lzrprf', app, win, bar, logs, words, first, second, scroll, page, un
 var to = $.NSFileHandle.fileHandleWithStandardOutput, from = $.NSFileHandle.fileHandleWithStandardInput, held = $.NSMutableData.data;
 var looks = {}, paragraphs = {};
 var canvas, sheet = null, inks = {}, typefaces = {}, space = null;    // the view of a laid page, the laid page it shows, and what drawing it needs more than once
+var again = false, viewing = '';    // the list being drawn is the page shown laid out again at a new width ("relaid"); the size of the page's view last told to lzrprf
+var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
+var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
+var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
+var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
+var TABS_HIGH = 36, BAR_ROW = 44, MARKS_ROW = 30, TOP = TABS_HIGH + BAR_ROW, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI;    // the heights of the strip of tabs, the bar's row and the bookmarks bar, in points; the laser's colours
 
 function say(line) { to.writeData($(line + '\n').dataUsingEncoding(4)); }
 
@@ -1982,43 +2457,66 @@ function heard(line) {
         var lines = list;
         list = null;
         try { draw(lines); } catch (fault) { unlaid(); page.string = $(''); listed([]); say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); }
+        again = false;
         return;
     }
     var at = line.indexOf(' '), word = at < 0 ? line : line.slice(0, at), rest = at < 0 ? '' : line.slice(at + 1);
-    if (word == 'page') list = [];
-    else if (word == 'busy' || word == 'idle') strip(rest.split('\t'), word == 'idle', false);
+    if (word == 'page' || word == 'relaid') { list = []; again = word == 'relaid'; }
+    else if (word == 'busy' || word == 'idle') { if (word == 'busy') restoring = null; strip(rest.split('\t'), word == 'idle', false); }    // busy: a new page is coming, from its top
+    else if (word == 'tabs') tabsTold(rest);
+    else if (word == 'title') { var gap = rest.indexOf(' '), which = +rest.slice(0, gap); if (tabs[which]) tabs[which].title = rest.slice(gap + 1); tabsView.needsDisplay = true; }
+    else if (word == 'install') installTold(rest);
     else if (word == 'ask') { asked++; strip(rest.split('\t'), false, true); }
-    else if (word == 'address') bar.stringValue = $(rest);
+    else if (word == 'address') { bar.stringValue = $(rest); current = rest; redrawn(); }
+    else if (word == 'marks') { if (rest == 'begin') { marks = []; folders = []; } else redrawn(); }
+    else if (word == 'mark') markTold(rest);
+    else if (word == 'marksbar') { marksOn = rest == 'on'; marksView.hidden = !marksOn; place(); }
+    else if (word == 'redirect') redirectTold(rest);
     else if (word == 'quit') app.terminate(null);
     told(word, rest);
 }
 
 // lzrprf's strip: its words, and for a question two buttons. While a question
 // is open, or lzrprf is busy, the bar takes nothing.
-function strip(parts, free, question) {
+function strip(parts, open, question) {
     asking = question;
+    free = !!open && !question;    // the tabs, the cogwheel and the bar take something only while lzrprf waits for it
     words.stringValue = $(parts[0] || '');
     first.title = $(parts[1] || '');
     second.title = $(parts[2] || '');
     first.hidden = !question;
     second.hidden = !question || !parts[2];
-    bar.enabled = free;
-    logs.enabled = free;
+    bar.enabled = free && !modalOpen;
+    logs.enabled = free && !modalOpen;
+    redrawn();
     place();
-    if (free && win.firstResponder.isEqual(win)) win.makeFirstResponder(bar);
+    if (free && !modalOpen && (focusing || win.firstResponder.isEqual(win))) { win.makeFirstResponder(bar); focusing = false; }    // a new tab: the bar, to type into
 }
 
+// The window from the top: the strip of tabs, the bar's row (the bar centred in the whole window,
+// the cogwheel on its right), lzrprf's strip, the page, and the pane under it with Log at its
+// bottom right. All of it is set again whenever the window's size or the strip changes.
 function place() {
+    TOP = TABS_HIGH + BAR_ROW + (marksOn ? MARKS_ROW : 0);
     var all = win.contentView.frame, wide = all.size.width, high = all.size.height, tall = asking ? 96 : 24;
-    var room = high - 48 - tall, low = Math.round(Math.min(room / 2, Math.max(96, Math.min(190, room * 0.3))));    // the pane under the page, set whenever the strip changes: three tenths of what the bar and the strip leave, between 96 and 190, and never more than half
-    bar.frame = $.NSMakeRect(10, high - 34, wide - 92, 24);
-    logs.frame = $.NSMakeRect(wide - 78, high - 37, 72, 30);
-    words.frame = $.NSMakeRect(12, high - 42 - tall, wide - (asking ? 300 : 24), tall);
-    first.frame = $.NSMakeRect(wide - 284, high - 42 - 62, 132, 30);
-    second.frame = $.NSMakeRect(wide - 148, high - 42 - 62, 138, 30);
-    scroll.frame = $.NSMakeRect(0, low, wide, high - 48 - tall - low);
+    var room = high - TOP - tall, low = Math.round(Math.min(room / 2, Math.max(96, Math.min(190, room * 0.3))));    // the pane under the page, set whenever the strip changes: three tenths of what the bar and the strip leave, between 96 and 190, and never more than half
+    var barWide = Math.max(180, Math.min(680, wide - 200)), barAt = Math.round((wide - barWide) / 2), row = high - TABS_HIGH - BAR_ROW;    // centred in the whole window, with room on its right for the star and the cogwheel
+    tabsView.frame = $.NSMakeRect(0, high - TABS_HIGH, wide, TABS_HIGH);
+    belt.frame = $.NSMakeRect(0, row, wide, BAR_ROW);
+    bar.frame = $.NSMakeRect(barAt, row + 11, barWide, 22);
+    star.frame = $.NSMakeRect(barAt + barWide + 16, row + 7, 30, 30);
+    cog.frame = $.NSMakeRect(barAt + barWide + 48, row + 7, 30, 30);
+    marksView.frame = $.NSMakeRect(0, row - MARKS_ROW, wide, MARKS_ROW);
+    stripBack.frame = $.NSMakeRect(0, high - TOP + 6 - tall - 4, wide, tall + 6);
+    redrawn();
+    words.frame = $.NSMakeRect(12, high - TOP + 6 - tall, wide - (asking ? 300 : 24), tall);
+    first.frame = $.NSMakeRect(wide - 284, high - TOP + 6 - 62, 132, 30);
+    second.frame = $.NSMakeRect(wide - 148, high - TOP + 6 - 62, 138, 30);
+    scroll.frame = $.NSMakeRect(0, low, wide, high - TOP - tall - low);
     under.frame = $.NSMakeRect(0, 0, wide, low);
+    logs.frame = $.NSMakeRect(wide - 96, 8, 72, 28);
     fit();
+    placeModal();
 }
 
 function look(font, size, kind) {
@@ -2075,10 +2573,12 @@ function laid(lines, first) {
             next.ops.push([n[1] - high * 1.25, high * 1.75, 'X', n[0], 0, $(text), look[0], n[1] - look[1]]);    // drawn from its top: its baseline is the font's ascent below that
         } else throw 'a laid page holds a line of another kind';
     }
+    var share = restoring !== null ? restoring : again && sheet && sheet.high > 0 ? Math.min(1, Math.max(0, canvas.visibleRect.origin.y / sheet.high)) : 0;    // a tab chosen again is shown where it was read in it; a page laid out again at a new width where it was read, as a share of its height; a new page from its top
+    restoring = null;
     sheet = next;
     if (!scroll.documentView.isEqual(canvas)) scroll.documentView = canvas;
     fit();
-    canvas.scrollPoint($.NSMakePoint(0, 0));
+    canvas.scrollPoint($.NSMakePoint(0, Math.round(share * sheet.high)));
     listed(lines.slice(0, first));
     drawn(lines.length, characters);
 }
@@ -2086,6 +2586,27 @@ function laid(lines, first) {
 function unlaid() {
     sheet = null;
     if (canvas && !scroll.documentView.isEqual(page)) scroll.documentView = page;
+}
+
+// The size of the page's view, in points, told to lzrprf as "view W H" when it changed: lzrprf
+// lays the page shown out again at that width (its sub relaid). Two whole numbers and nothing else.
+function view() {
+    var size = scroll.contentSize, line = 'view ' + Math.max(1, Math.round(size.width)) + ' ' + Math.max(1, Math.round(size.height));
+    if (line == viewing) return;
+    viewing = line;
+    say(line);
+}
+
+// While the window is resized the page is scaled at once (fit), and lzrprf is told the new size
+// once the resizing has rested for 120 ms, or at once when it ends or full screen begins or ends.
+function resting() {
+    $.NSObject.cancelPreviousPerformRequestsWithTargetSelectorObject(hand, 'viewed:', null);
+    hand.performSelectorWithObjectAfterDelay('viewed:', null, 0.12);
+}
+
+function viewNow() {
+    $.NSObject.cancelPreviousPerformRequestsWithTargetSelectorObject(hand, 'viewed:', null);
+    view();
 }
 
 function fit() {
@@ -2096,6 +2617,513 @@ function fit() {
     canvas.setBoundsSize($.NSMakeSize(sheet.wide, sheet.high));
     canvas.needsDisplay = true;
 }
+
+// lzrprf's chrome, drawn by this window alone and never by a page: the strip of tabs, the bar's row
+// with the star and the cogwheel, the bookmarks bar, lzrprf's strip and the modal. A tab's title
+// is the page's =title line as lzrprf checked it, drawn as plain text on one line and cut at its
+// end; the icon is a laser globe for every tab until lzrprf has a way to take a page's own icon
+// (there is none yet). Every press here is one line to lzrprf in a shape it checks ("tab ...",
+// "menu ...", "mark ...", "button N K"), and only while lzrprf waits for one: after it, nothing is
+// taken until lzrprf says it is idle again. The look is lzrbrwsr.com's: black, the laser green
+// with its glow, yellow and bright white sparks, a monospaced face; drawn here on the processor,
+// with no blur of the system's, which would need the graphics card's compiler.
+function laser() {
+    function rgb(r, g, b, a) { return $.NSColor.colorWithSRGBRedGreenBlueAlpha(r / 255, g / 255, b / 255, a === undefined ? 1 : a); }
+    GREEN = rgb(0, 255, 65); DIM = rgb(11, 143, 44); YELLOW = rgb(255, 236, 64); WHITE = rgb(244, 255, 246); DARK = rgb(5, 22, 11);
+    GREY = rgb(138, 163, 144); LINE = rgb(13, 58, 24); GLASS = rgb(0, 255, 65, 0.045); GLASS_HI = rgb(0, 255, 65, 0.1);
+}
+
+function mono(size, bold) {
+    var one = $.NSFont.monospacedSystemFontOfSizeWeight(size, bold ? 0.4 : 0);
+    if (one.isNil()) one = $.NSFont.fontWithNameSize($(bold ? 'Menlo-Bold' : 'Menlo-Regular'), size);
+    return one;
+}
+
+function glow(colour, blur) { var one = $.NSShadow.alloc.init; one.shadowColor = colour; one.shadowBlurRadius = blur; one.shadowOffset = $.NSMakeSize(0, 0); one.set; }
+
+function glass(path, hi) {    // a pane of glass: a soft green wash, lighter at its top
+    var wash = $.NSGradient.alloc.initWithStartingColorEndingColor(hi ? GLASS_HI : GLASS, $.NSColor.colorWithWhiteAlpha(0, 0));
+    wash.drawInBezierPathAngle(path, -90);
+}
+
+function inked(font, colour, cut) {
+    var how = $.NSMutableDictionary.alloc.init;
+    how.setObjectForKey(font, $.NSFontAttributeName);
+    how.setObjectForKey(colour, $.NSForegroundColorAttributeName);
+    if (cut) { var set = $.NSMutableParagraphStyle.alloc.init; set.lineBreakMode = 4; how.setObjectForKey(set, $.NSParagraphStyleAttributeName); }
+    return how;
+}
+
+function styled(text, how) {    // an attributed string: this macOS bridges no initWithString... for it, so it is made empty, given its text, then its attributes
+    var one = $.NSMutableAttributedString.alloc.init;
+    one.replaceCharactersInRangeWithString($.NSMakeRange(0, 0), $(text));
+    one.setAttributesRange(how, $.NSMakeRange(0, one.length));
+    return one;
+}
+
+function titled(item, words) { item.attributedTitle = styled(words, inked(mono(12), WHITE)); }
+
+function sent(line) { free = false; bar.enabled = false; logs.enabled = false; redrawn(); say(line); }
+function redrawn() { [tabsView, belt, cog, star, marksView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
+function takes() { return free && !modalOpen; }    // whether the chrome takes a press now
+
+// The tabs.
+function tabsTold(rest) {
+    var told = rest.split(' '), count = +told[0], now = +told[1];
+    if (closing !== null) { shares.splice(closing, 1); closing = null; }
+    while (tabs.length < count) tabs.push({ title: '' });
+    tabs.length = count;
+    if (shares.length > count) shares.length = count;
+    restoring = shares[now] || 0;
+    selected = now;
+    redrawn();
+}
+
+function shareNow() { return sheet && sheet.high > 0 && scroll.documentView.isEqual(canvas) ? Math.min(1, Math.max(0, canvas.visibleRect.origin.y / sheet.high)) : 0; }
+
+function tabSaid(line, closed) {
+    if (!takes()) return;
+    shares[selected] = shareNow();
+    if (closed !== undefined) closing = closed;
+    sent(line);
+}
+
+function newTab() { if (takes() && tabs.length < 32) { focusing = true; tabSaid('tab new'); } }
+
+// Side by side from the left, each at most 220 points wide, all shrinking to share the strip
+// when there are many; the + after the last.
+function tabWide() { return Math.max(1, Math.min(220, Math.floor((tabsView.frame.size.width - 16 - 40) / tabs.length))); }
+function closable(wide, on) { return wide - 2 >= 64 || (on && wide - 2 >= 40); }
+
+function globe(x, y, on) {
+    $.NSGraphicsContext.saveGraphicsState;
+    if (on) glow(GREEN, 5);
+    (on ? GREEN : DIM).setStroke;
+    var path = $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(x, y, 12, 12));
+    path.appendBezierPathWithOvalInRect($.NSMakeRect(x + 3.5, y, 5, 12));
+    path.moveToPoint($.NSMakePoint(x, y + 6));
+    path.lineToPoint($.NSMakePoint(x + 12, y + 6));
+    path.lineWidth = 1;
+    path.stroke;
+    $.NSGraphicsContext.restoreGraphicsState;
+}
+
+function paintTabs() {
+    var size = tabsView.frame.size, wide = tabWide(), high = size.height, middle = (high - 6) / 2;
+    $.NSColor.blackColor.setFill;
+    $.NSRectFill($.NSMakeRect(0, 0, size.width, high));
+    tabs.forEach(function (tab, i) {
+        var x = 8 + i * wide, on = i == selected, hot = i == hover.tab && !on, path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(x + 2, -10, wide - 4, high + 4), 10, 10);
+        if (on || hot) glass(path, on);
+        $.NSGraphicsContext.saveGraphicsState;
+        if (on) glow(GREEN, 8);
+        (on ? GREEN : hot ? DIM : LINE).setStroke;
+        path.lineWidth = on ? 1.2 : 1;
+        path.stroke;
+        $.NSGraphicsContext.restoreGraphicsState;
+        if (wide - 4 < 40) return globe(x + (wide - 12) / 2, middle - 6, on);
+        globe(x + 12, middle - 6, on || hot);
+        var closer = closable(wide, on);
+        $(tab.title || 'New tab').drawInRectWithAttributes($.NSMakeRect(x + 31, middle - 8, wide - 31 - (closer ? 26 : 10), 16), inked(mono(11.5, on), on ? WHITE : hot ? GREY : DIM, true));
+        if (closer) {
+            var cross = $.NSBezierPath.bezierPath, cx = x + wide - 17, cy = middle;
+            cross.moveToPoint($.NSMakePoint(cx - 3.5, cy - 3.5)); cross.lineToPoint($.NSMakePoint(cx + 3.5, cy + 3.5));
+            cross.moveToPoint($.NSMakePoint(cx - 3.5, cy + 3.5)); cross.lineToPoint($.NSMakePoint(cx + 3.5, cy - 3.5));
+            $.NSGraphicsContext.saveGraphicsState;
+            if (on) glow(YELLOW, 4);
+            (on ? YELLOW : DIM).setStroke;
+            cross.lineWidth = 1.3;
+            cross.stroke;
+            $.NSGraphicsContext.restoreGraphicsState;
+        }
+    });
+    if (tabs.length < 32) {
+        var px = 8 + tabs.length * wide + 14, plus = $.NSBezierPath.bezierPath, lit = takes() && hover.tab == tabs.length;
+        plus.moveToPoint($.NSMakePoint(px, middle)); plus.lineToPoint($.NSMakePoint(px + 12, middle));
+        plus.moveToPoint($.NSMakePoint(px + 6, middle - 6)); plus.lineToPoint($.NSMakePoint(px + 6, middle + 6));
+        $.NSGraphicsContext.saveGraphicsState;
+        if (takes()) glow(lit ? WHITE : GREEN, lit ? 9 : 5);
+        (takes() ? (lit ? WHITE : GREEN) : DIM).setStroke;
+        plus.lineWidth = 1.6;
+        plus.stroke;
+        $.NSGraphicsContext.restoreGraphicsState;
+    }
+    LINE.setStroke;
+    $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(0, 0.5), $.NSMakePoint(size.width, 0.5));
+}
+
+function tabAt(event) {    // the tab under the pointer, the number of tabs for the +, or -1
+    var at = tabsView.convertPointFromView(event.locationInWindow, null), wide = tabWide(), x = at.x - 8, i = Math.floor(x / wide);
+    if (x >= 0 && i < tabs.length) return [i, at.x >= 8 + (i + 1) * wide - 28 && closable(wide, i == selected)];
+    var px = 8 + tabs.length * wide + 8;
+    return [at.x >= px && at.x <= px + 26 && tabs.length < 32 ? tabs.length : -1, false];
+}
+
+function tabClicked(event) {
+    var hit = tabAt(event);
+    if (hit[0] < 0) return;
+    if (hit[0] == tabs.length) return newTab();
+    if (hit[1]) return tabSaid('tab close ' + hit[0], hit[0]);
+    if (hit[0] != selected) tabSaid('tab select ' + hit[0]);
+}
+
+// The bar's row. The bar is a pill of glass with a thin green line that glows when the bar is
+// being typed into. The row is a larger place to click than the bar looks: a click anywhere on it
+// that is not the star or the cogwheel puts the caret into the bar, at its start when left of it
+// and at its end otherwise.
+function typing() { var editor = bar.currentEditor; return !!editor && !editor.isNil(); }
+
+function paintBelt() {
+    var at = bar.frame, pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(at.origin.x - 12, at.origin.y - 5, at.size.width + 24, at.size.height + 10), 17, 17), on = typing();
+    $.NSGraphicsContext.saveGraphicsState;
+    glow(GREEN, on ? 12 : 4);
+    $.NSColor.colorWithWhiteAlpha(0, 1).setFill;
+    pill.fill;
+    $.NSGraphicsContext.restoreGraphicsState;
+    glass(pill, on);
+    (on ? GREEN : bar.enabled ? DIM : LINE).setStroke;
+    pill.lineWidth = on ? 1.3 : 1;
+    pill.stroke;
+}
+
+function beltClicked(event) {
+    if (!bar.enabled) return;
+    win.makeFirstResponder(bar);
+    var editor = bar.currentEditor, at = belt.convertPointFromView(event.locationInWindow, null);
+    if (editor && !editor.isNil()) editor.selectedRange = $.NSMakeRange(at.x < bar.frame.origin.x ? 0 : bar.stringValue.length, 0);
+    belt.needsDisplay = true;
+}
+
+// The cogwheel: a laser ring of eight teeth with a yellow spark at its hub. Its menu.
+function paintCog() {
+    var size = cog.frame.size, cx = size.width / 2, cy = size.height / 2, outer = Math.min(cx, cy) - 4, inner = outer - 3.5, path = $.NSBezierPath.bezierPath, lit = takes();
+    for (var k = 0; k < 32; k++) {
+        var turn = (k / 32) * Math.PI * 2 + (hover.cog ? Math.PI / 16 : 0), r = k % 4 < 2 ? outer : inner, point = $.NSMakePoint(cx + r * Math.cos(turn), cy + r * Math.sin(turn));
+        if (k == 0) path.moveToPoint(point); else path.lineToPoint(point);
+    }
+    path.closePath;
+    path.appendBezierPathWithOvalInRect($.NSMakeRect(cx - 3.4, cy - 3.4, 6.8, 6.8));
+    $.NSGraphicsContext.saveGraphicsState;
+    glow(hover.cog && lit ? WHITE : GREEN, lit ? (hover.cog ? 11 : 7) : 2);
+    (lit ? GREEN : DIM).setStroke;
+    path.lineWidth = 1.4;
+    path.stroke;
+    $.NSGraphicsContext.restoreGraphicsState;
+    YELLOW.setFill;
+    $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(cx - 1.2, cy - 1.2, 2.4, 2.4)).fill;
+}
+
+function cogClicked() {
+    if (!takes()) return;
+    var menu = $.NSMenu.alloc.initWithTitle($(''));
+    menu.autoenablesItems = false;
+    [['Show bookmarks bar', 'marksBar:', marksOn], ['Clear browsing history', 'clearing:'], ['Make current page the home page', 'homing:']].forEach(function (one) {
+        var item = menu.addItemWithTitleActionKeyEquivalent($(one[0]), one[1], $(''));
+        item.target = hand;
+        titled(item, one[0]);
+        if (one.length > 2) item.state = one[2] ? 1 : 0;
+    });
+    menu.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
+    menu.popUpMenuPositioningItemAtLocationInView(null, $.NSMakePoint(0, -6), cog);
+}
+
+function clearing() {
+    if (!takes()) return;
+    modal('Clear browsing history', 'Clear history empties the list of addresses each tab went to; the pages shown stay. Clear history and sessions also drops every page lzrprf keeps for a tab. The log is cleared by its own button.',
+        [['Cancel', closeModal], ['Clear history', function () { closeModal(); sent('menu clear-history'); }], ['Clear history and sessions', sessionsWarned]], 'small');
+}
+
+function sessionsWarned() {
+    modal('Clear history and sessions?', 'This will require logging in again on all pages. lzrprf sends no cookie to any site, so no site keeps a login through it today: what is cleared is the history and every page lzrprf keeps for a tab. Proceed?',
+        [['Cancel', closeModal], ['Proceed', function () { closeModal(); sent('menu clear-sessions'); }]], 'small');
+}
+
+// Bookmarks, as lzrprf read them from their folder and told them: "marks begin", "mark F FOLDER",
+// "mark B N FOLDER<tab>NAME<tab>ADDRESS", "marks end".
+function markTold(rest) {
+    if (rest.charAt(0) == 'F') return folders.push(rest.slice(2));
+    var gap = rest.indexOf(' ', 2), parts = rest.slice(gap + 1).split('\t');
+    marks.push({ id: +rest.slice(2, gap), folder: parts[0], name: parts[1], url: parts[2] });
+}
+
+function marked() { for (var i = 0; i < marks.length; i++) if (marks[i].url == current) return marks[i]; return null; }
+
+// The star: hollow and green, or filled and yellow when the address shown is a bookmark.
+function paintStar() {
+    var size = star.frame.size, cx = size.width / 2, cy = size.height / 2, path = $.NSBezierPath.bezierPath, kept = !!current && !!marked(), lit = takes();
+    for (var k = 0; k < 10; k++) {
+        var turn = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 3.6 : 8.6, point = $.NSMakePoint(cx + r * Math.cos(turn), cy + r * Math.sin(turn));
+        if (k == 0) path.moveToPoint(point); else path.lineToPoint(point);
+    }
+    path.closePath;
+    path.lineJoinStyle = 1;
+    $.NSGraphicsContext.saveGraphicsState;
+    glow(kept ? YELLOW : hover.star && lit ? WHITE : GREEN, lit ? (hover.star ? 10 : 6) : 2);
+    if (kept) { YELLOW.setFill; path.fill; }
+    (kept ? YELLOW : lit ? GREEN : DIM).setStroke;
+    path.lineWidth = 1.3;
+    path.stroke;
+    $.NSGraphicsContext.restoreGraphicsState;
+}
+
+function folderLabel(path) { return path ? path.split('/').join(' / ') : 'Bookmarks'; }
+
+function starClicked() {
+    if (!takes() || !current) return;
+    var one = marked();
+    editing = one ? one.id : null;
+    modal(one ? 'Edit bookmark' : 'Add bookmark', one ? 'This page is a bookmark. Change it, or remove it.' : 'A bookmark is kept in ' + 'your lzrprf folder, as a name and an address.',
+        [['Cancel', closeModal]].concat(one ? [['Remove', function () { closeModal(); sent('mark remove ' + one.id); }]] : []).concat([['Save', markSave]]), 'form');
+    nameField.stringValue = $(one ? one.name : tabs[selected] && tabs[selected].title || current);
+    addressField.stringValue = $(one ? one.url : current);
+    folderPop.removeAllItems;
+    [''].concat(folders).forEach(function (path) { folderPop.addItemWithTitle($(folderLabel(path))); folderPop.lastItem.representedObject = $(path); });
+    folderPop.addItemWithTitle($('New folder...'));
+    folderPop.selectItemAtIndex(one ? Math.max(0, [''].concat(folders).indexOf(one.folder)) : 0);
+    newFolderField.stringValue = $('');
+    newFolderField.hidden = true;
+    win.makeFirstResponder(nameField);
+}
+
+function folderChosen() { newFolderField.hidden = folderPop.indexOfSelectedItem != folderPop.numberOfItems - 1; if (!newFolderField.hidden) win.makeFirstResponder(newFolderField); }
+
+var FOLDER = /^(?:[A-Za-z0-9_-][A-Za-z0-9 ._-]{0,63}(?:\/[A-Za-z0-9_-][A-Za-z0-9 ._-]{0,63}){0,3})?$/;
+function markSave() {
+    var fresh = !newFolderField.hidden, folder = fresh ? newFolderField.stringValue.js.trim() : folderPop.selectedItem.representedObject.js;
+    var name = nameField.stringValue.js.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 200), address = addressField.stringValue.js.trim().replace(/[^\x20-\x7e]/g, '\x7f').slice(0, 2100);
+    if (!FOLDER.test(folder)) { panelSub.stringValue = $('A folder is a name of letters, digits, space, dot, underscore or hyphen, not beginning with a dot or a space; names joined by / make a folder inside a folder, at most four deep.'); panelSub.textColor = YELLOW; return; }
+    if (!address) { panelSub.stringValue = $('A bookmark needs an address.'); panelSub.textColor = YELLOW; return; }
+    closeModal();
+    sent('mark save\t' + (editing === null ? '-' : editing) + '\t' + folder + '\t' + (name || address) + '\t' + address);
+}
+
+// The bookmarks bar, under the bar's row when it is shown: the bookmarks and folders at the top,
+// side by side; a folder opens a menu of what is in it, a folder in it a menu of its own. What does
+// not fit is in the menu of the last place.
+function marksAtTop() {
+    var all = folders.filter(function (f) { return f.indexOf('/') < 0; }).map(function (f) { return { folder: f, name: f }; });
+    return all.concat(marks.filter(function (m) { return m.folder === ''; }).map(function (m) { return { mark: m, name: m.name }; }));
+}
+
+function marksLaid() {
+    var room = marksView.frame.size.width - 12, x = 12, placed = [], items = marksAtTop();
+    for (var i = 0; i < items.length; i++) {
+        var w = Math.min(180, Math.ceil($(items[i].name).sizeWithAttributes(inked(mono(11.5), WHITE)).width) + 36);
+        if (x + w > room - (i < items.length - 1 ? 40 : 0)) { placed.push({ x: x, w: 34, more: items.slice(i), name: '>>' }); break; }
+        placed.push({ x: x, w: w, item: items[i] });
+        x += w + 4;
+    }
+    return placed;
+}
+
+function paintMarks() {
+    var size = marksView.frame.size, high = size.height;
+    $.NSColor.blackColor.setFill;
+    $.NSRectFill($.NSMakeRect(0, 0, size.width, high));
+    marksPlaced = marksLaid();
+    if (!marksPlaced.length) $('No bookmarks yet: the star beside the address keeps the page shown.').drawAtPointWithAttributes($.NSMakePoint(16, high / 2 - 7), inked(mono(11), DIM));
+    marksPlaced.forEach(function (one, i) {
+        var hot = i == hover.mark && takes(), pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(one.x, 4, one.w, high - 8), 9, 9);
+        if (hot) { glass(pill, true); $.NSGraphicsContext.saveGraphicsState; glow(GREEN, 6); DIM.setStroke; pill.stroke; $.NSGraphicsContext.restoreGraphicsState; }
+        if (one.more) return $('>>').drawAtPointWithAttributes($.NSMakePoint(one.x + 9, high / 2 - 7), inked(mono(11.5, true), GREEN));
+        var mark = one.item.mark, glyph = $.NSBezierPath.bezierPath, gy = high / 2;
+        if (mark) glyph.appendBezierPathWithOvalInRect($.NSMakeRect(one.x + 10, gy - 3, 6, 6));
+        else { glyph.appendBezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(one.x + 8, gy - 4.5, 11, 9), 2, 2); }
+        $.NSGraphicsContext.saveGraphicsState;
+        glow(mark ? GREEN : YELLOW, 4);
+        (mark ? GREEN : YELLOW).setStroke;
+        glyph.lineWidth = 1.2;
+        glyph.stroke;
+        $.NSGraphicsContext.restoreGraphicsState;
+        $(one.item.name).drawInRectWithAttributes($.NSMakeRect(one.x + 25, gy - 8, one.w - 31, 16), inked(mono(11.5), hot ? WHITE : GREY, true));
+    });
+    LINE.setStroke;
+    $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(0, 0.5), $.NSMakePoint(size.width, 0.5));
+}
+
+function markAt(event) {
+    var at = marksView.convertPointFromView(event.locationInWindow, null);
+    for (var i = 0; i < marksPlaced.length; i++) if (at.x >= marksPlaced[i].x && at.x < marksPlaced[i].x + marksPlaced[i].w) return i;
+    return -1;
+}
+
+function folderMenu(path, items) {    // the menu of a folder: its folders, each with a menu of its own, then its bookmarks
+    var menu = $.NSMenu.alloc.initWithTitle($(''));
+    menu.autoenablesItems = false;
+    menu.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
+    (items || folders.filter(function (f) { return f.slice(0, path.length + 1) == path + '/' && f.indexOf('/', path.length + 1) < 0; }).map(function (f) { return { folder: f, name: f.slice(path.length + 1) }; })
+        .concat(marks.filter(function (m) { return m.folder === path; }).map(function (m) { return { mark: m, name: m.name }; }))).forEach(function (one) {
+        var item = menu.addItemWithTitleActionKeyEquivalent($(one.name), one.mark ? 'markMenu:' : null, $(''));
+        titled(item, one.name);
+        if (one.mark) { item.target = hand; item.tag = one.mark.id; }
+        else item.submenu = folderMenu(one.folder);
+    });
+    if (!menu.numberOfItems) { var none = menu.addItemWithTitleActionKeyEquivalent($('(empty)'), null, $('')); none.enabled = false; }
+    return menu;
+}
+
+function marksClicked(event) {
+    var i = markAt(event);
+    if (i < 0 || !takes()) return;
+    var one = marksPlaced[i];
+    if (one.item && one.item.mark) return sent('mark open ' + one.item.mark.id);
+    folderMenu(one.item ? one.item.folder : '', one.more).popUpMenuPositioningItemAtLocationInView(null, $.NSMakePoint(one.x, -2), marksView);
+}
+
+// The modal: centred over the whole window, over a veil that takes every click, so nothing under
+// it, the page or the chrome, is reached while it is open. Kinds: small, tall (a redirect), form
+// (a bookmark), big (the installer).
+function modal(title, about, choices, kind) {
+    modalOpen = true;
+    modalKind = kind;
+    panelTitle.stringValue = $(title);
+    panelTitle.textColor = GREEN;
+    panelSub.stringValue = $(about);
+    panelSub.textColor = WHITE;
+    panelText.string = $('');
+    panelScroll.hidden = kind != 'big';
+    form.hidden = kind != 'form';
+    veil.hidden = false;
+    bar.enabled = false;
+    logs.enabled = false;
+    win.makeFirstResponder(null);
+    redrawn();
+    buttons(choices);
+}
+
+function buttons(choices) {
+    panelButtons.forEach(function (one) { one.removeFromSuperview; });
+    panelButtons = [];
+    modalActions = [];
+    choices.forEach(function (choice, i) {
+        var one = $.NSButton.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 32));
+        one.title = $(choice[0]);
+        one.bezelStyle = 1;
+        one.font = mono(12, i == choices.length - 1);
+        if (i == choices.length - 1 && choices.length > 1) one.bezelColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 0.42, 0.13, 1);    // the step forward, in green; the step back stays plain
+        one.target = hand;
+        one.action = 'modalPress:';
+        one.tag = i;
+        panel.addSubview(one);
+        panelButtons.push(one);
+        modalActions.push(choice[1]);
+    });
+    placeModal();
+}
+
+function closeModal() {
+    if (!modalOpen) return;
+    modalOpen = false;
+    veil.hidden = true;
+    bar.enabled = free;
+    logs.enabled = free;
+    redrawn();
+    if (free) win.makeFirstResponder(bar);
+}
+
+function placeModal() {
+    if (!veil) return;
+    var all = win.contentView.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
+    var w = Math.min(big ? 780 : 580, wide - 48), h = big ? Math.min(560, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : 230;
+    veil.frame = $.NSMakeRect(0, 0, wide, high);
+    panel.frame = $.NSMakeRect(Math.round((wide - w) / 2) - M, Math.round((high - h) / 2) - M, w + 2 * M, h + 2 * M);
+    panel.needsDisplay = true;
+    panelTitle.frame = $.NSMakeRect(M + 26, M + h - 52, w - 52, 28);
+    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
+    panelScroll.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 170));
+    form.frame = $.NSMakeRect(M + 26, M + 64, w - 52, h - 154);
+    var fw = w - 52 - 90;
+    [[nameLabel, nameField], [addressLabel, addressField], [folderLabelView, folderPop]].forEach(function (row, i) {
+        var y = h - 154 - 34 - i * 40;
+        row[0].frame = $.NSMakeRect(0, y + 4, 84, 20);
+        row[1].frame = $.NSMakeRect(90, y, i == 2 ? Math.min(fw, 260) : fw, 26);
+    });
+    newFolderField.frame = $.NSMakeRect(90 + Math.min(fw, 260) + 10, h - 154 - 34 - 80, Math.max(80, fw - Math.min(fw, 260) - 10), 26);
+    var x = M + w - 26;
+    for (var i = panelButtons.length - 1; i >= 0; i--) {
+        var bw = Math.max(96, panelButtons[i].title.js.length * 8 + 34);
+        x -= bw;
+        panelButtons[i].frame = $.NSMakeRect(x, M + 18, bw, 32);
+        x -= 10;
+    }
+}
+
+function paintPanel() {
+    var size = panel.frame.size, box = $.NSMakeRect(18, 18, size.width - 36, size.height - 36), path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(box, 18, 18);
+    $.NSGraphicsContext.saveGraphicsState;
+    glow($.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 1, 0.255, 0.55), 22);
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.012, 0.03, 0.018, 0.97).setFill;
+    path.fill;
+    $.NSGraphicsContext.restoreGraphicsState;
+    glass(path, true);
+    GREEN.setStroke;
+    path.lineWidth = 1.2;
+    path.stroke;
+    var top = 18 + box.size.height - 0.6, spark = $.NSBezierPath.bezierPath, shine = $.NSBezierPath.bezierPath;    // a yellow ricochet and a white glint along the top edge
+    spark.moveToPoint($.NSMakePoint(46, top)); spark.lineToPoint($.NSMakePoint(104, top));
+    shine.moveToPoint($.NSMakePoint(110, top)); shine.lineToPoint($.NSMakePoint(122, top));
+    $.NSGraphicsContext.saveGraphicsState;
+    glow(YELLOW, 6);
+    YELLOW.setStroke; spark.lineWidth = 1.5; spark.stroke;
+    WHITE.setStroke; shine.lineWidth = 1.5; shine.stroke;
+    $.NSGraphicsContext.restoreGraphicsState;
+}
+
+function paintBack() {    // behind lzrprf's strip: a pane of glass with a thin line
+    var size = stripBack.frame.size, path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(6.5, 2.5, size.width - 13, size.height - 5), 10, 10);
+    glass(path, false);
+    LINE.setStroke;
+    path.lineWidth = 1;
+    path.stroke;
+}
+
+// A redirect, as lzrprf asks about it: "redirect STATUS<tab>FROM<tab>TO<tab>BUTTONS...". A press
+// answers lzrprf's question by its number, as a button of the strip does.
+function redirectTold(rest) {
+    asked++;
+    var parts = rest.split('\t'), number = asked;
+    modal('Redirect', '', parts.slice(4).map(function (title, i) { return [title, function () { closeModal(); say('button ' + number + ' ' + (i + 1)); }]; }), 'tall');
+    var said = $.NSMutableAttributedString.alloc.init;
+    [['You tried to navigate to:\n', GREY], [parts[1] + '\n\n', WHITE], ['The page redirects to (' + parts[0] + '):\n', GREY], [(parts[2] || '(no address)') + (parts[3] ? '\n\n' : ''), WHITE], [parts[3] || '', YELLOW]].forEach(function (one) {
+        said.appendAttributedString(styled(one[0], inked(mono(12.5), one[1])));
+    });
+    panelSub.attributedStringValue = said;    // the reason an address cannot be opened, in yellow under it: lzrprf's own words (its sub unfit)
+}
+
+// The installer's run, as lzrprf tells it: "install begin", "install sum HEX", "install line C TEXT"
+// (C one letter for a colour the installer asked for, or "-"), "install end done|failed WORDS".
+// The modal has no button while it runs.
+var INKS = { r: [1, 0.36, 0.36], g: [0, 1, 0.255], y: [1, 0.93, 0.25], b: [0.45, 0.65, 1], m: [1, 0.45, 1], c: [0.35, 1, 1], w: [1, 1, 1], '-': [0.78, 0.92, 0.8] };
+function installTold(rest) {
+    var gap = rest.indexOf(' '), word = gap < 0 ? rest : rest.slice(0, gap), more = gap < 0 ? '' : rest.slice(gap + 1);
+    if (word == 'begin') modal('Installing a newer release', 'The installer runs here by itself and asks nothing. This cannot be closed until it ends.', [], 'big');
+    else if (!modalOpen || modalKind != 'big') return;
+    else if (word == 'sum') panelSub.stringValue = $('The installer runs here by itself and asks nothing. Its SHA-256: ' + more);
+    else if (word == 'line') installLine(more.slice(2), more.charAt(0));
+    else if (word == 'end') {
+        var done = more.slice(0, 5) == 'done ';
+        panelTitle.stringValue = $(done ? 'The install is done' : 'The install failed');
+        panelTitle.textColor = done ? GREEN : YELLOW;
+        buttons(done ? [['Start again', function () { app.terminate(null); }]] : [['Close', closeModal]]);
+    }
+}
+
+function installLine(text, ink) {
+    var rgb = INKS[ink] || INKS['-'], store = panelText.textStorage;
+    store.appendAttributedString(styled((store.length ? '\n' : '') + text, inked(mono(11), $.NSColor.colorWithSRGBRedGreenBlueAlpha(rgb[0], rgb[1], rgb[2], 1))));
+    panelText.scrollRangeToVisible($.NSMakeRange(store.length, 0));
+}
+
+// Where the pointer is, for the glow of what it is over.
+function hovered(view, event) {
+    var was = JSON.stringify(hover);
+    if (view == 'tabs') hover.tab = event ? tabAt(event)[0] : -1;
+    else if (view == 'marks') hover.mark = event ? markAt(event) : -1;
+    else hover[view] = !!event;
+    if (JSON.stringify(hover) != was) redrawn();
+}
+
+function tracked(view) { view.addTrackingArea($.NSTrackingArea.alloc.initWithRectOptionsOwnerUserInfo($.NSZeroRect, 0x1 | 0x2 | 0x20 | 0x200, view, null)); }    // entered and exited, moved, while the window is key, over the view as it is
 
 function colour(hex) {
     if (!inks[hex]) inks[hex] = $.NSColor.colorWithSRGBRedGreenBlueAlpha(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255,
@@ -2289,8 +3317,62 @@ ObjC.registerSubclass({ name: 'LzrprfLaid', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paint(dirty); } }
 } });
 
+ObjC.registerSubclass({ name: 'LzrprfTabs', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintTabs(); } },
+    'mouseDown:': { implementation: function (event) { tabClicked(event); } },
+    'mouseMoved:': { implementation: function (event) { hovered('tabs', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('tabs', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfBelt', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintBelt(); } },
+    'mouseDown:': { implementation: function (event) { beltClicked(event); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfCog', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintCog(); } },
+    'mouseDown:': { implementation: function (event) { cogClicked(); } },
+    'mouseEntered:': { implementation: function (event) { hovered('cog', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('cog', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfStar', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintStar(); } },
+    'mouseDown:': { implementation: function (event) { starClicked(); } },
+    'mouseEntered:': { implementation: function (event) { hovered('star', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('star', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfMarks', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintMarks(); } },
+    'mouseDown:': { implementation: function (event) { marksClicked(event); } },
+    'mouseMoved:': { implementation: function (event) { hovered('marks', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('marks', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfBack', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintBack(); } }
+} });
+
+// The veil under the modal takes every click and scroll, so nothing under it is reached.
+ObjC.registerSubclass({ name: 'LzrprfVeil', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { $.NSColor.colorWithWhiteAlpha(0, 0.62).setFill; $.NSRectFillUsingOperation(dirty, 2); } },
+    'mouseDown:': { implementation: function (event) { } },
+    'rightMouseDown:': { implementation: function (event) { } },
+    'scrollWheel:': { implementation: function (event) { } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfPanel', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintPanel(); } },
+    'mouseDown:': { implementation: function (event) { } }
+} });
+
 ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
-    'windowDidResize:': { types: ['void', ['id']], implementation: function (note) { fit(); } },
+    'windowDidResize:': { types: ['void', ['id']], implementation: function (note) { place(); resting(); } },
+    'windowDidEndLiveResize:': { types: ['void', ['id']], implementation: function (note) { viewNow(); } },
+    'windowDidEnterFullScreen:': { types: ['void', ['id']], implementation: function (note) { viewNow(); } },
+    'windowDidExitFullScreen:': { types: ['void', ['id']], implementation: function (note) { viewNow(); } },
+    'viewed:': { types: ['void', ['id']], implementation: function (sender) { view(); } },
     'unlaid:': { types: ['void', ['id']], implementation: function (sender) { unlaid(); page.string = $(''); listed([]); } },
     // Return was pressed in the bar. What was typed goes to lzrprf as it is. A character that is not
     // plain is sent as one that no address may hold, so lzrprf refuses the whole of it.
@@ -2302,7 +3384,17 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     } },
     'first:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 1'); } } },
     'second:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 2'); } } },
-    'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled) { logs.enabled = false; bar.enabled = false; say('log'); } } },
+    'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled && !modalOpen) { sent('log'); } } },
+    'newTab:': { types: ['void', ['id']], implementation: function (sender) { newTab(); } },
+    'closeTab:': { types: ['void', ['id']], implementation: function (sender) { tabSaid('tab close ' + selected, selected); } },
+    'clearing:': { types: ['void', ['id']], implementation: function (sender) { clearing(); } },
+    'homing:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('menu home'); } },
+    'marksBar:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('menu bookmarks-bar'); } },
+    'markMenu:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('mark open ' + sender.tag); } },
+    'folderChosen:': { types: ['void', ['id']], implementation: function (sender) { folderChosen(); } },
+    'controlTextDidBeginEditing:': { types: ['void', ['id']], implementation: function (note) { belt.needsDisplay = true; } },
+    'controlTextDidEndEditing:': { types: ['void', ['id']], implementation: function (note) { belt.needsDisplay = true; } },
+    'modalPress:': { types: ['void', ['id']], implementation: function (sender) { var act = modalActions[sender.tag]; if (modalOpen && act) act(); } },
     'bar:': { types: ['void', ['id']], implementation: function (sender) { if (bar.enabled) win.makeFirstResponder(bar); } },
     'applicationShouldTerminateAfterLastWindowClosed:': { types: ['bool', ['id']], implementation: function (sender) { return true; } },
     'heard:': { types: ['void', ['id']], implementation: function (note) {
@@ -2336,8 +3428,8 @@ function button(title, action) {
 function menus() {
     var main = $.NSMenu.alloc.initWithTitle($('')), kept = [];
     [[NAME, [['Quit ' + NAME, 'terminate:', 'q', false]]],
-     ['Edit', [['Cut', 'cut:', 'x', false], ['Copy', 'copy:', 'c', false], ['Paste', 'paste:', 'v', false], ['Select All', 'selectAll:', 'a', false]]],
-     ['Go', [['Address', 'bar:', 'l', true], ['Log', 'log:', '', true]]]].forEach(function (one) {
+     ['Edit', [['Undo', 'undo:', 'z', false], ['Redo', 'redo:', 'Z', false], ['Cut', 'cut:', 'x', false], ['Copy', 'copy:', 'c', false], ['Paste', 'paste:', 'v', false], ['Select All', 'selectAll:', 'a', false]]],
+     ['Go', [['Address', 'bar:', 'l', true], ['New Tab', 'newTab:', 't', true], ['Close Tab', 'closeTab:', 'w', true], ['Log', 'log:', '', true]]]].forEach(function (one) {
         var item = $.NSMenuItem.alloc.init, menu = $.NSMenu.alloc.initWithTitle($(one[0]));
         one[1].forEach(function (entry) {
             var made = menu.addItemWithTitleActionKeyEquivalent($(entry[0]), entry[1], $(entry[2]));
@@ -2386,9 +3478,23 @@ function run(argv) {
     win.minSize = $.NSMakeSize(520, 320);
     win.center;
     win.delegate = hand;
+    laser();
+    win.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
+    win.backgroundColor = $.NSColor.blackColor;
+    tabsView = $.LzrprfTabs.alloc.initWithFrame($.NSMakeRect(0, 0, 960, TABS_HIGH));
+    win.contentView.addSubview(tabsView);
+    belt = $.LzrprfBelt.alloc.initWithFrame($.NSMakeRect(0, 0, 960, BAR_ROW));    // under the bar and the cogwheel: what they do not take, it takes
+    win.contentView.addSubview(belt);
     bar = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 24));
-    bar.placeholderString = $('Type an https address and press Return');
-    bar.font = $.NSFont.systemFontOfSize(14);
+    bar.placeholderAttributedString = styled('Type an https address and press Return', inked(mono(13), DIM));
+    bar.font = mono(13);
+    bar.textColor = WHITE;
+    bar.bordered = false;
+    bar.bezeled = false;
+    bar.drawsBackground = false;
+    bar.focusRingType = 1;    // none: the pill around it glows instead (paintBelt)
+    bar.delegate = hand;
+    bar.cell.allowsUndo = true;    // Cmd-Z and Cmd-Shift-Z undo and redo typing step by step (the Edit menu)
     bar.cell.usesSingleLineMode = true;
     bar.cell.scrollable = true;
     bar.target = hand;
@@ -2396,15 +3502,23 @@ function run(argv) {
     bar.enabled = false;
     bar.autoresizingMask = 2 | 8;
     win.contentView.addSubview(bar);
-    logs = button('Log', 'log:');
-    logs.enabled = false;
+    star = $.LzrprfStar.alloc.initWithFrame($.NSMakeRect(0, 0, 30, 30));
+    win.contentView.addSubview(star);
+    cog = $.LzrprfCog.alloc.initWithFrame($.NSMakeRect(0, 0, 30, 30));
+    win.contentView.addSubview(cog);
+    marksView = $.LzrprfMarks.alloc.initWithFrame($.NSMakeRect(0, 0, 960, MARKS_ROW));
+    marksView.hidden = true;
+    win.contentView.addSubview(marksView);
+    [tabsView, cog, star, marksView].forEach(tracked);
+    stripBack = $.LzrprfBack.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 30));
+    win.contentView.addSubview(stripBack);
     words = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 24));
     words.editable = false;
     words.selectable = true;
     words.bordered = false;
     words.drawsBackground = false;
-    words.font = $.NSFont.systemFontOfSize(12);
-    words.textColor = $.NSColor.secondaryLabelColor;
+    words.font = mono(11.5);
+    words.textColor = GREY;
     words.cell.wraps = true;
     words.stringValue = $('lzrprf is starting ' + NAME + '.');
     words.autoresizingMask = 2 | 8;
@@ -2440,6 +3554,49 @@ function run(argv) {
     made.autoresizingMask = 2;
     under.documentView = made;
     win.contentView.addSubview(under);
+    logs = button('Log', 'log:');    // at the bottom right of the pane under the page, over it
+    logs.autoresizingMask = 1 | 32;
+    logs.enabled = false;
+    veil = $.LzrprfVeil.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 720));    // last, so it is over everything
+    veil.hidden = true;
+    panel = $.LzrprfPanel.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
+    veil.addSubview(panel);
+    panelTitle = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 28));
+    panelSub = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 40));
+    [panelTitle, panelSub].forEach(function (one) { one.editable = false; one.selectable = true; one.bordered = false; one.drawsBackground = false; one.cell.wraps = true; panel.addSubview(one); });
+    panelTitle.font = mono(17, true);
+    panelSub.font = mono(12.5);
+    panelSub.textColor = WHITE;
+    form = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, 500, 150));
+    form.hidden = true;
+    panel.addSubview(form);
+    function label(words) { var one = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 84, 20)); one.editable = false; one.selectable = false; one.bordered = false; one.drawsBackground = false; one.font = mono(12); one.textColor = GREY; one.stringValue = $(words); form.addSubview(one); return one; }
+    function field() { var one = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 300, 26)); one.font = mono(12.5); one.cell.allowsUndo = true; one.cell.usesSingleLineMode = true; one.cell.scrollable = true; form.addSubview(one); return one; }
+    nameLabel = label('Name'); nameField = field();
+    addressLabel = label('Address'); addressField = field();
+    folderLabelView = label('Folder');
+    folderPop = $.NSPopUpButton.alloc.initWithFramePullsDown($.NSMakeRect(0, 0, 260, 26), false);
+    folderPop.font = mono(12);
+    folderPop.target = hand;
+    folderPop.action = 'folderChosen:';
+    form.addSubview(folderPop);
+    newFolderField = field();
+    newFolderField.placeholderString = $('New folder: a name, or names joined by /');
+    newFolderField.hidden = true;
+    panelScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
+    panelScroll.hasVerticalScroller = true;
+    panelScroll.borderType = 0;
+    panelText = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
+    panelText.editable = false;
+    panelText.richText = false;
+    panelText.automaticLinkDetectionEnabled = false;
+    panelText.automaticDataDetectionEnabled = false;
+    panelText.backgroundColor = DARK;
+    panelText.textContainerInset = $.NSMakeSize(10, 8);
+    panelText.autoresizingMask = 2;
+    panelScroll.documentView = panelText;
+    panel.addSubview(panelScroll);
+    win.contentView.addSubview(veil);
     listed([]);
     menus();
     place();
@@ -2447,6 +3604,7 @@ function run(argv) {
     from.waitForDataInBackgroundAndNotify;
     shown();
     say('ready');
+    view();    // after "ready", which lzrprf hears first: the size the first page is laid out at
     app.run;
 }
 END
@@ -2455,7 +3613,7 @@ END
 my $command = shift // '';
 die "lzrprf: this macOS has no /usr/bin/sandbox-exec. lzrprf contains with that command and with nothing else, so nothing was started.\n" if $command =~ /^(?:run|try)\z/ && !-x '/usr/bin/sandbox-exec';
 if ($command eq 'run') { run(@ARGV) }
-elsif ($command eq 'try' && @ARGV > 4 && $ARGV[0] =~ m{^\Q$DIR\E/[A-Za-z0-9][A-Za-z0-9.]*\z} && $ARGV[1] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask|[12]{1,9})$/) {
+elsif ($command eq 'try' && @ARGV > 4 && $ARGV[0] =~ m{^\Q$DIR\E/[A-Za-z0-9][A-Za-z0-9.]*\z} && $ARGV[1] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask|[123]{1,9})$/) {
     ($TRY, $DIR, $PEER, $TYPED, $ANSWER) = (1, splice @ARGV, 0, 4);    # for tests: lzrprf try FOLDER PEER|- TYPED|- allow|deny|ask|DIGITS /path/to/program
     run(@ARGV);
 }

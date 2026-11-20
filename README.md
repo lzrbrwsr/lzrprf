@@ -272,15 +272,15 @@ One visit, in order (`sub visit`):
 | `[C1]` | The application is started in one place only, and only inside the page container. | `sub laid_out`, through `sub contain` | Reads the text: the program is started on one line. A copy that starts it uncontained is stopped by `[C3]`. |
 | `[C2]` | At every start lzrprf tries, inside that same container, what the container must refuse. Nothing starts unless all of it was refused and the same tries worked outside. | `sub holds` | A copy whose container refuses nothing: nothing is started. |
 | `[C3]` | No process is handed a byte of what was fetched, nor the connection to a site, before macOS itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, `curl` among its fixed switches. | `sub inside`, asked in `sub laid_out` and `sub fetch` | Copies without `[C1]` and `[C2]`: the system says "not contained", and the answer, or the connection, is withheld. |
-| `[C4]` | A request is made only for an address from the window's bar, for at most eight pictures and at most eight style sheets the page laid out from it names on that same host (`sub pictured`, `sub sheeted`), or for one of two fixed addresses after you said yes: a report, after you pressed "Send" for it, and the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`). | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has four roads and no fifth. |
+| `[C4]` | A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in lzrprf's modal (once a visit, to the same address with `www.` put in front of its host or taken off, without a question, written in the log first); for at most eight pictures and at most eight style sheets the page laid out from such an address names on that same host (`sub pictured`, `sub sheeted`); or for one of three fixed addresses of the release file after you said yes: a report, after you pressed "Send" for it, the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`), and the installer, in its one or two places, after "Install it" (`sub installed`). | `sub behind`, `sub go`, `sub fixed` | The test site's own record: each address as often as it was asked for, and nothing else, with tabs, the home page, bookmarks, redirects and the installer among the runs. Reads the text: a request has four roads and no fifth. |
 | `[C5]` | Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded. | `sub visit`, `sub fixed`, `sub record` | A kept log that cannot be written: nothing is fetched. For every request the site received in a run that keeps a log, full or hosts only, the line was on the disk first. In a run that keeps nothing, the Log button shows the lines afterwards; that each was in memory before its request is read in `sub record`, not probed: no test looks into that memory while a request is open. That the lookup comes after the line is read in `sub visit`, not probed: the test's site is on this computer. |
 | `[C6]` | One place connects to a site, and it connects to a numeric address that was checked and written down. | `sub reach` | Reads the text: two `connect` lines, this one and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
-| `[C7]` | What a site is sent is made from the address alone: the same request from every computer, byte for byte, nothing kept from an earlier request. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
+| `[C7]` | What a site is sent is made from the address alone, with one fixed browser name, `User-Agent: LZRBRWSR`: the same request from every computer, byte for byte, nothing kept from an earlier request. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received, and finds `User-Agent: LZRBRWSR` exactly once in every request and no other header than the five fixed lines. The site sets a cookie; it never comes back. |
 | `[C8]` | A host inside your own network is fetched only after your yes to exactly that, once. | `sub own_network` | A no: nothing is fetched, and the no is in the log. |
-| `[C9]` | Every line the application writes is checked, and a list with anything but the five kinds of line (from release 22 on, or the lines of a laid page), or with more than the window is given to set, is not drawn at all. A laid page may also hold tiles: `K<n>,<x>,<y>,<w>,<h>` gives tile n (0 to 31, each once) at a corner of the grid of 256, exactly as wide and high as the page leaves there (256 at most), with one line `n<base64>` for each row: red, green and blue, a byte each and no alpha, since a tile is opaque, so a row is exactly 4 characters of base64 a pixel with no `=`, and its length and its alphabet are its whole check (from release 31 on; a picture keeps its rows `m` with how opaque), and `J<n>,<x>,<y>` places a tile given above again where it is cut the same; at most 32 tiles and 1024 places, outside the 262144 pixels of the pictures, which is why a list may hold 12 MB. | `sub checked`, `sub laid` | Hostile lists (a script, lzrprf's own words to the window, too large, a block that holds too much, not text, a thing the page is said to be made of in a wrong form or place): none is drawn. The fullest list of such things that is allowed is passed on, and the real window's pane is read. The most lines, the most boxes and a block that is exactly full are passed on; a row of hanging characters and a word with no white space come out changed at the 31st and after the 1000th; the heaviest pages the limits allow are drawn by the real window and timed. Laid pages broken in eleven ways (out of the page, a number in a second form, too narrow, too many rectangles, mixed with a flowing page either way, a row of a picture missing or too long, not base64 or base64 in a second form, too many pixels), and tiles broken in twenty-three ways (wider or narrower than their cut, a row 4 characters too long or too short or missing, a row `m` as a picture's, a row with `=` or `==` at its end or with `-` or `_` in it, a row `n` under a picture or under no tile, numbered 32, 01 or twice, placed before they are given, off the grid or out of the page, placed where they are cut otherwise, 33 tiles or 1025 places): none is drawn. A laid page that is fit, tiles too, is passed on as it is, and in its text a control character is replaced, not refused. |
+| `[C9]` | Every line the application writes is checked, and a list with anything but the five kinds of line (from release 22 on, or the lines of a laid page, laid at the width its `=view` frame asked for), or with more than the window is given to set, is not drawn at all. The page's title, a line `=title` right after `=page` of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else. A laid page may also hold tiles: `K<n>,<x>,<y>,<w>,<h>` gives tile n (0 to 31, each once) at a corner of the grid of 256, exactly as wide and high as the page leaves there (256 at most), with one line `n<base64>` for each row: red, green and blue, a byte each and no alpha, since a tile is opaque, so a row is exactly 4 characters of base64 a pixel with no `=`, and its length and its alphabet are its whole check (from release 31 on; a picture keeps its rows `m` with how opaque), and `J<n>,<x>,<y>` places a tile given above again where it is cut the same; at most 32 tiles and 1024 places, outside the 262144 pixels of the pictures, which is why a list may hold 12 MB. | `sub checked`, `sub laid` | Hostile lists (a script, lzrprf's own words to the window, too large, a block that holds too much, not text, a thing the page is said to be made of in a wrong form or place): none is drawn. The fullest list of such things that is allowed is passed on, and the real window's pane is read. The most lines, the most boxes and a block that is exactly full are passed on; a row of hanging characters and a word with no white space come out changed at the 31st and after the 1000th; the heaviest pages the limits allow are drawn by the real window and timed. Laid pages broken in eleven ways (out of the page, a number in a second form, too narrow, too many rectangles, mixed with a flowing page either way, a row of a picture missing or too long, not base64 or base64 in a second form, too many pixels), and tiles broken in twenty-three ways (wider or narrower than their cut, a row 4 characters too long or too short or missing, a row `m` as a picture's, a row with `=` or `==` at its end or with `-` or `_` in it, a row `n` under a picture or under no tile, numbered 32, 01 or twice, placed before they are given, off the grid or out of the page, placed where they are cut otherwise, 33 tiles or 1025 places): none is drawn. A laid page that is fit, tiles too, is passed on as it is, and in its text a control character is replaced, not refused. |
 | `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. Of the system's services it looks up by name only the 41 its container lists and one local name, the clipboard's (from release 19 on; before that all but one). The question about a system service names none: it says that the container refuses by default, not which names its list lets through. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. From the real window it asks for six system services by name: the clipboard, which the container lists, is answered, and the five it does not list are refused; a copy without that refusal is answered as a program outside every container is, and a copy whose list is one name wider is caught by the same try. |
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
-| `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
+| `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"), apart from the one address you made the home page, the bookmarks you made (each a name and an address), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (`install.txt`); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
 | `[C13]` | The application opens no file for its fonts. lzrprf hands a page run, and never a picture run, eight fonts of the Mac by fixed paths in `/System/Library/Fonts/Supplemental` (Arial and Courier New, each plain, bold, italic and both), as one frame in front of the answer: `=fonts` and the eight lengths on one line, then their bytes. A face goes with length 0 unless it is a plain file and no link, of at most 2 MiB, that begins as a TrueType font; a pipe put in its place is not waited for. They are read once in a window, and the keeper hands them over after the same word of the system as the answer `[C3]`. A site cannot put a frame in front of lzrprf's: what it sends comes after it. | `sub faces`, `sub contained` | The application takes the frame off its input and says the length and SHA-256 of each face: they are the eight files as `selftest` reads them itself. A picture run gets no frame. A site whose answer holds a frame of its own: it arrives after the real one, byte for byte. A copy that reads its fonts from a folder of the test: a link to a font, a file one byte over 2 MiB, a pipe and a file that does not begin as a font each go with length 0, while a font of exactly 2 MiB is handed over whole; the same copy without O_NOFOLLOW hands over the font behind the link, and the test notices. |
 | `[C14]` | A page is laid out at most twice. The first run of a page is given the empty frame `=sheets` after the fonts, and may name up to eight style sheets on the page's own host in a line `=sheets`, checked as the paths of pictures are `[C9]`. lzrprf fetches them `[C4]` `[C5]` and runs the page a second time, with `=sheets`, the length of each and their answers byte for byte in front of the page's answer, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown: the first run's page is, and the bar says the sheets were not used. There is never a third run, and a picture run is given no style sheet. | `sub checked`, `sub sheeted`, `sub visit`, `sub contained` | The application says on each run the length and SHA-256 of each sheet it took off its input: none on the first run, the test site's answers on the second. A sheet whose body begins `=sheets 4` arrives inside its own length. A sheet over 1 MiB, a fetch that failed and a sheet not begun within the clock each go with length 0, the last neither logged nor asked for. Each sheet has two lines in the log and one request, of its own address; no other host is asked. Lines `=sheets` broken in six ways are refused with nothing fetched. A second run that names sheets again, or is not a page: the first run's page, two runs. A page that names none: one run. A picture run gets no frame. A copy that shows a second run naming sheets again shows it (`lostsheets`). |
 
@@ -340,25 +340,31 @@ Nothing that is installed starts it that way.
 ### No request you did not ask for
 
 A request of lzrprf's to a site goes only through `sub fetch`: it is the one way for an address
-you typed, the look for a newer release and a report. Other things touch a socket, and none of
+you typed, a bookmark or the home page you opened, a redirect you said yes to, the look for a
+newer release, a report and the installer after "Install it". Other things touch a socket, and none of
 them connects to a site: the try at each start against a listener lzrprf opened on this
 computer (`sub holds`), the system's name lookup (`sub lookup`, below), `curl`'s
 connection to lzrprf's own socket file, the question to the system's routing table
 (`/sbin/route` in `sub route`), and `selftest`, which `sub proven` starts after your yes:
-it opens listeners on this computer and tries 192.0.2.1, an address no host answers. Outside lzrprf, the `curl` of the installer and of
-the file that `sub installer_file` writes fetch too (below, and "The installer"). `fetch` is
+it opens listeners on this computer and tries 192.0.2.1, an address no host answers. Outside
+lzrprf, the `curl` of the installer you start by hand fetches too ("The installer"). `fetch` is
 called from four places, and `selftest` reads `lzrprf` and counts them:
 
-- `sub visit`, which runs only for a line `go TEXT` from the window `[C4]`. The window writes
-  that line when Return is pressed in the bar, and at no other time. The application cannot
-  write it: it has no pipe to that side, and nothing it writes is passed on as words to lzrprf.
-- `sub pictured`, called from `sub visit` alone, after the page you typed was laid out. A laid
+- `sub visit`, called from `sub go` alone, for an address that came from the window `[C4]`: a
+  line `go TEXT`, which the window writes when Return is pressed in the bar and at no other
+  time; a line `mark open N`, a bookmark you made; the home page you set, at the window's start
+  and in a new tab; or the address a redirect named, after your yes in lzrprf's own modal (see
+  "Tabs, the home page, bookmarks, redirects"). The application cannot write any of these: it
+  has no pipe to that side, and nothing it writes is passed on as words to lzrprf.
+- `sub pictured`, called from `sub visit` after the page was laid out, and from `sub relaid`
+  (the page laid out again at a new width, or in a tab chosen again) with the pictures it
+  decoded then, which fetches nothing. A laid
   page may name up to eight pictures on its own host, by path, in a second line
   `=pictures /path /path ...`, and place them with `I` lines. Each picture placed is fetched
   once, one after the other, from `https://` the page's own host and that path: never another
   host. It goes the way the page went: its line `<address> -> lzrprf connects to ...` is in the
   log first, then `fetch` connects to the same addresses the page came from, and the site is
-  sent `request` of the picture's address, the same four lines as for any address typed
+  sent `request` of the picture's address, the same five lines as for any address typed
   `[C7]`, and its result is written as a second line. The application then decodes the picture
   in a page container of its own, started exactly as a page's is, with one variable more
   (`LZRPRF_PICTURE=1`), and writes only pixels: `P<w>,<h>` and one line of hex per row.
@@ -389,14 +395,17 @@ called from four places, and `selftest` reads `lzrprf` and counts them:
   is a page and names no style sheet; otherwise the first run's is, and the line under the bar
   says that the style sheets were not used. There is never a third run, and a picture run is
   given neither frame. The pictures are fetched after the page that is shown was chosen.
-- `sub fixed`, which runs for two fixed addresses, each only after your yes in the window: the
-  newest release number (`sub newer`) and a report you chose to send (`sub fault`). For the
+- `sub fixed`, which runs for three fixed addresses of the release file, each only after your
+  yes in the window: the newest release number (`sub newer`), a report you chose to send
+  (`sub fault`), and the installer after "Install it" (`sub installed`), from both places when
+  the release names two. For the
   newest release number the yes is given once and kept with its address in `~/.lzrprf/look`:
   the look is then made at each start, without a new yes, until you delete that file.
 
 Before any of them, the line is in the log `[C5]`. The connection is made by lzrprf, to a numeric
 address it wrote down `[C6]`. `curl` has no network of its own: it gets one socket file, so it
-can reach that one connection and nothing else. A redirect is not followed. Other hosts a page
+can reach that one connection and nothing else. `curl` follows no redirect: an answer that
+sends on is never laid out, and lzrprf asks you in its own modal (`sub redirected`). Other hosts a page
 names (pictures, scripts, trackers) are never asked. It is the application that reads the page,
 so it is the application that names them: lzrprf takes at most 200 names from it, shows you how
 many and the first four, and asks none. A hostile application can name fewer or other hosts
@@ -412,13 +421,10 @@ nothing.
 
 The name lookup is a request too, to your resolver, for the host you typed, after the log line.
 
-One more thing fetches, and it is not lzrprf. After you pressed "Install it" for a newer release,
-lzrprf writes a short file that Terminal runs (`sub installer_file`), and that file fetches the
-installer with the system's `curl`, from the two places the release names. `curl` is started
-with `-q` there, so that no settings file of yours changes how it checks a site. Those fetches do not
-go through `sub fetch`. They happen right after your click, in a Terminal window where you see them, and lzrprf
-writes into the log that you asked for them, and from where, before the file exists
-(`sub newer`). See "A newer release".
+The installer of a newer release is fetched by lzrprf itself, after you pressed "Install it",
+through `sub fixed` and `sub fetch` like every request, from the places the release names, and
+it runs in lzrprf's own window (`sub installed`). Nothing on that road is fetched outside lzrprf.
+See "A newer release".
 
 Conditions: macOS enforces the containers (tested on your Mac, `[C2]`, `[C3]`, `[C11]`); the
 `lzrprf` you run is the one in this repository (compare its SHA-256); and the keys pressed in the
@@ -471,9 +477,12 @@ application can do the first in part. The second is what the container refuses.
   under "What it does not prove").
 - What it read it can still use inside its own page: lay the page out differently, take
   longer, fail on purpose, or put the facts into the text it shows, which you could copy.
-- lzrprf does not make one either. What a site is sent is `sub request`: the address, its host
-  and two fixed lines `[C7]`. No cookie, no name of a browser, no language, no page you came
-  from, no number of this computer or of this copy. Each request is a new `curl` that can write
+- lzrprf does not make one either. What a site is sent is `sub request`: the address, its host,
+  one fixed browser name, `User-Agent: LZRBRWSR`, and two fixed lines `[C7]`. The name is that
+  one word, with no version: the same from every computer and in every release (some sites
+  answer a request that names no browser with nothing but a redirect, which is why it names
+  one). No cookie, no language, no page you came from, no number of this computer or of this
+  copy. Each request is a new `curl` that can write
   nothing, so nothing is kept for the next one.
 
 - One thing is the application's choice and reaches its maker, and only after your click:
@@ -663,6 +672,50 @@ No. See "What "proof" means here". It rests on parts nobody has proven: the macO
 its sandbox, the system's `perl`, `curl` and `osascript`. What this repository gives instead is
 short enough to read, probed on your own Mac, and probed again whenever macOS changes.
 
+## Tabs, the home page, bookmarks, redirects
+
+All of this is drawn by lzrprf's window, in strips of its own above the page where no page
+draws: the strip of tabs on top, then the bar with the star and the cogwheel, then the
+bookmarks bar when you chose to show it. The look is lzrprf's too, the laser green on black of
+the site, and nothing in it comes from a page.
+
+- **Tabs.** Each tab keeps its own page as lzrprf keeps the page shown: its address, the
+  answer, the style sheets it was laid out with and its pictures, its title, the addresses it
+  went to and lzrprf's last words in it (`sub tabbed`). Choosing a tab lays its kept page out
+  again at the window's width (`sub relaid`): nothing is fetched and nothing is written in the
+  log. At most 32 tabs; closing the last leaves one empty tab. Cmd-T opens a tab, Cmd-W closes
+  one. A tab's title is the page's `=title` line, checked `[C9]`.
+- **The home page.** The cogwheel's "Make current page the home page" keeps the address of the
+  tab in one plain file of yours, `~/.lzrprf/home`, one line (`sub menu`, `sub home`). A new
+  tab and each new window open it, as if it had been typed: its line is in the log first `[C4]`
+  `[C5]`. A link at that name, a file that is not yours or a line that is no address lzrprf
+  fetches opens nothing.
+- **Bookmarks.** The star opens lzrprf's own modal: Name, Address, Folder, New folder. A
+  bookmark is one plain file in `~/.lzrprf/bookmarks`, a folder of yours, `NAME.mark` with
+  two lines, its name and its address; a folder of bookmarks is a real folder, at most 4 deep,
+  each name letters, digits, space, dot, underscore and hyphen, not beginning with a dot or a
+  space; at most 1000 are read (`sub marks_read`, `sub mark_saved`). A link, a file that is not
+  yours and an address lzrprf does not fetch are passed over; a bookmarks folder that is a link
+  is not read and nothing is written through it. The star of a page you bookmarked opens the
+  same modal to change it or Remove it. Opening a bookmark is a visit like a typed one `[C4]`.
+  The cogwheel's "Show bookmarks bar" is kept in `~/.lzrprf/marksbar`.
+- **Clearing.** "Clear browsing history" empties the addresses the tabs went to; the log is
+  cleared by its own button and by nothing else. Clearing the sessions also drops every page
+  lzrprf keeps for a tab. lzrprf sends no cookie and keeps none `[C7]`, so no login was kept by
+  it either way.
+- **Redirects.** An answer 301, 302, 303, 307 or 308 is never laid out and never followed by
+  `curl` `[C7]`. lzrprf reads its `Location` itself, in plain characters only, resolves it
+  against the address, and asks in its own modal, with the status, both addresses and Cancel
+  first (`sub redirected`, `sub asked`). Proceed is a new visit, with every check of a typed
+  address and its line in the log first. An address lzrprf does not fetch (plain http, a host
+  that is a bare number, another port) gets Cancel alone, and the modal says why in plain words
+  (`sub unfit`). A page opened from a bookmark gets a third button, "Proceed and update
+  bookmark". One redirect a visit is followed without asking: to the same https address with
+  `www.` put in front of its host or taken off, the same path and query, written in the log as
+  one line first (`example.com redirected to www.example.com (301); followed, the same site`).
+- **Undo.** The bar and the modal's fields undo and redo typing step by step: Cmd-Z and
+  Cmd-Shift-Z, in an Edit menu that also cuts, copies, pastes and selects all.
+
 ## What is kept
 
 The principle: every outgoing network request must be observable by you, but no browsing
@@ -739,14 +792,17 @@ The limits, said plainly:
   still reach the system's swap, a crash report of that process, the resolver's cache of
   names, a snapshot of the disk or a backup: those are macOS's, outside lzrprf, and lzrprf
   cannot prevent them.
-- Besides the log, `~/.lzrprf` holds files lzrprf needs to work, none with an address you typed:
+- Besides the log, `~/.lzrprf` holds what you chose to keep there: `home` (the one address you
+  made the home page), the folder `bookmarks` (one file a bookmark, a name and an address),
+  `marksbar` (whether the bookmarks bar is shown), and after "Install it" the folder
+  `install.NUMBER` with the installer it fetched and `install.txt`, every line an installer
+  printed, appended. It also holds files lzrprf needs to work, none with an address you typed:
   `keep` (what is kept), `look` (your answer about newer releases), `proven` (the mark of
   `[C11]`), `untested` (your yes to starting without the checks a test could not try, as the
   line of the mark you said it to), `selftest.txt` (the last test's report), `selftest.lock`, from an installer's questions until its files are placed
   its lock (the link `.installing`), and while a window is
   open the lock files `lock`, `keep.lock` and `busy`, the folder `tries.NUMBER` of the tries at
-  the start, and the socket `way.NUMBER` of a request;
-  after "Install it", the file `install.command`, which holds the installer's fixed address.
+  the start, and the socket `way.NUMBER` of a request.
 - Hosts and times alone still show habits: which sites, when, and how often. That is why even
   `hosts` needs your yes.
 - That Time Machine honours the mark is Apple's behaviour, and it is not tested here. The mark
@@ -777,13 +833,16 @@ choice by choice.
 | an address | fetching it: the site sees your internet address and the address you typed | the bar of the window (`sub visit`) | say "go ADDRESS" as if you had typed it, as often as it likes. Each one is a line before it is fetched `[C5]` |
 | a host inside your own network | yes: this computer, your router or another device of yours is asked, this once | the window, each time such an address is typed (`sub own_network`) | say such an address and answer "Yes, this once" itself. The address and the yes are lines before anything is fetched |
 | looking for a newer release | yes: GitHub sees your internet address at each start | the window, when lzrprf asks: at a first start, and again when a release names another address or `~/.lzrprf/look` was deleted (`sub newer`) | answer yes while that question is open. It cannot open the question. The yes is a line of the log before it is kept, and each look is a line before it is made |
-| installing a newer release | "Install it": it runs through in Terminal by itself | the window, then Terminal (`sub installer_file`) | press "Install it" when a newer release is published, which starts a file in Terminal. That file fetches the installer from the addresses the release names, from both places, and runs it only when the two copies are the same: the most a press can do is install the release the maker published |
+| installing a newer release | "Install it": it runs at once, in lzrprf's window, by itself | the window (`sub newer`, `sub installed`) | press "Install it" when a newer release is published. lzrprf then fetches the installer from the addresses the release names, from both places, and runs it only when the two copies are the same: the most a press can do is install the release the maker published |
+| the home page and bookmarks | an address kept on the disk, opened at each start, in each new tab, or with a click | the cogwheel's menu and the star's modal (`sub menu`, `sub mark_saved`) | keep an address it said, as if from the bar or the modal, and open it. Each opening is a line before it is fetched `[C5]` |
+| following a redirect | Proceed: a new request to the address the site named | lzrprf's modal over the window (`sub visit`, `sub asked`) | press Proceed while the question is open. The new address gets every check of a typed one, and a line before it is fetched |
 | a report after a failure | "Send": the maker's server sees your internet address and three values | the window, when a page was not shown (`sub fault`) | say that a page it was handed could not be drawn, once for each page (`sub behind`), and press "Send" to the question that follows: the three values, written in the log first |
 
 Only the first row can be closed entirely, and it is: nothing in the window keeps more. In the
 other rows the window is where you answer, so a taken-over window process could answer too.
-Installing ends outside the window: what "Install it" starts runs in Terminal, from the fixed
-addresses of the release file and nothing the window says, and the window's process commands no other program `[C10]`. What holds in the other rows is `[C5]`: nothing leaves this computer before its line exists, and with
+Installing takes nothing from the window but the press: what is fetched and run comes from the
+fixed addresses of the release file and nothing the window says, and the window's process
+commands no other program `[C10]`. What holds in the other rows is `[C5]`: nothing leaves this computer before its line exists, and with
 nothing kept that line is in the memory of lzrprf's process, which the window's process
 cannot write.
 
@@ -806,37 +865,28 @@ asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you 
 - The address is on GitHub, not on a server of the application's maker. The maker's server
   sees no request at all. GitHub sees your internet address and the time, at each start.
 - When the number is larger than yours, the window says so and offers the installer. lzrprf
-  replaces nothing itself, not the application and not itself. After "Install it" it writes
-  into the log what Terminal is about to fetch, and then a short file (`sub installer_file`)
-  that runs in Terminal, in front of you.
-- That file runs as an ordinary program of your account, outside every container. Before it
-  says or fetches anything it looks at what it would hand on to a program it starts, and goes
-  on only when that is nothing but the kind of terminal as one plain word, the system's own
-  `PATH` and names a shell sets for itself, each in its plain shape (`PWD`, `SHLVL`, `_`; zsh
-  also `OLDPWD` and `LOGNAME`); with anything else there, or with a line break or another
-  control character inside one of those values, the file starts itself once more through
-  `env -i` with the first two only. So the `curl` and the installer it starts get no variable
-  of your shell, not a home folder either: the installer reads that from this Mac's list of
-  accounts. No mark says "already clean" that a starter could set (releases before 15 used
-  the number of the process as one): what counts is what is there. `selftest` runs that line
-  with a hostile environment, also with values that carry a second line, and reads what comes
-  after it. What the line cannot see or undo is what `/bin/sh` took in for itself at its own
-  start; the installer's first lines have the same limit, said where they are
-  described below. Its `curl` follows no redirect. It leaves two things behind: itself (`~/.lzrprf/install.command`,
-  replaced the next time) and a temporary folder that holds the installer it fetched.
-- It first says where the installer comes from, then fetches it at once: the press of
-  "Install it" is the yes, and no key is pressed after it.
-- Then it fetches the installer from two places, when the release names a second one (the line
-  `same`; the release on record here does): `install.sh` in this repository, and the site. It
-  stops, with nothing installed changed (its temporary folder with the copies stays), unless
-  the two copies are the same byte for byte
-  (`/usr/bin/cmp -s install.sh second`). Then it says where the file is, so that you can read
-  it, shows its SHA-256, and runs it at once, in auto (`sh install.sh auto`): each question the
-  installer asks is printed with its yes, and when it ends the window stays open with every
-  line in it, to read. Nothing is piped into a shell.
-  This is the one moment on this road when the maker's site is asked for anything: it sees your
-  internet address then, as GitHub does.
-- The installer, in auto, prints each of its questions with its yes, refuses to put an older
+  replaces nothing itself, not the application and not itself. "Install it" is the yes, and no
+  key is pressed after it (`sub installed`).
+- lzrprf fetches the installer itself, like any request: its line in the log first `[C5]`,
+  through `sub fetch` `[C6]`, by a contained `curl` that follows no redirect `[C3]` `[C7]`. When
+  the release names a second place (the line `same`; the release on record here does), it
+  fetches that copy too and goes on only when the two are the same byte for byte; a `same` line
+  that is there and is no address counts as one that does not agree, and nothing is fetched.
+  An address is handed to `curl` as one argument and to no shell, so a quote in it is a
+  character like any other.
+- It writes the installer into `~/.lzrprf/install.NUMBER/install.sh`, a file only you can read,
+  shows that file and its SHA-256 in the window, and writes both in the log, before it runs it.
+- It runs it there, outside every container, as `/bin/sh install.sh auto`, through `env -i`
+  with only the system's `PATH`, your home folder and `TERM=dumb`: no variable of your shell.
+  Nothing is piped into a shell. Every line the installer prints is shown in a modal of
+  lzrprf's own over the window, where no page draws, and appended to `~/.lzrprf/install.txt`.
+  A colour it asks for becomes one letter the window draws in, and every escape and control
+  character is taken out first (`sub install_line`), so nothing it prints acts on the window.
+  After 30 minutes it is ended. At the end the modal says done or failed; after done, lzrprf
+  takes nothing more in that window, and you start the application again to run the new
+  release. This is the one moment on this road when the maker's site is asked for anything:
+  it sees your internet address then, as GitHub does.
+- The installer, in auto, shows no question and leaves the Dock alone on an update, refuses to put an older
   release over a newer one, and says so when the release would replace `lzrprf` itself. Run by
   hand (`sh install.sh`), each question takes y (yes, and the next is asked), n (no), or a
   (auto: yes to it and to every one after it). It takes no test setting
@@ -855,22 +905,21 @@ the program; an lzrprf of release 16 or later compares each with the file that i
 every start, from release 17 on stops at a file beside the program that no line names and
 reads the program again before every page, and the installer compares each line with what it
 unpacked before it puts anything in place).
-Each address must pass `sub address`, the same check as an address you type. The two installer
-addresses are written into the Terminal file between quotes, so `sub installer_file` writes no
-file at all when one of them holds a character that could end a quote; `selftest` tries exactly
-that. A `same` line that is there but is no address does not turn the comparison off: no file is
-written. The installer compares the `release` file byte for byte with the text written out in
+Each address must pass `sub address`, the same check as an address you type. lzrprf hands each
+installer address to `curl` as one argument and to no shell, so a character that would end a
+quote is a character like any other; `selftest` tries exactly that. A `same` line that is there
+but is no address does not turn the comparison off: nothing is fetched. The installer compares the `release` file byte for byte with the text written out in
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 35
+    release 36
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin 101317f12867ffcdeb0aed01f799a2fcaaad90c1b4a14bec45de8d19ab4f0b20
-    lzrprf 597252829bfd201472cdf24c565d3cee80f3d93729c5a933dd7b2a93baedea47
+    file lzrbrwsr-bin 784330687e00e5e12b6d233a589d1f13405abcb86efd7a8a97013ff9252853af
+    lzrprf 89d0187911c1fe579bf344c5cbca1af31ec3bbf3011dbf4c2d3ed4c5fad80a88
 
 ## When a page cannot be shown
 
@@ -948,8 +997,8 @@ narrows down who could have sent a report. The question shows the build before y
     press of either button of the question that is open ("Send", "Yes, look", "Install it",
     "Clear the log" and the buttons that keep less among them), or a request for the
     log. Each of these that fetches is in the log before it has an effect outside your Mac,
-    and "Install it" ends in Terminal, where the installer of the published release, the same
-    from both places, runs through by itself. A
+    and "Install it" runs the installer of the published release, the same from both places,
+    in lzrprf's own modal. A
     press cannot make lzrprf keep more: the buttons that change what is kept only keep less
     (`sub choose_keeping`), and the change is a line of the log (`sub changed`). Two presses
     clear the log on this computer: a kept log then says so in its first line, and with
@@ -1208,7 +1257,7 @@ comparisons use that. Each is a line you can read:
 | --- | --- | --- |
 | the installer, before it runs | your own shell | the second of the three lines above |
 | the download | the installer | in `install.sh`: `fetch "$SECOND/$FILE" "$tmp/second"`, then `cmp -s "$tmp/$FILE" "$tmp/second"`; `SECOND` is this repository |
-| the installer of a newer release | the file lzrprf writes | `sub installer_file`: two `curl` lines, then `/usr/bin/cmp -s install.sh second`, before the line `read answer` |
+| the installer of a newer release | lzrprf | `sub installed`: two fetches through `sub fixed`, then `$copies[0] ne $copies[1]`, before anything is written or run |
 
 What each is worth, and no more:
 
@@ -1525,7 +1574,7 @@ what the code and the system make impossible, and how you checked it.
    who can change the mode? Name what a site, the resolver and GitHub still see. Is there any
    way to type a password into a page, fill a form, or send a request that is not a GET
    without a body?
-6. Read `sub newer`, `sub beside`, `sub installer_file` and `sub fault`. Is anything fetched or
+6. Read `sub newer`, `sub beside`, `sub installed` and `sub fault`. Is anything fetched or
    sent without a yes? Is anything piped into a shell? Can lzrprf replace itself or the
    program? What exactly does a report hold, where does it go, and can the closed program
    choose any part of it? What does lzrprf do at its start when the app beside it names
@@ -1534,9 +1583,8 @@ what the code and the system make impossible, and how you checked it.
    is that measured, when is it looked at, and what is it worth against whoever can change
    both? Is every file in the program's folder named, and is the program read again before
    every page, before the site is asked and before it is started? With which
-   variables does the file that `sub installer_file` writes run, how does its first line
-   decide that, could whoever starts it get another variable past that line, and does its
-   curl follow a redirect?
+   variables does `sub installed` run the installer, what reaches the window of what it
+   prints (`sub install_line`), and does its fetch follow a redirect?
 7. Read `install.sh` and `release.txt`. Confirm that the installer refuses to run from a pipe,
    asks before it runs, takes no test setting from the shell unless every file comes from this
    computer, fetches lzrprf from this repository at one fixed commit, that the

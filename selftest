@@ -141,20 +141,26 @@ for my $kind (qw(trusted untrusted plain echo closed)) {
 close delete $listener{closed};           # a port where nothing listens
 sub answer_for {                          # what the test site answers on its https listeners
     my ($path) = @_;
-    my $body = $path eq '/large' ? 'x' x (7 * 1024 * 1024) : $path =~ m{^/latest-(?:yes|same)(?:\?(?:quote|two|bad))?$} ? "7\n" : $path =~ m{^/report} ? "received\n" : $path eq '/forged' ? "=fonts 4 0 0 0 0 0 0 0\n\x00\x01\x00\x00" : "the page of the test site\n";    # a site that sends a frame of fonts of its own
+    my $body = $path eq '/large' ? 'x' x (7 * 1024 * 1024) : $path =~ m{^/latest-(?:yes|same)(?:\?(?:quote|two|bad|differ|nosame))?$} ? "7\n" : $path =~ m{^/report} ? "received\n" : $path eq '/forged' ? "=fonts 4 0 0 0 0 0 0 0\n\x00\x01\x00\x00" : "the page of the test site\n";    # a site that sends a frame of fonts of its own
     return "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nthe \r\n16\r\npage of the test site\n\r\n0\r\n\r\n" if $path eq '/pieces';
     if ($path =~ m{^/sheet/(\w+)}) {      # a style sheet: one of more than 1 MiB, one whose body begins as a frame of style sheets of its own, and a plain one
         my $sheet = $1 eq 'big' ? 'x' x (1024 * 1024) : $1 eq 'frame' ? "=sheets 4\nabcd" : "p { color: #123456 }\n";
         return "HTTP/1.1 200 OK\r\nContent-Type: text/css\r\nContent-Length: " . length($sheet) . "\r\nConnection: close\r\n\r\n$sheet";
     }
-    my $head = $path eq '/elsewhere' ? "HTTP/1.1 302 Found\r\nLocation: https://elsewhere.test/moved\r\n" : "HTTP/1.1 200 OK\r\n";
+    my @redirects = (['/elsewhere', '302 Found', 'https://elsewhere.test/moved'], ['/redirect/www', '301 Moved Permanently', 'https://www.site.test/redirect/www'], ['/redirect/plain', '302 Found', 'http://81.197.252.25/'], ['/redirect/away', '302 Found', '/moved/here'], ['/redirect/near', '307 Temporary Redirect', 'landed'], ['/redirect/mark', '301 Moved Permanently', 'https://site.test/redirect/marked']);    # an answer that sends on: to another host, to the same address with "www.", to a plain-http bare number, and to addresses on the site itself (a path, a relative name, a whole address)
+    my ($moving) = grep { $_->[0] eq $path } @redirects;
+    $body = "the installer of the other place\n" if $path eq '/second/differ.sh';    # a second place whose installer is not the same file
+    my $head = $moving ? "HTTP/1.1 $moving->[1]\r\nLocation: $moving->[2]\r\n" : "HTTP/1.1 200 OK\r\n";
     return $head . "Content-Type: text/html\r\nSet-Cookie: kept=never\r\nContent-Length: " . length($body) . "\r\nConnection: close\r\n\r\n$body";
 }
-sub logged {                              # lzrprf's log on the disk holds "connects to" for this address, and does not yet hold how it ended
+sub logged {                              # lzrprf's log on the disk holds "connects to" for this address once more than it holds how such a request ended: the request now arriving is written down and has not ended
     my ($path) = @_;
     for my $log (glob "$base.*/log") {
         my $all = slurp($log);
-        return 1 if index($all, "https://site.test$path -> lzrprf connects to") >= 0 && index($all, "https://site.test$path answered") < 0;
+        my ($begins, $address) = ("https://site.test$path -> lzrprf connects to", "https://site.test$path");
+        my $begun = () = $all =~ /\Q$begins\E/g;
+        my $ended = () = $all =~ /\Q$address\E (?:answered|failed)/g;    # an address asked twice in one run (a home page, then a new tab that opens it): the second request is counted against its own line
+        return 1 if $begun > $ended;
     }
     my $short = slurp("$base.hosts/log");    # the run that keeps hosts only: its one request, by its host alone
     return 1 if $path =~ m{^/hosts/} && index($short, "https://site.test -> lzrprf connects to") >= 0 && index($short, "https://site.test answered") < 0;
@@ -361,7 +367,7 @@ $kind //= '';
 if ($kind eq 'spin') { 1 while 1 }
 if ($ENV{LZRPRF_PICTURE}) {
     my $picture = do { local $/; <STDIN> } // '';
-    print STDERR "picture\t$address\t", ($picture =~ /\A=(fonts|sheets)/ ? $1 : 'none'), "\n";
+    print STDERR "picture\t$address\t", ($picture =~ /\A=(view|fonts|sheets)/ ? $1 : 'none'), "\n";
     my %pixels = (pixgood => "P2,2\npff0000ff00ff00ff\np0000ff80ffffff00\n", pixrow => "P2,1\npff0000ff00ff00\n", pixhex => "P1,1\npff00zzff\n", pixnone => "P0,0\n");
     print $pixels{$kind} // '';
     exit 0;
@@ -369,6 +375,9 @@ if ($ENV{LZRPRF_PICTURE}) {
 if ($kind eq 'sleep') { sleep 1000 }
 if ($kind eq 'nap') { 1 while sysread(STDIN, my $read, 65536); print STDERR "napping\n"; sleep 5; print STDERR "woke\n"; exit 0 }
 my $answer = $kind eq 'noread' ? '' : do { local $/; <STDIN> } // '';
+my $view = 'none';                         # the size of the window, the first frame of every page run: taken off before the fonts
+$view = "$1 $2" if $answer =~ s/\A=view ([1-9][0-9]{2,3}) ([1-9][0-9]{2,3})\n//;
+print STDERR "view\t$address\t$view\n" if $kind =~ /^view/;
 my $faces = 'none';
 if ($answer =~ /\A=fonts((?: (?:0|[1-9][0-9]{0,6})){8})\n/) { require Digest::SHA; my ($at, @sizes) = ($+[0], split ' ', $1); $faces = join(' ', @sizes) . "\t" . join(' ', map { my $one = substr($answer, $at, $_); $at += $_; length($one) ? Digest::SHA::sha256_hex($one) : '-' } @sizes); substr($answer, 0, $at, '') }
 my $sheets = 'none';
@@ -396,7 +405,12 @@ my %heavy = (
     heavyspaced => sub { "=page\n" . ("Pp0\nT\@" . join("\x{a0}", ($ki x 499) x 20) . "\n") x 31 },
     heavyjoined => sub { "=page\n" . ("Pp0\nT\@a" . ($mark x 29 . "\x{1f3fb}") x 666 . "\n") x 47 },
     heavymixed => sub { "=page\n" . ("Pp0\nT\@" . "a\x{915}\x{644}\x{1f600}\x{6f22}\x{e01}\x{5d0}\x{ac00}" x 2500 . "\n") x 36 },
-    heavytiles => sub { "=page\nL2048x1024\n" . join('', map { 'K' . $_ . ',' . $_ % 8 * 256 . ',' . int($_ / 8) * 256 . ",256,256\n" . $rows->(256, 256) } 0 .. 31) . join('', map { 'J' . $_ % 32 . ',' . $_ % 8 * 256 . ',' . $_ % 4 * 256 . "\n" } 0 .. 1023) },
+    heavytiles => sub {                   # laid at the width of the =view frame, as every laid page must be: as many whole tiles of 256 as fit across, rows enough for 32 of them, and 1024 places again
+        my ($wide) = $view =~ /^(\d+) /;
+        my $across = int(($wide // 960) / 256) || 1;
+        my $down = int((32 + $across - 1) / $across);
+        "=page\nL" . ($wide // 960) . 'x' . $down * 256 . "\n" . join('', map { 'K' . $_ . ',' . $_ % $across * 256 . ',' . int($_ / $across) * 256 . ",256,256\n" . $rows->(256, 256) } 0 .. 31) . join('', map { 'J' . $_ % 32 . ',' . $_ % $across * 256 . ',' . $_ % $down * 256 . "\n" } 0 .. 1023);
+    },
 );
 my %list = (
     unknown => "=page\nPp0\nU https://tracker.test/pixel\n",
@@ -468,28 +482,28 @@ my %list = (
     laidbase64 => "=page\nL960x400\nM0,0,10,10,2,1\nm/wAA/wAA/4!=\n",
     laidpad => "=page\nL960x400\nM0,0,10,10,2,1\nm/wAA/wAA/4B=\n",
     laidpixels => "=page\nL960x400\nM0,0,10,10,1024,257\n",
-    tiledgood => "=page\nL640x1\nR0,0,640,1,ffffffff\nK0,0,0,256,1\n" . $rows->(256, 1) . "X10,1,6,\@,333333,a\nJ0,256,0\nK1,512,0,128,1\n" . $rows->(128, 1) . "J1,512,0\n",
-    tiledwide => "=page\nL600x1\nK0,0,0,257,1\n" . $rows->(257, 1),
-    tiledrow => "=page\nL600x1\nK0,0,0,256,1\n" . $rows->(257, 1),
-    tiledrows => "=page\nL600x2\nK0,0,0,256,2\n" . $rows->(256, 1),
-    tilednumber => "=page\nL600x1\nK32,0,0,256,1\n" . $rows->(256, 1),
-    tiledtwice => "=page\nL600x1\nK0,0,0,256,1\n" . $rows->(256, 1) . "K0,256,0,256,1\n" . $rows->(256, 1),
-    tiledunknown => "=page\nL600x1\nJ5,0,0\nK5,0,0,256,1\n" . $rows->(256, 1),
-    tiledzero => "=page\nL600x1\nK01,0,0,256,1\n" . $rows->(256, 1),
-    tiledcut => "=page\nL400x1\nK0,256,0,256,1\n" . $rows->(256, 1),
-    tiledgrid => "=page\nL600x1\nK0,10,0,256,1\n" . $rows->(256, 1),
-    tiledshort => "=page\nL600x1\nK0,0,0,100,1\n" . $rows->(100, 1),
-    tiledplace => "=page\nL600x1\nK0,512,0,88,1\n" . $rows->(88, 1) . "J0,0,0\n",
-    tiledoutside => "=page\nL600x1\nK0,0,0,256,1\n" . $rows->(256, 1) . "J0,0,256\n",
-    tiledmany => "=page\nL320x1\n" . join('', map { "K$_,0,0,256,1\n" . $rows->(256, 1) } 0 .. 32),
-    tiledplaces => "=page\nL600x1\nK0,0,0,256,1\n" . $rows->(256, 1) . "J0,256,0\n" x 1025,
-    tiledold => "=page\nL600x1\nK0,0,0,256,1\nm" . MIME::Base64::encode_base64("\x80" x 1024, '') . "\n",
-    tiledletter => "=page\nL600x1\nK0,0,0,256,1\nm" . $grey x 256 . "\n",
-    tiledpad => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIA=\n",
-    tiledpads => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "gI==\n",
-    tiledrowshort => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "\n",
-    tileddash => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIC-\n",
-    tiledunder => "=page\nL600x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIC_\n",
+    tiledgood => "=page\nL960x1\nR0,0,960,1,ffffffff\nK0,0,0,256,1\n" . $rows->(256, 1) . "X10,1,6,\@,333333,a\nJ0,256,0\nK1,768,0,192,1\n" . $rows->(192, 1) . "J1,768,0\n",    # laid at 960, the width of the =view frame: a page of any other width is unfit, so every page below is that wide and unfit for its own reason alone
+    tiledwide => "=page\nL960x1\nK0,0,0,257,1\n" . $rows->(257, 1),
+    tiledrow => "=page\nL960x1\nK0,0,0,256,1\n" . $rows->(257, 1),
+    tiledrows => "=page\nL960x2\nK0,0,0,256,2\n" . $rows->(256, 1),
+    tilednumber => "=page\nL960x1\nK32,0,0,256,1\n" . $rows->(256, 1),
+    tiledtwice => "=page\nL960x1\nK0,0,0,256,1\n" . $rows->(256, 1) . "K0,256,0,256,1\n" . $rows->(256, 1),
+    tiledunknown => "=page\nL960x1\nJ5,0,0\nK5,0,0,256,1\n" . $rows->(256, 1),
+    tiledzero => "=page\nL960x1\nK01,0,0,256,1\n" . $rows->(256, 1),
+    tiledcut => "=page\nL960x1\nK0,768,0,256,1\n" . $rows->(256, 1),
+    tiledgrid => "=page\nL960x1\nK0,10,0,256,1\n" . $rows->(256, 1),
+    tiledshort => "=page\nL960x1\nK0,0,0,100,1\n" . $rows->(100, 1),
+    tiledplace => "=page\nL960x1\nK0,768,0,192,1\n" . $rows->(192, 1) . "J0,0,0\n",
+    tiledoutside => "=page\nL960x1\nK0,0,0,256,1\n" . $rows->(256, 1) . "J0,0,256\n",
+    tiledmany => "=page\nL960x1\n" . join('', map { "K$_,0,0,256,1\n" . $rows->(256, 1) } 0 .. 32),
+    tiledplaces => "=page\nL960x1\nK0,0,0,256,1\n" . $rows->(256, 1) . "J0,256,0\n" x 1025,
+    tiledold => "=page\nL960x1\nK0,0,0,256,1\nm" . MIME::Base64::encode_base64("\x80" x 1024, '') . "\n",
+    tiledletter => "=page\nL960x1\nK0,0,0,256,1\nm" . $grey x 256 . "\n",
+    tiledpad => "=page\nL960x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIA=\n",
+    tiledpads => "=page\nL960x1\nK0,0,0,256,1\nn" . $grey x 255 . "gI==\n",
+    tiledrowshort => "=page\nL960x1\nK0,0,0,256,1\nn" . $grey x 255 . "\n",
+    tileddash => "=page\nL960x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIC-\n",
+    tiledunder => "=page\nL960x1\nK0,0,0,256,1\nn" . $grey x 255 . "gIC_\n",
     tiledpicture => "=page\nL960x400\nM0,0,10,10,2,1\nngICAgICA\n",
     tiledalone => "=page\nL960x400\nR0,0,1,1,000000ff\nn" . $grey x 4 . "\n",
     pictured => "=page\n=pictures /out/pixgood /out/pixrow /out/pixhex /out/pixnone\nUd+HTML\t5\nL960x400\nI0,0,20,20,0\nI30,0,20,20,1\nI60,0,20,20,2\nI90,0,20,20,3\nG120,0,5,5\n",
@@ -729,6 +743,7 @@ run_of('deny', typed => "$t/denied", answer => 'deny');
 run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), fetches => [(map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), @pixel_paths]);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large,,$t/forged", fetches => ['/elsewhere', '/pieces', '/large', '/forged']);
 run_of('sheets', typed => join(',,', map { "$t/out/$_" } @sheets_fit, @sheets_unfit), fetches => [(map { "/out/$_" } @sheets_fit, @sheets_unfit), @sheet_paths, '/out/pixgood?sheets', '/sheet/css?again', '/sheet/css?unfit']);
+run_of('view', typed => "$t/out/view,,=view 1280 800", fetches => ['/out/view']);    # a page, then the window grown wider: the kept answer is laid again at the new width
 run_of('sheetslate', typed => "$t/out/sheetslate", fetches => ['/out/sheetslate', '/sheet/late?late']);    # a sheet that takes 11 seconds, and one after it that is not begun
 run_of('lostsheets', lzrprf => mutant('lostsheets', q|        if ($again[0] && !@{ $again[4] }) {| => q|        if ($again[0]) {|), typed => "$t/out/sheetslost", fetches => ['/out/sheetslost', '/sheet/css?lost']);    # a copy of lzrprf that shows a second run which names style sheets again
 run_of('untrusted', peer => 'untrusted', typed => "$t/untrusted");
@@ -773,7 +788,7 @@ run_of('chainoff', keep => 'all 0', typed => '=log', answer => '12', prepare => 
 run_of('chainoffhosts', keep => 'hosts 7', typed => '=log', answer => '2');    # the same from hosts only, with no log there yet
 my $mode_line = q{    my $mode = !$log ? 'nothing' : $full ? 'all' : 'hosts';};    # the line after the last answer: a mutant runs "lzrprf keep" there, as you could in a terminal while a question is open
 run_of('elsewhere', lzrprf => mutant('elsewhere', $mode_line => "    keep_as('nothing', 0);\n$mode_line"), keep => 'all 30', typed => '=log', answer => '22');    # keep less, keep a log, and nobody answering the next (hosts only), after nothing was chosen in a terminal: a window that wrote by what it read before the questions would write "hosts 30" and so keep more
-run_of('midway', lzrprf => mutant('midway', q{    record("you typed $url", $kept) or return idle($UNWRITTEN);} => q{    record("you typed $url", $kept) or return idle($UNWRITTEN); keep_as('nothing', 0);}), keep => 'all 0', typed => "$t/mid/$secret_path", fetches => ["/mid/$secret_path"]);    # nothing is chosen while a request is open, here by a mutant right after the request's first line
+run_of('midway', lzrprf => mutant('midway', q{    record(($how // 'you typed') . " $url", $kept) or return idle($UNWRITTEN);} => q{    record(($how // 'you typed') . " $url", $kept) or return idle($UNWRITTEN); keep_as('nothing', 0);}), keep => 'all 0', typed => "$t/mid/$secret_path", fetches => ["/mid/$secret_path"]);    # nothing is chosen while a request is open, here by a mutant right after the request's first line
 run_of('elsewheredays', lzrprf => mutant('elsewheredays', $mode_line => "    keep_as('all', 7);\n$mode_line"), keep => 'all 30', typed => '=log', answer => '22');    # fewer days were chosen in a terminal: the window's hosts only keeps those
 run_of('hostsclear', keep => 'hosts 0', typed => '=log', prepare => sub { write_log($_[0], 3) });
 run_of('oldmark', typed => "$t/mark/old", fetches => ['/mark/old'], prepare => sub { write_log($_[0], 3) });    # a log that was there, without the mark
@@ -782,7 +797,7 @@ run_of('oldlog', keep => undef, typed => "$t/nothing/old,,=log", answer => '22',
 run_of('oldclear', keep => undef, typed => '=log', answer => '22', prepare => sub { write_log($_[0], 3) });
 my @release = ('release 3', "installer $t/install.sh");
 sub looks { my ($where) = @_; return sub { open my $out, '>', "$_[0]/look"; print $out "yes $where" } }    # an earlier yes to looking, as lzrprf keeps it: with the address it was given for
-run_of('upyes', app => bundle('upyes', @release, "newest $t/latest-yes"), fetches => ['/latest-yes']);
+run_of('upyes', app => bundle('upyes', @release, "newest $t/latest-yes"), fetches => ['/latest-yes', '/install.sh']);    # yes to looking, yes to "Install it": lzrprf fetches the installer, writes it, and in a try does not run it
 run_of('upno', app => bundle('upno', @release, "newest $t/latest-no"), answer => 'deny');
 run_of('upsame', app => bundle('upsame', 'release 7', "installer $t/install.sh", "newest $t/latest-same"), fetches => ['/latest-same'], prepare => looks("$t/latest-same"));
 run_of('upbad', app => bundle('upbad', @release, "newest $t/latest-html"), fetches => ['/latest-html'], prepare => looks("$t/latest-html"));
@@ -798,9 +813,23 @@ run_of('nofault', app => bundle('nofault', 'release 3', "report $t/report-none")
 run_of('faultlog', app => bundle('faultlog', 'release 3', "report $t/report-log"), keep => undef, typed => "$t/drawn?faultlog,,=log,,=fault after the log", answer => '22', fetches => ['/drawn?faultlog']);    # a page, then lzrprf's own log view, and the window says it could not draw: a yes is ready for a question that must not come
 run_of('uplost', app => bundle('uplost', @release, "newest $t/latest-lost"), prepare => sub { mkdir "$_[0]/look" });    # a yes that cannot be kept: a folder stands where the answer goes
 run_of('upunlogged', app => bundle('upunlogged', @release, "newest $t/latest-unlogged"), prepare => sub { symlink "$secret.unlogged", "$_[0]/log" });    # a yes whose line cannot be written
-run_of('uptwo', app => bundle('uptwo', 'release 3', "installer $t/install.sh", "same $t/second/install.sh", "newest $t/latest-yes?two"), fetches => ['/latest-yes?two'], prepare => looks("$t/latest-yes?two"));
-run_of('uptwobad', app => bundle('uptwobad', 'release 3', "installer $t/install.sh", "same $t/second/install.sh';/usr/bin/touch\${IFS}$site_folder/quoted;'", "newest $t/latest-yes?bad"), fetches => ['/latest-yes?bad'], prepare => looks("$t/latest-yes?bad"));
-run_of('upquote', app => bundle('upquote', 'release 3', "installer $t/install.sh';/usr/bin/touch\${IFS}$site_folder/quoted;'", "newest $t/latest-yes?quote"), fetches => ['/latest-yes?quote'], prepare => looks("$t/latest-yes?quote"));
+run_of('uptwo', app => bundle('uptwo', 'release 3', "installer $t/install.sh", "same $t/second/install.sh", "newest $t/latest-yes?two"), fetches => ['/latest-yes?two', '/install.sh', '/second/install.sh'], prepare => looks("$t/latest-yes?two"));
+run_of('uptwobad', app => bundle('uptwobad', 'release 3', "installer $t/install.sh", "same $t/second/install.sh';/usr/bin/touch\${IFS}$site_folder/quoted;'", "newest $t/latest-yes?bad"), fetches => ['/latest-yes?bad', '/install.sh', "/second/install.sh';/usr/bin/touch\${IFS}$site_folder/quoted;'"], prepare => looks("$t/latest-yes?bad"));    # an address with a quote in it is an address like any other: fetched by curl as one argument, through no shell
+run_of('upquote', app => bundle('upquote', 'release 3', "installer $t/install.sh';/usr/bin/touch\${IFS}$site_folder/quoted;'", "newest $t/latest-yes?quote"), fetches => ['/latest-yes?quote', "/install.sh';/usr/bin/touch\${IFS}$site_folder/quoted;'"], prepare => looks("$t/latest-yes?quote"));
+run_of('updiffer', app => bundle('updiffer', 'release 3', "installer $t/install.sh", "same $t/second/differ.sh", "newest $t/latest-yes?differ"), fetches => ['/latest-yes?differ', '/install.sh', '/second/differ.sh'], prepare => looks("$t/latest-yes?differ"));    # two places that hold different installers
+run_of('upnosame', app => bundle('upnosame', 'release 3', "installer $t/install.sh", 'same http://site.test/second/install.sh', "newest $t/latest-yes?nosame"), fetches => ['/latest-yes?nosame'], prepare => looks("$t/latest-yes?nosame"));    # a second place that is named and is no address lzrprf fetches
+run_of('redirected', typed => "$t/redirect/near", answer => '222', fetches => ['/redirect/near', '/redirect/landed']);    # yes to the own network, Proceed, yes again: the address it names, relative to the first, is a new visit
+run_of('redirectno', typed => "$t/redirect/away", answer => '21', fetches => ['/redirect/away']);    # yes to the own network, then Cancel
+run_of('redirectwww', typed => "$t/redirect/www", fetches => ['/redirect/www']);    # to the same address with "www.": followed without a question; the test's certificate does not prove www.site.test, so nothing is asked of it
+run_of('redirectplain', typed => "$t/redirect/plain", fetches => ['/redirect/plain']);    # to a plain-http bare number: every yes is ready, and still nothing follows
+run_of('redirectmark', typed => '=mark open 0', answer => '23', fetches => ['/redirect/mark'], prepare => sub { mkdir "$_[0]/bookmarks"; open my $out, '>', "$_[0]/bookmarks/Old.mark"; print $out "Old\n$t/redirect/mark\n" });    # a bookmark whose page moved: yes to the own network, then "Proceed and update bookmark"; the next own-network question is answered by nobody
+run_of('tabs', typed => "$t/tabs/one,,=tab new,,$t/tabs/two,,=tab select 0,,=tab close 1,,=tab select 5,,=tab close 0", fetches => ['/tabs/one', '/tabs/two']);    # two tabs; choosing the first again fetches nothing; a tab that is not there; closing the last
+run_of('home', typed => "$t/home/page,,=menu home,,=tab new", fetches => ['/home/page', '/home/page']);    # the page made the home page, then a new tab opens it
+run_of('homestart', fetches => ['/home/start'], prepare => sub { open my $out, '>', "$_[0]/home"; print $out "$t/home/start\n" });    # a home page kept from before: the window opens it at its start
+run_of('homebad', prepare => sub { open my $out, '>', "$_[0]/home"; print $out "http://site.test/home/bad\n" });    # a home page that is no address lzrprf fetches: nothing is opened
+run_of('homelink', prepare => sub { open my $out, '>', "$_[0]/elsewhere-home"; print $out "$t/home/link\n"; close $out; symlink "$_[0]/elsewhere-home", "$_[0]/home" });    # a link where the home page goes: not followed
+run_of('marks', typed => join(',,', "=mark save\t-\tWork\tTest page\t$t/marks/one", '=mark open 0', "=mark save\t-\t../up\tx\t$t/marks/two", "=mark save\t-\t\ty\thttp://site.test/marks/three", "=mark save\t0\tWork\tRenamed\t$t/marks/one", '=mark remove 0', '=mark open 0', '=menu bookmarks-bar'), fetches => ['/marks/one']);
+run_of('markslink', typed => "=mark save\t-\t\tx\t$t/marks/link", prepare => sub { mkdir "$base.markslinked"; open my $out, '>', "$base.markslinked/Away.mark"; print $out "Away\n$t/marks/away\n"; close $out; symlink "$base.markslinked", "$_[0]/bookmarks" });    # the bookmarks folder is a link to another folder: nothing in it is read, nothing is written through it
 sub marked { my ($with) = @_; return sub { open my $prove, '>', "$_[0]/prove"; return unless defined $with; open my $out, '>', "$_[0]/proven"; print $out "$with\n" } }
 run_of('unproven', typed => "$t/unproven", answer => 'deny', prepare => marked(undef));
 run_of('stale', typed => "$t/stale", answer => 'deny', prepare => marked($mark =~ s/^macOS build \w+/macOS build 00A000/r));
@@ -965,10 +994,10 @@ sub out { slurp("$site_folder/$_[0].out") }
 sub err { slurp("$site_folder/$_[0].err") }
 sub told {                                # what the window was told in one run: [word, rest], and for a page ['page', its lines]
     my ($name) = @_;
-    my (@all, $list);
+    my (@all, $list, $kind);
     for my $line (split /\n/, out($name), -1) {
-        if ($list) { if ($line eq '.') { push @all, ['page', $list]; undef $list } else { push @$list, $line } next }
-        if ($line eq 'page') { $list = []; next }
+        if ($list) { if ($line eq '.') { push @all, [$kind, $list]; undef $list } else { push @$list, $line } next }
+        if ($line eq 'page' || $line eq 'relaid') { ($kind, $list) = ($line, []); next }    # a page, or the page shown laid out again from what was kept
         my ($word, $rest) = split / /, $line, 2;
         push @all, [$word // '', $rest // ''];
     }
@@ -989,7 +1018,7 @@ sub visit {                               # what the window was told after "addr
 }
 sub tried { my ($text, $where) = @_; return map { /^tried\t\Q$where\E: ([^\t]+)\t(.*)$/ ? [$1, $2] : () } split /\n/, $text }
 sub log_of { my ($name) = @_; return map { (split /\t/, $_, 3)[2] // '' } split /\n/, slurp("$base.$name/log") }
-sub request_for { my ($path) = @_; return "GET $path HTTP/1.1\r\nHost: site.test\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n" }
+sub request_for { my ($path) = @_; return "GET $path HTTP/1.1\r\nHost: site.test\r\nUser-Agent: LZRBRWSR\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n" }    # the one browser name, fixed: the same bytes on every computer and in every release
 my @seen = map { my @part = split /\t/, $_, -1; { kind => $part[0], bytes => pack('H*', $part[1] // ''), hello => pack('H*', $part[2] // ''), logged => $part[3] // 0 } } split /\n/, slurp("$site_folder/seen");
 sub asked { my ($path) = @_; return grep { $_->{kind} eq 'trusted' && $_->{bytes} =~ /^GET \Q$path\E / } @seen }
 sub judge {                               # every attempt of the hostile application in one container, against what must come of it
@@ -1038,13 +1067,15 @@ unlink "/tmp/lzrprf-selftest.$outside", glob "$secret.written.*";
 sub faces_of { my ($run, $address) = @_; my ($said) = map { /^faces\t\Q$address\E\t(.*)$/ ? $1 : () } split /\n/, err($run); return $said // 'nothing came of it' }
 sub face_sums { my @one = map { !-l $_ && -f $_ && -s _ <= 2097152 && slurp($_) =~ /\A\x00\x01\x00\x00/ ? slurp($_) : '' } @_; return join(' ', map { length } @one) . "\t" . join(' ', map { length($_) ? Digest::SHA::sha256_hex($_) : '-' } @one) }
 my $system_faces = face_sums(map { "/System/Library/Fonts/Supplemental/$_.ttf" } 'Arial', 'Arial Bold', 'Arial Italic', 'Arial Bold Italic', 'Courier New', 'Courier New Bold', 'Courier New Italic', 'Courier New Bold Italic');
-my @given_faces = map { faces_of('answers', "$t/$_") } 'elsewhere', 'pieces', 'forged';
+my @given_faces = map { faces_of('answers', "$t/$_") } 'pieces', 'forged';    # not "elsewhere": a redirect is never handed to the application (sub redirected)
 if ($system_faces =~ /^[0 ]+\t/) { untested('a page run is given the eight fonts of the Mac', 'none of them is on this macOS') }
 else { check(!grep({ $_ ne $system_faces } @given_faces), 'a page run is given the eight fonts of the Mac in front of the answer, each byte for byte the file at its fixed path: the lengths and SHA-256s the application took off its input are the ones this test reads itself', join(' | ', map { (split /\t/)[0] } @given_faces)) }
 my ($forged) = map { /^answer\t\Q$t\E\/forged\t([0-9a-f]*)$/ ? pack('H*', $1) : () } split /\n/, err('answers');
-check(($forged // '') =~ m{\AHTTP/1\.1 200 OK\r\n.*\r\n\r\n=fonts 4 0 0 0 0 0 0 0\n\x00\x01\x00\x00\z}s && $given_faces[2] eq $system_faces, 'a site whose answer holds a frame of fonts of its own: it comes after lzrprf\'s frame, as part of the answer and byte for byte, and the fonts the application takes are still the Mac\'s', $given_faces[2] eq $system_faces ? 'the Mac\'s fonts, then the answer' : 'other fonts: ' . (split /\t/, $given_faces[2])[0]);
+check(($forged // '') =~ m{\AHTTP/1\.1 200 OK\r\n.*\r\n\r\n=fonts 4 0 0 0 0 0 0 0\n\x00\x01\x00\x00\z}s && $given_faces[1] eq $system_faces, 'a site whose answer holds a frame of fonts of its own: it comes after lzrprf\'s frame, as part of the answer and byte for byte, and the fonts the application takes are still the Mac\'s', $given_faces[1] eq $system_faces ? 'the Mac\'s fonts, then the answer' : 'other fonts: ' . (split /\t/, $given_faces[1])[0]);
 my @picture_faces = map { /^picture\t\S+\t(\w+)$/ ? $1 : () } split /\n/, err('output') . "\n" . err('sheets');
-check(@picture_faces == @pixel_paths + 1 && !grep({ $_ ne 'none' } @picture_faces), 'a picture run is given no frame, neither the fonts nor the style sheets, also on a page laid out with its style sheets: its input begins with the site\'s answer', join('/', @picture_faces) || 'nothing came of it');
+check(@picture_faces == @pixel_paths + 1 && !grep({ $_ ne 'none' } @picture_faces), 'a picture run is given no frame, neither the size of the window, the fonts nor the style sheets, also on a page laid out with its style sheets: its input begins with the site\'s answer', join('/', @picture_faces) || 'nothing came of it');
+my @views = map { /^view\t\Q$t\E\/out\/view\t(.*)$/ ? $1 : () } split /\n/, err('view');
+check("@views" eq '960 768 1280 800' && asked('/out/view') == 1, 'every page run begins with the size of the window, and a wider window lays the kept answer again at its width without asking the site a second time', join('/', @views) . ' asked=' . asked('/out/view'));
 my ($small_sum, $whole_sum) = map { Digest::SHA::sha256_hex($_) } $small_font, $whole_font;
 my $probed = '0 0 0 0 ' . length($small_font) . " 2097152 0 0\t- - - - $small_sum $whole_sum - -";
 check(faces_of('faces', "$t/faces") eq $probed, 'a copy of lzrprf that reads its fonts from a folder of the test: a link to a font, a file one byte longer than 2 MiB, a pipe (which is not waited for) and a file that does not begin as a font each go with length 0; a font of exactly 2 MiB and a small one are handed over whole', (split /\t/, faces_of('faces', "$t/faces"))[0]);
@@ -1114,7 +1145,7 @@ check($unread->{page} && "@{ $unread->{page} }" eq "@good", 'an application that
 my @laid_good = ("Ud+HTML\t5", 'L960x400', 'R0,0,960,400,ffffffff', 'R10,10,100,2,00000080', 'X10,40,16,H,333333,a link, with a comma', 'X10,60,14,D,000000,x', 'G300,10,50,50', 'M400,10,64,64,2,2', 'm/wAA/wAA/4A=', 'mAIAA////AEA=', 'X0,400,96,O,0000ff,on top');
 my $laid = visit('output', "$t/out/laidgood");
 check($laid->{page} && "@{ $laid->{page} }" eq "@laid_good", 'a laid page is passed on as it is: rectangles, runs of text with a comma in them, a grey box and a picture of 2 by 2 pixels in base64, each inside the page', $laid->{page} ? scalar(@{ $laid->{page} }) . ' lines' : $laid->{said});
-my @tiled_good = ('L640x1', 'R0,0,640,1,ffffffff', 'K0,0,0,256,1', 'n' . encode_base64("\x80" x 768, ''), 'X10,1,6,@,333333,a', 'J0,256,0', 'K1,512,0,128,1', 'n' . encode_base64("\x80" x 384, ''), 'J1,512,0');
+my @tiled_good = ('L960x1', 'R0,0,960,1,ffffffff', 'K0,0,0,256,1', 'n' . encode_base64("\x80" x 768, ''), 'X10,1,6,@,333333,a', 'J0,256,0', 'K1,768,0,192,1', 'n' . encode_base64("\x80" x 576, ''), 'J1,768,0');
 my $tiled = visit('output', "$t/out/tiledgood");
 check($tiled->{page} && "@{ $tiled->{page} }" eq "@tiled_good", 'tiles of a laid page are passed on as they are: a tile given once with its rows of red, green and blue, placed again at another corner of the grid where it is cut the same, and a tile cut by the edge of the page, among rectangles and text', $tiled->{page} ? scalar(@{ $tiled->{page} }) . ' lines' : $tiled->{said});
 my @laid_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @laid_unfit;
@@ -1169,9 +1200,11 @@ check(!@sheets_passed && !@sheets_fetched, 'a page with a line =sheets broken in
 print "\n4. What a site is sent: by the test site's own record.\n";
 my @https = grep { $_->{kind} eq 'trusted' && length $_->{bytes} } @seen;
 my @paths = map { $_->{bytes} =~ /^GET (\S+) / ? $1 : '?' } @https;
-check(join("\n", sort @paths) eq join("\n", sort @expected), 'the site was asked for what was typed, and for the two fixed addresses after a yes: each once, and nothing else', scalar(@paths) . ' requests' . (join("\n", sort @paths) eq join("\n", sort @expected) ? '' : ': ' . join(' ', map { my $p = $_; (grep({ $_ eq $p } @paths) == grep({ $_ eq $p } @expected)) ? () : $p } sort keys %{ { map { $_ => 1 } @paths, @expected } })));
+check(join("\n", sort @paths) eq join("\n", sort @expected), 'the site was asked for what was typed, a bookmark or home page that was opened, a redirect that was followed, and the fixed addresses after a yes (the newest release, a report, the installer): each as often as it was asked for, and nothing else', scalar(@paths) . ' requests' . (join("\n", sort @paths) eq join("\n", sort @expected) ? '' : ': ' . join(' ', map { my $p = $_; (grep({ $_ eq $p } @paths) == grep({ $_ eq $p } @expected)) ? () : $p } sort keys %{ { map { $_ => 1 } @paths, @expected } })));
 my @other = grep { $_->{bytes} ne request_for($_->{bytes} =~ /^GET (\S+) / ? $1 : '') } @https;
-check(!@other, 'every request is the address and nothing else: no cookie, no name of a browser, no language, no number of this computer', @other ? 'another request: ' . unpack('H*', $other[0]{bytes}) : scalar(@https) . ' requests, each of the same 4 lines');
+check(!@other, 'every request is the address and one fixed browser name, and nothing else: no cookie, no language, no number of this computer', @other ? 'another request: ' . unpack('H*', $other[0]{bytes}) : scalar(@https) . ' requests, each of the same 5 lines');
+my @named_otherwise = grep { my @lines = split /\r\n/, $_->{bytes}; my @agent = grep { /^user-agent:/i } @lines; @agent != 1 || $agent[0] ne 'User-Agent: LZRBRWSR' || grep { !/^(?:GET \S+ HTTP\/1\.1|Host: site\.test|User-Agent: LZRBRWSR|Accept-Encoding: identity|Connection: close|)$/ } @lines } @https;
+check(@https && !@named_otherwise, 'every request names one browser, exactly "User-Agent: LZRBRWSR", once, with no version and no other word, and carries no other header that could tell one computer or release from another', @named_otherwise ? 'another: ' . ($named_otherwise[0]{bytes} =~ /^(user-agent:[^\r]*)/mi ? $1 : 'no browser name') : scalar(@https) . ' requests');
 my $says = qx{/usr/bin/perl "$lzrprf" request "$t/selftest?q=1" "$t/second"};
 my ($one, $two) = map { (asked($_))[0] } '/selftest?q=1', '/second';
 check($one && $two && $says eq $one->{bytes} . $two->{bytes}, '"lzrprf request" prints the bytes the site received, byte for byte', length($says) . ' bytes');
@@ -1191,7 +1224,40 @@ check(last_said('plain') =~ /^Nothing is shown: / && !@{ [tried(err('plain'), 'p
 check(last_said('untrusted') eq 'Nothing is shown: the certificate does not prove the host.' && !grep({ $_->{kind} eq 'untrusted' && length $_->{bytes} } @seen), 'a certificate that does not prove the host: no request is sent, nothing is shown', last_said('untrusted'));
 check(last_said('closed') eq 'Nothing is shown: could not connect.', 'a host that does not answer: nothing is shown', last_said('closed'));
 my %handed = map { /^answer\t(\S+)\t([0-9a-f]*)$/ ? ($1 => pack 'H*', $2) : () } split /\n/, err('answers');
-check(($handed{"$t/elsewhere"} // '') =~ m{^HTTP/1\.1 302 Found\r\nLocation: https://elsewhere\.test/moved\r\n} && asked('/elsewhere') == 1, 'an answer that sends on to another address is shown as it is, and not followed', 'the site was asked once');
+my @elsewhere_asked = words('answers', 'redirect');
+check(!exists $handed{"$t/elsewhere"} && "@elsewhere_asked" eq "302\t$t/elsewhere\thttps://elsewhere.test/moved\t\tCancel\tProceed" && asked('/elsewhere') == 1 && !asked('/moved') && (grep { $_ eq 'you chose to follow a redirect to https://elsewhere.test/moved' } log_of('answers')) == 1, 'an answer that sends on to another address is never handed to the application and never followed by itself: lzrprf asks once, in its own modal line "redirect", with the two addresses; Proceed is a new visit with every check of a typed address (here the certificate does not prove that host, so nothing is asked of it)', scalar(@elsewhere_asked) . ' question, the site asked once');
+my @near = words('redirected', 'redirect');
+my $landed = visit('redirected', "$t/redirect/landed");
+check("@near" eq "307\t$t/redirect/near\t$t/redirect/landed\t\tCancel\tProceed" && asked('/redirect/landed') == 1 && $landed->{page} && (grep { $_ eq "you chose to follow a redirect to $t/redirect/landed" } log_of('redirected')) == 1, 'a redirect to a name relative to the address: resolved against it, and after Proceed fetched and shown as a new request, its line in the log first', $landed->{page} ? 'shown' : $landed->{said});
+check((words('redirectno', 'redirect'))[0] eq "302\t$t/redirect/away\t$t/moved/here\t\tCancel\tProceed" && words('redirectno', 'redirect') == 1 && !asked('/moved/here') && last_said('redirectno') eq "Nothing is shown: $t/redirect/away redirects to $t/moved/here (302), and lzrprf did not go there." && !grep({ /follow/ } log_of('redirectno')), 'Cancel: nothing is fetched for the address the redirect names, and nothing is shown', last_said('redirectno'));
+my @plain_asked = words('redirectplain', 'redirect');
+check(@plain_asked == 1 && $plain_asked[0] =~ /^302\t\Q$t\E\/redirect\/plain\thttp:\/\/81\.197\.252\.25\/\tThis address is not encrypted \(http\)[^\t]* Its host is a bare number, not a site name[^\t]*\tCancel$/ && !grep({ /follow|81\.197/ } log_of('redirectplain')) && last_said('redirectplain') =~ /^Nothing is shown: \Q$t\E\/redirect\/plain redirects to http:\/\/81\.197\.252\.25\/ \(302\), and lzrprf did not go there\. This address is not encrypted/, 'a redirect to a plain-http bare number: the modal says why in plain words and offers Cancel alone, and with every yes ready nothing is fetched there', $plain_asked[0] // 'no question');
+my @www_log = log_of('redirectwww');
+check(!words('redirectwww', 'redirect') && (grep { $_ eq 'site.test redirected to www.site.test (301); followed, the same site' } @www_log) == 1 && (grep { $_ eq 'lzrprf follows that redirect to https://www.site.test/redirect/www' } @www_log) == 1 && $text_of_lzrprf =~ /^        if \(defined \$fit && !\$auto && .*\$there eq "www\.\$host" \|\| \$host eq "www\.\$there"/m,
+    'a redirect to the same address with "www." in front of its host is followed without a question, once a visit, and written in the log as one line first; it is a new visit with every check', (grep { /redirected/ } @www_log)[0] // 'no line');
+my @mark_asked = words('redirectmark', 'redirect');
+check(@mark_asked == 1 && $mark_asked[0] =~ /\tCancel\tProceed\tProceed and update bookmark$/ && $near[0] !~ /update bookmark/ && slurp("$base.redirectmark/bookmarks/Old.mark") eq "Old\n$t/redirect/marked\n", 'a redirect of a page opened from a bookmark offers a third button, "Proceed and update bookmark", which writes the new address into that bookmark; a page that was typed gets two', $mark_asked[0] // 'no question');
+# Tabs, the home page, bookmarks: what the window says of them, in a try with no window.          [C4] [C12]
+my @tab_told = told('tabs');
+my ($back_at) = grep { $tab_told[$_][0] eq 'tabs' && $tab_told[$_][1] eq '2 0' } 0 .. $#tab_told;
+my ($back_address) = defined $back_at ? map { $_->[1] } grep { $_->[0] eq 'address' } @tab_told[$back_at .. $#tab_told] : ();
+my ($back_page) = defined $back_at ? grep { $_->[0] eq 'relaid' && @{ $_->[1] } } @tab_told[$back_at .. $#tab_told] : ();
+check("@{[ words('tabs', 'tabs') ]}" eq '2 1 2 0 1 0 1 0 1 0' && ($back_address // '') eq "$t/tabs/one" && $back_page && asked('/tabs/one') == 1 && (grep { /^you typed / } log_of('tabs')) == 2 && (words('tabs', 'address'))[-1] eq '' && (words('tabs', 'title'))[-1] eq '0 ',
+    'tabs: a new tab, a second address in it, the first tab chosen again (its page laid out again from what it kept: the site is not asked again and the log gets no line), a tab that is not there changes nothing, and closing the last leaves one empty tab', join(' ', words('tabs', 'tabs')));
+check(slurp("$base.home/home") eq "$t/home/page\n" && (grep { $_ eq "The home page is set: $t/home/page. A new tab and the next window open it." } words('home', 'idle')) == 1 && asked('/home/page') == 2 && (grep { $_ eq "you opened your home page $t/home/page" } log_of('home')) == 1,
+    'the cogwheel\'s "Make current page the home page" keeps the address of the tab in one plain file, home, and a new tab opens it, written in the log first like a typed address', slurp("$base.home/home") =~ s/\n/ /r || 'no file');
+check(asked('/home/start') == 1 && (grep { $_ eq "you opened your home page $t/home/start" } log_of('homestart')) == 1 && !grep({ /home page/ } log_of('homebad'), log_of('homelink')) && !asked('/home/link') && !asked('/home/bad'),
+    'a window opens the home page kept from before at its start; a home page that is no address lzrprf fetches, or a link where the file goes, opens nothing', 'start, bad, link');
+my @marks_said = words('marks', 'idle');
+my %said_mark = map { $_ => 1 } @marks_said;
+check($said_mark{"The bookmark was added: Test page, $t/marks/one."} && (grep { $_ eq "B 0 Work\tTest page\t$t/marks/one" } words('marks', 'mark')) && (grep { $_ eq 'F Work' } words('marks', 'mark')) && asked('/marks/one') == 1 && (grep { $_ eq "you opened a bookmark $t/marks/one" } log_of('marks')) == 1,
+    'a bookmark is one plain file in a folder of its own under lzrprf\'s folder; the window is told the whole tree, and opening one is a visit written in the log first', scalar(@marks_said) . ' things said');
+check((grep { /^The bookmark was not saved: a folder is at most 4 deep/ } @marks_said) == 1 && (grep { /^The bookmark was not saved: lzrprf does not fetch that address\./ } @marks_said) == 1 && !-e "$base.marks/up" && !-e "$base.up" && $said_mark{"The bookmark was changed: Renamed, $t/marks/one."} && $said_mark{'The bookmark was removed: Renamed.'} && $said_mark{'That bookmark is no longer there.'} && !glob("'$base.marks/bookmarks/Work/'*.mark") && slurp("$base.marks/marksbar") eq "on\n" && (words('marks', 'marksbar'))[-1] eq 'on',
+    'a folder name that climbs out, or an address lzrprf does not fetch, saves nothing; a bookmark is changed in place and removed by its number, and one that is gone opens nothing; "Show bookmarks bar" is kept in one plain file', join(' | ', grep { /bookmark/i } @marks_said[0 .. ($#marks_said < 7 ? $#marks_said : 7)]));
+check(!grep({ /^B / } words('markslink', 'mark')) && (grep { /^The bookmark was not saved: .* is not a folder of yours\.$/ } words('markslink', 'idle')) == 1 && (() = glob "'$base.markslinked/'*") == 1,
+    'a bookmarks folder that is a link to another folder: nothing in it is read, and nothing is written through it', join(' ', words('markslink', 'idle')));
+check($text_of_lzrprf =~ /^    bar\.cell\.allowsUndo = true;/m && $text_of_lzrprf =~ /\['Edit', \[\['Undo', 'undo:', 'z', false\], \['Redo', 'redo:', 'Z', false\], \['Cut', 'cut:', 'x', false\], \['Copy', 'copy:', 'c', false\], \['Paste', 'paste:', 'v', false\], \['Select All', 'selectAll:', 'a', false\]\]\]/,
+    'the bar undoes and redoes typing step by step: Cmd-Z and Cmd-Shift-Z in an Edit menu of the window, which also cuts, copies, pastes and selects all (read in the window\'s text)', 'read, not tried');
 check(($handed{"$t/pieces"} // '') =~ m{\r\n\r\n4\r\nthe \r\n16\r\npage of the test site\n\r\n0\r\n\r\n$}, 'the application is handed the answer as the site sent it', 'compared the bytes');
 check(visit('answers', "$t/large")->{said} eq 'Nothing is shown: the answer is larger than lzrprf takes.' && !exists $handed{"$t/large"}, 'an answer larger than lzrprf takes is not handed on', visit('answers', "$t/large")->{said});
 my @unfetched = grep { $_ ne 'lzrprf does not fetch that. An address must be https, a host by its name, port 443, in plain characters without a space.' } words('typed', 'idle');
@@ -1305,28 +1371,37 @@ check($cli_log =~ /^What is kept: Nothing is kept after a window closes\. The fu
 print "\n6. What lzrprf asks you, and what it does without a yes.\n";
 check(last_said('deny') eq 'Nothing is shown: you said no to a host inside your own network.' && !asked('/denied') && (log_of('deny'))[1] eq 'you refused site.test, which is inside your own network (127.0.0.1)', 'a host inside your own network, and a no: nothing is fetched, and the no is in the log', last_said('deny'));
 my @asks = words('upyes', 'ask');
-my $command = slurp("$base.upyes/install.command");
-my ($gate) = $command =~ /^(unset IFS ARGV0; case "\$\{PATH-\}[^\n]*)$/m;    # the one line of the file that is neither a comment nor words: it looks at the environment
-$gate //= 'no such line';
-if (open my $out, '>', "$base.upyes/gate.sh") { print $out "#!/bin/sh\n$gate\n/usr/bin/env\n"; close $out }
-my ($gate_clean, $gate_again) = do { local %ENV = (%ENV, PERL5OPT => '-MNoSuchModule', SSL_CERT_FILE => '/nowhere', HOME => '/nowhere', LZRPRF_CLEAN => $$, TERM => 'two words'); (scalar qx{/bin/sh "$base.upyes/gate.sh" 2>&1}, scalar qx{/bin/sh "$base.upyes/gate.sh" again 2>&1}) };
-my $gate_plain = do { local %ENV = (PATH => '/usr/bin:/bin:/usr/sbin:/sbin', TERM => 'xterm'); scalar qx{/bin/sh "$base.upyes/gate.sh" again 2>&1} };    # nothing but what is allowed: it goes on, also when told it was started again
-my $gate_split = do { local %ENV = (PATH => "/usr/bin:/bin:/usr/sbin:/sbin\nPWD=/x:/nowhere", TERM => "xterm\nSHLVL=7"); scalar qx{/bin/sh "$base.upyes/gate.sh" again 2>&1} };    # the same two names, each value with a line break and a second line that looks like an allowed one
-my $twice_early = slurp("$base.uptwo/install.command");
 check(@asks == 2 && $asks[0] =~ m{^May lzrprf look for a newer release of Test at each start\? It fetches one fixed address, \Q$t\E/latest-yes,} && $asks[1] =~ /^A newer release of Test is published: 7\. You run 3\./ && slurp("$base.upyes/look") eq "yes $t/latest-yes", 'a newer release: you are asked once whether lzrprf may look at each start, and again before anything is installed', scalar(@asks) . ' questions');
 check((log_of('upyes'))[0] eq "you allowed lzrprf to look for a newer release at each start: $t/latest-yes" && (log_of('upyes'))[1] eq "lzrprf looks for a newer release: $t/latest-yes" && asked('/latest-yes') == 1, 'the look is one request for one fixed address, written in the log like every other, and the yes that allows it at each start is a line before it', (log_of('upyes'))[1] // 'nothing');
-check($command =~ m{^/usr/bin/curl -q -fsS --proto =https -o install\.sh '\Q$t\E/install\.sh' }m && $command !~ /curl[^\n]* -[A-Za-z]*L|--location/ && $command =~ /^\/bin\/sh install\.sh auto\nprintf '[^'\n]*'\nread answer\n\z/m && $command !~ /\|\s*(?:\/bin\/)?sh\b/, 'the installer is fetched into a file you can read, its SHA-256 is shown, and it runs in auto with no key to press, the window left open to read: nothing is piped into a shell', length($command) . ' bytes written, nothing started');
-check($command =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\Q$gate\E\n|echo '[^'\n]*'\n)+cd } && $twice_early =~ m{\A#!/bin/sh\n(?:#[^\n]*\n|\Q$gate\E\n|echo '[^'\n]*'\n)+cd } && system('/bin/sh', '-n', "$base.upyes/install.command") == 0 && system('/bin/sh', '-n', "$base.uptwo/install.command") == 0, 'the file for Terminal looks at its environment first and says where the installer comes from: before the fetch there is nothing but that one line and words', 'words only before the first Return');
-check($gate_clean =~ m{^PATH=/usr/bin:/bin:/usr/sbin:/sbin$}m && $gate_clean =~ /^TERM=dumb$/m && $gate_clean !~ /^(?!PATH=|TERM=|PWD=|SHLVL=|_=|OLDPWD=|LOGNAME=)/m && $gate_clean !~ /PERL5OPT|SSL_CERT_FILE|nowhere|LZRPRF_CLEAN|two words/ && $gate_again =~ /^This file could not be started with only the kind of terminal and the PATH of the system\. Nothing was fetched\.$/ && $gate_again !~ /PATH=/ && $gate_plain =~ /^TERM=xterm$/m && $gate_plain !~ /Nothing was fetched/ && $gate_split =~ /^This file could not be started with only the kind of terminal and the PATH of the system\. Nothing was fetched\.$/ && $gate_split !~ /PATH=|nowhere/,
-    'that one line, run here with a module for perl, a file of certificates, another home folder, the mark of older releases and a kind of terminal in two words in its environment: what runs after it sees the PATH of the system, a plain kind of terminal and what the shell itself sets, and nothing else; told that it was started again already, with the same environment, it stops and fetches nothing; told so with nothing but a plain PATH and kind of terminal, it goes on; told so with a PATH and a kind of terminal that each carry a line break and a second line, it stops', ($gate_clean =~ tr/\n//) . ' variables after the line: ' . join(' ', map { /^([^=]*)=/ ? $1 : '?' } split /\n/, $gate_clean));
-check(!asked('/install.sh'), 'lzrprf itself never fetches the installer', 'the site was not asked for it');
-my $twice = slurp("$base.uptwo/install.command");
-check(asked('/latest-yes?two') == 1 && $twice =~ m{^/usr/bin/curl -q -fsS --proto =https -o install\.sh '\Q$t\E/install\.sh' .*\n/usr/bin/curl -q -fsS --proto =https -o second '\Q$t\E/second/install\.sh' \|\| \{ [^\n]*exit 1; \}\n/usr/bin/cmp -s install\.sh second \|\| \{ [^\n]*exit 1; \}\n}m && $twice =~ /^\/bin\/sh install\.sh auto\nprintf '[^'\n]*'\nread answer\n\z/m && index($twice, '/usr/bin/cmp') < rindex($twice, 'read answer') && !asked('/second/install.sh'),
-    'a release that names a second place for its installer: the file fetches both copies and stops unless they are the same byte for byte, before it runs anything', length($twice) . ' bytes written, nothing started');
-check($command =~ /^echo 'The installer comes from one place: /m && $command !~ /cmp/, 'a release that names one place says so in the file', 'one place');
-check((grep { $_ eq "you chose to install release 7: Terminal fetches the installer from $t/install.sh and from $t/second/install.sh" } log_of('uptwo')) == 1 && (grep { $_ eq "you chose to install release 7: Terminal fetches the installer from $t/install.sh" } log_of('upyes')) == 1, 'what Terminal will fetch after "Install it" is written in the log before the file exists: those fetches are Terminal\'s, not lzrprf\'s, and the log still says that you asked for them', (grep { /^you chose to install/ } log_of('uptwo'))[0] // 'no line');
-check(asked('/latest-yes?bad') == 1 && words('uptwobad', 'ask') == 1 && !-e "$base.uptwobad/install.command" && !-e "$site_folder/quoted", 'a second place whose address is no address, or would end the quote it stands in: no file is written, and the installer does not quietly come from one place', 'no file');
-check(asked('/latest-yes?quote') == 1 && words('upquote', 'ask') == 1 && !-e "$base.upquote/install.command" && !-e "$site_folder/quoted", 'an installer address that would end the quote it stands in, to run a command of its own in Terminal: no file is written, and nothing runs', 'no file');
+my $installer_body = "the page of the test site\n";    # what the test site serves at /install.sh and /second/install.sh
+my $installer_sum = Digest::SHA::sha256_hex($installer_body);
+sub install_said { my ($name) = @_; return map { /^line [a-z-] (.*)$/ ? $1 : () } words($name, 'install') }    # the lines the window's install modal was given, without their colour
+sub install_ended { my ($name) = @_; my @end = map { /^end (.*)$/ ? $1 : () } words($name, 'install'); return "@end" }
+sub installer_files { my ($name) = @_; return grep { -f $_ && !-l $_ } glob "$base.$name/install.*/install.sh" }
+my @upyes_said = install_said('upyes');
+my @upyes_file = installer_files('upyes');
+my @upyes_log = log_of('upyes');
+my ($fetch_line) = grep { $upyes_log[$_] eq "you chose to install release 7: lzrprf fetches the installer: $t/install.sh" } 0 .. $#upyes_log;
+my ($connect_line) = grep { index($upyes_log[$_], "$t/install.sh -> lzrprf connects to") == 0 } 0 .. $#upyes_log;
+my ($sum_line) = grep { $upyes_log[$_] =~ /^the installer of release 7 has SHA-256 \Q$installer_sum\E, and runs now in auto: \Q$base.upyes\E\/install\.\d+\/install\.sh$/ } 0 .. $#upyes_log;
+check(@asks == 2 && @upyes_file == 1 && slurp($upyes_file[0]) eq $installer_body && ((stat $upyes_file[0])[2] & 07777) == 0600 && defined $fetch_line && defined $connect_line && $fetch_line < $connect_line && asked('/install.sh') >= 1,
+    '"Install it" is the yes: lzrprf fetches the installer itself, through "fixed" and "fetch", its line in the log before the connection like every request, and writes it into a file of its own folder that only you can read', @upyes_file ? $upyes_file[0] : 'no file written');
+check(defined $sum_line && (grep { $_ eq "Its SHA-256: $installer_sum" } @upyes_said) == 1 && (grep { $_ eq "sum $installer_sum" } words('upyes', 'install')) == 1 && (grep { $_ eq "It is in this file, to read: $upyes_file[0]" } @upyes_said) == 1 && index(slurp("$base.upyes/install.txt"), "Its SHA-256: $installer_sum") >= 0,
+    'before the installer runs, its SHA-256 and the file it is in are shown in the window and written in the log and in install.txt', defined $sum_line ? $upyes_log[$sum_line] : 'no line');
+check(install_ended('upyes') eq 'failed lzrprf try: the installer was written and is not run.' && (grep { $_ eq 'The installer comes from one place.' } @upyes_said) == 1 && $text_of_lzrprf =~ /^    record\("the installer of release \$there has SHA-256 \$sum, and runs now in auto: \$file"\) or return install_end\(0, \$UNWRITTEN\);    # \[C5\]\n    return install_end\(0, 'lzrprf try: the installer was written and is not run\.'\) if \$TRY;\n(?:.*\n){1,8}?.*become\(undef, \$to, \$to, '\/usr\/bin\/env', '-i', 'PATH=\/usr\/bin:\/bin:\/usr\/sbin:\/sbin', "HOME=\$HOME", 'TERM=dumb', '\/bin\/sh', 'install\.sh', 'auto'\);\n/m && $text_of_lzrprf !~ /\|\s*(?:\/bin\/)?sh\b/,
+    'it runs only after that line is written, as a file: "/bin/sh install.sh auto" in its own folder, with env -i, the system\'s PATH, your home folder and TERM=dumb, so it asks nothing; nothing is piped into a shell, and a try of lzrprf writes it and runs nothing (read in "sub installed", and tried)', install_ended('upyes') || 'it did not end');
+my @uptwo_file = installer_files('uptwo');
+check(asked('/second/install.sh') == 1 && @uptwo_file == 1 && slurp($uptwo_file[0]) eq $installer_body && (grep { $_ eq 'The installer was fetched from two places, and both hold the same file.' } install_said('uptwo')) == 1 && (grep { $_ eq "you chose to install release 7: lzrprf fetches the installer: $t/second/install.sh" } log_of('uptwo')) == 1,
+    'a release that names a second place for its installer: lzrprf fetches both copies, each with its line in the log, and goes on only when they are the same byte for byte', scalar(@uptwo_file) . ' file written');
+check(asked('/second/differ.sh') == 1 && !installer_files('updiffer') && install_ended('updiffer') eq "failed The two places hold different installers. Nothing was changed: $t/install.sh and $t/second/differ.sh." && !grep({ /has SHA-256/ } log_of('updiffer')),
+    'two places that hold different installers: nothing is written and nothing runs, and the window says why', install_ended('updiffer') || 'it did not end');
+check(!installer_files('upnosame') && install_ended('upnosame') eq 'failed The second place the release file names is not an address lzrprf fetches. Nothing was fetched.' && !grep({ /lzrprf fetches the installer/ } log_of('upnosame')),
+    'a second place that is named and is no address lzrprf fetches counts as one that does not agree: nothing is fetched, the installer does not quietly come from one place', install_ended('upnosame') || 'it did not end');
+check(!-e "$site_folder/quoted" && installer_files('upquote') == 1 && installer_files('uptwobad') == 1 && asked("/install.sh';/usr/bin/touch\${IFS}$site_folder/quoted;'") == 1,
+    'an installer address with a quote and a command in it is an address like any other: curl is given it as one argument, through no shell, and nothing in it runs', -e "$site_folder/quoted" ? 'the command ran' : 'it ran nothing');
+my @inked = inked_lines("\e[1;32mInstalled\e[0m into \e]8;;https://elsewhere.test/\e\\a link\e]8;;\e\\", "progress 10%\rprogress 100%", "\e[31merror\e[0m \x07\e[2J\e[H", "\e]0;a window title\aplain");
+check("@inked" eq join(' ', map { "install line $_" } 'g Installed into a link', '- progress 100%', 'r error ', '- plain') && !grep({ /[\x00-\x1f\x7f]/ } @inked),
+    'no escape reaches the window from what an installer prints: a colour it asks for becomes one letter, a line written over itself is what stands last, and a title, a link, a bell, a clearing of the screen are taken out ("sub install_line" of lzrprf, run here)', scalar(@inked) . ' lines: ' . join(' | ', @inked));
 check(!asked('/latest-no') && slurp("$base.upno/look") eq 'no' && "@{[ log_of('upno') ]}" eq 'no newer release is looked for: the question was answered no, or not at all', 'a no to looking: nothing is fetched, at this start or a later one, and the no is the one line', 'the site was not asked');
 check(asked('/latest-same') == 1 && !words('upsame', 'ask'), 'the same release is published: nothing is asked', 'one request, no question');
 check(words('upmoved', 'ask') == 1 && !asked('/latest-moved') && words('upold', 'ask') == 1 && !asked('/latest-old') && slurp("$base.upmoved/look") eq 'no', 'a yes that was given for another address, or for no address, is no yes for this one: you are asked again, and nothing is fetched before', 'asked again, twice');
@@ -1417,17 +1492,17 @@ my @started = grep { /\$PROGRAM/ && /become\(/ } split /\n/, $text_of_lzrprf;
 check(@started == 1 && $started[0] =~ /contain\('', \$PROGRAM\)/, 'the application is started on one line, and that line puts it in the page container', scalar(@started) . ' line');
 my $connects = () = $text_of_lzrprf =~ /\bconnect\(/g;
 check($connects == 2 && $text_of_lzrprf =~ /^print 'network ', \(connect\(\$s, pack_sockaddr_in\(\$port, inet_aton\('127\.0\.0\.1'\)\)\)/m && $text_of_lzrprf =~ /^        connect\(\$site, \$one->\{addr\}\);/m, 'lzrprf connects in two places: to the site, from "reach"; and, as one of the tries at the start, to a listener it opened itself on this computer', "$connects places");
-my ($written) = $text_of_lzrprf =~ /^sub installer_file \{(.*?)^\}/ms;    # the file that runs in Terminal after "Install it": its programs are started there, in front of you
-my %programs = map { $_ => 1 } ($text_of_lzrprf =~ s/^sub installer_file \{.*?^\}//msr) =~ m{(?<![\w/.])(/(?:usr/)?s?bin/[a-z-]+)}g;
-my @known = qw(/bin/ps /bin/sh /sbin/route /usr/bin/curl /usr/bin/env /usr/bin/open /usr/bin/osascript /usr/bin/perl /usr/bin/sandbox-exec /usr/bin/true /usr/bin/xattr /usr/sbin/sysctl);
-check(defined $written && join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these twelve: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
+my %programs = map { $_ => 1 } $text_of_lzrprf =~ m{(?<![\w/.])(/(?:usr/)?s?bin/[a-z-]+)}g;
+my @known = qw(/bin/ps /bin/sh /sbin/route /usr/bin/curl /usr/bin/env /usr/bin/osascript /usr/bin/perl /usr/bin/sandbox-exec /usr/bin/true /usr/bin/xattr /usr/sbin/sysctl);    # no "open": the installer runs in lzrprf's own window, and nothing is opened in Terminal
+check(join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these eleven: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
 my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted';
-check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '4 1 2 1 2 1 1' && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ visit\(\$1\) \}}m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n.*\n.*\n    my \$got = fixed\(/m,
-    'a request has four roads and no fifth: "visit" for what came from the bar, "pictured" and "sheeted" from "visit" alone for the pictures and style sheets of that page on its own host, and "fixed" twice, each behind a yes; "fetch" is called from those four and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
+check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '4 1 3 1 3 2 1' && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ go\(\$1\) \}}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n.*\n.*\n    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
+    'a request has four roads and no fifth: "visit", through "go" alone, for an address from the bar, a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures and style sheets of its page on its own host ("pictured" once more from "relaid", with the pictures kept and nothing to fetch); and "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; "fetch" is called from those four and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
 my %marks = map { $_ => 1 } $text_of_lzrprf =~ /^#   \[(C\d+)\]/mg;
 my ($head, $body) = split /^use strict;$/m, $text_of_lzrprf, 2;
 my %marked = map { $_ => 1 } ($body // '') =~ /\[(C\d+)\]/g;
-check($text_of_lzrprf =~ /^sub ask \{\n(?:.*\n)*?    my \$until = now\(\) \+ \$ANSWER_SECONDS;\n    while \(\(my \$left = \$until - now\(\)\) > 0\) \{\n        my \$event = hear\(\$left\) \/\/ leave\(\);\n        return \$1 if \$event =~ \/\^button \$ASKED \(\[12\]\)\$\/;\n    \}\n    return 1;\n\}\n/m, 'a question nobody answers in the window counts as its first button, the one that fetches, sends, replaces and keeps nothing, or keeps less: read in "sub ask", where the time running out returns 1 and a closed window ends lzrprf (a test would have to wait 10 minutes)', 'read, not tried');
+check($text_of_lzrprf =~ /^sub ask \{ my \(\$words, \@buttons\) = \@_; return asked\('ask ' \. .*, \@buttons\) \}\n/m && $text_of_lzrprf =~ /^sub asked \{.*\n(?:.*\n)*?    my \$until = now\(\) \+ \$ANSWER_SECONDS;\n    while \(\(my \$left = \$until - now\(\)\) > 0\) \{\n        my \$event = hear\(\$left\) \/\/ leave\(\);\n        return \$1 if \$event =~ \/\^button \$ASKED \(\[123\]\)\$\/ && \$1 <= \@buttons;\n        viewing\(\$event\);.*\n    \}\n    return 1;\n\}\n/m && $text_of_lzrprf =~ /asked\("redirect \$status\\t\$url\\t" \. \(\$to \/\/ ''\) \. "\\t\$why", 'Cancel', /,
+    'a question nobody answers in the window counts as its first button, the one that fetches, sends, replaces and keeps nothing, or keeps less: read in "sub asked", which "sub ask" hands its question to and the redirect modal uses with Cancel first, where the time running out returns 1, a press of a button the question does not have is not taken, and a closed window ends lzrprf (a test would have to wait 10 minutes)', 'read, not tried');
 check($text_of_lzrprf =~ /^            if \(length \$link->\[2\] && \$link->\[4\] <= \$link->\[5\] && vec\(\$write, fileno \$to, 1\)\) \{/m && $text_of_lzrprf =~ /^    while \(now\(\) < \$until && length \$got <= \$FETCH_BYTES && .*!grep \{ \$_->\[4\] > \$_->\[5\] \} \@links\) \{/m, 'what is carried between curl and the site stops at the allowance of each side: a side that sent more has nothing more passed on, and the request ends; read in "sub fetch"', 'read, not tried');
 my ($in_time, $gone) = hears();
 check(defined $in_time && $in_time eq '' && !defined $gone, 'the two ends of a question are told apart: "sub hear" of lzrprf, run against a pipe of the test\'s own, gives an empty line when nothing is said in time, so "sub ask" answers 1, and nothing when the window is gone, so lzrprf ends', defined $in_time ? (defined $gone ? 'the same for both' : 'time over: an empty line; window gone: nothing') : 'time over: nothing, as if the window were gone');
@@ -1593,8 +1668,22 @@ sub plain_mark { $_[0] =~ s/, untested: [^\n]*//r }    # a line of the file of m
 sub hears {                               # "sub hear" of lzrprf, taken out and run here against a pipe: what it returns when nothing is said in time, then when the other end is gone
     my ($text) = $text_of_lzrprf =~ /^(sub hear \{.*?^\})/ms;
     defined $text && pipe(my $from, my $to) or return ('x', 'x');
-    my @got = eval "package Heard; no warnings; my \$FROM = \$from; my \@EVENTS; my \$TRY = 0; $text; my \$quiet = hear(0.2); close \$to; (\$quiet, scalar hear(0.2))";
+    my @got = eval "package Heard; no warnings; my \$FROM = \$from; my \@EVENTS; my \@HELD; my \$TRY = 0; $text; my \$quiet = hear(0.2); close \$to; (\$quiet, scalar hear(0.2))";
     return @got == 2 ? @got : ('x', 'x');
+}
+
+sub inked_lines {                         # "sub install_line" of lzrprf, taken out and run here: what the window's install modal would be given for each line an installer printed
+    my ($text) = $text_of_lzrprf =~ /^(sub install_line \{.*?^\})/ms;
+    my ($ink) = $text_of_lzrprf =~ /^(my %INK = .*?;)/m;
+    defined $text && defined $ink or return;
+    my $out = '';
+    {
+        local *STDOUT;
+        open STDOUT, '>', \$out or return;
+        eval "package Inked; no warnings; my \$INSTALL_LINE = 2000; my \$INSTALL_LOG; $ink $text; install_line(\$_) for \@_; 1" or $out = '';
+        close STDOUT;
+    }
+    return split /\n/, $out;
 }
 
 sub check($$$) {
