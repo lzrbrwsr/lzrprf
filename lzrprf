@@ -36,7 +36,7 @@
 #   [C3]  No process is handed a byte of what was fetched, nor the connection to a site, before the system itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, curl among its fixed switches.
 #   [C4]  A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in the window, or for one of three fixed addresses of the release file after you said yes (the newest release number, a report, the installer in its one or two places), or for a picture or a style sheet that the page laid out from such an address names on that same host, at most eight of each, by a path lzrprf checked. There is no fourth way to a request.
 #   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
-#   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
+#   [C6]  There is one place that connects to a site directly, and it connects to a numeric address that was checked and written down; the one other connection to the outside goes to the Tor client on this computer's loopback, only while Tor is on [C17].
 #   [C7]  What a site is sent is made from the address alone, with one fixed browser name, LZRBRWSR: the same request from every computer, byte for byte, with nothing kept from an earlier request.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line, or a laid page, is not drawn at all. Its title, one line of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else.
@@ -46,6 +46,7 @@
 #   [C13] The application opens no file for its fonts: lzrprf hands it eight fonts of the Mac, by fixed paths, in front of a page's answer and never a picture's, each a plain file and no link of at most 2 MiB that begins as a font, or with length 0; and only after the system said that the application is contained.
 #   [C14] A page is laid out at most twice: a second time only when its first run named style sheets on the page's own host, at most eight, which lzrprf fetches and hands the second run in front of the answer, after the fonts, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown, the first run's page is; there is never a third run, and a picture run is handed no style sheet.
 #   [C16] An incognito window writes nothing that outlives it. Its log, history, tabs, suggestions and everything it fetched are held in its memory or in one folder it makes for itself, readable by you alone, in your own temporary folder (TMPDIR, /private/var/folders/.../T), named lzrprf-i.<its process number>.<12 random hex digits>. Of ~/.lzrprf it reads, and never writes, the self-test's result (proven, untested, selftest.lock), the home page, the search address, whether the bookmarks bar is shown and the bookmarks. The folder is removed when the window ends, however it ends: quit, its last window closed, a signal, its process dying; and a folder left by a run whose processes are all gone is removed at the next start of any lzrprf window.
+#   [C17] Tor is off until you turn it on in the window, and while it is off no Tor client runs. Turned on, lzrprf starts the client that stands beside the program, named by its SHA-256 in the release file, in a container of its own (its own folder and the network, nothing of yours), and every address is then fetched through it, the site's host its SOCKS user so each site has its own circuit; nothing is looked up or fetched directly, also while it connects or when it does not. Turned off, the client is ended.
 #   [C15] Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: Local State and each profile's Bookmarks of Chrome, Edge, Brave and Vivaldi, Firefox's profiles.ini and newest bookmarkbackups/*.jsonlz4, Safari's Bookmarks.plist, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import [C12].
 #
 # This file is the whole program. Its parts, in order: the containers, the
@@ -78,6 +79,7 @@ my $DIR = "$HOME/.lzrprf";                # no container can read or write this 
 my ($INCOGNITO, $BASE) = (0, undef);     # an incognito window [C16]: $DIR is then its own folder in your temporary folder, and $BASE the folder its few settings are read from, never written
 my $UNKEPT = 'An incognito window writes nothing';    # the start of every refusal to keep something in one
 my ($HELD_ENGINE, $HELD_BAR);             # in an incognito window, a search address or a bookmarks bar chosen in it: in its memory only
+my ($TOR_WANTED, $TOR) = (0, undef);      # $TOR: {pid, guard (lzrprf's end of the pipe), port} while the client runs
 sub kept_in { $INCOGNITO ? $BASE : $DIR }    # where settings are read from: ~/.lzrprf (or a test's folder), also in an incognito window
 my $CURL = '/usr/bin/curl';               # the system's own; it does the https, lzrprf holds no code for it
 my $SCRIPT = '/usr/bin/osascript';        # the system's own; it runs the window's text and the question to the system
@@ -664,6 +666,7 @@ sub behind {
         elsif ($event =~ /^search (brave|duckduckgo|google)$/) { search_set($ENGINES{$1}) }
         elsif ($event =~ /^search custom\t([\x21-\x7e]{1,2000})$/) { search_set($1) }
         elsif ($event eq 'log') { log_shown() }
+        elsif ($event =~ /^tor (on|off)$/) { $1 eq 'on' ? tor_on() : tor_off('you turned Tor off') }    # Tor, from the onion icon of the bottom bar: started on this request only, ended on this one
         elsif ($event eq 'update-check') { $INCOGNITO ? idle('An incognito window looks for no newer release; a window that is not incognito does, in its cogwheel menu.') : newer(1) }
         elsif ($event =~ /^frame (full|-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4})$/) { frame_said($1) }    # the window was moved, resized or made full screen: kept for the next window
         elsif ($event eq 'incognito') { incognito_opened() }
@@ -729,6 +732,7 @@ sub unnamed {                             # the first thing in the program's fol
 
 sub leave {
     kill 'KILL', $witness if $witness;
+    tor_off();                            # the Tor client ends with the window that started it
     unlink "$DIR/way.$$";
     removed($DIR) if $INCOGNITO;          # [C16]
     exit 0;
@@ -769,12 +773,12 @@ sub visit {
     flock $request, LOCK_SH or return idle($UNWRITTEN);    # from "you typed" until its last line is written, a request keeps the log from being cleared under it
     my ($kept) = keeping();                 # read once: no line of one request is kept at more than this, whatever is chosen while it runs; when less is chosen meanwhile, its later lines are kept at that (sub record)
     record(($how // 'you typed') . " $url", $kept) or return idle($UNWRITTEN);  # [C5] before the name is even looked up
-    busy("Looking up $host.");
-    my ($where, $why) = find($host);
+    busy($TOR_WANTED ? "Asking Tor for $host." : "Looking up $host.");
+    my ($where, $why) = $TOR_WANTED ? tor_where($host) : find($host);    # with Tor on, nothing is looked up on this computer: Tor's exit looks up the name
     $why = own_network($host, $where, $kept) if $where && grep { $_->{own} } @$where;    # [C8]
     my ($got, $from, $tried, $certs);
     if (!$why) {
-        record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return idle($UNWRITTEN);    # [C5] written down first, connected second
+        record("$url -> lzrprf connects " . ($TOR_WANTED ? "through Tor, one circuit for $host" : 'to the first that answers of: ' . join(', ', map { $_->{text} } @$where)), $kept) or return idle($UNWRITTEN);    # [C5] written down first, connected second
         busy("Fetching $url");
         $tried = 1;
         ($got, $why, $from, $certs) = fetch($url, $where);
@@ -2299,6 +2303,7 @@ sub route {
 # in this file that connects to anything outside this computer.          # [C6]
 sub reach {
     my ($where, $until) = @_;
+    return tor_reach($where->[0]{host}, $until) if $where->[0]{tor};    # [C17] through Tor, and never past it: a Tor that does not answer is a request that fails
     for my $one (@$where) {
         my $left = $until - now();
         last if $left <= 0;
@@ -2310,6 +2315,160 @@ sub reach {
         return ($site, $one->{text}) if select(undef, $ready, undef, $left < 10 ? $left : 10) > 0 && !unpack 'i', getsockopt($site, SOL_SOCKET, SO_ERROR);
     }
     return;
+}
+
+# Tor, on one click (ARCHITECTURE.md §7.11). The client is Arti, the Tor Project's own, built from
+# source and put beside the program by the installer, named in the release file like every file
+# there (sub paired) and compared again before it starts. It runs only between "tor on" and
+# "tor off" from the window, or until the window ends: nothing of it is held before or after. It
+# runs in a container of its own: it reads its program, the system's libraries and one folder of
+# lzrprf's, $DIR/tor, where it keeps the directory of relays it downloaded; it connects out over
+# TCP and listens on the loopback alone. lzrprf hands it the host name over SOCKS5 and carries
+# the bytes as for any request; nothing is looked up on this computer, and every site goes out
+# under its own SOCKS name, so two sites never share a circuit. A small shell stands between
+# lzrprf and the client and ends it when lzrprf's end of a pipe closes, so a window that ends in
+# any way ends its Tor too. While Tor is wanted and not ready, nothing is fetched: never directly.
+my $TOR_CONTAINER = <<'END';
+(version 1)
+(deny default)
+(allow process-exec (literal (param "BIN")))
+(allow process-fork)
+(allow signal (target self))
+(allow sysctl-read)
+(allow file-read* file-map-executable
+  (subpath "/usr/lib") (subpath "/System/Library") (subpath "/System/Cryptexes")
+  (subpath "/Library/Apple/System/Library") (subpath "/private/var/db/dyld")
+  (literal (param "BIN")))
+(allow file-read-data (literal "/"))
+(allow file-read-metadata (literal "/") (literal "/private") (literal "/private/tmp") (literal "/tmp")
+  (literal "/private/var") (literal "/var") (literal "/Users") (literal "/private/etc") (literal "/etc"))
+(allow file-read* (literal "/dev/urandom") (literal "/dev/random") (literal "/dev/null"))
+(allow file-write-data (literal "/dev/null"))
+(allow file-read* file-write* (subpath (param "DATA")))
+(allow file-read-metadata (path-ancestors (param "DATA")))
+(allow network-outbound (remote tcp "*:*"))
+(allow network-bind network-inbound (local tcp "localhost:*"))
+END
+my $TOR_SECONDS = 90;                     # DECLARED(the most a start may take; a cold start measured 2 to 4 s, a slow network takes longer)
+my @TOR_STEPS = (                         # the client's own log lines, each the first of a step the window shows
+    [qr/Looking for a consensus|usable directory from cache|good directory from cache|Fetching a consensus/, 1, 10, 'Reading the directory of relays'],
+    [qr/Downloading certificates/, 2, 30, 'Checking the directory'],
+    [qr/Downloading microdescriptors/, 3, 55, 'Learning the relays'],
+    [qr/Marked consensus usable|Directory is complete|enough information to build circuits/, 4, 85, 'Building circuits'],
+    [qr/Sufficiently bootstrapped; proxy now functional/, 5, 100, 'Connected to Tor'],
+);
+sub tor_client {                        # the client, and whether it is a test's stand-in
+    if ($TRY && open my $instead, '<', kept_in() . '/torclient') { chomp(my $line = <$instead> // ''); return ($line, 1) }    # "lzrprf try" only: the test's stand-in, a perl script
+    return (dirname($PROGRAM) . '/arti', 0);
+}
+sub tor_where { return $TOR ? [{ tor => 1, host => $_[0], text => 'Tor' }] : (undef, 'Tor is on and not connected, so nothing was fetched: not through Tor, and not directly') }
+sub tor_on {                              # [C17] started on request only, in its own container, and checked against the release file
+    return window('tor on') if $TOR;
+    $TOR_WANTED = 1;
+    my ($bin, $stand_in) = tor_client();
+    my ($named) = map { /^file arti ([0-9a-f]{64})$/ ? $1 : () } release_lines();
+    return tor_failed("the Tor client is not beside $APP: this release has none") unless -f $bin && ($stand_in || -x _);    # a stand-in is run by perl
+    return tor_failed('the Tor client is another file than the release names') if !$TRY && ($named // '') ne (sum_of($bin) // '');
+    my $data = "$DIR/tor";
+    mkdir $data, 0700;
+    return tor_failed("lzrprf could not make the folder $data") unless -d $data && !-l $data;
+    unlink "$data/port", "$data/log";
+    open my $cfg, '>', "$data/config.toml" or return tor_failed("lzrprf could not write $data/config.toml");
+    print $cfg join("\n", '[proxy]', 'socks_listen = "127.0.0.1:auto"', 'dns_listen = 0', '[logging]', 'console = "info"', '[storage]', qq{cache_dir = "$data/cache"}, qq{state_dir = "$data/state"}, qq{port_info_file = "$data/port"},
+        '[address_filter]', 'allow_onion_addrs = true', '[preemptive_circuits]', 'disable_at_threshold = 2', 'initial_predicted_ports = [443]', 'min_exit_circs_for_port = 1', 'prediction_lifetime = "10 minutes"',
+        '[circuit_timing]', 'disused_circuit_timeout = "5 minutes"', '[system]', 'max_files = 1024', 'memory.max = "64 MiB"', 'memory.low_water = "48 MiB"', '');
+    close $cfg;
+    pipe(my $hold, my $guard) or return tor_failed('lzrprf could not start the Tor client');
+    open my $log, '>', "$data/log" or return tor_failed("lzrprf could not write $data/log");
+    my $pid = fork // return tor_failed('lzrprf could not start the Tor client');
+    if (!$pid) {
+        close $guard;
+        my @client = $stand_in ? ('/usr/bin/perl', $bin) : ('/usr/bin/sandbox-exec', '-D', "BIN=$bin", '-D', "DATA=$data", '-p', $TOR_CONTAINER, $bin);    # a test's stand-in is a script, which the container (one named program, nothing it starts) cannot run: the selftest tries the container on its own
+        become($hold, $log, $log, '/bin/sh', '-c', '"$@" & child=$!; read held; kill $child; wait', 'lzrprf-tor', @client, 'proxy', '-c', "$data/config.toml");
+    }
+    close $hold;
+    close $log;
+    $guard->autoflush(1);
+    $TOR = { pid => $pid, guard => $guard };
+    record("you turned Tor on: lzrprf starts the Tor client, $bin, in its own container") or return tor_off('the log could not be written');
+    window('tor step 0 0 Starting the Tor client');
+    my ($until, $read, $step) = (now() + $TOR_SECONDS, 0, 0);
+    while (now() < $until) {
+        my $event = hear(0.2);
+        return tor_off('the window closed') unless defined $event;
+        if ($event eq 'tor off') { return tor_off('you stopped Tor before it connected') }
+        push @HELD, $event if length $event;    # the rest is heard once Tor is connected or stopped
+        return tor_failed('the Tor client ended') if waitpid($pid, 1) == $pid;    # 1: WNOHANG
+        open my $in, '<', "$data/log" or next;
+        seek $in, $read, 0;
+        while (my $line = <$in>) {
+            last unless $line =~ /\n\z/;
+            $read += length $line;
+            return tor_failed('Tor could not build a circuit') if $line =~ /circuit build retry limit|Unable to bootstrap/;
+            for my $one (grep { $_->[1] > $step && $line =~ $_->[0] } @TOR_STEPS) { $step = $one->[1]; window("tor step $one->[1] $one->[2] $one->[3]") }
+        }
+        if ($step == 5 && open my $port, '<', "$data/port") {
+            my ($number) = (join '', <$port>) =~ /"socks"[^\]]*?127\.0\.0\.1:(\d{1,5})"/s;
+            next unless $number;
+            $TOR->{port} = $number;
+            record('Tor is connected: every address is fetched through it from here on, one circuit for each site') or return tor_off('the log could not be written');
+            window('tor on');
+            return idle('Tor is connected. Every address is fetched through it, one circuit for each site, and nothing is looked up on this Mac.');
+        }
+    }
+    return tor_failed("Tor did not connect in $TOR_SECONDS seconds");
+}
+sub tor_failed {
+    my ($why) = @_;
+    tor_off();
+    $TOR_WANTED = 1;                      # still wanted: nothing is fetched directly until Tor is turned off
+    record("Tor did not connect: $why");
+    window("tor failed $why");
+    return idle("Tor did not connect: $why. Nothing is fetched until it connects or you turn it off.");
+}
+sub tor_off {
+    my ($why) = @_;
+    $TOR_WANTED = 0;
+    my $was = $TOR or return defined $why ? (window('tor off'), idle('Tor is off.')) : ();
+    $TOR = undef;
+    close $was->{guard};                  # the shell between ends the client as its pipe closes
+    my $until = now() + 3;
+    while (now() < $until) { last if waitpid($was->{pid}, 1) == $was->{pid}; Time::HiRes::sleep(0.05) }
+    if (waitpid($was->{pid}, 1) == 0) { kill 'KILL', $was->{pid}; waitpid($was->{pid}, 0) }
+    return unless defined $why;
+    record("Tor is off: $why");
+    window('tor off');
+    return idle('Tor is off: every address is fetched directly again.');
+}
+# One connection through Tor: to the client on the loopback, then SOCKS5 with the host name, and
+# the site's host as the user name, so Tor gives each site its own circuit.
+sub tor_reach {
+    my ($host, $until) = @_;
+    return unless $TOR && $TOR->{port} && waitpid($TOR->{pid}, 1) == 0;
+    socket(my $tor, AF_INET, SOCK_STREAM, 0) or return;
+    connect($tor, pack_sockaddr_in($TOR->{port}, inet_aton('127.0.0.1'))) or return;    # the loopback: this computer, never the internet
+    my $said = sub {
+        my ($send, $want) = @_;
+        syswrite($tor, $send) == length $send or return '' if length $send;
+        my $got = '';
+        while (length $got < $want) {
+            my $ready = '';
+            vec($ready, fileno $tor, 1) = 1;
+            my $left = $until - now();
+            return '' if $left <= 0 || select($ready, undef, undef, $left) <= 0;
+            sysread($tor, $got, $want - length $got, length $got) or return '';
+        }
+        return $got;
+    };
+    return unless $said->("\x05\x01\x02", 2) eq "\x05\x02";
+    return unless $said->(pack('C C/a* C/a*', 1, substr($host, 0, 255), 'lzrbrwsr'), 2) eq "\x01\x00";
+    my $head = $said->(pack('C4 C/a* n', 5, 1, 0, 3, $host, 443), 4);
+    return unless length $head == 4 && substr($head, 0, 2) eq "\x05\x00";
+    my $kind = ord substr($head, 3, 1);
+    my $rest = $kind == 1 ? 6 : $kind == 4 ? 18 : $kind == 3 ? 2 + ord $said->('', 1) : return;
+    return unless length $said->('', $rest) == $rest;
+    $tor->blocking(0);
+    return ($tor, 'Tor');
 }
 
 # What a site is sent, inside the encryption, for an address: these bytes,
@@ -2456,11 +2615,11 @@ sub fixed {
     flock $request, LOCK_SH or return;
     my ($kept) = keeping();
     record($line, $kept) or return;       # [C5]
-    my ($where, $why) = find($host);
+    my ($where, $why) = $TOR_WANTED ? tor_where($host) : find($host);
     $why = 'that host is not on the public internet' if $where && $PEER eq '-' && grep { $_->{own} } @$where;
     my ($got, $from);
     if (!$why) {
-        record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return;    # [C5]
+        record("$url -> lzrprf connects " . ($TOR_WANTED ? "through Tor, one circuit for $host" : 'to the first that answers of: ' . join(', ', map { $_->{text} } @$where)), $kept) or return;    # [C5]
         $UNSAID = 1;
         ($got, $why, $from) = fetch($url, $where);
     }
@@ -3295,7 +3454,7 @@ var again = false, viewing = '';    // the list being drawn is the page shown la
 var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
 var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
 var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
-var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
+var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, torIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
 var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 30, TOP = TABS_HIGH + BAR_ROW, MARGIN = 22, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
 // Where the pointer is, in a view's own coordinates. It is converted from the window's content view, a view
 // this script keeps, and never from a nil: a nil made in the script can reach AppKit as a stray pointer and end
@@ -3326,6 +3485,7 @@ function heard(line) {
     else if (word == 'title') { var gap = rest.indexOf(' '), which = +rest.slice(0, gap); if (tabs[which]) tabs[which].title = rest.slice(gap + 1); tabsView.needsDisplay = true; }
     else if (word == 'install') installTold(rest);
     else if (word == 'checked') checkedTold(rest);
+    else if (word == 'tor') torTold(rest);
     else if (word == 'welcome') welcomeTold(rest);
     else if (word == 'ask') { asked++; strip(rest.split('\t'), false, true); }
     else if (word == 'address') { bar.stringValue = $(rest); current = rest; listing = null; suggestHidden(); pieces(); redrawn(); }
@@ -3393,12 +3553,13 @@ function place() {
     cog.frame = $.NSMakeRect(wide - 50, row + 13, 30, 30);
     marksView.frame = $.NSMakeRect(0, row - MARKS_ROW, wide, MARKS_ROW);
     stripBack.frame = $.NSMakeRect(0, 0, wide, tall);
-    words.frame = asking ? $.NSMakeRect(20, 10, wide - 340, tall - 18) : $.NSMakeRect(20, 6, wide - 104, 17);
+    words.frame = asking ? $.NSMakeRect(20, 10, wide - 340, tall - 18) : $.NSMakeRect(20, 6, wide - 136, 17);
     first.frame = $.NSMakeRect(wide - 304, (tall - 30) / 2, 132, 30);
     second.frame = $.NSMakeRect(wide - 162, (tall - 30) / 2, 138, 30);
     var pageTop = high - TOP;
     scroll.frame = $.NSMakeRect(0, tall, wide, Math.max(1, pageTop - tall));
-    logs.frame = $.NSMakeRect(wide - 74, 3, 26, 24);    // the two icons at the right end of lzrprf's strip: the log, then what the page is made of
+    torIcon.frame = $.NSMakeRect(wide - 106, 3, 26, 24);    // the icons at the right end of lzrprf's strip: Tor, the log, then what the page is made of
+    logs.frame = $.NSMakeRect(wide - 74, 3, 26, 24);
     techs.frame = $.NSMakeRect(wide - 42, 3, 26, 24);
     homeView.frame = $.NSMakeRect(0, tall, wide, Math.max(1, pageTop - tall));
     listScroll.frame = homeView.frame;
@@ -3533,6 +3694,7 @@ function fit() {
 function laser() {
     function rgb(r, g, b, a) { return $.NSColor.colorWithSRGBRedGreenBlueAlpha(r / 255, g / 255, b / 255, a === undefined ? 1 : a); }
     GREEN = rgb(72, 221, 255); DIM = rgb(40, 128, 150); YELLOW = rgb(255, 196, 92); WHITE = rgb(236, 242, 246); DARK = rgb(8, 11, 14);
+    TOR_BLUE = rgb(70, 150, 255);    // Tor on: its own blue, never the beam's cyan, the same in an incognito window
     GREY = rgb(138, 150, 158); LINE = rgb(40, 49, 56); GLASS = rgb(72, 221, 255, 0.035); GLASS_HI = rgb(72, 221, 255, 0.08);
     ICON = rgb(206, 214, 220); EDGE = rgb(66, 76, 84); FILL = rgb(15, 19, 23); HALO = rgb(72, 221, 255, 0.55); FAINT = rgb(72, 221, 255, 0.16);
     if (INCOGNITO) {    // an incognito window glows violet, never in the beam's cyan, so it is told apart at a glance
@@ -3613,7 +3775,7 @@ function stroked(path, colour, width, halo, blur) {    // a line, with its glow 
 function titled(item, words) { item.attributedTitle = styled(words, inked(sans(13), WHITE)); }
 
 function sent(line) { free = false; bar.enabled = false; logs.enabled = false; redrawn(); say(line); }
-function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox, logs, techs, suggestBox, wizardView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
+function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox, logs, techs, torIcon, torView, suggestBox, wizardView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
 function takes() { return free && !modalOpen; }    // whether the chrome takes a press now
 
 // The frame: the window is clear, and this draws, MARGIN points in from its edges, the glass every
@@ -4764,6 +4926,127 @@ function wizClicked(event) {
 // The modal: centred over the whole window, over a veil that takes every click, so nothing under
 // it, the page or the chrome, is reached while it is open. Kinds: small, tall (a redirect), form
 // (a bookmark), big (the installer).
+// Tor, on one click (ARCHITECTURE §7.11). The onion left of the log is grey while Tor is off: no
+// client runs and none is in memory. A press starts the client in lzrprf and opens the modal, which
+// shows the connection happening: five stations on one straight beam, each lit as the client's own
+// log says it got there ("tor step N PERCENT WORDS"), a pulse running to the station it works on,
+// and its words and share under the beam. When lzrprf says "tor on" the last station flares, the
+// modal flies back into the onion, and the onion glows blue. "tor failed WHY" stops the pulse in
+// yellow and says why; until Tor is turned off nothing is fetched, not through Tor and not
+// directly. With Reduce motion on, nothing pulses or flares: the stations still light.
+var TOR_STATIONS = ['Directory', 'Certificates', 'Relays', 'Circuits', 'Ready'], TOR_RUN = 0.9, TOR_BEAT = 1.4, TOR_FLARE = 0.7;    // DECLARED(seconds: a pulse from one station to the next; one breath of the onion while it connects; the last station's flare, then the flight back)
+var torState = 'off', torStep = 0, torPct = 0, torWords = '', torLitAt = 0, torTimer = null, torIcon = null, torView = null, TOR_BLUE;
+function torPressed() {
+    if (modalOpen) return;
+    techHidden();
+    flyNext = { icon: torIcon, at: Date.now() };
+    if (torState == 'off') torStarted();
+    secureHidden();
+    suggestHidden();
+    modal('Tor', '', torChoices(), 'tor');
+    torTicking();
+}
+function torChoices() {
+    if (torState == 'on') return [['Turn Tor off', torStopped], ['Close', closeModal]];
+    if (torState == 'failed') return [['Turn Tor off', torStopped], ['Try again', torStarted]];
+    return [['Stop', torStopped], ['Hide', closeModal]];
+}
+function torStarted() {
+    torState = 'starting'; torStep = 0; torPct = 0; torWords = 'Starting the Tor client'; torLitAt = Date.now();
+    say('tor on');
+    torChanged();
+}
+function torStopped() {
+    say('tor off');
+    torState = 'off'; torStep = 0; torPct = 0; torWords = '';
+    if (modalOpen && modalKind == 'tor') closeModal();
+    torChanged();
+}
+function torTold(rest) {
+    var parts = rest.split(' '), word = parts[0];
+    if (word == 'step') { torState = 'starting'; torStep = +parts[1] || 0; torPct = +parts[2] || 0; torWords = parts.slice(3).join(' '); torLitAt = Date.now(); }
+    else if (word == 'on') {
+        torState = 'on'; torStep = TOR_STATIONS.length; torPct = 100; torWords = 'Connected to Tor'; torLitAt = Date.now();
+        if (modalOpen && modalKind == 'tor') $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(flightAllowed() ? TOR_FLARE : 0.3, hand, 'torLanded:', $(), false);    // the flare, then the flight into the onion
+    }
+    else if (word == 'off') { torState = 'off'; torStep = 0; torPct = 0; torWords = ''; if (modalOpen && modalKind == 'tor') closeModal(); }
+    else if (word == 'failed') { torState = 'failed'; torWords = parts.slice(1).join(' '); }
+    torChanged();
+}
+function torLanded() { if (modalOpen && modalKind == 'tor' && torState == 'on') closeModal(); }
+function torChanged() {
+    if (torIcon) torIcon.toolTip = $(torState == 'on' ? 'Tor: on, every page goes through Tor' : torState == 'starting' ? 'Tor: connecting' : torState == 'failed' ? 'Tor: did not connect' : 'Tor: off');
+    if (modalOpen && modalKind == 'tor') buttons(torChoices());
+    torTicking();
+    torRedrawn();
+}
+function torRedrawn() { if (torIcon) torIcon.needsDisplay = true; if (torView) torView.needsDisplay = true; }
+function torMoving() { return flightAllowed() && (torState == 'starting' || Date.now() - torLitAt < TOR_FLARE * 1000); }
+function torTicking() {
+    if (torTimer || !torMoving()) return;
+    torTimer = $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(1 / 30, hand, 'torTick:', $(), true);
+}
+function torTicked() {
+    torRedrawn();
+    if (!torMoving() && torTimer) { torTimer.invalidate; torTimer = null; }
+}
+function torGlyph(cx, cy) {    // an onion: its outer skin, one layer inside, and its shoot (the button is flipped: y grows down, so y is turned here)
+    var p = $.NSBezierPath.bezierPath, at = function (x, y) { return $.NSMakePoint(cx + x, cy - y); };
+    p.moveToPoint(at(0, 6));
+    p.curveToPointControlPoint1ControlPoint2(at(0, -7.5), at(8.5, 0.5), at(7.5, -7.5));
+    p.curveToPointControlPoint1ControlPoint2(at(0, 6), at(-7.5, -7.5), at(-8.5, 0.5));
+    p.moveToPoint(at(0, 2.5));
+    p.curveToPointControlPoint1ControlPoint2(at(0, -7.5), at(4.5, -1.5), at(3.8, -7.5));
+    p.curveToPointControlPoint1ControlPoint2(at(0, 2.5), at(-3.8, -7.5), at(-4.5, -1.5));
+    p.moveToPoint(at(0, 6));
+    p.curveToPointControlPoint1ControlPoint2(at(2.5, 9), at(0.5, 8), at(1.5, 9));
+    return p;
+}
+function torIconDrawn(view) {
+    var size = view.frame.size, cx = size.width / 2, cy = size.height / 2, hot = hover.torIcon && !modalOpen;
+    if (hot) glass($.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(1, 1, size.width - 2, size.height - 2), 7, 7), true);
+    if (torState == 'on') return stroked(torGlyph(cx, cy), TOR_BLUE, 1.4, TOR_BLUE, 9);    // on: the blue glow
+    if (torState == 'failed') return stroked(torGlyph(cx, cy), YELLOW, 1.3, null, 0);
+    if (torState == 'starting') {    // connecting: the onion breathes in blue
+        var beat = flightAllowed() ? 0.5 + 0.5 * Math.sin(Date.now() / 1000 * 2 * Math.PI / TOR_BEAT) : 0.5;
+        return stroked(torGlyph(cx, cy), TOR_BLUE.colorWithAlphaComponent(0.4 + 0.6 * beat), 1.3, beat > 0.6 ? TOR_BLUE : null, 4 + 5 * beat);
+    }
+    stroked(torGlyph(cx, cy), hot ? WHITE : GREY, 1.3, hot ? GREEN : null, 7);    // off: grey
+}
+function torBeamDrawn(view) {
+    var size = view.bounds.size, w = size.width, h = size.height, now = Date.now(), moving = flightAllowed();
+    var colour = torState == 'failed' ? YELLOW : TOR_BLUE, n = TOR_STATIONS.length, left = 46, right = w - 46, gap = (right - left) / (n - 1), y = Math.round(h * 0.58), R = 7;
+    var lit = Math.min(n - 1, torStep - 1), next = torState == 'starting' ? lit + 1 : -1, xs = TOR_STATIONS.map(function (one, i) { return left + gap * i; });
+    centred(styled('Every page goes through three Tor relays, so a site sees a Tor exit and never this computer.', inked(sans(12), GREY)), w / 2, h - 22, 0);
+    centred(styled('It does not hide what you type into a site you sign in to.', inked(sans(12), GREY)), w / 2, h - 40, 0);
+    var line = function (from, to, c, width, halo, blur) { var p = $.NSBezierPath.bezierPath; p.moveToPoint($.NSMakePoint(from, y)); p.lineToPoint($.NSMakePoint(to, y)); stroked(p, c, width, halo, blur); };
+    line(left, right, EDGE, 1.2, null, 0);    // the beam, the whole way, unlit
+    if (lit >= 0) line(left, xs[lit], colour, 1.6, colour, 8);    // lit up to the last station reached
+    if (next >= 0 && next < n && moving) {    // the pulse, running from the last station reached to the one the client works on
+        var from = lit >= 0 ? xs[lit] : left - 30, t = (now / 1000 % TOR_RUN) / TOR_RUN, e = 1 - Math.pow(1 - t, 2), x = from + (xs[next] - from) * e;
+        var trail = $.NSGradient.alloc.initWithStartingColorEndingColor(colour.colorWithAlphaComponent(0), colour);
+        trail.drawInRectAngle($.NSMakeRect(Math.max(from, x - 46), y - 1, Math.max(1, x - Math.max(from, x - 46)), 2), 0);
+        $.NSGraphicsContext.saveGraphicsState; glow(colour, 10); colour.setFill; $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(x - 3, y - 3, 6, 6)).fill; $.NSGraphicsContext.restoreGraphicsState;
+    }
+    xs.forEach(function (x, i) {
+        var dot = $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(x - R, y - R, 2 * R, 2 * R)), reached = i <= lit;
+        $.NSGraphicsContext.saveGraphicsState; FILL.setFill; dot.fill; $.NSGraphicsContext.restoreGraphicsState;
+        if (reached) {
+            $.NSGraphicsContext.saveGraphicsState; glow(colour, 9); colour.colorWithAlphaComponent(0.85).setFill; $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(x - R + 3, y - R + 3, 2 * R - 6, 2 * R - 6)).fill; $.NSGraphicsContext.restoreGraphicsState;
+            stroked(dot, colour, 1.3, colour, 6);
+        }
+        else if (i == next) stroked(dot, colour.colorWithAlphaComponent(moving ? 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(now / 1000 * 2 * Math.PI / TOR_BEAT)) : 0.6), 1.3, null, 0);    // the station being worked on breathes
+        else stroked(dot, EDGE, 1.2, null, 0);
+        if (i == n - 1 && torState == 'on' && moving && now - torLitAt < TOR_FLARE * 1000) {    // ready: the last station flares
+            var f = (now - torLitAt) / 1000 / TOR_FLARE, ring = R + 22 * (1 - Math.pow(1 - f, 3));
+            stroked($.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(x - ring, y - ring, 2 * ring, 2 * ring)), colour.colorWithAlphaComponent(1 - f), 1.6, colour, 12);
+        }
+        centred(styled(TOR_STATIONS[i], inked(sans(11, reached), reached ? WHITE : GREY)), x, y - R - 22, 0);
+    });
+    var said = torState == 'failed' ? 'Tor did not connect: ' + torWords : torWords + (torState == 'starting' || torState == 'on' ? '   ' + torPct + '%' : '');
+    if (said) centred(styled(said, inked(sans(14, true), torState == 'failed' ? YELLOW : WHITE)), w / 2, 12, 0);
+}
+
 function modal(title, about, choices, kind) {
     welcoming = false;
     cogHidden();
@@ -4773,7 +5056,8 @@ function modal(title, about, choices, kind) {
     panelTitle.textColor = WHITE;
     panelSub.stringValue = $(about);
     panelSub.textColor = WHITE;
-    panelSub.hidden = kind == 'tech';    // the list says its own first sentence
+    panelSub.hidden = kind == 'tech' || kind == 'tor';    // the list says its own first sentence; Tor's beam says its own words
+    torView.hidden = kind != 'tor';
     panelText.string = $('');
     panelScroll.hidden = kind != 'big';
     form.hidden = kind != 'form';
@@ -4891,7 +5175,7 @@ function flightEnded() {
 function placeModal() {
     if (!veil) return;
     var all = root.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
-    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : 230;
+    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', tor = modalKind == 'tor', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : tor ? 640 : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : tor ? 320 : 230;
     veil.frame = $.NSMakeRect(0, 0, wide, high);
     panel.frame = $.NSMakeRect(Math.round((wide - w) / 2) - M, Math.round((high - h) / 2) - M, w + 2 * M, h + 2 * M);
     panel.needsDisplay = true;
@@ -4903,6 +5187,7 @@ function placeModal() {
     wizardView.frame = $.NSMakeRect(M + 26, M + 64 + (withPath ? 38 : 0), w - 52, Math.max(40, h - 64 - 116 - (withPath ? 38 : 0)));
     panelScroll.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 170));
     form.frame = $.NSMakeRect(M + 26, M + 64, w - 52, h - 154);
+    torView.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 128));
     if (tech) {    // the list fills the panel between its title and its Close button
         var listHigh = Math.max(40, h - 134);
         under.frame = $.NSMakeRect(M + 26, M + 64, w - 52, listHigh);
@@ -5269,6 +5554,16 @@ ObjC.registerSubclass({ name: 'LzrprfTechIcon', superclass: 'NSButton', methods:
 } });
 
 
+ObjC.registerSubclass({ name: 'LzrprfTorIcon', superclass: 'NSButton', methods: {
+    'drawRect:': { implementation: function (dirty) { torIconDrawn(torIcon); } },
+    'mouseEntered:': { implementation: function (event) { hovered('torIcon', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('torIcon', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfTorBeam', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { try { torBeamDrawn(torView); } catch (e) { } } }    // a frame that cannot be drawn is skipped: it never ends the window
+} });
+
 ObjC.registerSubclass({ name: 'LzrprfSuggest', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paintSuggest(); } },
     'mouseDown:': { implementation: function (event) { suggestClicked(event); } },
@@ -5363,6 +5658,9 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled && !modalOpen) { techHidden(); flyNext = { icon: logs, at: Date.now() }; sent('log'); } } },
     'techs:': { types: ['void', ['id']], implementation: function (sender) { flyNext = { icon: techs, at: Date.now() }; techToggled(); } },
     'flown:': { types: ['void', ['id']], implementation: function (timer) { flew(Date.now()); } },
+    'tor:': { types: ['void', ['id']], implementation: function (sender) { torPressed(); } },
+    'torTick:': { types: ['void', ['id']], implementation: function (timer) { torTicked(); } },
+    'torLanded:': { types: ['void', ['id']], implementation: function (timer) { torLanded(); } },
     'importing:': { types: ['void', ['id']], implementation: function (sender) { if (!INCOGNITO) importOpened(); } },
     'incognito:': { types: ['void', ['id']], implementation: function (sender) { say('incognito'); } },    // lzrprf starts a second lzrprf, in incognito: this process starts nothing
     'controlTextDidChange:': { types: ['void', ['id']], implementation: function (note) { if (note.object.isEqual(bar)) suggestUpdate(); } },
@@ -5590,6 +5888,8 @@ function run(argv) {
     techs = $.LzrprfTechIcon.alloc.initWithFrame($.NSMakeRect(0, 0, 26, 24));    // what the page is made of, beside it
     [[logs, 'log:', 'Log'], [techs, 'techs:', 'What this page is made of']].forEach(function (one) { one[0].bordered = false; one[0].title = $(''); one[0].toolTip = $(one[2]); one[0].target = hand; one[0].action = one[1]; root.addSubview(one[0]); tracked(one[0]); });
     logs.enabled = false;
+    torIcon = $.LzrprfTorIcon.alloc.initWithFrame($.NSMakeRect(0, 0, 26, 24));    // Tor, left of the log: grey while off, blue while on
+    torIcon.bordered = false; torIcon.title = $(''); torIcon.toolTip = $('Tor: off'); torIcon.target = hand; torIcon.action = 'tor:'; root.addSubview(torIcon); tracked(torIcon);
     homeView = $.LzrprfHome.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 600));
     root.addSubview(homeView);
     listScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 600));
@@ -5662,6 +5962,9 @@ function run(argv) {
     wizardView = $.LzrprfWizard.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 260));
     wizardView.hidden = true;
     panel.addSubview(wizardView);
+    torView = $.LzrprfTorBeam.alloc.initWithFrame($.NSMakeRect(0, 0, 580, 190));
+    torView.hidden = true;
+    panel.addSubview(torView);
     tracked(wizardView);
     pathField = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 400, 26));
     pathField.font = sans(13);
