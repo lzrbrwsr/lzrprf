@@ -939,7 +939,7 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 42
+    release 43
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -1234,9 +1234,11 @@ The Log button of the window shows the lines of that window, from memory, and th
 computer when there is one, with the button that clears it and, while a log is kept, the
 questions that keep less (`sub log_shown`).
 
-`selftest` prints five kinds of line under eleven numbered headings, then a count and a
+`selftest` prints six kinds of line under eleven numbered headings, then a count and a
 verdict. `now`: what the test is doing at this moment, printed while it runs; the installer
-shows these as its steps. `works`: a probe tried outside every container, where it must
+shows these as its steps. `ran`: one of the runs of lzrprf, as it ends: its number of all of
+them, its seconds and what it tries (`%about`); a run is judged after all have ended, and the
+installer shows each under its step. `works`: a probe tried outside every container, where it must
 succeed. `held`: a probe that failed inside, or a promise checked against what the test site
 itself received. `UNTESTED`: something this Mac gave no way to try, with the reason; the mark
 the run writes names each. `FAILED`:
