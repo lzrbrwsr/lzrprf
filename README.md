@@ -1058,8 +1058,8 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 56
-    new Scripts a page's own script adds run too, the way sites load their tools, and scripts are read in the page's own encoding
+    release 57
+    new The whole top of the window moves it, and a tab dragged along the strip moves among the tabs
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -1067,7 +1067,7 @@ here:
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin 5b752d7749cb36c788b64e10925b80a0c3e9f5bc88864750920129934f09e18a
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-    lzrprf 9a0c1221185389c5106141f727b924cd2be70ade88bd5b6ffa77f72aadcc550d
+    lzrprf 7f9473dab643dca03318fbf4c94cf368366586c27cfaa4ddd359bdc27f86be8f
 
 ## When a page cannot be shown
 

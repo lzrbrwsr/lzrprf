@@ -683,6 +683,7 @@ sub behind {
         elsif ($event eq 'live') { live_turn() }    # a page kept running with its tab answered, or is to end (sub live_answered)
         elsif ($event =~ /^page (click (?:0|[1-9][0-9]{0,5}) (?:0|[1-9][0-9]{0,5})|key (?:[\x21-\x7e]|Space|Escape|Enter|Tab|Backspace|Delete|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown)(?: shift)?|text [^\x00-\x1f\x7f]{1,$LIVE_TEXT})$/) { live_input($1) }    # a click in the page, a key while it has the keyboard, text typed into its field: handed to the page kept running, and to nothing else
         elsif (viewing($event)) { relaid() }    # the window's page has a new size: the page shown is laid out again at its width, from what was kept, and nothing is fetched
+        elsif ($event =~ /^tab move (0|[1-9][0-9]?) (0|[1-9][0-9]?)$/) { tab_moved($1, $2) }    # a tab dragged along the strip to another place among the tabs: the page shown stays as it is
         elsif ($event =~ /^tab (new|select|close)(?: (0|[1-9][0-9]?))?$/) { tabbed($1, $2); relaid() }    # a tab chosen in the strip: its page is laid out again from what was kept, and nothing is fetched, unless a new tab opens the home page
         elsif ($event =~ /^menu (clear-history|clear-sessions|home|bookmarks-bar)$/) { menu($1) }
         elsif ($event =~ /^mark open (0|[1-9][0-9]{0,2})$/) { $MARKS[$1] ? go($MARKS[$1][2], 'you opened a bookmark', $1) : idle('That bookmark is no longer there.') }    # [C4] an address kept from the bar or typed into the window's own modal
@@ -1365,7 +1366,7 @@ sub relaid {
 # The tabs. The window shows them in a strip of lzrprf's own above the bar,
 # where no page draws, and says which you chose in one of three lines: "tab
 # new", "tab select N" and "tab close N", N a tab that is there, in its one
-# form. Each tab keeps its own page as $SHOWN keeps it (its address, its
+# form; a fourth, "tab move FROM TO", moves a tab among the others (sub tab_moved). Each tab keeps its own page as $SHOWN keeps it (its address, its
 # answer, the frame of style sheets it was laid with, its decoded pictures),
 # its title, the addresses it went to, and lzrprf's last words in it. Only the
 # selected tab's page is shown: choosing another clears the page and lays the
@@ -1392,6 +1393,20 @@ sub tabbed {
     tab_shown($how eq 'new' && !$opened ? "A window holds $TABS_MOST tabs at most: close one to open another." : undef);
     my $home = $opened && home();
     go($home, 'you opened your home page') if $home;    # [C4] the address kept from the bar when you made it the home page
+}
+
+# A tab dragged along the strip: "tab move FROM TO" takes the tab at FROM out and puts it in at TO,
+# both tabs that are there. The selected tab stays the selected one, wherever it now stands, and its
+# page stays shown: nothing is laid out again, nothing fetched, nothing written. The window is told
+# the tabs again, as after every line of the strip.
+sub tab_moved {
+    my ($from, $to) = @_;
+    return if $from >= @TABS || $to >= @TABS || $from == $to;
+    my $chosen = $TABS[$TAB];
+    my ($one) = splice @TABS, $from, 1;
+    splice @TABS, $to, 0, $one;
+    ($TAB) = grep { $TABS[$_] == $chosen } 0 .. $#TABS;
+    window('tabs ' . @TABS . " $TAB", map { "title $_ $TABS[$_]{title}" } 0 .. $#TABS);
 }
 
 sub tab_shown {
@@ -3036,7 +3051,7 @@ sub body_of {                             # the body of an answer 200, as curl g
 # among them: that it is ready, what you typed into the bar when you pressed
 # Return, which of two buttons you pressed, that you asked for the log, that
 # it could not draw a list, the size of its page, a tab opened, chosen or
-# closed ("tab new", "tab select N", "tab close N"), and an item of the
+# closed or moved ("tab new", "tab select N", "tab close N", "tab move FROM TO"), and an item of the
 # cogwheel's menu ("menu clear-history", "menu clear-sessions", "menu home", "menu bookmarks-bar"), a bookmark opened, saved or removed ("mark open N", "mark save ...", "mark remove N", sub mark_saved), its size and place once you have moved or resized it ("frame X Y W H" or "frame full", sub frame_said), and buttons up to three for a question in a modal ("redirect"). Three more come only while the page shown is kept running ("live on"): a click in it ("page click X Y", in the laid page's points after scrolling), a key ("page key NAME" or "page key NAME shift", a printable character or one of the named keys) and text typed while a field of it has the focus ("page text ...", at most $LIVE_TEXT bytes); lzrprf hands each to that page and to nothing else (sub live_input), and tells the window "live on|off 0|1" and "live end WHY" (sub live_told). The words lzrprf says are in a
 # strip of their own between the bar and the page, where no page can write:
 # the one thing of the application's that lzrprf says there is up to four of
@@ -3879,7 +3894,7 @@ var canvas, sheet = null, inks = {}, typefaces = {}, space = null;    // the vie
 var again = false, viewing = '';    // the list being drawn is the page shown laid out again at a new width ("relaid"); the size of the page's view last told to lzrprf
 var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
 var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
-var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
+var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false, drag = null, moving = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
 var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, torIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
 var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 30, TOP = TABS_HIGH + BAR_ROW, MARGIN = 22, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
 // Where the pointer is, in a view's own coordinates. It is converted from the window's content view, a view
@@ -4285,7 +4300,7 @@ function resizedFrame(e, f, dx, dy, minW, minH) {    // the frame f, its held si
 function frameClicked(event) {
     var r = root.frame, p = frameView.convertPointFromView(event.locationInWindow, $());
     var e = MARGIN ? edgesAt({ x: p.x, y: p.y }, { x: r.origin.x, y: r.origin.y, w: r.size.width, h: r.size.height }, RADIUS * 2) : null;
-    if (!e || !(e.left || e.right || e.top || e.bottom)) return win.performWindowDragWithEvent(event);
+    if (!e || !(e.left || e.right || e.top || e.bottom)) return windowHeld(event);
     var w0 = win.frame, f = { x: w0.origin.x, y: w0.origin.y, w: w0.size.width, h: w0.size.height }, start = $.NSEvent.mouseLocation, least = win.minSize;
     for (;;) {    // the drag, until the button is let go: 6 is a drag of the left button, 2 its release
         var next = win.nextEventMatchingMaskUntilDateInModeDequeue((1 << 6) | (1 << 2), $.NSDate.distantFuture, $('NSEventTrackingRunLoopMode'), true);
@@ -4347,7 +4362,7 @@ function tabsTold(rest) {
     while (tabs.length < count) tabs.push({ title: '' });
     tabs.length = count;
     if (shares.length > count) shares.length = count;
-    restoring = shares[now] || 0;
+    if (moving) moving = false; else restoring = shares[now] || 0;    // a tab only moved along the strip: the page shown stays where it is read
     selected = now;
     redrawn();
 }
@@ -4401,7 +4416,7 @@ function plussed(cx, cy, r) {
 }
 
 function paintTabs() {
-    var size = tabsView.frame.size, wide = tabWide(), high = size.height, middle = (high - 7) / 2 + 1, chosenAt = TABS_X + selected * wide;
+    var size = tabsView.frame.size, wide = tabWide(), high = size.height, middle = (high - 7) / 2 + 1, chosenAt = tabLeft(selected, wide);
     for (var k = 0; k < 3; k++) {
         var dot = $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(16 + k * 20, high / 2 - 6, 12, 12));
         (hover.dot == k ? ICON : $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.42, 0.45, 0.48, 1)).setFill;
@@ -4412,8 +4427,10 @@ function paintTabs() {
     seam.moveToPoint($.NSMakePoint(0, 0.5)); seam.lineToPoint($.NSMakePoint(chosenAt - 5, 0.5));
     seam.moveToPoint($.NSMakePoint(chosenAt + wide + 1, 0.5)); seam.lineToPoint($.NSMakePoint(size.width, 0.5));
     stroked(seam, LINE, 1);
-    tabs.forEach(function (tab, i) {
-        var x = TABS_X + i * wide + 2, w = wide - 4, on = i == selected, hot = i == hover.tab && !on;
+    var order = tabs.map(function (tab, i) { return i; });
+    if (drag) { order.splice(drag.tab, 1); order.push(drag.tab); }    // the tab held is drawn last, over the others
+    order.forEach(function (i) {
+        var tab = tabs[i], x = tabLeft(i, wide) + 2, w = wide - 4, on = i == selected, hot = drag ? i == drag.tab && !on : i == hover.tab && !on;
         if (on || hot) {
             var body = tabShape(x, w, high, true);
             (on ? FILL : $.NSColor.colorWithWhiteAlpha(1, 0.025)).setFill;
@@ -4446,17 +4463,61 @@ function tabClicked(event) {
     if (dot == 1) return win.performMiniaturize($());
     if (dot == 2) return win.toggleFullScreen($());
     var hit = tabAt(event);
-    if (hit[0] < 0) return event.clickCount == 2 ? win.performZoom($()) : win.performWindowDragWithEvent(event);    // the strip is the window's title bar
+    if (hit[0] < 0) return windowHeld(event);    // the strip is the window's title bar
     if (hit[0] == tabs.length) return newTab();
     if (hit[1]) return tabSaid('tab close ' + hit[0], hit[0]);
-    if (hit[0] != selected) tabSaid('tab select ' + hit[0]);
+    tabHeld(hit[0]);
+}
+
+// The whole top of the window moves it: the frame, the strip of tabs beside the tabs, the bar's row
+// beside its buttons and its pill, the bookmarks bar beside its bookmarks. Pressed there and dragged,
+// the window follows; pressed twice, it zooms, as a title bar does.
+function windowHeld(event) { return event.clickCount == 2 ? win.performZoom($()) : win.performWindowDragWithEvent(event); }
+
+// A tab pressed and let go where it was pressed is chosen. Dragged along the strip it is moved among
+// the tabs: it follows the pointer, the others make room, and where it is let go it stays ("tab move").
+function slotOf(from, dx, wide, count) { return Math.max(0, Math.min(count - 1, Math.round((from * wide + dx) / wide))); }    // the place among count tabs that a tab dragged dx points from place "from" is over
+function placeOf(k, from, to) { return k == from ? to : from < to && k > from && k <= to ? k - 1 : to < from && k >= to && k < from ? k + 1 : k; }    // where the tab at place k stands once the one at "from" has gone to "to"
+function tabLeft(i, wide) {    // where a tab is drawn: at its place, or, while one is dragged, the held one under the pointer and the others where they would stand
+    if (!drag) return TABS_X + i * wide;
+    if (i == drag.tab) return Math.max(TABS_X, Math.min(TABS_X + (tabs.length - 1) * wide, TABS_X + i * wide + drag.dx));
+    return TABS_X + placeOf(i, drag.tab, drag.slot) * wide;
+}
+
+function tabHeld(i) {
+    var start = $.NSEvent.mouseLocation, wide = tabWide();
+    for (;;) {    // until the button is let go: 6 is a drag of the left button, 2 its release
+        var next = win.nextEventMatchingMaskUntilDateInModeDequeue((1 << 6) | (1 << 2), $.NSDate.distantFuture, $('NSEventTrackingRunLoopMode'), true);
+        if (!next || next.isNil() || next.type == 2) break;
+        var dx = $.NSEvent.mouseLocation.x - start.x;
+        if (!drag && (Math.abs(dx) < 5 || !takes() || tabs.length < 2)) continue;    // DECLARED(5 points: a press that only trembles is a click, not a drag)
+        drag = { tab: i, dx: dx, slot: slotOf(i, dx, wide, tabs.length) };
+        tabsView.needsDisplay = true;
+        tabsView.displayIfNeeded;
+    }
+    var to = drag ? drag.slot : i;
+    drag = null;
+    tabsView.needsDisplay = true;
+    if (!takes()) return;
+    if (to != i) {    // the strip shows the new order at once; lzrprf moves the tab and tells the tabs again
+        var one = tabs.splice(i, 1)[0], was = selected;
+        tabs.splice(to, 0, one);
+        shares[was] = shareNow();
+        while (shares.length < tabs.length) shares.push(0);
+        var share = shares.splice(i, 1)[0];
+        shares.splice(to, 0, share);
+        selected = placeOf(was, i, to);
+        moving = true;
+        sent('tab move ' + i + ' ' + to);
+    }
+    if (to != selected) tabSaid('tab select ' + to);
 }
 
 // The bar's row: back, forward and reload at its left, then the bar, a pill of dark glass with the
 // lock at its start and the star at its end; a cyan beam glows along the pill's lower edge, and
-// all round it while the bar is typed into. The row is a larger place to click than the bar looks:
+// all round it while the bar is typed into. The pill is a larger place to click than the bar looks:
 // a click on it that is no button puts the caret into the bar, at its start when left of it and at
-// its end otherwise.
+// its end otherwise. The rest of the row moves the window (windowHeld).
 function typing() { var editor = bar.currentEditor; return !!editor && !editor.isNil(); }
 
 function navAt(at) { for (var k = 0; k < 3; k++) if (Math.abs(at.x - (28 + k * 40)) <= 17 && Math.abs(at.y - BAR_ROW / 2) <= 16) return k; return -1; }
@@ -4523,6 +4584,7 @@ function beltClicked(event) {
     if (nav >= 0) { secureHidden(); return navPressed(nav); }
     if (lockAt(at)) return secureToggled();
     secureHidden();
+    if (at.x < PILL.origin.x || at.x > PILL.origin.x + PILL.size.width || at.y < PILL.origin.y || at.y > PILL.origin.y + PILL.size.height) return windowHeld(event);    // beside the pill and the buttons, the row moves the window
     if (!bar.enabled) return;
     win.makeFirstResponder(bar);
     var editor = bar.currentEditor;
@@ -4801,7 +4863,8 @@ function folderMenu(path, items) {    // the menu of a folder: its folders, each
 
 function marksClicked(event) {
     var i = markAt(event);
-    if (i < 0 || !takes()) return;
+    if (i < 0) return windowHeld(event);    // beside its bookmarks, the bookmarks bar moves the window
+    if (!takes()) return;
     var one = marksPlaced[i];
     if (one.item && one.item.mark) return sent('mark open ' + one.item.mark.id);
     folderMenu(one.item ? one.item.folder : '', one.more).popUpMenuPositioningItemAtLocationInView($(), $.NSMakePoint(one.x, -2), marksView);
