@@ -41,9 +41,10 @@
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line, or a laid page, is not drawn at all. Its title, one line of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else.
 #   [C10] The window's process has no network of its own, writes no file, starts no other program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, lzrprf asks the system about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of that container's text, its list of services among it, is not asked about, and selftest makes its own tries from the real window. Of the system's services it looks up by name only the 41 its container lists and one local name, the clipboard's.
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
-#   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log, apart from the one address you made the home page, the bookmarks you made (each a name and an address), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (install.txt); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
+#   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log, apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file .order of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (install.txt); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #   [C13] The application opens no file for its fonts: lzrprf hands it eight fonts of the Mac, by fixed paths, in front of a page's answer and never a picture's, each a plain file and no link of at most 2 MiB that begins as a font, or with length 0; and only after the system said that the application is contained.
 #   [C14] A page is laid out at most twice: a second time only when its first run named style sheets on the page's own host, at most eight, which lzrprf fetches and hands the second run in front of the answer, after the fonts, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown, the first run's page is; there is never a third run, and a picture run is handed no style sheet.
+#   [C15] Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: Local State and each profile's Bookmarks of Chrome, Edge, Brave and Vivaldi, Firefox's profiles.ini and newest bookmarkbackups/*.jsonlz4, Safari's Bookmarks.plist, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import [C12].
 #
 # This file is the whole program. Its parts, in order: the containers, the
 # proof that they hold, one visit, the fetch, the window's side, the log, the
@@ -140,6 +141,8 @@ my $TABS_MOST = 32;                       # the most tabs one window holds: the 
 my $TITLE = 200;                          # the most characters of a page's title, the =title line, shown in its tab
 my $VISITED = 100;                        # the most addresses a tab's history holds, the oldest dropped first: a list nothing is fetched from, emptied by "Clear history"
 my $INSTALL_SECONDS = 1800;               # the installer of a newer release is ended after this long: the slowest install measured by hand took under two minutes
+my $INSTALL_TRIES = 12;                 # how often the installer is fetched from both places while the two differ: a release being published reaches one place minutes before the other
+my $INSTALL_WAIT = 30;                   # the seconds between those tries: twelve cover the five minutes one place may keep its old copy
 my $INSTALL_LINE = 2000;                  # the most characters of one line the installer printed that the window is given; a longer one is given in parts
 sub fresh_tab { return { url => '', title => '', visited => [], at => -1, shown => undef, says => undef, secure => undef } }    # a tab: the address in its bar, its page's title, the addresses it went to and where in them it stands (back and forward), its page shown as $SHOWN keeps it, lzrprf's last words in it, what lzrprf saw of the connection its page came over
 my @TABS = (fresh_tab());                 # the window's tabs, in the order the window shows them; the page of the selected one is the only one shown, and it is $SHOWN while it is selected
@@ -550,6 +553,7 @@ sub behind {
     return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless holds();    # [C2]
     return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
     $UNEXPIRED = !expire_log();           # [C12] the days you chose, at the start of a window; when a request of another window is open just then, it is tried again before each request of this window and each press of Log, until it is done
+    welcome();                            # once after each install or update: what is new, and what $APP does and does not do for you
     newer();
     idle("$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
     marks_told();
@@ -568,6 +572,10 @@ sub behind {
         elsif ($event =~ /^search (brave|duckduckgo|google)$/) { search_set($ENGINES{$1}) }
         elsif ($event =~ /^search custom\t([\x21-\x7e]{1,2000})$/) { search_set($1) }
         elsif ($event eq 'log') { log_shown() }
+        elsif ($event =~ /^import (sources|go)$/) { $1 eq 'go' ? import_go() : import_sources() }    # [C15] "Import bookmarks..." in the window's wizard: nothing is read before a browser is chosen, nothing written before Import
+        elsif ($event =~ /^import profiles (chrome|edge|brave|vivaldi|firefox|safari|file)$/) { import_profiles($1) }
+        elsif ($event =~ /^import preview (chrome|edge|brave|vivaldi|firefox|safari|file) (0|[1-9][0-9]?)$/) { import_preview($1, $2) }
+        elsif ($event =~ /^import path ([\x20-\x7e]{1,1000})$/) { import_path($1) }
         elsif ($event =~ /^fault / && $DRAWN) { $DRAWN = 0; fault('undrawn') }    # the window could not draw a list that "checked" let through: it shows nothing of it. Taken once for a page that was handed over, and never without one: the window's process cannot open the question about a report whenever it likes
     }
     leave();
@@ -725,6 +733,7 @@ sub visit {
     window('secure begin', (map { "secure line $_" } @{ $tab->{secure} }), 'secure end');
     $tab->{title} = $title;
     window("title $TAB $title");            # checked: plain characters, no control or format character, at most $TITLE (sub checked)
+    window("history add $url\t$title");     # what the bar suggests while you type: the pages shown in this window, in its memory only, emptied by "Clear history" (function suggested)
     idle("$host answered " . length($got) . ' bytes. ' . $styled . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
 }
 
@@ -1231,6 +1240,7 @@ sub menu {
     $count += @{ $_->{visited} } for @TABS;
     @$_{qw(visited at)} = ([], -1) for @TABS;
     nav_told();
+    window('history clear');               # the pages the bar suggests go with the history
     return idle("The history was cleared: $count " . ($count == 1 ? 'address' : 'addresses') . ' that the tabs went to. The pages shown stay. The log is cleared by its own button.') if $what eq 'clear-history';
     @$_{qw(url title shown says secure)} = ('', '', undef, undef, undef) for @TABS;
     undef $SHOWN;
@@ -1455,8 +1465,7 @@ sub marks_read {
 sub marks_walk {
     my ($folder, $deep, $found, $folders) = @_;
     my $dir = length $folder ? marks_root() . "/$folder" : marks_root();
-    opendir(my $in, $dir) or return;
-    for my $entry (sort grep { /^$PART\z/ } readdir $in) {
+    for my $entry (order_shown($dir)) {    # in the folder's order (sub order_set)
         last if @$found >= $MARKS_MOST;
         my ($path, $inner) = ("$dir/$entry", length $folder ? "$folder/$entry" : $entry);
         my @is = lstat $path or next;
@@ -1519,12 +1528,11 @@ sub mark_saved {
         marks_into_bar() unless length $part;    # the top folder may be new: the bar's folder is made before anything is kept at the top
     }
     $name = plain_name($name);
-    my $base = substr($name =~ s/[^A-Za-z0-9 ._-]/_/gr =~ s/^[ .]+//r, 0, 50) =~ s/ +\z//r;
-    $base = 'bookmark' unless length $base;
-    my $file = "$dir/$base.mark";
-    for (my $n = 2; ($old ? $file ne $old->[0] : 1) && (-e $file || -l $file); $n++) { return idle('The bookmark was not saved: too many of that name.') if $n > 999; $file = "$dir/$base $n.mark" }
+    my $file = mark_file($dir, $name, $old ? $old->[0] : undef) // return idle('The bookmark was not saved: too many of that name.');
     return idle('The bookmark could not be written. Nothing was changed.') unless mark_written($dir, $file, $name, $url);
     unlink $old->[0] if $old && $old->[0] ne $file && -f $old->[0] && !-l $old->[0];
+    my ($was_in, $was) = $old ? $old->[0] =~ m{\A(.*)/([^/]+)\z} : ();
+    order_set($dir, defined $was_in && $was_in eq $dir ? $was : undef, basename($file)) if !$old || $old->[0] ne $file;    # a new bookmark last in its folder; one renamed in its place; one moved last in its new folder
     marks_told();
     return idle(($old ? 'The bookmark was changed: ' : 'The bookmark was added: ') . "$name, $url.");
 }
@@ -1534,6 +1542,8 @@ sub mark_removed {
     my $mark = $MARKS[$n] // return idle('That bookmark is no longer there.');
     my @is = lstat $mark->[0];
     unlink $mark->[0] if @is && -f _;
+    my ($dir, $gone) = $mark->[0] =~ m{\A(.*)/([^/]+)\z};
+    order_set($dir, $gone) if defined $dir && -f "$dir/.order";    # its name leaves its folder's order, so a later bookmark of that name is added last
     marks_told();
     return idle("The bookmark was removed: $mark->[1].");
 }
@@ -1553,6 +1563,444 @@ sub marks_bar {                           # whether the bookmarks bar is shown: 
     return 0 unless -f _ && $is[4] == $<;
     defined sysread($in, my $text, 8) or return 0;
     return $text =~ /\Aon\n?\z/ ? 1 : 0;
+}
+
+# The order of a bookmarks folder. Each folder may hold one plain file of yours, .order, that names
+# what is in it, one name a line, in the order the bar, the folder menus and the bookmarks page show
+# it: bookmarks and folders mixed, as Chrome mixes them. Its name begins with a dot, so it is never
+# read as a bookmark. A name it holds that is not there is passed over; what is there and not named
+# follows the named, by name, as every folder was shown before it had an order. A bookmark added is
+# named last; one renamed keeps its place. It is written as every file of the bookmarks is: beside
+# its place, then given its name in one step (sub order_set).
+my $ORDER = '.order';
+my $ORDER_BYTES = 128 * 1024;             # DECLARED(the most of an order that is read: $MARKS_MOST names of at most 64 characters and a line end each is 65,000 bytes; twice that for a folder of folders)
+
+sub order_of {                            # the names an order holds, in order, each once; nothing when there is none
+    my ($dir) = @_;
+    sysopen(my $in, "$dir/$ORDER", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return;
+    my @is = stat $in;
+    return unless -f _ && $is[4] == $< && $is[7] <= $ORDER_BYTES;
+    defined sysread($in, my $text, $ORDER_BYTES + 1) or return;
+    my %seen;
+    return grep { /^$PART\z/ && !$seen{$_}++ } split /\n/, $text;
+}
+
+sub order_shown {                         # what a folder shows, in its order: the named first, then the rest by name
+    my ($dir) = @_;
+    opendir(my $in, $dir) or return;
+    my %there = map { $_ => 1 } grep { /^$PART\z/ } readdir $in;
+    return ((grep { delete $there{$_} } order_of($dir)), sort keys %there);
+}
+
+sub order_set {                           # a folder's order written: what it named, with one old name replaced by the new ones, then the rest by name, then the new ones not placed yet
+    my ($dir, $old, @new) = @_;
+    opendir(my $in, $dir) or return 0;
+    my %there = map { $_ => 1 } grep { /^$PART\z/ } readdir $in;
+    my %new = map { $_ => 1 } @new;
+    my @names = grep { delete $there{$_} } map { defined $old && $_ eq $old ? @new : $_ } order_of($dir);
+    push @names, grep { !$new{$_} && delete $there{$_} } sort keys %there;
+    push @names, grep { delete $there{$_} } @new;
+    unlink "$dir/$ORDER.new";
+    put("$dir/$ORDER.new", O_EXCL, @names) && rename("$dir/$ORDER.new", "$dir/$ORDER") or (unlink("$dir/$ORDER.new"), return 0);
+    synced();
+    return 1;
+}
+
+sub mark_file {                           # the file a bookmark of this name gets in that folder: its own name kept to plain characters, numbered when it is taken; nothing when 999 of it are
+    my ($dir, $name, $old) = @_;
+    my $base = substr($name =~ s/[^A-Za-z0-9 ._-]/_/gr =~ s/^[ .]+//r, 0, 50) =~ s/ +\z//r;
+    $base = 'bookmark' unless length $base;
+    my $file = "$dir/$base.mark";
+    for (my $n = 2; (defined $old ? $file ne $old : 1) && (-e $file || -l $file); $n++) { return if $n > 999; $file = "$dir/$base $n.mark" }
+    return $file;
+}
+
+# Importing bookmarks from another browser. "Import bookmarks..." in the cogwheel's menu opens the
+# window's wizard, and each of its steps is one line to lzrprf; nothing is read before you chose a
+# browser there, and nothing is written before you pressed Import. lzrprf reads the files itself,
+# never a container and never the window, and starts no program for it: each a plain file of yours
+# and no link, of at most $IMPORT_BYTES, at a fixed place under your home folder:          [C15]
+#   Chrome, Edge, Brave, Vivaldi   "Local State" for the names of the profiles, and each profile's "Bookmarks"
+#   Firefox                        profiles.ini, and the newest bookmarkbackups/*.jsonlz4 of a profile
+#   Safari                         Library/Safari/Bookmarks.plist (macOS lets a program read it only with Full Disk Access)
+#   a bookmarks file (HTML)        one you chose: found in Downloads, Desktop or Documents, or typed as a path in your home folder
+# Firefox's places.sqlite would need a program (sqlite3) and is not read: its own backups hold the
+# same bookmarks. What is read stays in the memory of the process behind the window until Import or
+# the next preview. Each bookmark goes through the checks a bookmark you add gets: its name through
+# sub plain_name, its address through sub address (one lzrprf does not fetch is skipped and
+# counted), at most $MARKS_MOST in all and folders at most $MARKS_DEEP deep (what is beyond is left
+# out and counted), and it is written by sub mark_written and named last in its folder's order
+# (sub order_set). The source's bookmarks bar goes into "Bookmarks bar", folders and all; the rest
+# into a new folder "Imported from" and the source's name. Nothing imported is fetched [C4]: a
+# bookmark is fetched when you open it, as one you made.
+my $IMPORT_BYTES = 32 * 1024 * 1024;      # DECLARED(the most of one file that is read: Chrome's own file for ten thousand bookmarks is about 3 MB)
+my $IMPORT_OUT = 64 * 1024 * 1024;        # DECLARED(the most a Firefox backup may unpack to: twice the most of a file that is read)
+my $IMPORT_NODES = 100_000;               # DECLARED(the most bookmarks and folders taken from one file: a hundred times $MARKS_MOST; the rest is left out)
+my $IMPORT_DEPTH = 64;                    # DECLARED(the most folders inside folders read from one file: what is deeper is left out; four are kept)
+my $IMPORT_FOUND = 20;                    # DECLARED(the most bookmarks files the HTML step offers: the newest)
+my %BROWSERS = (chrome => ['Chrome', 'Library/Application Support/Google/Chrome'], edge => ['Edge', 'Library/Application Support/Microsoft Edge'],
+    brave => ['Brave', 'Library/Application Support/BraveSoftware/Brave-Browser'], vivaldi => ['Vivaldi', 'Library/Application Support/Vivaldi'],
+    firefox => ['Firefox', 'Library/Application Support/Firefox'], safari => ['Safari', 'Library/Safari'], file => ['HTML file', '']);
+my @BROWSERS = qw(chrome edge brave firefox safari vivaldi);    # in the wizard's order; Vivaldi is the owner's pick of a sixth
+my ($IMPORT, $IMPORT_KEY, @IMPORT_FROM);    # what the last preview read: [the source's name, its bar, the rest]; the browser chosen; its profiles or files: [what the window shows, the file]
+my $IMPORT_SEEN = 0;                      # how many bookmarks and folders the file being read has given so far
+
+sub import_home { $TRY ? "$DIR/home" : $HOME }    # "lzrprf try": the test's own folder stands for the home folder
+
+sub import_read {                         # a file's bytes, or nothing and why
+    my ($file) = @_;
+    sysopen(my $in, $file, O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return (undef, $!{EPERM} || $!{EACCES} ? 'refused' : $!{ELOOP} ? 'it is a link, which lzrprf does not follow' : 'missing');
+    my @is = stat $in;
+    return (undef, 'not a plain file of yours') unless -f _ && $is[4] == $<;
+    return (undef, 'larger than 32 MiB') if $is[7] > $IMPORT_BYTES;
+    my ($text, $got) = ('', 0);
+    while (($got = sysread($in, $text, 1 << 20, length $text)) && length $text <= $IMPORT_BYTES) { }
+    return (undef, 'unreadable') unless defined $got && length $text <= $IMPORT_BYTES;
+    return $text;
+}
+
+sub import_node {                         # one bookmark or folder of a file, or nothing once $IMPORT_NODES were taken
+    my ($name, $url, $kids) = @_;
+    return if ++$IMPORT_SEEN > $IMPORT_NODES;
+    $name //= '';
+    utf8::encode($name) if utf8::is_utf8($name);
+    return $kids ? { name => $name, kids => $kids } : { name => $name, url => $url // '' };
+}
+
+sub import_json {                         # a JSON text, decoded by the JSON code that comes with the system's perl, or nothing
+    my ($text) = @_;
+    require JSON::PP;
+    return eval { JSON::PP->new->utf8->max_depth(2 * $IMPORT_DEPTH + 8)->decode($text) };
+}
+
+sub lz4_block {                           # an LZ4 block (the block format of lz4) unpacked, at most $most bytes; nothing for one that is not well formed
+    my ($in, $most) = @_;
+    my ($at, $end, $out) = (0, length $in, '');
+    my $more = sub { my $n = 0; while (1) { return -1 if $at >= $end; my $byte = ord substr($in, $at++, 1); $n += $byte; return $n if $byte != 255 } };
+    while ($at < $end) {
+        my $token = ord substr($in, $at++, 1);
+        my $literals = $token >> 4;
+        if ($literals == 15) { my $n = $more->(); return if $n < 0; $literals += $n }
+        return if $at + $literals > $end || length($out) + $literals > $most;
+        $out .= substr($in, $at, $literals);
+        $at += $literals;
+        last if $at == $end;              # the last sequence holds literals alone
+        return if $at + 2 > $end;
+        my $back = unpack 'v', substr($in, $at, 2);
+        $at += 2;
+        return if !$back || $back > length $out;
+        my $length = $token & 15;
+        if ($length == 15) { my $n = $more->(); return if $n < 0; $length += $n }
+        $length += 4;
+        return if length($out) + $length > $most;
+        my $from = substr($out, length($out) - $back, $back < $length ? $back : $length);
+        $out .= $back >= $length ? $from : substr($from x (int($length / $back) + 1), 0, $length);    # a copy that overlaps itself repeats what it copies
+    }
+    return $out;
+}
+
+sub plist_binary {                        # a binary property list (bplist00) as Perl data, or nothing: strings, numbers, arrays and dictionaries; what else it holds is undef
+    my ($text) = @_;
+    return unless length $text >= 40 && substr($text, 0, 8) eq 'bplist00';
+    my ($size, $refs, $count, $top, $table) = unpack 'x6 C C Q> Q> Q>', substr($text, -32);
+    return unless $size >= 1 && $size <= 8 && $refs >= 1 && $refs <= 8 && $count <= length($text) && $top < $count && $table + $count * $size <= length($text) - 32;
+    my $int = sub { my ($at, $n) = @_; my $v = 0; $v = $v * 256 + ord substr($text, $at + $_, 1) for 0 .. $n - 1; return $v };
+    my $steps = 0;
+    my $object; $object = sub {
+        my ($ref, $deep) = @_;
+        return if $ref >= $count || $deep > $IMPORT_DEPTH * 2 + 8 || ++$steps > 4 * $IMPORT_NODES;
+        my $at = $int->($table + $ref * $size, $size);
+        return if $at >= length($text) - 32;
+        my $marker = ord substr($text, $at, 1);
+        my ($kind, $n) = ($marker >> 4, $marker & 15);
+        my $body = $at + 1;
+        if ($kind != 0 && $kind != 1 && $kind != 2 && $kind != 3 && $kind != 8 && $n == 15) {    # a length of 15 or more follows as a number of its own
+            my $head = ord substr($text, $body, 1);
+            return unless $head >> 4 == 1;
+            my $bytes = 1 << ($head & 15);
+            return if $bytes > 8;
+            $n = $int->($body + 1, $bytes);
+            $body += 1 + $bytes;
+        }
+        if ($kind == 1) { return $int->($body, 1 << $n) if (1 << $n) <= 8; return }
+        if ($kind == 5) { return if $body + $n > length $text; return substr($text, $body, $n) }
+        if ($kind == 6) {
+            return if $body + 2 * $n > length $text;
+            require Encode;
+            my $chars = eval { Encode::decode('UTF-16BE', substr($text, $body, 2 * $n)) } // return;
+            utf8::encode($chars);
+            return $chars;
+        }
+        if ($kind == 10) { return if $body + $n * $refs > length $text; return [map { $object->($int->($body + $_ * $refs, $refs), $deep + 1) } 0 .. $n - 1] }
+        if ($kind == 13) {
+            return if $body + 2 * $n * $refs > length $text;
+            my %dict;
+            for my $k (0 .. $n - 1) {
+                my $key = $object->($int->($body + $k * $refs, $refs), $deep + 1);
+                $dict{$key} = $object->($int->($body + ($n + $k) * $refs, $refs), $deep + 1) if defined $key && !ref $key;
+            }
+            return \%dict;
+        }
+        return;
+    };
+    return $object->($top, 0);
+}
+
+sub html_text {                           # the text of HTML with its entities as characters, in UTF-8
+    my ($text) = @_;
+    my $char = sub { my $n = $_[0]; return '?' if $n > 0x10ffff || $n >= 0xd800 && $n <= 0xdfff; my $c = chr $n; utf8::encode($c); return $c };
+    $text =~ s/&(?:#(\d{1,7})|#[xX]([0-9A-Fa-f]{1,6})|(amp|lt|gt|quot|apos|nbsp));/defined $1 ? $char->($1) : defined $2 ? $char->(hex $2) : { amp => '&', lt => '<', gt => '>', quot => '"', apos => "'", nbsp => ' ' }->{$3}/ge;
+    return $text;
+}
+
+sub import_html {                         # the Netscape bookmarks file every browser exports: (its bar, the rest)
+    my ($text) = @_;
+    return unless $text =~ /NETSCAPE-Bookmark-file-1/i;
+    my (@stack, $waiting) = ([]);
+    my $root = $stack[0];
+    while ($text =~ m{<(/?)(DL|H3|A)\b([^>]*)>(?:([^<]*)</(?:H3|A)\s*>)?}gi) {
+        my ($close, $tag, $attributes, $inner) = ($1, uc $2, $3, $4 // '');
+        if ($tag eq 'DL') {
+            if ($close) { pop @stack if @stack > 1 }
+            else { push @stack, $waiting ? $waiting->{kids} : $stack[-1]; undef $waiting }
+            next;
+        }
+        next if $close;
+        my $name = html_text($inner =~ s/\s+/ /gr);
+        if ($tag eq 'H3') {
+            my $folder = @stack <= $IMPORT_DEPTH ? import_node($name, undef, []) : undef;
+            $waiting = $folder // { kids => [] };    # a folder too deep, or one too many, takes what is in it with it
+            $folder->{bar} = 1 if $folder && $attributes =~ /PERSONAL_TOOLBAR_FOLDER\s*=\s*"true"/i;
+            push @{ $stack[-1] }, $folder if $folder;
+        } else {
+            my ($href) = $attributes =~ /\bHREF\s*=\s*"([^"]*)"/i;
+            my $mark = import_node($name, html_text($href // '')) or next;
+            push @{ $stack[-1] }, $mark;
+        }
+    }
+    my ($bar) = grep { $_->{kids} && $_->{bar} } @$root;
+    ($bar) = grep { $_->{kids} && $_->{name} =~ /^(?:Bookmarks ?bar|Bookmarks Toolbar|Favou?rites|BookmarksBar)$/i } @$root unless $bar;    # Safari's export names its bar Favorites and marks it no other way
+    return ($bar ? $bar->{kids} : [], [grep { !$bar || $_ != $bar } @$root]);
+}
+
+sub import_chromium {                     # Chrome's Bookmarks file, and that of each browser made from Chromium: (its bar, the rest)
+    my ($text) = @_;
+    my $all = import_json($text);
+    return unless ref $all eq 'HASH' && ref $all->{roots} eq 'HASH';
+    my $nodes; $nodes = sub {
+        my ($list, $deep) = @_;
+        return [] unless ref $list eq 'ARRAY' && $deep <= $IMPORT_DEPTH;
+        return [map { ref $_ ne 'HASH' ? () : ($_->{type} // '') eq 'folder' ? (import_node($_->{name}, undef, $nodes->($_->{children}, $deep + 1)) // ()) : ($_->{type} // '') eq 'url' ? (import_node($_->{name}, $_->{url}) // ()) : () } @$list];
+    };
+    my $roots = $all->{roots};
+    my $mobile = ref $roots->{synced} eq 'HASH' ? $nodes->($roots->{synced}{children}, 1) : [];
+    return ($nodes->(ref $roots->{bookmark_bar} eq 'HASH' ? $roots->{bookmark_bar}{children} : [], 1),
+        [@{ ref $roots->{other} eq 'HASH' ? $nodes->($roots->{other}{children}, 1) : [] }, @$mobile ? import_node('Mobile bookmarks', undef, $mobile) // () : ()]);
+}
+
+sub import_firefox {                      # a Firefox backup, bookmarkbackups/*.jsonlz4: "mozLz40", a zero byte, the size unpacked in 4 bytes, then one LZ4 block
+    my ($text) = @_;
+    return unless length $text > 12 && substr($text, 0, 8) eq "mozLz40\0";
+    my $size = unpack 'V', substr($text, 8, 4);
+    return if $size > $IMPORT_OUT;
+    my $json = lz4_block(substr($text, 12), $size) // return;
+    return unless length $json == $size;
+    my $all = import_json($json);
+    return unless ref $all eq 'HASH' && ref $all->{children} eq 'ARRAY';
+    my $nodes; $nodes = sub {
+        my ($list, $deep) = @_;
+        return [] unless ref $list eq 'ARRAY' && $deep <= $IMPORT_DEPTH;
+        return [map { ref $_ ne 'HASH' ? () : ($_->{type} // '') eq 'text/x-moz-place-container' ? (import_node($_->{title}, undef, $nodes->($_->{children}, $deep + 1)) // ()) : ($_->{type} // '') eq 'text/x-moz-place' ? (import_node($_->{title}, $_->{uri}) // ()) : () } @$list];
+    };
+    my %root = map { ref $_ eq 'HASH' && defined $_->{guid} ? ($_->{guid} => $_->{children}) : () } @{ $all->{children} };
+    my ($other, $mobile) = ($nodes->($root{unfiled_____}, 1), $nodes->($root{mobile______}, 1));
+    return ($nodes->($root{toolbar_____}, 1), [@{ $nodes->($root{menu________}, 1) }, @$other ? import_node('Other bookmarks', undef, $other) // () : (), @$mobile ? import_node('Mobile bookmarks', undef, $mobile) // () : ()]);
+}
+
+sub import_safari {                       # Safari's Bookmarks.plist: (its bar, the rest)
+    my ($text) = @_;
+    my $all = plist_binary($text);
+    return unless ref $all eq 'HASH' && ref $all->{Children} eq 'ARRAY';
+    my $nodes; $nodes = sub {
+        my ($list, $deep) = @_;
+        return [] unless ref $list eq 'ARRAY' && $deep <= $IMPORT_DEPTH;
+        return [map {
+            my $one = $_;
+            my $type = ref $one eq 'HASH' ? $one->{WebBookmarkType} // '' : '';
+            $type eq 'WebBookmarkTypeList' ? (import_node($one->{Title}, undef, $nodes->($one->{Children}, $deep + 1)) // ())
+                : $type eq 'WebBookmarkTypeLeaf' ? (import_node(ref $one->{URIDictionary} eq 'HASH' ? $one->{URIDictionary}{title} : '', $one->{URLString}) // ()) : ()
+        } @$list];
+    };
+    my %root = map { ref $_ eq 'HASH' ? (($_->{Title} // '') => $_) : () } @{ $all->{Children} };
+    my $reading = $root{'com.apple.ReadingList'} ? $nodes->($root{'com.apple.ReadingList'}{Children}, 1) : [];
+    return ($root{BookmarksBar} ? $nodes->($root{BookmarksBar}{Children}, 1) : [],
+        [@{ $root{BookmarksMenu} ? $nodes->($root{BookmarksMenu}{Children}, 1) : [] }, @$reading ? import_node('Reading List', undef, $reading) // () : ()]);
+}
+
+sub import_profiles_of {                  # a browser's profiles that hold bookmarks: [the name shown, the file]
+    my ($key) = @_;
+    my $base = import_home() . '/' . $BROWSERS{$key}[1];
+    return ['Safari', "$base/Bookmarks.plist"] if $key eq 'safari';
+    if ($key eq 'firefox') {
+        my ($ini) = import_read("$base/profiles.ini");
+        return unless defined $ini;
+        my (@found, %one);
+        for my $line (split /\r?\n/, "$ini\n[end]") {
+            if ($line =~ /^\[/) {
+                if (defined $one{Path} && $one{Path} !~ m{(?:^|/)\.\.(?:/|$)}) {
+                    my $dir = ($one{IsRelative} // '1') eq '1' ? "$base/$one{Path}" : $one{Path};
+                    my ($newest) = sort { $b cmp $a } grep { -f $_ && !-l $_ } bsd_glob("$dir/bookmarkbackups/*.jsonlz4");
+                    push @found, [plain_name($one{Name} // $one{Path}), $newest] if $newest && index($dir, import_home() . '/') == 0;
+                }
+                %one = ();
+            } elsif ($line =~ /^(Name|Path|IsRelative)=(.{1,500})$/) { $one{$1} = $2 }
+        }
+        return @found;
+    }
+    my ($state) = import_read("$base/Local State");
+    my $cache = defined $state ? (import_json($state) // {})->{profile} : undef;
+    $cache = ref $cache eq 'HASH' && ref $cache->{info_cache} eq 'HASH' ? $cache->{info_cache} : { Default => { name => 'Default' } };
+    return map { [plain_name(do { my $n = ref $cache->{$_} eq 'HASH' ? $cache->{$_}{name} // $_ : $_; utf8::encode($n) if utf8::is_utf8($n); $n }), "$base/$_/Bookmarks"] }
+        grep { /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}\z/ && -f "$base/$_/Bookmarks" && !-l "$base/$_/Bookmarks" } sort keys %$cache;
+}
+
+sub import_files {                        # the bookmarks files in Downloads, Desktop and Documents, the newest first: [the name shown, the file]
+    my @found;
+    for my $where (qw(Downloads Desktop Documents)) {
+        opendir(my $in, import_home() . "/$where") or next;    # macOS may not let lzrprf look there: then nothing is found there
+        for my $entry (grep { /^[^.].{0,200}\.html?\z/is } readdir $in) {
+            my $file = import_home() . "/$where/$entry";
+            my @is = lstat $file or next;
+            next unless -f _ && $is[4] == $< && $is[7] <= $IMPORT_BYTES;
+            sysopen(my $one, $file, O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or next;
+            defined sysread($one, my $head, 512) or next;
+            push @found, [plain_name("$where/$entry"), $file, $is[9]] if $head =~ /NETSCAPE-Bookmark-file-1/i;
+        }
+    }
+    @found = sort { $b->[2] <=> $a->[2] || $a->[0] cmp $b->[0] } @found;
+    return @found[0 .. ($#found < $IMPORT_FOUND - 1 ? $#found : $IMPORT_FOUND - 1)];
+}
+
+sub import_sources {
+    undef $IMPORT;
+    window('import begin', (map { my @of = import_profiles_of($_); my $there = $_ eq 'safari' ? (-e $of[0][1] || $!{EPERM} || $!{EACCES} ? 1 : 0) : @of ? 1 : 0; "import source $_ $there " . ($_ eq 'safari' ? 1 : scalar @of) . " $BROWSERS{$_}[0]" } @BROWSERS),
+        'import source file 1 ' . scalar(my @files = import_files()) . ' A bookmarks file (HTML)', 'import step source');
+    return idle('Choose the browser to import bookmarks from. Nothing is read before you choose, and nothing is written before you press Import.');
+}
+
+sub import_profiles {
+    my ($key) = @_;
+    $IMPORT_KEY = $key;
+    @IMPORT_FROM = $key eq 'file' ? import_files() : import_profiles_of($key);
+    return import_preview($key, 0) if $key ne 'file' && @IMPORT_FROM == 1;
+    return import_refused("lzrprf found no profile of $BROWSERS{$key}[0] with bookmarks on this Mac.") if $key ne 'file' && !@IMPORT_FROM;
+    window('import begin', (map { "import profile $_ $IMPORT_FROM[$_][0]" } 0 .. $#IMPORT_FROM), 'import step profile');
+    return idle($key eq 'file' ? (@IMPORT_FROM ? 'Choose the bookmarks file, or type its path.' : 'No bookmarks file was found in Downloads, Desktop or Documents: type its path.') : "Choose the profile of $BROWSERS{$key}[0] to import from.");
+}
+
+sub import_refused { window("import refused $_[0]"); return idle($_[0]) }
+
+sub import_path {                         # a bookmarks file typed as a path: in your home folder, by a path that does not climb out of it
+    my ($path) = @_;
+    $path =~ s/^\s+|\s+$//g;
+    $path =~ s{^~/}{import_home() . '/'}e;
+    return import_refused('That is not a path in your home folder. Type it whole, for example ~/Downloads/bookmarks.html.') unless index($path, import_home() . '/') == 0 && $path !~ m{(?:^|/)\.\.?(?:/|$)};
+    ($IMPORT_KEY, @IMPORT_FROM) = ('file', [plain_name(substr($path, length(import_home()) + 1)), $path]);
+    return import_preview('file', 0);
+}
+
+sub import_preview {
+    my ($key, $n) = @_;
+    my $from = $key eq ($IMPORT_KEY // '') ? $IMPORT_FROM[$n] : undef;
+    return import_refused('Choose the browser again: that choice is no longer there.') unless $from;
+    my ($text, $why) = import_read($from->[1]);
+    return import_refused($key eq 'safari' ? 'macOS did not let lzrprf read Safari\'s bookmarks: it gives that file only to a program you granted Full Disk Access. In Safari choose File, Export, Bookmarks..., keep the file in Downloads, then choose A bookmarks file (HTML) here.' : "lzrprf could not read $from->[0]: $why.") unless defined $text;
+    $IMPORT_SEEN = 0;
+    my ($bar, $rest) = { chrome => \&import_chromium, edge => \&import_chromium, brave => \&import_chromium, vivaldi => \&import_chromium, firefox => \&import_firefox, safari => \&import_safari, file => \&import_html }->{$key}->($text);
+    return import_refused("$from->[0] is not a bookmarks file lzrprf can read.") unless $bar;
+    $IMPORT = [$BROWSERS{$key}[0], $bar, $rest, $IMPORT_SEEN > $IMPORT_NODES ? $IMPORT_SEEN - $IMPORT_NODES : 0];
+    my $plan = import_plan();
+    window('import preview ' . import_counts($plan), 'import step preview');
+    return idle("$from->[0]: $plan->{marks} bookmarks read. Nothing is written before you press Import.");
+}
+
+sub import_counts { my ($plan) = @_; return join(' ', @$plan{qw(marks folders bar skipped left)}) . "\t$plan->{where}\t" . ($plan->{why} // '') }
+
+sub import_plan {                         # what Import would write, in order: ['F', folder] and ['B', folder, name, address]; with what it counts and leaves out
+    my ($label, $bar, $rest, $over) = @$IMPORT;
+    my ($found) = marks_read();
+    my $root = marks_root();
+    my %plan = (steps => [], marks => 0, folders => 0, bar => 0, skipped => 0, left => 0, where => '');
+    my ($room, $deep, $full, %used) = ($MARKS_MOST - @$found, 0, 0);
+    my $count; $count = sub { my $n = 0; $n += $_->{kids} ? $count->($_->{kids}) : 1 for @{ $_[0] }; return $n };
+    my $walk; $walk = sub {
+        my ($nodes, $folder, $level, $in_bar) = @_;
+        for my $node (@$nodes) {
+            if ($node->{kids}) {
+                if ($level >= $MARKS_DEEP) { $deep += $count->($node->{kids}); next }
+                my $name = substr($node->{name} =~ s/[^A-Za-z0-9 ._-]/_/gr =~ s/^[ .]+//r, 0, 60) =~ s/ +\z//r;
+                $name = 'Folder' unless length $name;
+                my $base = $name;
+                for (my $k = 2; $used{"$folder/$name"}; $k++) { $name = "$base $k" }    # two folders of one name in one place stay two
+                $used{"$folder/$name"} = 1;
+                push @{ $plan{steps} }, ['F', "$folder/$name"];
+                $plan{folders}++;
+                $walk->($node->{kids}, "$folder/$name", $level + 1, $in_bar);
+            } else {
+                my ($url) = address($node->{url});
+                if (!$url) { $plan{skipped}++; next }
+                if ($room <= 0) { $full++; next }
+                $room--;
+                push @{ $plan{steps} }, ['B', $folder, plain_name($node->{name}), $url];
+                $plan{marks}++;
+                $plan{bar}++ if $in_bar;
+            }
+        }
+    };
+    $walk->($bar, $BAR, 1, 1);
+    if (@$rest) {
+        my $own = "Imported from $label";
+        for (my $k = 2; -e "$root/$own" || -l "$root/$own"; $k++) { $own = "Imported from $label $k" }
+        push @{ $plan{steps} }, ['F', $own];
+        $plan{where} = $own;
+        $walk->($rest, $own, 1, 0);
+    }
+    $plan{left} = $deep + $full + $over;
+    $plan{why} = join(' ', $deep ? "$deep in folders deeper than $MARKS_DEEP, the most LZRBRWSR keeps." : (), $full ? "$full beyond the $MARKS_MOST bookmarks LZRBRWSR holds in all." : (), $over ? "$over beyond the first $IMPORT_NODES things the file holds." : ());
+    return \%plan;
+}
+
+sub import_go {
+    return import_refused('Nothing waits to be imported: choose a browser first.') unless $IMPORT;
+    my $plan = import_plan();
+    busy("Importing $plan->{marks} bookmarks.");
+    my ($root, %order, @order_of) = (marks_root());
+    mkdir $root, 0700 unless -e $root || -l $root;
+    return import_refused("Nothing was imported: $root is not a folder of yours.") unless owned_folder($root);
+    marks_into_bar();
+    my ($written, $stopped) = (0, '');
+    for my $step (@{ $plan->{steps} }) {
+        my $dir = "$root/$step->[1]";
+        my ($parent, $name);
+        if ($step->[0] eq 'F') {
+            mkdir $dir, 0700 unless -e $dir || -l $dir;
+            ($stopped = "$dir is not a folder of yours"), last unless owned_folder($dir);
+            ($parent, $name) = $dir =~ m{\A(.*)/([^/]+)\z};
+        } else {
+            my $file = mark_file($dir, $step->[2]) or next;
+            ($stopped = "a bookmark could not be written in $dir"), last unless mark_written($dir, $file, $step->[2], $step->[3]);
+            $written++;
+            ($parent, $name) = ($dir, basename($file));
+        }
+        push @order_of, $parent unless $order{$parent};
+        push @{ $order{$parent} }, $name;
+    }
+    order_set($_, undef, @{ $order{$_} }) for @order_of;    # each folder's new names last in its order, in the source's order
+    undef $IMPORT;
+    marks_told();
+    $plan->{marks} = $written;
+    window('import done ' . import_counts($plan), 'import step done');
+    return idle("$written bookmarks were imported" . (length $stopped ? ", then the import stopped: $stopped." : '.'));
 }
 
 # The style sheets a page names. Its first run may write a line
@@ -1917,6 +2365,55 @@ sub newer {
     installed($there, $installer, $same);
 }
 
+# A welcome, once after each install or update. At the first start of a
+# release this folder was not welcomed to yet, the window shows a modal: what
+# is new in it (the release file's lines "new", at most six) and, every time,
+# two short groups, what $APP keeps you from and what it cannot, which stays
+# yours to watch, so that every release is begun with the right picture of
+# what it does. A site can still do things to you with what you give it: the
+# second group says so before anything is opened. "Got it" closes it, and only
+# then is the release number written to $DIR/welcomed, a number and nothing
+# else; when it cannot be written the welcome comes again at the next start.
+# Nothing is fetched for it. An application without a release file shows none,
+# and "lzrprf try" only when its folder holds a file "welcome".
+my @PROTECTS = (
+    'Page scripts: no page runs a script here, so no tracking code, fingerprinting or hidden miner runs either.',
+    'Being followed: every site gets the same request from every computer, with no cookie and nothing kept from an earlier visit.',
+    'Pages reaching your Mac: each page is drawn in a sealed container with no network, no file of yours and no other program.',
+    'Hidden requests: nothing is fetched that you did not ask for, and every address is in your log before it is fetched.',
+);
+my @CANNOT = (
+    'What you send: whatever you type into a site, a password, a card number, your name, goes to that site, to keep or to misuse.',
+    'What a site does on its side: a site you sign in to knows it is you, and keeps and shares what you do there on its own servers.',
+    'Fake sites and scams: a page can look exactly like your bank. Read the address in the bar before you trust it or type anything.',
+    'What you take elsewhere: a file you save and open, or a link you follow in another program, is outside $APP.',
+    'Your internet address: every site you open sees it, as with every browser.',
+);
+sub welcome {
+    my ($release) = beside();
+    return unless defined $release;
+    return if $TRY && !-e "$DIR/welcome";
+    my $was = '';
+    if (open my $in, '<', "$DIR/welcomed") { $was = <$in> // '' }
+    return if $was eq $release;
+    my @new = grep { length } map { /^new (.+)$/ ? substr($1 =~ s/[\x00-\x1f\x7f]//gr, 0, 200) : () } release_lines();
+    splice @new, 6;
+    window("welcome begin $release");
+    window(@new ? ("welcome line n What is new in release $release", map { "welcome line b $_" } @new) : ());
+    window("welcome line g What $APP keeps you from", (map { "welcome line b $_" } @PROTECTS), "welcome line y What $APP cannot keep you from: yours to watch", map { "welcome line b " . s/\$APP/$APP/gr } @CANNOT);
+    window('welcome end');
+    my @held;
+    while (defined(my $line = hear())) {
+        if ($line ne 'welcomed') { push @held, $line; next }
+        unlink "$DIR/welcomed";
+        my $out;
+        sysopen($out, "$DIR/welcomed", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) && print({$out} $release) && close($out);
+        unshift @HELD, @held;
+        return;
+    }
+    leave();                              # the window is gone
+}
+
 # What "Install it" does, with no key to press after it: the press is the yes.
 # What it can reach is only this: the installer at the address the
 # application's release file names. lzrprf fetches it the way it fetches a
@@ -1953,13 +2450,19 @@ sub installed {
     return install_end(0, 'The second place the release file names is not an address lzrprf fetches. Nothing was fetched.') if defined $same && !length $same;
     my @from = ($installer, defined $same ? $same : ());
     my @copies;
-    for my $url (@from) {
-        install_line("Fetching the installer from $url");
-        my ($host) = $url =~ m{^https://([^/:]+)};
-        my $got = fixed("you chose to install release $there: lzrprf fetches the installer: $url", $url, $host);
-        my $body = defined $got ? body_of($got) : undef;
-        return install_end(0, "The installer could not be fetched from $url. Nothing was changed.") unless defined $body && length $body;
-        push @copies, $body;
+    for my $try (1 .. $INSTALL_TRIES) {       # the copies are compared each time anew: one that differs is never run, it is only fetched again later
+        @copies = ();
+        for my $url (@from) {
+            install_line("Fetching the installer from $url");
+            my ($host) = $url =~ m{^https://([^/:]+)};
+            my $got = fixed("you chose to install release $there: lzrprf fetches the installer: $url", $url, $host);
+            my $body = defined $got ? body_of($got) : undef;
+            return install_end(0, "The installer could not be fetched from $url. Nothing was changed.") unless defined $body && length $body;
+            push @copies, $body;
+        }
+        last if @copies < 2 || $copies[0] eq $copies[1] || $try == $INSTALL_TRIES;
+        install_line("The two places hold different installers for now. Nothing runs while they differ: a new release is usually being published, and one place can keep its old copy for up to five minutes. Both are fetched again in $INSTALL_WAIT seconds (try $try of $INSTALL_TRIES).");
+        Time::HiRes::sleep($TRY ? 0.05 : $INSTALL_WAIT);    # "lzrprf try" waits a moment only: the tries are what is tested, not the clock
     }
     return install_end(0, "The two places hold different installers. Nothing was changed: $from[0] and $from[1].") if @copies == 2 && $copies[0] ne $copies[1];
     my ($folder, $out) = ("$DIR/install.$$");
@@ -2000,8 +2503,37 @@ sub installed {
     my $how = ended($child, 5);
     return install_end(0, "The installer was ended after $INSTALL_SECONDS seconds. What it printed is above.") if $late;
     return install_end(0, 'The installer ended with an error (' . ($how >> 8) . '). What it printed is above.') unless $how == 0;
-    install_end(1, "The installer says it is done. Start $APP again to run the new release.");
-    closed("The installer says it is done. Start $APP again to run the new release.");
+    install_end(1, "The installer says it is done. Close $APP, or close it and start the new release at once.");
+    restarted();
+}
+
+# After an install that is done lzrprf takes nothing more in this window, which
+# offers two buttons: Close, and Close and restart. "restart" starts the
+# application again once this run has ended: a process of its own, outside
+# this run's session, waits until lzrprf and the launcher that started it are
+# gone (at most 20 seconds), then asks macOS to open the application at the
+# place it ran from, which the installer has replaced by then. Nothing else
+# is started, and "lzrprf try" starts nothing.
+sub restarted {
+    busy('The install is done.');
+    while (defined(my $line = hear())) {
+        next unless $line eq 'restart';
+        my ($app) = $PROGRAM =~ m{^(.*\.app)/Contents/MacOS/};
+        last unless $app && !$TRY;
+        record("you chose to start $APP again after the install: $app") or last;    # [C5]
+        my @waits = ($$, getppid());
+        my $first = fork;
+        if (defined $first && !$first) {
+            POSIX::setsid();
+            my $second = fork;
+            POSIX::_exit(0) if !defined $second || $second;
+            for (1 .. 80) { last unless grep { kill 0, $_ } @waits; Time::HiRes::sleep(0.25) }
+            become(undef, undef, undef, '/usr/bin/open', '-n', $app);
+        }
+        waitpid($first, 0) if $first;
+        last;
+    }
+    leave();
 }
 
 sub install_line {                        # one line the installer printed: in the window's modal, with its colour as one letter, and in install.txt
@@ -2584,8 +3116,15 @@ var again = false, viewing = '';    // the list being drawn is the page shown la
 var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
 var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
 var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
-var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
-var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 26, TOP = TABS_HIGH + BAR_ROW, MARGIN = 22, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
+var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
+var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 30, TOP = TABS_HIGH + BAR_ROW, MARGIN = 22, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
+// Where the pointer is, in a view's own coordinates. It is converted from the window's content view, a view
+// this script keeps, and never from a nil: a nil made in the script can reach AppKit as a stray pointer and end
+// the window in -[NSView ancestorSharedWithView:] (KERN_INVALID_ADDRESS, seen on mouse moves while installing,
+// 2026-11-20). The content view stands at the window's origin and is not flipped, so its points are the window's.
+var frameView = null;
+function pointIn(view, event) { return view.convertPointFromView(event.locationInWindow, frameView || view); }
+
 var root, homeView, listScroll, listView, secureBox, secureScroll, secureText, engineField, listing = null, pageShown = false, navState = [0, 0, 0], searchSet = false, searchNext = null, secureLines = null, securePinned = false;    // the frame every view stands in, the home page, the list page, the lock's panel; which list is open; whether a page is drawn; what back, forward and reload would do; whether a search engine is chosen and what follows its choice; the lock's lines
 
 function say(line) { to.writeData($(line + '\n').dataUsingEncoding(4)); }
@@ -2607,12 +3146,15 @@ function heard(line) {
     else if (word == 'tabs') tabsTold(rest);
     else if (word == 'title') { var gap = rest.indexOf(' '), which = +rest.slice(0, gap); if (tabs[which]) tabs[which].title = rest.slice(gap + 1); tabsView.needsDisplay = true; }
     else if (word == 'install') installTold(rest);
+    else if (word == 'welcome') welcomeTold(rest);
     else if (word == 'ask') { asked++; strip(rest.split('\t'), false, true); }
-    else if (word == 'address') { bar.stringValue = $(rest); current = rest; listing = null; pieces(); redrawn(); }
+    else if (word == 'address') { bar.stringValue = $(rest); current = rest; listing = null; suggestHidden(); pieces(); redrawn(); }
     else if (word == 'nav') { navState = rest.split(' ').map(Number); belt.needsDisplay = true; }
     else if (word == 'search') { searchSet = rest != 'none' ? searchSet || rest == 'set' : false; if (rest == 'ask') { searchNext = 'go ' + bar.stringValue.js.replace(/[^\x20-\x7e]/g, '\x7f').slice(0, 2100); engineAsked(); } }
     else if (word == 'secure') { if (rest == 'begin') secureLines = []; else if (rest.slice(0, 5) == 'line ' && secureLines) secureLines.push(rest.slice(5)); else if (rest == 'none') secureLines = null; if (!secureBox.hidden && rest != 'begin' && rest.slice(0, 5) != 'line ') secureShown(); }
-    else if (word == 'marks') { if (rest == 'begin') { marks = []; folders = []; } else { listSized(); redrawn(); } }
+    else if (word == 'marks') { if (rest == 'begin') { marks = []; folders = []; markCount = 0; folderAt = {}; } else { listSized(); redrawn(); } }
+    else if (word == 'history') historyTold(rest);
+    else if (word == 'import') importTold(rest);
     else if (word == 'mark') markTold(rest);
     else if (word == 'marksbar') { marksOn = rest == 'on'; marksView.hidden = !marksOn; place(); }
     else if (word == 'redirect') redirectTold(rest);
@@ -2632,6 +3174,7 @@ function strip(parts, open, question) {
     second.hidden = !question || !parts[2];
     bar.enabled = free && !modalOpen;
     logs.enabled = free && !modalOpen;
+    if (!free) suggestHidden();
     redrawn();
     place();
     if (free && !modalOpen && searchSet && searchNext) {    // a search engine was just chosen: the bar to type into, or the words typed before it was asked for
@@ -2659,7 +3202,6 @@ function place() {
     win.contentView.needsDisplay = true;
     TOP = TABS_HIGH + BAR_ROW + (marksOn ? MARKS_ROW : 0);
     var all = root.frame, wide = all.size.width, high = all.size.height, tall = asking ? 96 : STRIP;
-    var room = high - TOP - tall, low = Math.round(Math.min(room / 2, Math.max(96, Math.min(190, room * 0.3))));    // the pane under the page: three tenths of what is left, between 96 and 190, and never more than half
     var row = high - TABS_HIGH - BAR_ROW, pillAt = 146, pillWide = Math.max(160, wide - pillAt - 64);
     PILL = $.NSMakeRect(pillAt, 10, pillWide, 36);    // in the bar's row
     tabsView.frame = $.NSMakeRect(0, high - TABS_HIGH, wide, TABS_HIGH);
@@ -2669,13 +3211,13 @@ function place() {
     cog.frame = $.NSMakeRect(wide - 50, row + 13, 30, 30);
     marksView.frame = $.NSMakeRect(0, row - MARKS_ROW, wide, MARKS_ROW);
     stripBack.frame = $.NSMakeRect(0, 0, wide, tall);
-    words.frame = asking ? $.NSMakeRect(20, 10, wide - 340, tall - 18) : $.NSMakeRect(20, 4, wide - 40, 17);
+    words.frame = asking ? $.NSMakeRect(20, 10, wide - 340, tall - 18) : $.NSMakeRect(20, 6, wide - 104, 17);
     first.frame = $.NSMakeRect(wide - 304, (tall - 30) / 2, 132, 30);
     second.frame = $.NSMakeRect(wide - 162, (tall - 30) / 2, 138, 30);
     var pageTop = high - TOP;
-    under.frame = $.NSMakeRect(0, tall, wide, low);
-    scroll.frame = $.NSMakeRect(0, tall + low, wide, Math.max(1, pageTop - tall - low));
-    logs.frame = $.NSMakeRect(wide - 96, tall + 8, 72, 28);
+    scroll.frame = $.NSMakeRect(0, tall, wide, Math.max(1, pageTop - tall));
+    logs.frame = $.NSMakeRect(wide - 74, 3, 26, 24);    // the two icons at the right end of lzrprf's strip: the log, then what the page is made of
+    techs.frame = $.NSMakeRect(wide - 42, 3, 26, 24);
     homeView.frame = $.NSMakeRect(0, tall, wide, Math.max(1, pageTop - tall));
     listScroll.frame = homeView.frame;
     pieces();
@@ -2683,6 +3225,8 @@ function place() {
     redrawn();
     fit();
     securePlaced();
+    techPlaced();
+    suggestPlaced();
     cogPlaced();
     placeModal();
 }
@@ -2692,7 +3236,7 @@ function pieces() {
     var home = !current && !pageShown && !listing;
     homeView.hidden = !home;
     listScroll.hidden = !listing;
-    scroll.hidden = under.hidden = logs.hidden = home || !!listing;
+    scroll.hidden = home || !!listing;    // the log and the list of what the page is made of are icons in lzrprf's strip, and stand there always
     homeView.needsDisplay = true;
 }
 
@@ -2869,7 +3413,7 @@ function stroked(path, colour, width, halo, blur) {    // a line, with its glow 
 function titled(item, words) { item.attributedTitle = styled(words, inked(sans(13), WHITE)); }
 
 function sent(line) { free = false; bar.enabled = false; logs.enabled = false; redrawn(); say(line); }
-function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox].forEach(function (one) { if (one) one.needsDisplay = true; }); }
+function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox, logs, techs, suggestBox, wizardView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
 function takes() { return free && !modalOpen; }    // whether the chrome takes a press now
 
 // The frame: the window is clear, and this draws, MARGIN points in from its edges, the glass every
@@ -2989,7 +3533,7 @@ function paintTabs() {
 }
 
 function tabAt(event) {    // the tab under the pointer, the number of tabs for the +, or -1; and whether it is over the tab's x
-    var at = tabsView.convertPointFromView(event.locationInWindow, $()), wide = tabWide(), x = at.x - TABS_X, i = Math.floor(x / wide);
+    var at = pointIn(tabsView, event), wide = tabWide(), x = at.x - TABS_X, i = Math.floor(x / wide);
     if (x >= 0 && i < tabs.length) return [i, at.x >= TABS_X + (i + 1) * wide - 34 && closable(wide, i == selected)];
     var px = TABS_X + tabs.length * wide + 6;
     return [at.x >= px && at.x <= px + 30 && tabs.length < 32 ? tabs.length : -1, false];
@@ -2997,7 +3541,7 @@ function tabAt(event) {    // the tab under the pointer, the number of tabs for 
 
 function tabClicked(event) {
     secureHidden();
-    var dot = dotAt(tabsView.convertPointFromView(event.locationInWindow, $()));
+    var dot = dotAt(pointIn(tabsView, event));
     if (dot == 0) return win.performClose($());
     if (dot == 1) return win.performMiniaturize($());
     if (dot == 2) return win.toggleFullScreen($());
@@ -3071,7 +3615,7 @@ function paintBelt() {
 }
 
 function beltClicked(event) {
-    var at = belt.convertPointFromView(event.locationInWindow, $()), nav = navAt(at);
+    var at = pointIn(belt, event), nav = navAt(at);
     if (nav >= 0) { secureHidden(); return navPressed(nav); }
     if (lockAt(at)) return secureToggled();
     secureHidden();
@@ -3112,6 +3656,7 @@ var cogBox = null, cogCatch = null, cogOpen = false, COG_ROW = 32, COG_PAD = 8;
 function cogItems() {
     return [['Show bookmarks bar', '⇧⌘B', marksOn, function () { if (takes()) sent('menu bookmarks-bar'); }],
         ['Bookmarks', '⌥⌘B', null, function () { if (takes()) listOpened('marks'); }],
+        ['Import bookmarks...', '', null, importOpened],
         ['Search engine...', '', null, function () { if (takes()) engineAsked(); }],
         ['Clear browsing history', '⇧⌘⌫', null, clearing],
         ['Make current page the home page', '', null, function () { if (takes()) sent('menu home'); }],
@@ -3122,6 +3667,8 @@ function cogClicked() {
     if (cogOpen) return cogHidden();
     if (!takes()) return;
     secureHidden();
+    techHidden();
+    suggestHidden();
     cogOpen = true;
     hover.cogRow = -1;
     cogCatch.hidden = false;
@@ -3150,7 +3697,7 @@ function cogHidden() {
 }
 
 function cogRowAt(event) {
-    var at = cogBox.convertPointFromView(event.locationInWindow, $()), size = cogBox.frame.size, i = Math.floor((size.height - COG_PAD - at.y) / COG_ROW);
+    var at = pointIn(cogBox, event), size = cogBox.frame.size, i = Math.floor((size.height - COG_PAD - at.y) / COG_ROW);
     return at.x >= 0 && at.x <= size.width && i >= 0 && i < cogItems().length ? i : -1;
 }
 
@@ -3198,10 +3745,18 @@ function sessionsWarned() {
 
 // Bookmarks, as lzrprf read them from their folder and told them: "marks begin", "mark F FOLDER",
 // "mark B N FOLDER<tab>NAME<tab>ADDRESS", "marks end".
+// lzrprf tells them in each folder's order (its .order), a folder before what is in it, so the order
+// they are told in is the order they are shown in: bookmarks and folders mixed, as in Chrome.
+var markCount = 0, folderAt = {};    // how many were told; where each folder stood in that order
 function markTold(rest) {
-    if (rest.charAt(0) == 'F') return folders.push(rest.slice(2));
+    if (rest.charAt(0) == 'F') { folderAt[rest.slice(2)] = markCount++; return folders.push(rest.slice(2)); }
     var gap = rest.indexOf(' ', 2), parts = rest.slice(gap + 1).split('\t');
-    marks.push({ id: +rest.slice(2, gap), folder: parts[0], name: parts[1], url: parts[2] });
+    marks.push({ id: +rest.slice(2, gap), folder: parts[0], name: parts[1], url: parts[2], at: markCount++ });
+}
+
+function inFolder(path) {    // what is in a folder, its folders and bookmarks in the order lzrprf told them
+    var all = folders.filter(function (f) { return f.slice(0, path.length + 1) == path + '/' && f.indexOf('/', path.length + 1) < 0; }).map(function (f) { return { folder: f, name: f.slice(path.length + 1), at: folderAt[f] }; });
+    return all.concat(marks.filter(function (m) { return m.folder === path; }).map(function (m) { return { mark: m, name: m.name, at: m.at }; })).sort(function (a, b) { return a.at - b.at; });
 }
 
 function marked() { for (var i = 0; i < marks.length; i++) if (marks[i].url == current) return marks[i]; return null; }
@@ -3255,10 +3810,7 @@ function markSave() {
 // The bookmarks bar, under the bar's row when it is shown: the bookmarks and folders at the top,
 // side by side; a folder opens a menu of what is in it, a folder in it a menu of its own. What does
 // not fit is in the menu of the last place.
-function marksAtTop() {    // what is in the bar's folder: its folders, then its bookmarks
-    var all = folders.filter(function (f) { return f.slice(0, BAR.length + 1) == BAR + '/' && f.indexOf('/', BAR.length + 1) < 0; }).map(function (f) { return { folder: f, name: f.slice(BAR.length + 1) }; });
-    return all.concat(marks.filter(function (m) { return m.folder === BAR; }).map(function (m) { return { mark: m, name: m.name }; }));
-}
+function marksAtTop() { return inFolder(BAR); }    // what is in the bar's folder, in its order
 
 function marksLaid() {
     var room = marksView.frame.size.width - 12, x = 12, placed = [], items = marksAtTop();
@@ -3295,7 +3847,7 @@ function paintMarks() {
 }
 
 function markAt(event) {
-    var at = marksView.convertPointFromView(event.locationInWindow, $());
+    var at = pointIn(marksView, event);
     for (var i = 0; i < marksPlaced.length; i++) if (at.x >= marksPlaced[i].x && at.x < marksPlaced[i].x + marksPlaced[i].w) return i;
     return -1;
 }
@@ -3304,8 +3856,7 @@ function folderMenu(path, items) {    // the menu of a folder: its folders, each
     var menu = $.NSMenu.alloc.initWithTitle($(''));
     menu.autoenablesItems = false;
     menu.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
-    (items || folders.filter(function (f) { return f.slice(0, path.length + 1) == path + '/' && f.indexOf('/', path.length + 1) < 0; }).map(function (f) { return { folder: f, name: f.slice(path.length + 1) }; })
-        .concat(marks.filter(function (m) { return m.folder === path; }).map(function (m) { return { mark: m, name: m.name }; }))).forEach(function (one) {
+    (items || inFolder(path)).forEach(function (one) {
         var item = menu.addItemWithTitleActionKeyEquivalent($(one.name), one.mark ? 'markMenu:' : null, $(''));
         titled(item, one.name);
         if (one.mark) { item.target = hand; item.tag = one.mark.id; }
@@ -3393,7 +3944,7 @@ function paintHome() {
 }
 
 function homeAt(event) {
-    var at = homeView.convertPointFromView(event.locationInWindow, $()), boxes = homeLaid().buttons;
+    var at = pointIn(homeView, event), boxes = homeLaid().buttons;
     for (var k = 0; k < boxes.length; k++) if (at.x >= boxes[k].origin.x && at.x <= boxes[k].origin.x + HOME_SIDE && at.y >= boxes[k].origin.y && at.y <= boxes[k].origin.y + HOME_SIDE) return k;
     return -1;
 }
@@ -3443,12 +3994,12 @@ function engineSaved() {
 
 // The bookmarks page and the tabs page, where the page stands, left by the back arrow: every
 // bookmark under its folder, or every tab; a press opens the bookmark or chooses the tab.
-function listOpened(which) { listing = which; secureHidden(); place(); listView.scrollPoint($.NSMakePoint(0, 0)); }
+function listOpened(which) { listing = which; secureHidden(); techHidden(); suggestHidden(); place(); listView.scrollPoint($.NSMakePoint(0, 0)); }
 
 function listRows() {
     if (listing == 'tabs') return tabs.map(function (tab, i) { return { tab: i, name: tab.title || 'New Tab', sub: i == selected ? 'The tab chosen now' : 'Tab ' + (i + 1) }; });
     var rows = [];
-    [''].concat(folders.slice().sort()).forEach(function (folder) {
+    [''].concat(folders).forEach(function (folder) {    // each folder in the order told, a folder before what is in it
         var in_ = marks.filter(function (m) { return m.folder === folder; });
         if (folder) rows.push({ heading: folderLabel(folder) });
         in_.forEach(function (m) { rows.push({ mark: m.id, name: m.name, sub: m.url }); });
@@ -3494,7 +4045,7 @@ function paintList() {
 }
 
 function listAt(event) {
-    var at = listView.convertPointFromView(event.locationInWindow, $()), rows = listPlaced().rows;
+    var at = pointIn(listView, event), rows = listPlaced().rows;
     for (var i = 0; i < rows.length; i++) if (!rows[i].heading && at.y >= rows[i].y && at.y < rows[i].y + rows[i].h && at.x >= rows[i].x && at.x < rows[i].x + rows[i].w) return i;
     return -1;
 }
@@ -3544,7 +4095,7 @@ function securePlaced() {
 }
 
 function secureHidden() { if (!secureBox) return; securePinned = false; secureBox.hidden = true; belt.needsDisplay = true; }
-function secureToggled() { if (securePinned) return secureHidden(); securePinned = true; secureShown(); belt.needsDisplay = true; }
+function secureToggled() { if (securePinned) return secureHidden(); techHidden(); securePinned = true; secureShown(); belt.needsDisplay = true; }
 
 function paintSecure() {
     var size = secureBox.frame.size, box = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(0.5, 0.5, size.width - 1, size.height - 1), 14, 14);
@@ -3554,10 +4105,365 @@ function paintSecure() {
     stroked(box, GREEN, 1.1);
 }
 
+// The two icons at the right end of lzrprf's strip, each a thin light grey line drawn with the
+// beam's glow under the pointer: the log (a sheet with lines of text), which shows lzrprf's log
+// where the page stands, and what the page is made of (three layers), which opens its panel.
+function logGlyph(cx, cy) {
+    var p = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(cx - 5.5, cy - 7, 11, 14), 2, 2);
+    [3, 0, -3].forEach(function (dy, i) { p.moveToPoint($.NSMakePoint(cx - 2.6, cy + dy)); p.lineToPoint($.NSMakePoint(cx + (i == 2 ? 0.6 : 2.6), cy + dy)); });
+    return p;
+}
+
+function techGlyph(cx, cy) {
+    var p = $.NSBezierPath.bezierPath;
+    [[cx, cy + 6.5], [cx + 7.5, cy + 3], [cx, cy - 0.5], [cx - 7.5, cy + 3]].forEach(function (one, i) { if (i) p.lineToPoint($.NSMakePoint(one[0], one[1])); else p.moveToPoint($.NSMakePoint(one[0], one[1])); });
+    p.closePath;
+    [-0.6, -4.2].forEach(function (dy) { p.moveToPoint($.NSMakePoint(cx - 7.5, cy + dy + 0.1)); p.lineToPoint($.NSMakePoint(cx, cy + dy - 3.4)); p.lineToPoint($.NSMakePoint(cx + 7.5, cy + dy + 0.1)); });
+    return p;
+}
+
+function paintIcon(view, glyph, hot, on, lit) {
+    var size = view.frame.size, cx = size.width / 2, cy = size.height / 2;
+    if (hot && on) { var back = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(1, 1, size.width - 2, size.height - 2), 7, 7); glass(back, true); }
+    stroked(glyph(cx, cy), lit ? GREEN : hot && on ? WHITE : on ? ICON : EDGE, 1.3, lit || hot && on ? GREEN : null, 7);
+}
+
+// What the page is made of, in a panel of its own over the page's lower right, as the lock's panel
+// stands under the lock: the application's list as lzrprf checked it, and lzrprf's sentence that
+// it checked the form of the list and not its truth. A press of the icon opens and closes it; a
+// press of other chrome closes it.
+var techBox = null, techOpen = false;
+function techToggled() {
+    if (techOpen) return techHidden();
+    if (modalOpen) return;
+    secureHidden();
+    cogHidden();
+    suggestHidden();
+    techOpen = true;
+    techBox.hidden = false;
+    techPlaced();
+    redrawn();
+}
+
+function techHidden() { if (!techBox || !techOpen) return; techOpen = false; techBox.hidden = true; redrawn(); }
+
+function techPlaced() {
+    if (!techBox || !techOpen) return;
+    var all = root.frame.size, tall = asking ? 96 : STRIP, w = Math.min(640, all.width - 24), room = all.height - TOP - tall - 20;
+    made.textContainer.containerSize = $.NSMakeSize(w - 52, 100000);
+    made.layoutManager.ensureLayoutForTextContainer(made.textContainer);
+    var used = made.layoutManager.usedRectForTextContainer(made.textContainer).size.height, h = Math.round(Math.max(130, Math.min(room, used + 84)));
+    techBox.frame = $.NSMakeRect(all.width - w - 12, tall + 6, w, h);
+    under.frame = $.NSMakeRect(20, 14, w - 36, h - 64);
+    made.setFrameSize($.NSMakeSize(w - 36, Math.max(h - 64, used + 12)));
+    techBox.needsDisplay = true;
+}
+
+function paintTech() {
+    var size = techBox.frame.size, box = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(0.5, 0.5, size.width - 1, size.height - 1), 14, 14);
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.035, 0.045, 0.055, 0.98).setFill;
+    box.fill;
+    glass(box, true);
+    stroked(box, GREEN, 1.1);
+    stroked(techGlyph(30, size.height - 30), GREEN, 1.3, GREEN, 6);
+    $('What this page is made of').drawAtPointWithAttributes($.NSMakePoint(48, size.height - 40), inked(sans(15, true), WHITE));
+    LINE.setStroke;
+    $.NSBezierPath.strokeLineFromPointToPoint($.NSMakePoint(20, size.height - 52.5), $.NSMakePoint(size.width - 20, size.height - 52.5));
+}
+
+// Suggestions under the bar while you type, as in Chrome: the pages shown in this window (lzrprf
+// tells each, "history add ADDRESS<tab>TITLE", and "history clear" when the history is cleared;
+// kept in the window's memory only) and the bookmarks, whose host or title begins with what is
+// typed first, then those that hold it anywhere. Up and down move, Return opens, Escape closes, a
+// press opens. Opening one puts its address in the bar and sends it as if it had been typed
+// ("go ADDRESS"): lzrprf checks it as every typed address [C4].
+var history = [], HISTORY_MOST = 500, SUGGEST_MOST = 8, SUGGEST_ROW = 46, SUGGEST_PAD = 6, suggestBox = null, suggestions = [], suggestSel = -1, suggestOpen = false;    // DECLARED(500 pages: more than 32 tabs of 100 addresses ever show at once in practice; 8 rows as Chrome shows)
+function historyTold(rest) {
+    if (rest == 'clear') { history = []; return suggestHidden(); }
+    if (rest.slice(0, 4) != 'add ') return;
+    var gap = rest.indexOf('\t', 4), url = gap < 0 ? rest.slice(4) : rest.slice(4, gap), title = gap < 0 ? '' : rest.slice(gap + 1);
+    history = [{ url: url, title: title }].concat(history.filter(function (one) { return one.url != url; })).slice(0, HISTORY_MOST);
+}
+
+function bare(url) { return url.replace(/^https:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, ''); }
+
+function suggested(text) {
+    var q = text.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, ''), seen = {}, found = [];
+    if (!q) return [];
+    function score(url, title) {
+        var b = bare(url).toLowerCase(), t = (title || '').toLowerCase();
+        if (b.indexOf(q) == 0) return 0;    // the host begins with it
+        if (t.indexOf(q) == 0 || (' ' + t).indexOf(' ' + q) > 0) return 1;    // the title, or a word of it, begins with it
+        return b.indexOf(q) >= 0 || t.indexOf(q) >= 0 ? 2 : -1;
+    }
+    history.forEach(function (one, i) { var s = score(one.url, one.title); if (s >= 0) { seen[one.url] = found.length; found.push({ url: one.url, title: one.title, kind: 'h', score: s, at: i }); } });
+    marks.forEach(function (m, i) {
+        var s = score(m.url, m.name);
+        if (s < 0) return;
+        if (seen[m.url] !== undefined) { var was = found[seen[m.url]]; was.kind = 'b'; was.title = was.title || m.name; was.score = Math.min(was.score, s); return; }
+        seen[m.url] = found.length;
+        found.push({ url: m.url, title: m.name, kind: 'b', score: s, at: HISTORY_MOST + i });
+    });
+    return found.sort(function (a, b) { return a.score - b.score || a.at - b.at; }).slice(0, SUGGEST_MOST);
+}
+
+function suggestUpdate() {
+    if (!bar.enabled || !typing() || modalOpen) return suggestHidden();
+    suggestions = suggested(bar.stringValue.js);
+    suggestSel = -1;
+    hover.suggest = -1;
+    if (!suggestions.length) return suggestHidden();
+    techHidden();
+    secureHidden();
+    suggestOpen = true;
+    suggestBox.hidden = false;
+    suggestPlaced();
+}
+
+function suggestHidden() { if (!suggestBox || !suggestOpen) return; suggestOpen = false; suggestSel = -1; suggestBox.hidden = true; }
+
+function suggestPlaced() {
+    if (!suggestBox || !suggestOpen || !PILL) return;
+    var h = suggestions.length * SUGGEST_ROW + 2 * SUGGEST_PAD, top = belt.frame.origin.y + PILL.origin.y - 5;
+    suggestBox.frame = $.NSMakeRect(PILL.origin.x, Math.max(8, top - h), PILL.size.width, Math.min(h, top - 8));
+    suggestBox.needsDisplay = true;
+}
+
+function clockGlyph(cx, cy) {    // a page shown earlier: a clock
+    var p = $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(cx - 6.5, cy - 6.5, 13, 13));
+    p.moveToPoint($.NSMakePoint(cx, cy + 3.8)); p.lineToPoint($.NSMakePoint(cx, cy)); p.lineToPoint($.NSMakePoint(cx + 2.8, cy - 1.8));
+    return p;
+}
+
+function ribbonGlyph(cx, cy) {    // a bookmark: its ribbon, as on the bookmarks bar
+    var p = $.NSBezierPath.bezierPath;
+    [[-3.5, 6], [-3.5, -6], [0, -3], [3.5, -6], [3.5, 6]].forEach(function (o, i) { var at = $.NSMakePoint(cx + o[0], cy + o[1]); if (i) p.lineToPoint(at); else p.moveToPoint(at); });
+    p.closePath;
+    return p;
+}
+
+function paintSuggest() {
+    var size = suggestBox.frame.size, box = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(0.5, 0.5, size.width - 1, size.height - 1), 14, 14);
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.035, 0.045, 0.055, 0.98).setFill;
+    box.fill;
+    glass(box, true);
+    stroked(box, GREEN, 1.1);
+    suggestions.forEach(function (one, i) {
+        var top = size.height - SUGGEST_PAD - (i + 1) * SUGGEST_ROW, mid = top + SUGGEST_ROW / 2, hot = i == suggestSel || i == hover.suggest;
+        if (hot) {
+            var pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(6, top + 2, size.width - 12, SUGGEST_ROW - 4), 10, 10);
+            glass(pill, true);
+            $.NSGraphicsContext.saveGraphicsState; glow(GREEN, 6); (i == suggestSel ? GREEN : DIM).setStroke; pill.stroke; $.NSGraphicsContext.restoreGraphicsState;
+        }
+        stroked(one.kind == 'b' ? ribbonGlyph(26, mid) : clockGlyph(26, mid), hot ? GREEN : ICON, 1.3, hot ? GREEN : null, 5);
+        $(one.title || bare(one.url)).drawInRectWithAttributes($.NSMakeRect(48, mid + 1, size.width - 64, 18), inked(sans(13.5, hot), WHITE, true));
+        $(bare(one.url)).drawInRectWithAttributes($.NSMakeRect(48, mid - 16, size.width - 64, 16), inked(sans(11.5), hot ? GREEN : GREY, true));
+    });
+}
+
+function suggestAt(event) {
+    var at = pointIn(suggestBox, event), size = suggestBox.frame.size, i = Math.floor((size.height - SUGGEST_PAD - at.y) / SUGGEST_ROW);
+    return at.x >= 0 && at.x <= size.width && i >= 0 && i < suggestions.length ? i : -1;
+}
+
+function suggestGo(url) {    // as Return in the bar: the address goes to lzrprf as typed
+    suggestHidden();
+    bar.stringValue = $(url);
+    if (asking || !bar.enabled) return;
+    bar.enabled = false;
+    say('go ' + url.replace(/[^\x20-\x7e]/g, '\x7f').slice(0, 2100));
+}
+
+function suggestClicked(event) { var i = suggestAt(event); if (i >= 0) suggestGo(suggestions[i].url); }
+
+function suggestKey(name) {    // a key the bar's editor was given: true when the suggestions took it
+    if (name == 'moveDown:' || name == 'moveUp:') {
+        if (!suggestOpen) { suggestUpdate(); return suggestOpen; }
+        suggestSel = name == 'moveDown:' ? Math.min(suggestions.length - 1, suggestSel + 1) : Math.max(-1, suggestSel - 1);
+        suggestBox.needsDisplay = true;
+        return true;
+    }
+    if (name == 'cancelOperation:' && suggestOpen) { suggestHidden(); return true; }
+    if (name == 'insertNewline:' && suggestOpen && suggestSel >= 0) { suggestGo(suggestions[suggestSel].url); return true; }
+    if (name == 'insertNewline:') suggestHidden();
+    return false;
+}
+
+// Import bookmarks: one modal in steps, Back and Next, each step one line to lzrprf, which reads the
+// files [C15]: the browser ("import sources", then "import profiles KEY"), its profile or the
+// bookmarks file ("import preview KEY N", or "import path PATH" for a file typed), what Import would
+// add ("import preview ..."), then Import ("import go") and what was added ("import done ...").
+// lzrprf answers "import begin", "import source KEY FOUND COUNT NAME", "import profile N NAME",
+// "import preview|done MARKS FOLDERS BAR SKIPPED LEFT<tab>FOLDER<tab>WHY", "import refused WORDS",
+// and "import step source|profile|preview|done". A browser not found is shown grey, "Not found".
+var wiz = null, wizardView = null, pathField = null, WIZ_ROW = 54;
+function importOpened() {
+    if (!takes()) return;
+    wiz = { step: 'wait', from: 'source', sources: [], profiles: [], comingSources: [], comingProfiles: [], key: '', label: '', pick: -1, viaProfile: false, preview: null, done: null, error: '', waiting: 'Looking for the browsers on this Mac.' };
+    wizardShown();
+    sent('import sources');
+}
+
+function counted(text) { var parts = text.split('\t'), n = parts[0].split(' ').map(Number); return { marks: n[0], folders: n[1], bar: n[2], skipped: n[3], left: n[4], where: parts[1] || '', why: parts[2] || '' }; }
+
+function importTold(rest) {
+    if (!wiz) return;
+    var at = rest.indexOf(' '), word = at < 0 ? rest : rest.slice(0, at), more = at < 0 ? '' : rest.slice(at + 1);
+    if (word == 'begin') { wiz.comingSources = []; wiz.comingProfiles = []; return; }
+    if (word == 'source') { var p = more.split(' '); return wiz.comingSources.push({ key: p[0], found: p[1] == '1', count: +p[2], name: p.slice(3).join(' ') }); }
+    if (word == 'profile') { var gap = more.indexOf(' '); return wiz.comingProfiles.push(more.slice(gap + 1)); }
+    if (word == 'preview') { wiz.preview = counted(more); return; }
+    if (word == 'done') { wiz.done = counted(more); return; }
+    if (word == 'refused') { wiz.error = more; wiz.step = wiz.from; return wizardShown(); }
+    if (word != 'step') return;
+    wiz.error = '';
+    if (more == 'source') { wiz.sources = wiz.comingSources; wiz.pick = -1; for (var i = 0; i < wiz.sources.length; i++) if (wiz.sources[i].found && wiz.sources[i].key != 'file') { wiz.pick = i; break; } }
+    if (more == 'profile') { wiz.profiles = wiz.comingProfiles; wiz.pick = wiz.profiles.length ? 0 : -1; wiz.viaProfile = true; }
+    wiz.step = more;
+    wizardShown();
+}
+
+function wizardShown() {
+    if (!wiz || modalOpen && modalKind != 'wizard') return;
+    var s = wiz.step, file = wiz.key == 'file';
+    if (s == 'wait') modal('Import bookmarks', wiz.waiting, [['Cancel', closeModal]], 'wizard');
+    else if (s == 'source') modal('Import bookmarks', 'Choose where your bookmarks are now. lzrprf reads them on this Mac, fetches nothing for them, and writes nothing before you press Import.', [['Cancel', closeModal], ['Next', wizNext]], 'wizard');
+    else if (s == 'profile') modal(file ? 'Choose the bookmarks file' : 'Choose the ' + wiz.label + ' profile', file ? 'Bookmarks files found in Downloads, Desktop and Documents, the newest first. One kept elsewhere in your home folder: type its path below. From Safari: in Safari choose File, Export, Bookmarks... first.' : wiz.label + ' keeps bookmarks in each profile. Choose the one to import.', [['Cancel', closeModal], ['Back', wizBack], ['Next', wizNext]], 'wizard');
+    else if (s == 'preview') modal('Ready to import from ' + wiz.label, 'This is what Import adds. Your own bookmarks stay as they are, and the new ones come after them, in the order ' + (file ? 'the file' : wiz.label) + ' keeps them.', [['Cancel', closeModal], ['Back', wizBack], ['Import', wizNext]], 'wizard');
+    else modal('Bookmarks imported', 'Your bookmarks are in LZRBRWSR now, in the order ' + (file ? 'the file' : wiz.label) + ' kept them. Each is fetched only when you open it.', [['Done', closeModal]], 'wizard');
+    if (wiz.error) { panelSub.stringValue = $(wiz.error); panelSub.textColor = YELLOW; }
+    pathField.hidden = !(s == 'profile' && file);
+    if (!pathField.hidden) pathField.stringValue = $('');
+    placeModal();
+    wizardView.needsDisplay = true;
+}
+
+function wizNext() {
+    if (!free || !wiz) return;    // lzrprf is still busy with the step before
+    var s = wiz.step;
+    if (s == 'source') {
+        var one = wiz.sources[wiz.pick];
+        if (!one || !one.found) return;
+        wiz.key = one.key; wiz.label = one.key == 'file' ? 'a bookmarks file' : one.name; wiz.viaProfile = false; wiz.from = 'source';
+        wiz.step = 'wait'; wiz.waiting = 'Reading ' + (one.key == 'file' ? 'the bookmarks files' : one.name) + '.';
+        wizardShown();
+        return sent('import profiles ' + one.key);
+    }
+    if (s == 'profile') {
+        var typed = pathField.hidden ? '' : pathField.stringValue.js.trim();
+        if (!typed && wiz.pick < 0) return;
+        wiz.from = 'profile'; wiz.step = 'wait'; wiz.waiting = 'Reading the bookmarks.';
+        wizardShown();
+        return sent(typed ? 'import path ' + typed.replace(/[^\x20-\x7e]/g, '\x7f').slice(0, 1000) : 'import preview ' + wiz.key + ' ' + wiz.pick);
+    }
+    if (s == 'preview') { wiz.from = 'preview'; wiz.step = 'wait'; wiz.waiting = 'Importing ' + wiz.preview.marks + ' bookmarks.'; wizardShown(); return sent('import go'); }
+}
+
+function wizBack() {
+    if (!wiz) return;
+    wiz.error = '';
+    wiz.step = wiz.step == 'preview' && wiz.viaProfile ? 'profile' : 'source';
+    if (wiz.step == 'source') for (var i = 0; i < wiz.sources.length; i++) if (wiz.sources[i].key == wiz.key) wiz.pick = i;
+    wizardShown();
+}
+
+function wizRows() {    // the choices of the step, two to a row
+    if (!wiz) return [];
+    var size = wizardView.frame.size, gap = 12, w = Math.floor((size.width - gap) / 2), rows = [];
+    var items = wiz.step == 'source' ? wiz.sources : wiz.step == 'profile' ? wiz.profiles : [];
+    items.forEach(function (one, i) { var r = Math.floor(i / 2); if ((r + 1) * (WIZ_ROW + 10) - 10 <= size.height) rows.push({ i: i, x: (i % 2) * (w + gap), y: r * (WIZ_ROW + 10), w: w, h: WIZ_ROW }); });
+    return rows;
+}
+
+function monogram(one, cx, cy, colour, hot) {    // a browser's mark: its first letter in a ring of the beam; a file a sheet with a folded corner
+    if (one.key == 'file') {
+        var p = $.NSBezierPath.bezierPath;
+        [[-6, 8], [2, 8], [7, 3], [7, -8], [-6, -8]].forEach(function (o, i) { var at = $.NSMakePoint(cx + o[0], cy - o[1]); if (i) p.lineToPoint(at); else p.moveToPoint(at); });
+        p.closePath; p.moveToPoint($.NSMakePoint(cx + 2, cy - 8)); p.lineToPoint($.NSMakePoint(cx + 2, cy - 3)); p.lineToPoint($.NSMakePoint(cx + 7, cy - 3));
+        return stroked(p, colour, 1.3, hot ? GREEN : null, 5);
+    }
+    stroked($.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(cx - 12, cy - 12, 24, 24)), colour, 1.2, hot ? GREEN : null, 5);
+    var letter = styled(one.name.charAt(0), inked(sans(12.5, true), colour)), size = letter.size;
+    letter.drawAtPoint($.NSMakePoint(cx - size.width / 2, cy - size.height / 2));
+}
+
+function paintWizard() {
+    if (!wiz) return;
+    var size = wizardView.frame.size, s = wiz.step;
+    if (s == 'source' || s == 'profile') {
+        if (s == 'profile' && !wiz.profiles.length) return $(wiz.key == 'file' ? 'No bookmarks file was found in Downloads, Desktop or Documents, or macOS did not let lzrprf look there. Type the path of the file below.' : 'No profile was found.').drawInRectWithAttributes($.NSMakeRect(4, 4, size.width - 8, 60), inked(sans(13), GREY));
+        var rows = wizRows();
+        rows.forEach(function (row) {
+            var one = s == 'source' ? wiz.sources[row.i] : { name: wiz.profiles[row.i], found: true, key: wiz.key == 'file' ? 'file' : 'profile' };
+            var on = one.found, picked = row.i == wiz.pick, hot = on && hover.wiz == row.i, card = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(row.x + 0.5, row.y + 0.5, row.w - 1, row.h - 1), 11, 11);
+            $.NSGraphicsContext.saveGraphicsState;
+            if (picked) glow(GREEN, 10);
+            FILL.setFill;
+            card.fill;
+            $.NSGraphicsContext.restoreGraphicsState;
+            if (picked || hot) glass(card, true);
+            stroked(card, picked ? GREEN : hot ? DIM : LINE, picked ? 1.3 : 1);
+            $.NSGraphicsContext.saveGraphicsState;
+            var turn = $.NSAffineTransform.transform;    // the view is flipped: the marks are drawn the right way up
+            turn.translateXByYBy(0, 2 * row.y + row.h);
+            turn.scaleXByYBy(1, -1);
+            turn.concat;
+            if (s == 'source') monogram(one, row.x + 30, row.y + row.h / 2, on ? (picked ? GREEN : ICON) : EDGE, picked);
+            else monogram({ key: one.key, name: one.name || '?' }, row.x + 30, row.y + row.h / 2, picked ? GREEN : ICON, picked);
+            $.NSGraphicsContext.restoreGraphicsState;
+            var sub = s == 'profile' ? (wiz.key == 'file' ? 'A bookmarks file' : 'A profile of ' + wiz.label) : !on ? 'Not found' : one.key == 'file' ? (one.count ? one.count + (one.count == 1 ? ' file found' : ' files found') + ', or type a path' : 'Exported by any browser') : one.count > 1 ? one.count + ' profiles' : 'Found on this Mac';
+            $(one.name).drawInRectWithAttributes($.NSMakeRect(row.x + 54, row.y + 9, row.w - 64, 19), inked(sans(13.5, true), on ? WHITE : GREY, true));
+            $(sub).drawInRectWithAttributes($.NSMakeRect(row.x + 54, row.y + 29, row.w - 64, 17), inked(sans(11.5), on ? GREY : EDGE, true));
+        });
+        return;
+    }
+    var n = s == 'preview' ? wiz.preview : s == 'done' ? wiz.done : null;
+    if (!n) return;
+    var tiles = [[n.marks, n.marks == 1 ? 'bookmark' : 'bookmarks'], [n.folders, n.folders == 1 ? 'folder' : 'folders'], [n.bar, 'in the bookmarks bar']], gap = 12, w = Math.floor((size.width - 2 * gap) / 3);
+    tiles.forEach(function (one, k) {
+        var x = k * (w + gap), card = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(x + 0.5, 0.5, w - 1, 86), 12, 12);
+        FILL.setFill; card.fill; glass(card, true); stroked(card, k ? LINE : DIM, 1);
+        $.NSGraphicsContext.saveGraphicsState;
+        glow(k ? $.NSColor.clearColor : HALO, 10);
+        $(String(one[0])).drawAtPointWithAttributes($.NSMakePoint(x + 18, 10), inked(wide(30, -0.2), k ? WHITE : GREEN));
+        $.NSGraphicsContext.restoreGraphicsState;
+        $(one[1]).drawAtPointWithAttributes($.NSMakePoint(x + 18, 58), inked(sans(12), GREY));
+    });
+    var notes = [n.bar ? (s == 'done' ? 'Added' : 'Goes') + ' to the bookmarks bar: ' + n.bar + ', its folders and all, after what the bar holds now.' : 'Nothing goes to the bookmarks bar.',
+        n.where ? 'The rest ' + (s == 'done' ? 'went' : 'goes') + ' into a new folder, ' + n.where + '.' : '',
+        n.skipped ? n.skipped + (n.skipped == 1 ? ' address is' : ' addresses are') + ' not an https address lzrprf fetches, and ' + (n.skipped == 1 ? 'is' : 'are') + ' skipped.' : '',
+        n.left ? n.left + ' left out: ' + n.why : ''].filter(function (one) { return one; });
+    var y = 104;
+    notes.forEach(function (line, k) {
+        var dot = $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(2, y + 6, 5, 5));
+        (k >= 2 ? YELLOW : GREEN).setFill; dot.fill;
+        var r = $.NSMakeRect(16, y, size.width - 20, 40), said = styled(line, inked(sans(12.5), k >= 2 ? YELLOW : WHITE)), high = Math.ceil(said.boundingRectWithSizeOptions($.NSMakeSize(size.width - 20, 200), 1).size.height);
+        said.drawInRect($.NSMakeRect(16, y, size.width - 20, high + 2));
+        y += high + 10;
+    });
+}
+
+function wizAt(event) {
+    var at = pointIn(wizardView, event), rows = wizRows();
+    for (var k = 0; k < rows.length; k++) if (at.x >= rows[k].x && at.x < rows[k].x + rows[k].w && at.y >= rows[k].y && at.y < rows[k].y + rows[k].h) return rows[k].i;
+    return -1;
+}
+
+function wizClicked(event) {
+    var i = wizAt(event);
+    if (i < 0 || !wiz) return;
+    if (wiz.step == 'source' && !wiz.sources[i].found) return;
+    wiz.pick = i;
+    if (!pathField.hidden) pathField.stringValue = $('');
+    wizardView.needsDisplay = true;
+    if (event.clickCount == 2) wizNext();
+}
+
 // The modal: centred over the whole window, over a veil that takes every click, so nothing under
 // it, the page or the chrome, is reached while it is open. Kinds: small, tall (a redirect), form
 // (a bookmark), big (the installer).
 function modal(title, about, choices, kind) {
+    welcoming = false;
     cogHidden();
     modalOpen = true;
     modalKind = kind;
@@ -3569,8 +4475,12 @@ function modal(title, about, choices, kind) {
     panelScroll.hidden = kind != 'big';
     form.hidden = kind != 'form';
     engineField.hidden = kind != 'engine';
+    wizardView.hidden = kind != 'wizard';
+    pathField.hidden = true;
     veil.hidden = false;
     secureHidden();
+    techHidden();
+    suggestHidden();
     bar.enabled = false;
     logs.enabled = false;
     win.makeFirstResponder($());
@@ -3611,13 +4521,16 @@ function closeModal() {
 function placeModal() {
     if (!veil) return;
     var all = root.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
-    var w = Math.min(big ? 780 : 580, wide - 48), h = big ? Math.min(560, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : 230;
+    var wizard = modalKind == 'wizard', w = Math.min(big ? 780 : wizard ? 660 : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : 230;
     veil.frame = $.NSMakeRect(0, 0, wide, high);
     panel.frame = $.NSMakeRect(Math.round((wide - w) / 2) - M, Math.round((high - h) / 2) - M, w + 2 * M, h + 2 * M);
     panel.needsDisplay = true;
     panelTitle.frame = $.NSMakeRect(M + 26, M + h - 52, w - 52, 28);
-    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : modalKind == 'engine' ? $.NSMakeRect(M + 26, M + 112, w - 52, h - 172) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
+    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : wizard ? $.NSMakeRect(M + 26, M + h - 108, w - 52, 52) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : modalKind == 'engine' ? $.NSMakeRect(M + 26, M + 112, w - 52, h - 172) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
     engineField.frame = $.NSMakeRect(M + 26, M + 68, w - 52, 26);
+    var withPath = !pathField.hidden;
+    pathField.frame = $.NSMakeRect(M + 26, M + 66, w - 52, 26);
+    wizardView.frame = $.NSMakeRect(M + 26, M + 64 + (withPath ? 38 : 0), w - 52, Math.max(40, h - 64 - 116 - (withPath ? 38 : 0)));
     panelScroll.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 170));
     form.frame = $.NSMakeRect(M + 26, M + 64, w - 52, h - 154);
     var fw = w - 52 - 90;
@@ -3680,9 +4593,30 @@ function installTold(rest) {
         var done = more.slice(0, 5) == 'done ';
         panelTitle.stringValue = $(done ? 'The install is done' : 'The install failed');
         panelTitle.textColor = done ? WHITE : YELLOW;
-        buttons(done ? [['Start again', function () { app.terminate(null); }]] : [['Close', closeModal]]);
+        panelSub.stringValue = $(done ? 'The new release is in place. Close LZRBRWSR, or close it and start the new release now.' : 'Nothing more runs. What the installer printed is below, and kept in ~/.lzrprf/install.txt.');
+        buttons(done ? [['Close', function () { app.terminate(win); }], ['Close and restart', function () { say('restart'); buttons([]); }]] : [['Close', closeModal]]);
     }
 }
+
+// The welcome after an install or update, as lzrprf tells it: "welcome begin RELEASE", then lines
+// "welcome line K TEXT" (K: n what is new, g what is kept from you, y what is not, b one point under the
+// last of them), then "welcome end", which gives the one button. Got it says "welcomed".
+function welcomeTold(rest) {
+    var gap = rest.indexOf(' '), word = gap < 0 ? rest : rest.slice(0, gap), more = gap < 0 ? '' : rest.slice(gap + 1);
+    if (word == 'begin') { modal('Welcome to LZRBRWSR release ' + more, 'Once after every install or update: what is new, and what LZRBRWSR does and does not do for you.', [], 'big'); welcomeInk = GREEN; welcoming = true; placeModal(); }
+    else if (!modalOpen || modalKind != 'big') return;
+    else if (word == 'line') {
+        var kind = more.charAt(0), text = more.slice(2), store = panelText.textStorage, heading = kind != 'b';
+        if (heading) welcomeInk = kind == 'y' ? YELLOW : kind == 'n' ? CYAN_INK : GREEN;
+        var one = styled((store.length ? (heading ? '\n\n' : '\n') : '') + (heading ? text : '\u2022  ' + text), inked(sans(heading ? 14 : 12.5, heading), heading ? welcomeInk : WHITE)), lines = $.NSMutableParagraphStyle.alloc.init;
+        lines.headIndent = heading ? 0 : 14;    // a point that runs over a line goes on under its text, not under its dot
+        lines.paragraphSpacing = heading ? 4 : 3;
+        one.addAttributeValueRange($.NSParagraphStyleAttributeName, lines, $.NSMakeRange(0, one.length));
+        store.appendAttributedString(one);
+    }
+    else if (word == 'end') { panelText.scrollRangeToVisible($.NSMakeRange(0, 0)); buttons([['Got it', function () { closeModal(); say('welcomed'); }]]); }
+}
+var welcomeInk = null, welcoming = false, CYAN_INK = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.35, 1, 1, 1);
 
 function installLine(text, ink) {
     var rgb = INKS[ink] || INKS['-'], store = panelText.textStorage;
@@ -3692,14 +4626,20 @@ function installLine(text, ink) {
 
 // Where the pointer is, for the glow of what it is over; over the lock it also shows the lock's panel.
 function hovered(view, event) {
+    try { hoveredOver(view, event); } catch (e) { }    // a pointer move that cannot be followed only leaves the hover as it was: it never ends the window
+}
+
+function hoveredOver(view, event) {
     var was = JSON.stringify(hover);
-    if (view == 'tabs') { hover.tab = event ? tabAt(event)[0] : -1; hover.dot = event ? dotAt(tabsView.convertPointFromView(event.locationInWindow, $())) : -1; }
+    if (view == 'tabs') { hover.tab = event ? tabAt(event)[0] : -1; hover.dot = event ? dotAt(pointIn(tabsView, event)) : -1; }
     else if (view == 'marks') hover.mark = event ? markAt(event) : -1;
     else if (view == 'home') hover.home = event ? homeAt(event) : -1;
     else if (view == 'list') hover.list = event ? listAt(event) : -1;
     else if (view == 'cogmenu') hover.cogRow = event ? cogRowAt(event) : -1;
+    else if (view == 'suggest') hover.suggest = event ? suggestAt(event) : -1;
+    else if (view == 'wiz') hover.wiz = event ? wizAt(event) : -1;
     else if (view == 'belt') {
-        var at = event ? belt.convertPointFromView(event.locationInWindow, $()) : null, over = !!at && lockAt(at);
+        var at = event ? pointIn(belt, event) : null, over = !!at && lockAt(at);
         hover.nav = at ? navAt(at) : -1;
         if (over != hover.lock && !securePinned) { if (over) secureShown(); else secureBox.hidden = true; }
         hover.lock = over;
@@ -3851,16 +4791,17 @@ function draw(lines) {
     drawn(lines.length, text.length);
 }
 
-// The pane under the page: what the application says the page is made of. A row for each
+// The panel of what the page is made of (the second icon in lzrprf's strip): what the application says the page is made of. A row for each
 // thing: the name of its kind in front of the first of that kind, then its name, its version
 // in grey, and whether the application says its own code supports it. These are the
 // application's words, in plain characters: lzrprf checked their form and not their truth,
-// and the pane says so in its first line. A list holds 120 lines at most (the same number
+// and the panel says so in its first line. A list holds 120 lines at most (the same number
 // as "checked" holds a list to), and a full one says that there may be more.
 var KINDS = { d: 'Document', c: 'CSS', j: 'JavaScript', l: 'Libraries', m: 'Media and formats', a: 'Web APIs', s: 'Security and transport', x: 'Metadata' };
 function listed(lines) {
     var text = '', runs = [], kind = '', head, held = 0;
-    function put(chars, font, look) { runs.push([text.length, chars.length, font, look]); text += chars; }
+    var LOOKS = { ArialMT0: inked(sans(12.5), WHITE), ArialMT3: inked(sans(12), GREY), 'Arial-BoldMT0': inked(sans(12, true), GREEN) };    // the panel's looks for the pane's old ones: the words, a version or a no in grey, a yes in the beam
+    function put(chars, font, look) { runs.push([text.length, chars.length, font == 'Arial-BoldMT' && chars == KINDS[kind] ? spaced(chars, sans(10.5, true), GREEN, 1.2).attributesAtIndexEffectiveRange(0, null) : LOOKS[font + look] || LOOKS.ArialMT0]); text += chars; }
     lines.forEach(function (line) { if (line.charAt(2) == '+') held++; });
     put(lines.length ? 'What ' + NAME + ' says this page is made of: ' + lines.length + (lines.length == 1 ? ' thing' : ' things') + ', ' + held + ' of them supported by ' + NAME + ' itself, as it says.' + (lines.length == 120 ? ' A list holds 120 at most, so there may be more.' : '') + ' lzrprf checked the form of this list, not whether it is true.'
         : 'Here ' + NAME + ' lists what it says a page is made of. Nothing is listed for what is shown now.', 'ArialMT', 3);
@@ -3877,14 +4818,15 @@ function listed(lines) {
     var all = $.NSMutableAttributedString.alloc.init, set = $.NSMutableParagraphStyle.alloc.init;
     set.headIndent = 176;
     set.tabStops = $.NSArray.arrayWithObject($.NSTextTab.alloc.initWithTextAlignmentLocationOptions(0, 176, $.NSDictionary.dictionary));
-    set.paragraphSpacingBefore = 3;
+    set.paragraphSpacingBefore = 5;
     all.beginEditing;
     all.replaceCharactersInRangeWithString($.NSMakeRange(0, 0), $(text));
-    runs.forEach(function (run) { all.addAttributesRange(look(run[2], 12, run[3]), $.NSMakeRange(run[0], run[1])); });
+    runs.forEach(function (run) { all.addAttributesRange(run[2], $.NSMakeRange(run[0], run[1])); });
     if (text.length > head) all.addAttributeValueRange($.NSParagraphStyleAttributeName, set, $.NSMakeRange(head, text.length - head));
     all.endEditing;
     made.textStorage.setAttributedString(all);
     made.scrollRangeToVisible($.NSMakeRange(0, 0));
+    techPlaced();
 }
 
 ObjC.registerSubclass({ name: 'LzrprfPage', superclass: 'NSTextView', methods: {
@@ -3934,6 +4876,38 @@ ObjC.registerSubclass({ name: 'LzrprfCatch', superclass: 'NSView', methods: {
     'mouseDown:': { implementation: function (event) { cogHidden(); } },
     'rightMouseDown:': { implementation: function (event) { cogHidden(); } },
     'scrollWheel:': { implementation: function (event) { cogHidden(); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfLogIcon', superclass: 'NSButton', methods: {
+    'drawRect:': { implementation: function (dirty) { paintIcon(logs, logGlyph, hover.logIcon, logs.enabled, false); } },
+    'mouseEntered:': { implementation: function (event) { hovered('logIcon', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('logIcon', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfTechIcon', superclass: 'NSButton', methods: {
+    'drawRect:': { implementation: function (dirty) { paintIcon(techs, techGlyph, hover.techIcon, !modalOpen, techOpen); } },
+    'mouseEntered:': { implementation: function (event) { hovered('techIcon', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('techIcon', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfTech', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintTech(); } },
+    'mouseDown:': { implementation: function (event) { } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfSuggest', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintSuggest(); } },
+    'mouseDown:': { implementation: function (event) { suggestClicked(event); } },
+    'mouseMoved:': { implementation: function (event) { hovered('suggest', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('suggest', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfWizard', superclass: 'NSView', methods: {
+    'isFlipped': { implementation: function () { return true; } },
+    'drawRect:': { implementation: function (dirty) { paintWizard(); } },
+    'mouseDown:': { implementation: function (event) { wizClicked(event); } },
+    'mouseMoved:': { implementation: function (event) { hovered('wiz', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('wiz', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfSecure', superclass: 'NSView', methods: {
@@ -4010,7 +4984,14 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     } },
     'first:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 1'); } } },
     'second:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 2'); } } },
-    'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled && !modalOpen) { sent('log'); } } },
+    'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled && !modalOpen) { techHidden(); sent('log'); } } },
+    'techs:': { types: ['void', ['id']], implementation: function (sender) { techToggled(); } },
+    'importing:': { types: ['void', ['id']], implementation: function (sender) { importOpened(); } },
+    'controlTextDidChange:': { types: ['void', ['id']], implementation: function (note) { if (note.object.isEqual(bar)) suggestUpdate(); } },
+    'control:textView:doCommandBySelector:': { types: ['bool', ['id', 'id', 'SEL']], implementation: function (control, view, command) {    // up, down, Escape and Return in the bar, for its suggestions
+        if (!control.isEqual(bar)) return false;
+        return suggestKey(typeof command == 'string' ? command : $.NSStringFromSelector(command).js);
+    } },
     'newTab:': { types: ['void', ['id']], implementation: function (sender) { newTab(); } },
     'closeTab:': { types: ['void', ['id']], implementation: function (sender) { tabSaid('tab close ' + selected, selected); } },
     'clearing:': { types: ['void', ['id']], implementation: function (sender) { clearing(); } },
@@ -4030,13 +5011,13 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'markMenu:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('mark open ' + sender.tag); } },
     'folderChosen:': { types: ['void', ['id']], implementation: function (sender) { folderChosen(); } },
     'controlTextDidBeginEditing:': { types: ['void', ['id']], implementation: function (note) { belt.needsDisplay = true; } },
-    'controlTextDidEndEditing:': { types: ['void', ['id']], implementation: function (note) { belt.needsDisplay = true; } },
+    'controlTextDidEndEditing:': { types: ['void', ['id']], implementation: function (note) { if (note.object.isEqual(bar)) suggestHidden(); belt.needsDisplay = true; } },
     'modalPress:': { types: ['void', ['id']], implementation: function (sender) { var act = modalActions[sender.tag]; if (modalOpen && act) act(); } },
     'bar:': { types: ['void', ['id']], implementation: function (sender) { if (bar.enabled) win.makeFirstResponder(bar); } },
     'applicationShouldTerminateAfterLastWindowClosed:': { types: ['bool', ['id']], implementation: function (sender) { return true; } },
     'heard:': { types: ['void', ['id']], implementation: function (note) {
         var data = from.availableData;
-        if (data.length == 0) { app.terminate(null); return; }    // lzrprf is gone: so is its window
+        if (data.length == 0) { app.terminate(win); return; }    // lzrprf is gone: so is its window
         held.appendData(data);
         var all = $.NSString.alloc.initWithDataEncoding(held, 4);
         if (!all.isNil()) {
@@ -4073,7 +5054,7 @@ function menus() {
     [[NAME, [['Settings...', 'settings:', ',', true], ['Quit ' + NAME, 'terminate:', 'q', false]]],
      ['Edit', [['Undo', 'undo:', 'z', false], ['Redo', 'redo:', 'Z', false], ['Cut', 'cut:', 'x', false], ['Copy', 'copy:', 'c', false], ['Paste', 'paste:', 'v', false], ['Select All', 'selectAll:', 'a', false]]],
      ['Go', [['Address', 'bar:', 'l', true], ['Back', 'back:', '[', true], ['Forward', 'forward:', ']', true], ['Reload', 'reload:', 'r', true], ['Clear Browsing History...', 'clearing:', String.fromCharCode(8), true, CMD | SHIFT], ['Log', 'log:', '', true]]],
-     ['Bookmarks', [['Bookmark This Tab...', 'markThis:', 'd', true], ['Show Bookmarks Bar', 'marksBar:', 'b', true, CMD | SHIFT], ['Bookmark Manager', 'bookmarks:', 'b', true, CMD | OPTION]]],
+     ['Bookmarks', [['Bookmark This Tab...', 'markThis:', 'd', true], ['Show Bookmarks Bar', 'marksBar:', 'b', true, CMD | SHIFT], ['Bookmark Manager', 'bookmarks:', 'b', true, CMD | OPTION], ['Import Bookmarks...', 'importing:', '', true]]],
      ['Tab', [['New Tab', 'newTab:', 't', true], ['Close Tab', 'closeTab:', 'w', true], ['Show All Tabs', 'tabsPage:', 'a', true, CMD | SHIFT],
         ['Select Next Tab', 'nextTab:', String.fromCharCode(0xF703), true, CMD | OPTION], ['Select Previous Tab', 'previousTab:', String.fromCharCode(0xF702), true, CMD | OPTION],
         ['Next Tab', 'nextTab:', '\t', true, CONTROL], ['Previous Tab', 'previousTab:', '\t', true, CONTROL | SHIFT]].concat(tabKeys)]].forEach(function (one) {
@@ -4144,7 +5125,8 @@ function run(argv) {
     laser();
     win.appearance = $.NSAppearance.appearanceNamed($('NSAppearanceNameDarkAqua'));
     win.backgroundColor = $.NSColor.clearColor;
-    win.contentView = $.LzrprfFrame.alloc.initWithFrame($.NSMakeRect(0, 0, 1000, 760));
+    frameView = $.LzrprfFrame.alloc.initWithFrame($.NSMakeRect(0, 0, 1000, 760));
+    win.contentView = frameView;
     root = $.NSView.alloc.initWithFrame($.NSMakeRect(17, 17, 966, 726));
     win.contentView.addSubview(root);
     tabsView = $.LzrprfTabs.alloc.initWithFrame($.NSMakeRect(0, 0, 960, TABS_HIGH));
@@ -4208,24 +5190,22 @@ function run(argv) {
     scroll.backgroundColor = page.backgroundColor;
     scroll.documentView = page;
     root.addSubview(scroll);
-    under = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));
+    under = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));    // in the panel of what the page is made of (techBox)
     under.hasVerticalScroller = true;
     under.borderType = 0;
-    under.autoresizingMask = 2 | 32;
+    under.drawsBackground = false;
     made = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));
     made.editable = false;
     made.richText = false;
     made.automaticLinkDetectionEnabled = false;
     made.automaticDataDetectionEnabled = false;
     made.displaysLinkToolTips = false;
-    made.textContainerInset = $.NSMakeSize(14, 8);
-    made.autoresizingMask = 2;
-    made.backgroundColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.03, 0.04, 0.05, 1);
-    under.backgroundColor = made.backgroundColor;
+    made.textContainerInset = $.NSMakeSize(0, 2);
+    made.drawsBackground = false;
     under.documentView = made;
-    root.addSubview(under);
-    logs = button('Log', 'log:');    // at the bottom right of the pane under the page, over it
-    logs.autoresizingMask = 1 | 32;
+    logs = $.LzrprfLogIcon.alloc.initWithFrame($.NSMakeRect(0, 0, 26, 24));    // the log, an icon at the right end of lzrprf's strip
+    techs = $.LzrprfTechIcon.alloc.initWithFrame($.NSMakeRect(0, 0, 26, 24));    // what the page is made of, beside it
+    [[logs, 'log:', 'Log'], [techs, 'techs:', 'What this page is made of']].forEach(function (one) { one[0].bordered = false; one[0].title = $(''); one[0].toolTip = $(one[2]); one[0].target = hand; one[0].action = one[1]; root.addSubview(one[0]); tracked(one[0]); });
     logs.enabled = false;
     homeView = $.LzrprfHome.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 600));
     root.addSubview(homeView);
@@ -4252,6 +5232,14 @@ function run(argv) {
     secureScroll.documentView = secureText;
     secureBox.addSubview(secureScroll);
     root.addSubview(secureBox);
+    techBox = $.LzrprfTech.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
+    techBox.hidden = true;
+    techBox.addSubview(under);
+    root.addSubview(techBox);
+    suggestBox = $.LzrprfSuggest.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 200));
+    suggestBox.hidden = true;
+    root.addSubview(suggestBox);
+    tracked(suggestBox);
     cogCatch = $.LzrprfCatch.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 720));
     cogCatch.hidden = true;
     root.addSubview(cogCatch);
@@ -4292,6 +5280,17 @@ function run(argv) {
     engineField.placeholderString = $('https://search.example.com/search?q=%s');
     engineField.hidden = true;
     panel.addSubview(engineField);
+    wizardView = $.LzrprfWizard.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 260));
+    wizardView.hidden = true;
+    panel.addSubview(wizardView);
+    tracked(wizardView);
+    pathField = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 400, 26));
+    pathField.font = sans(13);
+    pathField.cell.usesSingleLineMode = true;
+    pathField.cell.scrollable = true;
+    pathField.placeholderString = $('Or type its path: ~/Downloads/bookmarks.html');
+    pathField.hidden = true;
+    panel.addSubview(pathField);
     panelScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
     panelScroll.hasVerticalScroller = true;
     panelScroll.borderType = 0;

@@ -55,7 +55,7 @@ Not a mathematical proof. Nobody has proven macOS correct, and nothing here says
 this repository is proven in this sense, and in no stronger one:
 
 1. It is a **condition in the code**: one line, or a few, that you can read. Each has a mark,
-   `[C1]` to `[C14]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
+   `[C1]` to `[C15]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
 2. It is **probed on your computer**: `selftest` runs a hostile application against that
    condition. A probe on a container is first made outside every container, where it must
    succeed, so a refusal inside is the container's and not a probe that could never have
@@ -99,7 +99,7 @@ container and, for the things named in point 3, the weakened copies it must catc
 a proof that no other probe exists.
 
 `selftest` also reads this README when it stands beside it. It fails when the marks cited here
-are not exactly the fourteen in `lzrprf`, when a part named here (the word `sub` and a name) is
+are not exactly the fifteen in `lzrprf`, when a part named here (the word `sub` and a name) is
 not in `lzrprf`, or when one of eleven limits is not stated here as the number in `lzrprf`: 30
 seconds for a fetch and for a page, 6 MB for an answer, 12 MB for a list, 50000 lines, 2000 boxes,
 20000 characters in a block, 30 characters in a row that hang on the one before them,
@@ -280,9 +280,10 @@ One visit, in order (`sub visit`):
 | `[C9]` | Every line the application writes is checked, and a list with anything but the five kinds of line (from release 22 on, or the lines of a laid page, laid at the width its `=view` frame asked for), or with more than the window is given to set, is not drawn at all. The page's title, a line `=title` right after `=page` of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else. A laid page may also hold tiles: `K<n>,<x>,<y>,<w>,<h>` gives tile n (0 to 31, each once) at a corner of the grid of 256, exactly as wide and high as the page leaves there (256 at most), with one line `n<base64>` for each row: red, green and blue, a byte each and no alpha, since a tile is opaque, so a row is exactly 4 characters of base64 a pixel with no `=`, and its length and its alphabet are its whole check (from release 31 on; a picture keeps its rows `m` with how opaque), and `J<n>,<x>,<y>` places a tile given above again where it is cut the same; at most 32 tiles and 1024 places, outside the 262144 pixels of the pictures, which is why a list may hold 12 MB. | `sub checked`, `sub laid` | Hostile lists (a script, lzrprf's own words to the window, too large, a block that holds too much, not text, a thing the page is said to be made of in a wrong form or place): none is drawn. The fullest list of such things that is allowed is passed on, and the real window's pane is read. The most lines, the most boxes and a block that is exactly full are passed on; a row of hanging characters and a word with no white space come out changed at the 31st and after the 1000th; the heaviest pages the limits allow are drawn by the real window and timed. Laid pages broken in eleven ways (out of the page, a number in a second form, too narrow, too many rectangles, mixed with a flowing page either way, a row of a picture missing or too long, not base64 or base64 in a second form, too many pixels), and tiles broken in twenty-three ways (wider or narrower than their cut, a row 4 characters too long or too short or missing, a row `m` as a picture's, a row with `=` or `==` at its end or with `-` or `_` in it, a row `n` under a picture or under no tile, numbered 32, 01 or twice, placed before they are given, off the grid or out of the page, placed where they are cut otherwise, 33 tiles or 1025 places): none is drawn. A laid page that is fit, tiles too, is passed on as it is, and in its text a control character is replaced, not refused. |
 | `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. Of the system's services it looks up by name only the 41 its container lists and one local name, the clipboard's (from release 19 on; before that all but one). The question about a system service names none: it says that the container refuses by default, not which names its list lets through. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. From the real window it asks for six system services by name: the clipboard, which the container lists, is answered, and the five it does not list are refused; a copy without that refusal is answered as a program outside every container is, and a copy whose list is one name wider is caught by the same try. |
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
-| `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"), apart from the one address you made the home page, the bookmarks you made (each a name and an address), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (`install.txt`); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
+| `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"), apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file `.order` of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (`install.txt`); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
 | `[C13]` | The application opens no file for its fonts. lzrprf hands a page run, and never a picture run, eight fonts of the Mac by fixed paths in `/System/Library/Fonts/Supplemental` (Arial and Courier New, each plain, bold, italic and both), as one frame in front of the answer: `=fonts` and the eight lengths on one line, then their bytes. A face goes with length 0 unless it is a plain file and no link, of at most 2 MiB, that begins as a TrueType font; a pipe put in its place is not waited for. They are read once in a window, and the keeper hands them over after the same word of the system as the answer `[C3]`. A site cannot put a frame in front of lzrprf's: what it sends comes after it. | `sub faces`, `sub contained` | The application takes the frame off its input and says the length and SHA-256 of each face: they are the eight files as `selftest` reads them itself. A picture run gets no frame. A site whose answer holds a frame of its own: it arrives after the real one, byte for byte. A copy that reads its fonts from a folder of the test: a link to a font, a file one byte over 2 MiB, a pipe and a file that does not begin as a font each go with length 0, while a font of exactly 2 MiB is handed over whole; the same copy without O_NOFOLLOW hands over the font behind the link, and the test notices. |
 | `[C14]` | A page is laid out at most twice. The first run of a page is given the empty frame `=sheets` after the fonts, and may name up to eight style sheets on the page's own host in a line `=sheets`, checked as the paths of pictures are `[C9]`. lzrprf fetches them `[C4]` `[C5]` and runs the page a second time, with `=sheets`, the length of each and their answers byte for byte in front of the page's answer, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown: the first run's page is, and the bar says the sheets were not used. There is never a third run, and a picture run is given no style sheet. | `sub checked`, `sub sheeted`, `sub visit`, `sub contained` | The application says on each run the length and SHA-256 of each sheet it took off its input: none on the first run, the test site's answers on the second. A sheet whose body begins `=sheets 4` arrives inside its own length. A sheet over 1 MiB, a fetch that failed and a sheet not begun within the clock each go with length 0, the last neither logged nor asked for. Each sheet has two lines in the log and one request, of its own address; no other host is asked. Lines `=sheets` broken in six ways are refused with nothing fetched. A second run that names sheets again, or is not a page: the first run's page, two runs. A page that names none: one run. A picture run gets no frame. A copy that shows a second run naming sheets again shows it (`lostsheets`). |
+| `[C15]` | Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: `Local State` and each profile's `Bookmarks` of Chrome, Edge, Brave and Vivaldi, Firefox's `profiles.ini` and newest `bookmarkbackups/*.jsonlz4`, Safari's `Bookmarks.plist`, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import `[C12]`. | `sub import_read`, `sub import_profiles_of`, `sub import_files`, `sub import_path`, `sub import_preview`, `sub import_plan`, `sub import_go`, `sub lz4_block`, `sub plist_binary` | Fixture files of each format under the run's own folder, which a try takes for the home folder: Chrome's JSON with two profiles named in Local State, a Firefox backup whose LZ4 block holds matches, a binary plist made by `plutil`, an HTML export. Each is imported in its order, the bar into the bookmarks bar after what it held, the rest into "Imported from" and the browser's name, numbered past a folder of that name. Plain http and `javascript:` are skipped and a fifth folder deep is left out, each counted. A link to a bookmarks file is neither offered nor read; a typed path outside the home folder, or climbing out of it, is refused. Nothing imported is fetched or logged. |
 
 ## The claims, one by one
 
@@ -704,6 +705,47 @@ the window alone, and nothing in it comes from a page.
   `Bookmarks bar` (Chrome's name for it), which the star's modal offers first; the first time the
   folder is read without it, the bookmarks at its top, which the bar showed until then, move into it
   by a change of name each (`sub marks_into_bar`).
+  A folder's order is
+  kept in a file `.order` in it, its names one a line (`sub order_set`): the window shows every
+  folder in that order, everywhere (the bar, the folder menus, the bookmarks page), and a new
+  bookmark is added at the end. What is in a folder and not named in it comes after, by name.
+- **Importing bookmarks.** The cogwheel's "Import bookmarks..." opens one modal with steps,
+  Back and Next. First the source: Chrome, Edge, Brave, Firefox, Safari, Vivaldi, or "A
+  bookmarks file (HTML)"; a browser that is not on this Mac is shown greyed, "Not found". Then
+  the profile, by the names in Chromium's `Local State` or Firefox's `profiles.ini`; then what
+  Import would add (N bookmarks in M folders, K in the bar, what is skipped and what is left
+  out, and why); then Import, and a last screen of what was written. lzrprf reads the files
+  itself, never the window, and starts no program for it `[C15]`: Chromium's `Bookmarks` JSON
+  with the JSON code that comes with the system's perl, Firefox's newest
+  `bookmarkbackups/*.jsonlz4` with an LZ4 block decoder of its own (`sub lz4_block`, at most
+  64 MiB unpacked), Safari's binary `Bookmarks.plist` with a reader of its own
+  (`sub plist_binary`), and an exported HTML file (`sub import_html`). Firefox's
+  `places.sqlite` would need `sqlite3` and is not read: its own backups hold the same
+  bookmarks. `plutil` is not used either. macOS gives Safari's file only to a program you
+  granted Full Disk Access: when it refuses, the wizard says so and tells you to export the
+  bookmarks from Safari and choose the HTML file. The window cannot show a file picker: its
+  container answers only the clipboard service and reads nothing under your home folder
+  `[C10]`, so the HTML step offers the bookmarks files lzrprf finds in Downloads, Desktop and
+  Documents, and takes a path you type in your home folder. The source's bookmarks bar goes into
+  "Bookmarks bar", folders and all, after what it holds; the rest into a new folder "Imported
+  from" and the browser's name; each folder in the source's order, bookmarks and folders mixed,
+  kept in its `.order`. Each bookmark gets the checks one you add gets: its name through
+  `sub plain_name`, its address through `sub address` (one lzrprf does not fetch is skipped and
+  counted), at most 1000 in all and folders at most 4 deep (what is beyond is left out and
+  counted), each written by `sub mark_written` (`sub import_plan`, `sub import_go`). Nothing
+  imported is fetched `[C4]`.
+- **Address suggestions.** While you type in the bar, a list under it suggests pages shown in
+  this window and your bookmarks: the start of a host first, then the start of a title or of a
+  word in it, then anything that contains what you typed, at most 8 (`function suggested` in
+  the window). The arrow keys move, Return or a click opens, Escape closes. The pages come from
+  lzrprf as they are shown (`history add`), held in the window's memory only, at most 500, and
+  cleared with "Clear browsing history": nothing of them is written to the disk. Opening one is
+  a visit like a typed address `[C4]`.
+- **The bottom bar.** At its right end two line icons: the log, and what the page is made of.
+  The second opens, in a panel of its own over the page, the list the application gave of what
+  the page is made of, each thing with its version and whether the application says it
+  supports it, under the sentence that lzrprf checked the form of that list and not whether it
+  is true.
 - **Clearing.** "Clear browsing history" empties the addresses the tabs went to; the log is
   cleared by its own button and by nothing else. Clearing the sessions also drops every page
   lzrprf keeps for a tab. lzrprf sends no cookie and keeps none `[C7]`, so no login was kept by
@@ -830,11 +872,12 @@ The limits, said plainly:
   names, a snapshot of the disk or a backup: those are macOS's, outside lzrprf, and lzrprf
   cannot prevent them.
 - Besides the log, `~/.lzrprf` holds what you chose to keep there: `home` (the one address you
-  made the home page), the folder `bookmarks` (one file a bookmark, a name and an address),
+  made the home page), the folder `bookmarks` (one file a bookmark, a name and an address, and a file `.order` in each folder),
   `marksbar` (whether the bookmarks bar is shown), and after "Install it" the folder
   `install.NUMBER` with the installer it fetched and `install.txt`, every line an installer
   printed, appended. It also holds files lzrprf needs to work, none with an address you typed:
-  `keep` (what is kept), `look` (your answer about newer releases), `proven` (the mark of
+  `keep` (what is kept), `look` (your answer about newer releases), `welcomed` (the number of
+  the last release whose welcome you closed, and nothing else), `proven` (the mark of
   `[C11]`), `untested` (your yes to starting without the checks a test could not try, as the
   line of the mark you said it to), `selftest.txt` (the last test's report), `selftest.lock`, from an installer's questions until its files are placed
   its lock (the link `.installing`), and while a window is
@@ -901,13 +944,21 @@ asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you 
   other request `[C5]`.
 - The address is on GitHub, not on a server of the application's maker. The maker's server
   sees no request at all. GitHub sees your internet address and the time, at each start.
+- The first start of a release shows a welcome once (`sub welcome`): what is new in it, from
+  the release file's lines `new`, and two short groups, what the application keeps you from
+  and what it cannot keep you from, which stays yours to watch: what you type into a site, what
+  a site does with it on its own servers, fake sites, what you take into another program, and
+  your internet address. Got it writes the release number to `welcomed`; nothing is fetched.
 - When the number is larger than yours, the window says so and offers the installer. lzrprf
   replaces nothing itself, not the application and not itself. "Install it" is the yes, and no
   key is pressed after it (`sub installed`).
 - lzrprf fetches the installer itself, like any request: its line in the log first `[C5]`,
   through `sub fetch` `[C6]`, by a contained `curl` that follows no redirect `[C3]` `[C7]`. When
   the release names a second place (the line `same`; the release on record here does), it
-  fetches that copy too and goes on only when the two are the same byte for byte; a `same` line
+  fetches that copy too and goes on only when the two are the same byte for byte. While a
+  release is being published one place can keep its old copy for a few minutes, so when the two
+  differ both are fetched again every 30 seconds, twelve times in all, each try a line in the
+  window; a copy that differs is never run, and after the twelfth the install fails. A `same` line
   that is there and is no address counts as one that does not agree, and nothing is fetched.
   An address is handed to `curl` as one argument and to no shell, so a quote in it is a
   character like any other.
@@ -920,8 +971,10 @@ asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you 
   A colour it asks for becomes one letter the window draws in, and every escape and control
   character is taken out first (`sub install_line`), so nothing it prints acts on the window.
   After 30 minutes it is ended. At the end the modal says done or failed; after done, lzrprf
-  takes nothing more in that window, and you start the application again to run the new
-  release. This is the one moment on this road when the maker's site is asked for anything:
+  takes nothing more in that window, which offers Close, and Close and restart. Restart starts
+  the application again once this run has ended: a process of its own waits until lzrprf and
+  the launcher are gone, then asks macOS to open the application at the place it ran from,
+  which the installer has replaced (`sub restarted`). This is the one moment on this road when the maker's site is asked for anything:
   it sees your internet address then, as GitHub does.
 - The installer, in auto, shows no question and leaves the Dock alone on an update, refuses to put an older
   release over a newer one, and says so when the release would replace `lzrprf` itself. Run by
@@ -949,14 +1002,19 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 44
+    release 45
+    new A welcome like this one after every install or update: what is new, and what LZRBRWSR does and does not do for you
+    new Address suggestions as you type, from your bookmarks and what you opened before
+    new Bookmarks imported from Chrome, Edge, Brave, Firefox, Safari, Vivaldi or an HTML file, in a few steps
+    new The log and the technical details behind two icons in the bar
+    new Installing a newer release no longer closes the window, waits out a release still being published, and offers Close and restart
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin ed1b16dbede7d42d445946a747418a727825028a925276aef3b00dbd32bf65ea
-    lzrprf 14c00af890f5797b6ca3921f927ec1cadc0d7855353fcc4c81517f2e63c31507
+    lzrprf 5006c87dde865603e06aacce3ba1af5c430945ea03a011f051beea82b342c69f
 
 ## When a page cannot be shown
 
@@ -1600,7 +1658,7 @@ what the code and the system make impossible, and how you checked it.
    what ends the closed program when lzrprf itself is killed, and what if the keeper is
    killed first? By which names does
    `selftest` try to read a file of the home folder in the page and fetch containers?
-3. The first lines of `lzrprf` list fourteen conditions, [C1] to [C14], and each is marked again
+3. The first lines of `lzrprf` list fifteen conditions, [C1] to [C15], and each is marked again
    at the line that holds it. For each: is the line there, does it do what the condition says,
    and can you find a way around it?
 4. Follow one request from Return in the address bar to the page in the window. Can any byte
