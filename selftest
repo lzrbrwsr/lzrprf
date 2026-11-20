@@ -141,7 +141,7 @@ for my $kind (qw(trusted untrusted plain echo closed)) {
 close delete $listener{closed};           # a port where nothing listens
 sub answer_for {                          # what the test site answers on its https listeners
     my ($path) = @_;
-    my $body = $path eq '/large' ? 'x' x (7 * 1024 * 1024) : $path =~ m{^/latest-(?:yes|same)(?:\?(?:quote|two|bad))?$} ? "7\n" : $path =~ m{^/report} ? "received\n" : "the page of the test site\n";
+    my $body = $path eq '/large' ? 'x' x (7 * 1024 * 1024) : $path =~ m{^/latest-(?:yes|same)(?:\?(?:quote|two|bad))?$} ? "7\n" : $path =~ m{^/report} ? "received\n" : $path eq '/forged' ? "=fonts 4 0 0 0 0 0 0 0\n\x00\x01\x00\x00" : "the page of the test site\n";    # a site that sends a frame of fonts of its own
     return "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nthe \r\n16\r\npage of the test site\n\r\n0\r\n\r\n" if $path eq '/pieces';
     my $head = $path eq '/elsewhere' ? "HTTP/1.1 302 Found\r\nLocation: https://elsewhere.test/moved\r\n" : "HTTP/1.1 200 OK\r\n";
     return $head . "Content-Type: text/html\r\nSet-Cookie: kept=never\r\nContent-Length: " . length($body) . "\r\nConnection: close\r\n\r\n$body";
@@ -355,6 +355,7 @@ $kind //= '';
 if ($kind eq 'spin') { 1 while 1 }
 if ($ENV{LZRPRF_PICTURE}) {
     my $picture = do { local $/; <STDIN> } // '';
+    print STDERR "picture\t$address\t", ($picture =~ /\A=fonts/ ? 'fonts' : 'none'), "\n";
     my %pixels = (pixgood => "P2,2\npff0000ff00ff00ff\np0000ff80ffffff00\n", pixrow => "P2,1\npff0000ff00ff00\n", pixhex => "P1,1\npff00zzff\n", pixnone => "P0,0\n");
     print $pixels{$kind} // '';
     exit 0;
@@ -362,6 +363,8 @@ if ($ENV{LZRPRF_PICTURE}) {
 if ($kind eq 'sleep') { sleep 1000 }
 if ($kind eq 'nap') { 1 while sysread(STDIN, my $read, 65536); print STDERR "napping\n"; sleep 5; print STDERR "woke\n"; exit 0 }
 my $answer = $kind eq 'noread' ? '' : do { local $/; <STDIN> } // '';
+my $faces = 'none';
+if ($answer =~ /\A=fonts((?: (?:0|[1-9][0-9]{0,6})){8})\n/) { require Digest::SHA; my ($at, @sizes) = ($+[0], split ' ', $1); $faces = join(' ', @sizes) . "\t" . join(' ', map { my $one = substr($answer, $at, $_); $at += $_; length($one) ? Digest::SHA::sha256_hex($one) : '-' } @sizes); substr($answer, 0, $at, '') }
 my $good = "=page other.test third.test\nUd+-\nUd+HTML\t5\nUc-Grid\tLevel 1\nUc-Subgrid\nUl-A library of the hostile application\t1.2.3\nP10\nT\@A page by the hostile application\nPp0\nTHa link that is only a colour\nB\nI200x100\nPc1\nTDfixed\n";
 my $marks = "a\e[2Jb\tc\x{202e}d\x{200b}e\x{2028}f\x{feff}g\x{e000}h\x00i\x7fj\x{85}k\rl\x{1fffe}m";
 utf8::encode($marks);
@@ -486,6 +489,7 @@ my %list = (
 if (exists $heavy{$kind}) { my $whole = $heavy{$kind}->(); utf8::encode($whole); print $whole }
 else { print exists $list{$kind} ? $list{$kind} : $good }
 print STDERR "answer\t$address\t", unpack('H*', $answer), "\n" if $part eq 'echo';
+print STDERR "faces\t$address\t$faces\n" if $part eq 'echo';
 exit 0 if $part ne 'page' || $kind;
 report 'what it is given', -p STDIN ? 'a pipe that holds a finished answer' : 'something else';
 report 'the answer of the site', $answer =~ m{^HTTP/1\.1 200 OK\r\n.*\r\n\r\nthe page of the test site\n$}s ? 'whole' : 'not whole';
@@ -671,9 +675,22 @@ run_of('aliasoutside', command => [bundle('aliasoutside', 'release 3'), '-e', $h
 my $lost_code = mutant('lostcode', qq{(deny file-map-executable)\n} => '');    # a copy of lzrprf whose page container does not refuse it: every file the application may read can be loaded as code, as before release 17
 run_of('lostcode', lzrprf => $lost_code, app => bundle('lostcode', 'release 3', pair_line($lost_code)), typed => "$t/lostcode", fetches => ['/lostcode']);
 run_of('alias', app => bundle('alias', 'release 3'), typed => "$t/alias", fetches => ['/alias']);    # the same program in the page container: its own folder is the one place in your account it may read
+# Fonts in a folder of the test's own, for two copies of lzrprf that read their eight there: a link to
+# a font, one byte more than 2 MiB, a pipe, a file that does not begin as a font, a font of exactly
+# 2 MiB and a small one. The last two names hold nothing. The second copy opens them without O_NOFOLLOW.
+my $face_folder = "$base.facefiles";
+my ($small_font, $whole_font) = ("\x00\x01\x00\x00" . "a font of the test\n" x 8, "\x00\x01\x00\x00" . "\0" x (2 * 1024 * 1024 - 4));
+my %face_files = ('Courier New' => $small_font, 'Courier New Bold' => $whole_font, 'Arial Bold' => "$whole_font\0", 'Arial Bold Italic' => 'OTTO' . substr($small_font, 4));
+mkdir $face_folder or die "selftest: cannot make $face_folder: $!\n";
+for (sort keys %face_files) { open my $out, '>', "$face_folder/$_.ttf" or die "selftest: cannot write $face_folder/$_.ttf: $!\n"; binmode $out; print $out $face_files{$_}; close $out }
+symlink "$face_folder/Courier New.ttf", "$face_folder/Arial.ttf" or die "selftest: cannot make a link in $face_folder: $!\n";
+POSIX::mkfifo("$face_folder/Arial Italic.ttf", 0600) or die "selftest: cannot make a pipe in $face_folder: $!\n";
+my %face_paths = (q{"/System/Library/Fonts/Supplemental/$_.ttf"} => "'$face_folder/' . \"\$_.ttf\"");
+run_of('faces', part => 'echo', lzrprf => mutant('faces', %face_paths), typed => "$t/faces", fetches => ['/faces']);
+run_of('facesfollow', part => 'echo', lzrprf => mutant('facesfollow', %face_paths, 'sysopen($in, $_, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)' => 'sysopen($in, $_, O_RDONLY | O_NONBLOCK)'), typed => "$t/facesfollow", fetches => ['/facesfollow']);
 run_of('deny', typed => "$t/denied", answer => 'deny');
 run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), fetches => [(map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), @pixel_paths]);
-run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large", fetches => ['/elsewhere', '/pieces', '/large']);
+run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large,,$t/forged", fetches => ['/elsewhere', '/pieces', '/large', '/forged']);
 run_of('untrusted', peer => 'untrusted', typed => "$t/untrusted");
 run_of('plain', peer => 'plain', typed => "$t/plain");
 run_of('closed', peer => 'closed', typed => "$t/closed");
@@ -957,6 +974,22 @@ check(($once{'the variables it is given'} // '') eq 'the address it lays out, an
 check(($once{'descriptors it holds besides its three'} // '') eq 'none', 'it holds no open file or socket besides its three descriptors', $once{'descriptors it holds besides its three'} // 'nothing came of it');
 check(-e "$secret.written.outside" && !grep({ !/\.outside$/ } glob "$secret.written.*"), 'no file was written in the home folder from inside a container', 'looked for it');
 unlink "/tmp/lzrprf-selftest.$outside", glob "$secret.written.*";
+# The fonts a page is drawn with. The application took lzrprf's frame off its input and said the
+# length and SHA-256 of each face; this test reads the same eight files itself and compares.
+sub faces_of { my ($run, $address) = @_; my ($said) = map { /^faces\t\Q$address\E\t(.*)$/ ? $1 : () } split /\n/, err($run); return $said // 'nothing came of it' }
+sub face_sums { my @one = map { !-l $_ && -f $_ && -s _ <= 2097152 && slurp($_) =~ /\A\x00\x01\x00\x00/ ? slurp($_) : '' } @_; return join(' ', map { length } @one) . "\t" . join(' ', map { length($_) ? Digest::SHA::sha256_hex($_) : '-' } @one) }
+my $system_faces = face_sums(map { "/System/Library/Fonts/Supplemental/$_.ttf" } 'Arial', 'Arial Bold', 'Arial Italic', 'Arial Bold Italic', 'Courier New', 'Courier New Bold', 'Courier New Italic', 'Courier New Bold Italic');
+my @given_faces = map { faces_of('answers', "$t/$_") } 'elsewhere', 'pieces', 'forged';
+if ($system_faces =~ /^[0 ]+\t/) { untested('a page run is given the eight fonts of the Mac', 'none of them is on this macOS') }
+else { check(!grep({ $_ ne $system_faces } @given_faces), 'a page run is given the eight fonts of the Mac in front of the answer, each byte for byte the file at its fixed path: the lengths and SHA-256s the application took off its input are the ones this test reads itself', join(' | ', map { (split /\t/)[0] } @given_faces)) }
+my ($forged) = map { /^answer\t\Q$t\E\/forged\t([0-9a-f]*)$/ ? pack('H*', $1) : () } split /\n/, err('answers');
+check(($forged // '') =~ m{\AHTTP/1\.1 200 OK\r\n.*\r\n\r\n=fonts 4 0 0 0 0 0 0 0\n\x00\x01\x00\x00\z}s && $given_faces[2] eq $system_faces, 'a site whose answer holds a frame of fonts of its own: it comes after lzrprf\'s frame, as part of the answer and byte for byte, and the fonts the application takes are still the Mac\'s', $given_faces[2] eq $system_faces ? 'the Mac\'s fonts, then the answer' : 'other fonts: ' . (split /\t/, $given_faces[2])[0]);
+my @picture_faces = map { /^picture\t\S+\t(\w+)$/ ? $1 : () } split /\n/, err('output');
+check(@picture_faces == @pixel_paths && !grep({ $_ ne 'none' } @picture_faces), 'a picture run is given no fonts: its input begins with the site\'s answer', join('/', @picture_faces) || 'nothing came of it');
+my ($small_sum, $whole_sum) = map { Digest::SHA::sha256_hex($_) } $small_font, $whole_font;
+my $probed = '0 0 0 0 ' . length($small_font) . " 2097152 0 0\t- - - - $small_sum $whole_sum - -";
+check(faces_of('faces', "$t/faces") eq $probed, 'a copy of lzrprf that reads its fonts from a folder of the test: a link to a font, a file one byte longer than 2 MiB, a pipe (which is not waited for) and a file that does not begin as a font each go with length 0; a font of exactly 2 MiB and a small one are handed over whole', (split /\t/, faces_of('faces', "$t/faces"))[0]);
+check(faces_of('facesfollow', "$t/facesfollow") eq $probed =~ s/^0/length $small_font/er =~ s/\t- /\t$small_sum /r, 'the same copy without O_NOFOLLOW: the link is followed and the font behind it is handed over, so the test notices', (split /\t/, faces_of('facesfollow', "$t/facesfollow"))[0]);
 
 # 2. The other two containers.                                 [C3] [C10]
 print "\n2. The other two containers: curl's, with the hostile application in curl's place, and the window's.\n";
@@ -1304,7 +1337,7 @@ my ($in_time, $gone) = hears();
 check(defined $in_time && $in_time eq '' && !defined $gone, 'the two ends of a question are told apart: "sub hear" of lzrprf, run against a pipe of the test\'s own, gives an empty line when nothing is said in time, so "sub ask" answers 1, and nothing when the window is gone, so lzrprf ends', defined $in_time ? (defined $gone ? 'the same for both' : 'time over: an empty line; window gone: nothing') : 'time over: nothing, as if the window were gone');
 my @no_folder = grep { my $pid = open(my $in, '-|') // die "selftest: cannot fork: $!\n"; if (!$pid) { open STDERR, '>&', \*STDOUT; { no warnings; exec '/usr/bin/perl', $cli, 'try', "$base.keepcli/$_", '-', '-', 'deny', '/usr/bin/true'; } POSIX::_exit(127) } my $all = do { local $/; <$in> } // ''; close $in; $all !~ /^usage: lzrprf run / } '.', '..', '.x';    # nothing is typed and every answer is the first button, so a folder that was taken would have nothing done in it
 check(!@no_folder, 'the door for tests takes no folder named ".", ".." or with a dot first, so it cannot be pointed at the folder lzrprf itself keeps its state in', @no_folder ? "taken: @no_folder" : 'usage, three times');
-check(keys %marks == 12 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 12 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
+check(keys %marks == 13 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 13 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
 my $readme = slurp("$here/README.md");
 if (length $readme) {
     my %cited = map { $_ => 1 } $readme =~ /\[(C\d+)\]/g;

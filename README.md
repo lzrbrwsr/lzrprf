@@ -55,7 +55,7 @@ Not a mathematical proof. Nobody has proven macOS correct, and nothing here says
 this repository is proven in this sense, and in no stronger one:
 
 1. It is a **condition in the code**: one line, or a few, that you can read. Each has a mark,
-   `[C1]` to `[C12]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
+   `[C1]` to `[C13]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
 2. It is **probed on your computer**: `selftest` runs a hostile application against that
    condition. A probe on a container is first made outside every container, where it must
    succeed, so a refusal inside is the container's and not a probe that could never have
@@ -99,7 +99,7 @@ container and, for the things named in point 3, the weakened copies it must catc
 a proof that no other probe exists.
 
 `selftest` also reads this README when it stands beside it. It fails when the marks cited here
-are not exactly the twelve in `lzrprf`, when a part named here (the word `sub` and a name) is
+are not exactly the thirteen in `lzrprf`, when a part named here (the word `sub` and a name) is
 not in `lzrprf`, or when one of eleven limits is not stated here as the number in `lzrprf`: 30
 seconds for a fetch and for a page, 6 MB for an answer, 12 MB for a list, 50000 lines, 2000 boxes,
 20000 characters in a block, 30 characters in a row that hang on the one before them,
@@ -281,6 +281,7 @@ One visit, in order (`sub visit`):
 | `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. Of the system's services it looks up by name only the 40 its container lists and one local name, the clipboard's (from release 19 on; before that all but one). The question about a system service names none: it says that the container refuses by default, not which names its list lets through. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. From the real window it asks for six system services by name: the clipboard, which the container lists, is answered, and the five it does not list are refused; a copy without that refusal is answered as a program outside every container is, and a copy whose list is one name wider is caught by the same try. |
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
 | `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
+| `[C13]` | The application opens no file for its fonts. lzrprf hands a page run, and never a picture run, eight fonts of the Mac by fixed paths in `/System/Library/Fonts/Supplemental` (Arial and Courier New, each plain, bold, italic and both), as one frame in front of the answer: `=fonts` and the eight lengths on one line, then their bytes. A face goes with length 0 unless it is a plain file and no link, of at most 2 MiB, that begins as a TrueType font; a pipe put in its place is not waited for. They are read once in a window, and the keeper hands them over after the same word of the system as the answer `[C3]`. A site cannot put a frame in front of lzrprf's: what it sends comes after it. | `sub faces`, `sub contained` | The application takes the frame off its input and says the length and SHA-256 of each face: they are the eight files as `selftest` reads them itself. A picture run gets no frame. A site whose answer holds a frame of its own: it arrives after the real one, byte for byte. A copy that reads its fonts from a folder of the test: a link to a font, a file one byte over 2 MiB, a pipe and a file that does not begin as a font each go with length 0, while a font of exactly 2 MiB is handed over whole; the same copy without O_NOFOLLOW hands over the font behind the link, and the test notices. |
 
 ## The claims, one by one
 
@@ -847,14 +848,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 28
+    release 29
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin f1dc8f99a9a8305756fc152ded611595f82aa70feabc416d69c2f584df78a680
-    lzrprf f7504c0ff7f8fe4caae939def082b1332963e19cfa6a57a9cdc102fe43e3cbac
+    file lzrbrwsr-bin 89bface9e6ba47c9c7abd2cb9aeecb30afdd76083581d772e2043036dab2f83c
+    lzrprf 63ebbb92528bdb22ce0efaa5ee46212b28d97a6e75f7e274bf431ffa86ae2ea1
 
 ## When a page cannot be shown
 
@@ -1490,7 +1491,7 @@ what the code and the system make impossible, and how you checked it.
    what ends the closed program when lzrprf itself is killed, and what if the keeper is
    killed first? By which names does
    `selftest` try to read a file of the home folder in the page and fetch containers?
-3. The first lines of `lzrprf` list twelve conditions, [C1] to [C12], and each is marked again
+3. The first lines of `lzrprf` list thirteen conditions, [C1] to [C13], and each is marked again
    at the line that holds it. For each: is the line there, does it do what the condition says,
    and can you find a way around it?
 4. Follow one request from Return in the address bar to the page in the window. Can any byte

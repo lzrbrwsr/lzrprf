@@ -42,6 +42,7 @@
 #   [C10] The window's process has no network of its own, writes no file, starts no other program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, lzrprf asks the system about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of that container's text, its list of services among it, is not asked about, and selftest makes its own tries from the real window. Of the system's services it looks up by name only the 40 its container lists and one local name, the clipboard's.
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
+#   [C13] The application opens no file for its fonts: lzrprf hands it eight fonts of the Mac, by fixed paths, in front of a page's answer and never a picture's, each a plain file and no link of at most 2 MiB that begins as a font, or with length 0; and only after the system said that the application is contained.
 #
 # This file is the whole program. Its parts, in order: the containers, the
 # proof that they hold, one visit, the fetch, the window's side, the log, the
@@ -100,6 +101,8 @@ my $PICTURES = 8;                         # the most pictures one page may name 
 my $PICTURE_SECONDS = 20;                 # one clock for all of a page's pictures: a picture not begun by then stays a grey box
 my $PICTURE_PIXELS = 200_000;             # the most pixels in one fetched picture
 my $DRAWN_PIXELS = 8 * $PICTURE_PIXELS;   # the most pixels the window is given for fetched pictures on one page, however often one is placed: a place beyond that stays a grey box
+my @FACES = map { "/System/Library/Fonts/Supplemental/$_.ttf" } 'Arial', 'Arial Bold', 'Arial Italic', 'Arial Bold Italic', 'Courier New', 'Courier New Bold', 'Courier New Italic', 'Courier New Bold Italic';    # the fonts a page is drawn with, in the application's order: plain, bold, italic, both, then the same in fixed width
+my $FACE_BYTES = 2 * 1024 * 1024;         # the most of one font that is handed over: the largest of the eight is 773,236 bytes on this macOS
 my $ANSWER_SECONDS = 600;                 # a question that is still open then counts as answered with its first button
 my $NAME = qr/(?:[A-Za-z0-9-]{1,63}\.)+[A-Za-z][A-Za-z0-9-]{0,62}/;    # a host name: never a bare number, never one word
 my $UNWRITTEN = 'Nothing was fetched: the log could not be written.';
@@ -640,14 +643,33 @@ sub laid_out {
     return ($lines, $hosts, $paths, $said);
 }
 
+# The fonts a page is drawn with, as one frame in front of its answer:
+# "=fonts", the length of each of the eight, a line end, then their bytes.
+# The application opens no file of its own, so lzrprf reads them here, once
+# in a window. A face that is a link, a pipe or anything but a plain file,
+# is larger than $FACE_BYTES or does not begin as a font goes as length 0.
+my $FRAME;
+sub faces {                               # [C13]
+    return $FRAME //= do {
+        my @got = map {
+            my ($in, $font) = (undef, '');
+            sysopen($in, $_, O_RDONLY | O_NOFOLLOW | O_NONBLOCK) && -f $in && binmode($in)
+                && read($in, $font, $FACE_BYTES + 1) && length($font) <= $FACE_BYTES
+                && $font =~ /\A\x00\x01\x00\x00/ ? $font : '';
+        } @FACES;
+        join(' ', '=fonts', map { length } @got) . "\n" . join('', @got);
+    };
+}
+
 # One run of the application in a page container, for a page or for one
 # picture: it is given what was fetched on descriptor 0, under the same
 # limits, the same keeper and the same clock. Returns what it wrote, not yet
 # checked; or nothing, and one word for what went wrong. A picture run is
-# told one thing more, LZRPRF_PICTURE=1, and nothing else.
+# told one thing more, LZRPRF_PICTURE=1; a page run gets the fonts first.
 sub contained {
     my ($url, $got, @picture) = @_;
     return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # read again before every run: the program on the disk is the file this window began with, or nothing is laid out
+    my $frame = @picture ? '' : faces();  # [C13] read here, before the keeper is a copy of this process, so once in a window; handed over by the keeper alone, after the same word as the answer
     pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) && pipe(my $held, my $hold) or return (undef, 'unstarted');
     my $page = fork // return (undef, 'unstarted');
     if (!$page) {
@@ -664,7 +686,7 @@ sub contained {
     }
     if (!$feeder) {                       # the keeper of this page
         close $_ for $from_page, $hold;
-        keeper($held, $answer_in, $got, $page);
+        keeper($held, $answer_in, $frame . $got, $page);
         POSIX::_exit(0);                  # the keeper never returns; were it ever to, it ends here and does not go on as a second lzrprf
     }
     close $_ for $answer_in, $held;
