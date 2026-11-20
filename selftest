@@ -143,6 +143,10 @@ sub answer_for {                          # what the test site answers on its ht
     my ($path) = @_;
     my $body = $path eq '/large' ? 'x' x (7 * 1024 * 1024) : $path =~ m{^/latest-(?:yes|same)(?:\?(?:quote|two|bad))?$} ? "7\n" : $path =~ m{^/report} ? "received\n" : $path eq '/forged' ? "=fonts 4 0 0 0 0 0 0 0\n\x00\x01\x00\x00" : "the page of the test site\n";    # a site that sends a frame of fonts of its own
     return "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nthe \r\n16\r\npage of the test site\n\r\n0\r\n\r\n" if $path eq '/pieces';
+    if ($path =~ m{^/sheet/(\w+)}) {      # a style sheet: one of more than 1 MiB, one whose body begins as a frame of style sheets of its own, and a plain one
+        my $sheet = $1 eq 'big' ? 'x' x (1024 * 1024) : $1 eq 'frame' ? "=sheets 4\nabcd" : "p { color: #123456 }\n";
+        return "HTTP/1.1 200 OK\r\nContent-Type: text/css\r\nContent-Length: " . length($sheet) . "\r\nConnection: close\r\n\r\n$sheet";
+    }
     my $head = $path eq '/elsewhere' ? "HTTP/1.1 302 Found\r\nLocation: https://elsewhere.test/moved\r\n" : "HTTP/1.1 200 OK\r\n";
     return $head . "Content-Type: text/html\r\nSet-Cookie: kept=never\r\nContent-Length: " . length($body) . "\r\nConnection: close\r\n\r\n$body";
 }
@@ -195,6 +199,8 @@ if (!$site) {
             $path //= '';
             seen($kind, $got, $hello, logged($path));
             sleep 600 if $path eq '/slow';
+            sleep 11 if $path =~ m{^/sheet/late};    # a style sheet that answers after the clock for starting them has run out
+            exit 0 if $path =~ m{^/sheet/fail};    # and one that is never answered: the connection closes on it
             chmod 0400, "$base.logend/log" if $path eq '/logend';    # the log loses its permission between the line "connects to" and the line of how it ended
             rename "$base.$1app/other", "$base.$1app/Test.app/Contents/MacOS/app" if $path =~ m{^/out/shown\?(swapped|lostswap|lostlook)2$};    # the program of that run's application becomes another file while its window is open, between its first page and its second
             $client->print(answer_for($path));
@@ -355,7 +361,7 @@ $kind //= '';
 if ($kind eq 'spin') { 1 while 1 }
 if ($ENV{LZRPRF_PICTURE}) {
     my $picture = do { local $/; <STDIN> } // '';
-    print STDERR "picture\t$address\t", ($picture =~ /\A=fonts/ ? 'fonts' : 'none'), "\n";
+    print STDERR "picture\t$address\t", ($picture =~ /\A=(fonts|sheets)/ ? $1 : 'none'), "\n";
     my %pixels = (pixgood => "P2,2\npff0000ff00ff00ff\np0000ff80ffffff00\n", pixrow => "P2,1\npff0000ff00ff00\n", pixhex => "P1,1\npff00zzff\n", pixnone => "P0,0\n");
     print $pixels{$kind} // '';
     exit 0;
@@ -365,6 +371,9 @@ if ($kind eq 'nap') { 1 while sysread(STDIN, my $read, 65536); print STDERR "nap
 my $answer = $kind eq 'noread' ? '' : do { local $/; <STDIN> } // '';
 my $faces = 'none';
 if ($answer =~ /\A=fonts((?: (?:0|[1-9][0-9]{0,6})){8})\n/) { require Digest::SHA; my ($at, @sizes) = ($+[0], split ' ', $1); $faces = join(' ', @sizes) . "\t" . join(' ', map { my $one = substr($answer, $at, $_); $at += $_; length($one) ? Digest::SHA::sha256_hex($one) : '-' } @sizes); substr($answer, 0, $at, '') }
+my $sheets = 'none';
+if ($answer =~ /\A=sheets((?: (?:0|[1-9][0-9]{0,6}))*)\n/) { require Digest::SHA; my ($at, @sizes) = ($+[0], split ' ', $1); $sheets = @sizes ? join(' ', @sizes) . "\t" . join(' ', map { my $one = substr($answer, $at, $_); $at += $_; length($one) ? Digest::SHA::sha256_hex($one) : '-' } @sizes) : 'empty'; substr($answer, 0, $at, '') }
+print STDERR "sheets\t$address\t$sheets\n" if $kind =~ /^sheets/;
 my $good = "=page other.test third.test\nUd+-\nUd+HTML\t5\nUc-Grid\tLevel 1\nUc-Subgrid\nUl-A library of the hostile application\t1.2.3\nP10\nT\@A page by the hostile application\nPp0\nTHa link that is only a colour\nB\nI200x100\nPc1\nTDfixed\n";
 my $marks = "a\e[2Jb\tc\x{202e}d\x{200b}e\x{2028}f\x{feff}g\x{e000}h\x00i\x7fj\x{85}k\rl\x{1fffe}m";
 utf8::encode($marks);
@@ -495,8 +504,23 @@ my %list = (
     statedtwice => "=page\n=statement Not supported yet: Grid.\n=statement Not supported yet: Grid.\nPp0\nT\@x\n",
     statedempty => "=page\n=statement \nPp0\nT\@x\n",
     statedfirst => "=page\n=statement Not supported yet: Grid.\n=pictures /out/pixgood\nL960x400\nG0,0,5,5\n",
+    sheetsslash => "=page\n=sheets sheet/css?slash\nPp0\nT\@x\n",
+    sheetsmany => "=page\n=sheets" . join('', map { " /sheet/css?many$_" } 1 .. 9) . "\nPp0\nT\@x\n",
+    sheetschar => "=page\n=sheets /sheet/css?char#x\nPp0\nT\@x\n",
+    sheetstwice => "=page\n=sheets /sheet/css?twice\n=sheets /sheet/css?twice\nPp0\nT\@x\n",
+    sheetsafter => "=page\n=statement Not supported yet: Grid.\n=sheets /sheet/css?after\nPp0\nT\@x\n",
+    sheetsfirst => "=page\n=sheets /sheet/css?first\n=pictures /out/pixgood\nL960x400\nG0,0,5,5\n",
 );
-if (exists $heavy{$kind}) { my $whole = $heavy{$kind}->(); utf8::encode($whole); print $whole }
+my %sheeted = (
+    sheets => ["=page\n=sheets /sheet/css?sheets /sheet/frame?sheets /sheet/big?sheets /sheet/fail?sheets\nPp0\nT\@the first run\n", "=page\n=pictures /out/pixgood?sheets\nL960x400\nI0,0,20,20,0\n"],
+    sheetslate => ["=page\n=sheets /sheet/late?late /sheet/after?late\nPp0\nT\@the first run\n", "=page\nPp0\nT\@the second run\n"],
+    sheetsagain => ["=page\n=sheets /sheet/css?again\nPp0\nT\@the first run\n", "=page\n=sheets /sheet/css?again\nPp0\nT\@the second run\n"],
+    sheetslost => ["=page\n=sheets /sheet/css?lost\nPp0\nT\@the first run\n", "=page\n=sheets /sheet/css?lost\nPp0\nT\@the second run\n"],
+    sheetsunfit => ["=page\n=sheets /sheet/css?unfit\nPp0\nT\@the first run\n", "=page\nquit\n"],
+    sheetsnone => ["=page\nPp0\nT\@the first run\n", "=page\nPp0\nT\@the second run\n"],
+);
+if ($sheeted{$kind}) { print $sheeted{$kind}[$sheets eq 'empty' ? 0 : 1] }
+elsif (exists $heavy{$kind}) { my $whole = $heavy{$kind}->(); utf8::encode($whole); print $whole }
 else { print exists $list{$kind} ? $list{$kind} : $good }
 print STDERR "answer\t$address\t", unpack('H*', $answer), "\n" if $part eq 'echo';
 print STDERR "faces\t$address\t$faces\n" if $part eq 'echo';
@@ -531,6 +555,9 @@ my @laid_fit = qw(laidgood laidcontrol pictured tiledgood);
 my @stated_unfit = qw(statedcontrol statedother statedlong statedtwice statedempty statedfirst);    # a =statement line, each broken in one way
 my @stated_fit = qw(stated statedfull);
 my @pixel_paths = map { "/out/$_" } qw(pixgood pixrow pixhex pixnone);    # the pictures "pictured" names on its own host, each fetched once
+my @sheets_fit = qw(sheets sheetsagain sheetsunfit sheetsnone);    # pages laid out with the style sheets they name, or shown without them
+my @sheets_unfit = qw(sheetsslash sheetsmany sheetschar sheetstwice sheetsafter sheetsfirst);    # a =sheets line, each broken in one way: nothing of it is fetched
+my @sheet_paths = map { "/sheet/$_?sheets" } qw(css frame big fail);    # the style sheets "sheets" names on its own host: a plain one, one with a frame of its own in its body, one over 1 MiB, one never answered
 my @heavy = qw(heavylines heavyblocks heavytext heavymarks heavyword heavyspaced heavyjoined heavymixed heavytiles);    # the heaviest pages the limits allow of each kind that was measured slow, drawn by the real window in a run of their own
 my $t = 'https://site.test';
 
@@ -701,6 +728,9 @@ run_of('facesfollow', part => 'echo', lzrprf => mutant('facesfollow', %face_path
 run_of('deny', typed => "$t/denied", answer => 'deny');
 run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), fetches => [(map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), @pixel_paths]);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large,,$t/forged", fetches => ['/elsewhere', '/pieces', '/large', '/forged']);
+run_of('sheets', typed => join(',,', map { "$t/out/$_" } @sheets_fit, @sheets_unfit), fetches => [(map { "/out/$_" } @sheets_fit, @sheets_unfit), @sheet_paths, '/out/pixgood?sheets', '/sheet/css?again', '/sheet/css?unfit']);
+run_of('sheetslate', typed => "$t/out/sheetslate", fetches => ['/out/sheetslate', '/sheet/late?late']);    # a sheet that takes 11 seconds, and one after it that is not begun
+run_of('lostsheets', lzrprf => mutant('lostsheets', q|        if ($again[0] && !@{ $again[4] }) {| => q|        if ($again[0]) {|), typed => "$t/out/sheetslost", fetches => ['/out/sheetslost', '/sheet/css?lost']);    # a copy of lzrprf that shows a second run which names style sheets again
 run_of('untrusted', peer => 'untrusted', typed => "$t/untrusted");
 run_of('plain', peer => 'plain', typed => "$t/plain");
 run_of('closed', peer => 'closed', typed => "$t/closed");
@@ -999,8 +1029,8 @@ if ($system_faces =~ /^[0 ]+\t/) { untested('a page run is given the eight fonts
 else { check(!grep({ $_ ne $system_faces } @given_faces), 'a page run is given the eight fonts of the Mac in front of the answer, each byte for byte the file at its fixed path: the lengths and SHA-256s the application took off its input are the ones this test reads itself', join(' | ', map { (split /\t/)[0] } @given_faces)) }
 my ($forged) = map { /^answer\t\Q$t\E\/forged\t([0-9a-f]*)$/ ? pack('H*', $1) : () } split /\n/, err('answers');
 check(($forged // '') =~ m{\AHTTP/1\.1 200 OK\r\n.*\r\n\r\n=fonts 4 0 0 0 0 0 0 0\n\x00\x01\x00\x00\z}s && $given_faces[2] eq $system_faces, 'a site whose answer holds a frame of fonts of its own: it comes after lzrprf\'s frame, as part of the answer and byte for byte, and the fonts the application takes are still the Mac\'s', $given_faces[2] eq $system_faces ? 'the Mac\'s fonts, then the answer' : 'other fonts: ' . (split /\t/, $given_faces[2])[0]);
-my @picture_faces = map { /^picture\t\S+\t(\w+)$/ ? $1 : () } split /\n/, err('output');
-check(@picture_faces == @pixel_paths && !grep({ $_ ne 'none' } @picture_faces), 'a picture run is given no fonts: its input begins with the site\'s answer', join('/', @picture_faces) || 'nothing came of it');
+my @picture_faces = map { /^picture\t\S+\t(\w+)$/ ? $1 : () } split /\n/, err('output') . "\n" . err('sheets');
+check(@picture_faces == @pixel_paths + 1 && !grep({ $_ ne 'none' } @picture_faces), 'a picture run is given no frame, neither the fonts nor the style sheets, also on a page laid out with its style sheets: its input begins with the site\'s answer', join('/', @picture_faces) || 'nothing came of it');
 my ($small_sum, $whole_sum) = map { Digest::SHA::sha256_hex($_) } $small_font, $whole_font;
 my $probed = '0 0 0 0 ' . length($small_font) . " 2097152 0 0\t- - - - $small_sum $whole_sum - -";
 check(faces_of('faces', "$t/faces") eq $probed, 'a copy of lzrprf that reads its fonts from a folder of the test: a link to a font, a file one byte longer than 2 MiB, a pipe (which is not waited for) and a file that does not begin as a font each go with length 0; a font of exactly 2 MiB and a small one are handed over whole', (split /\t/, faces_of('faces', "$t/faces"))[0]);
@@ -1088,6 +1118,37 @@ my $stated_full = visit('output', "$t/out/statedfull");
 check($stated_full->{page} && "@{ $stated_full->{page} }" eq 'Pp0 T@x' && $stated_full->{said} =~ / The page names no other host\. ~{199}x$/, 'the longest statement there may be, 200 plain characters, is shown whole', $stated_full->{page} ? length($stated_full->{said}) . ' characters said' : $stated_full->{said});
 my @stated_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @stated_unfit;
 check(!@stated_passed, 'a page with a line =statement broken in any one way is not drawn at all, and nothing of it is said: a control code in it, a character that is not plain ASCII, 201 characters, a second such line, no words, a line =statement before the line =pictures', @stated_passed ? "passed: @stated_passed" : scalar(@stated_unfit) . ' pages, none drawn');
+# The style sheets a page names. Its first run is given the frame "=sheets" with no sheet in it and names   [C14]
+# some on its own host; lzrprf fetches them and starts the run once more with the site's answers in front
+# of the page's. On each run the application said the length and SHA-256 of each sheet it took off its input.
+sub sheets_of { my ($run, $address) = @_; return map { /^sheets\t\Q$address\E\t(.*)$/ ? $1 : () } split /\n/, err($run) }
+sub sheet_sums { return join(' ', map { length } @_) . "\t" . join(' ', map { length($_) ? Digest::SHA::sha256_hex($_) : '-' } @_) }
+my @sheet_runs = sheets_of('sheets', "$t/out/sheets");
+my ($sheet_sizes, $sheet_hashes) = map { [split ' '] } split /\t/, $sheet_runs[1] // "\t", -1;
+check(@sheet_runs == 2 && $sheet_runs[0] eq 'empty' && $sheet_runs[1] eq sheet_sums(answer_for($sheet_paths[0]), answer_for($sheet_paths[1]), '', ''), 'a page that names style sheets on its own host is laid out twice: its first run is given an empty frame "=sheets", its second the site\'s answers in front of the page\'s, each byte for byte as the site sent it (the lengths and SHA-256s the application took off its input are the ones of the test site\'s answers)', join(' | ', map { (split /\t/)[0] } @sheet_runs) || 'nothing came of it');
+check(($sheet_sizes->[1] // -1) == length(answer_for($sheet_paths[1])) && ($sheet_hashes->[1] // '') eq Digest::SHA::sha256_hex(answer_for($sheet_paths[1])) && answer_for($sheet_paths[1]) =~ /\r\n\r\n=sheets 4\n/, 'a style sheet whose body begins "=sheets 4" arrives inside its own length, as part of its answer, and adds no sheet', 'length ' . ($sheet_sizes->[1] // 'none'));
+check(($sheet_sizes->[2] // '') eq '0' && asked($sheet_paths[2]) == 1 && grep({ /^\Q$t$sheet_paths[2]\E answered: \d+ bytes/ } log_of('sheets')), 'a style sheet whose answer is more than 1 MiB is fetched and goes with length 0', 'length ' . ($sheet_sizes->[2] // 'none'));
+check(($sheet_sizes->[3] // '') eq '0' && asked($sheet_paths[3]) == 1 && grep({ /^\Q$t$sheet_paths[3]\E failed: / } log_of('sheets')), 'a style sheet whose fetch failed goes with length 0', 'length ' . ($sheet_sizes->[3] // 'none'));
+my @late_runs = sheets_of('sheetslate', "$t/out/sheetslate");
+check(@late_runs == 2 && $late_runs[0] eq 'empty' && $late_runs[1] eq sheet_sums(answer_for('/sheet/late?late'), '') && !asked('/sheet/after?late') && !grep({ index($_, "$t/sheet/after?late") == 0 } log_of('sheetslate')), 'one clock of 10 seconds for starting the style sheets: a sheet begun in time arrives whole though it takes 11 seconds, and the one after it, not begun by then, goes with length 0 and is neither logged nor asked for', join(' | ', map { (split /\t/)[0] } @late_runs) || 'nothing came of it');
+my @sheet_log = log_of('sheets');
+my @logged_twice = grep { my $path = $_; grep({ index($_, "$t$path ") == 0 } @sheet_log) == 2 } @sheet_paths;
+my @asked_elsewhere = grep { / -> lzrprf connects to / && index($_, "$t/") != 0 } @sheet_log;
+my @sheet_asked = grep { $_->{kind} eq 'trusted' && $_->{bytes} =~ m{^\S+ /sheet/\S*\?sheets } } @seen;
+check(@logged_twice == @sheet_paths && !@asked_elsewhere && join(' ', sort map { $_->{bytes} } @sheet_asked) eq join(' ', sort map { request_for($_) } @sheet_paths), 'each style sheet has two lines in the log, before it is asked for and after; the site is asked for each named path once, with GET and the request of its own address and nothing else, and no other host is asked', scalar(@logged_twice) . ' sheets logged twice, ' . scalar(@sheet_asked) . ' requests');
+my @sheeted = ('L960x400', @pictured[2 .. 4]);
+my $sheeted = visit('sheets', "$t/out/sheets");
+my $sheets_err = err('sheets');
+check($sheeted->{page} && "@{ $sheeted->{page} }" eq "@sheeted" && $sheeted->{said} =~ /^site\.test answered \d+ bytes\. perl laid the page out again with 2 of the 4 style sheets it names on site\.test itself\. 1 of the 1 picture the page draws from site\.test itself was fetched and shown\. The page names no other host\.$/ && index($sheets_err, "picture\t$t/out/pixgood?sheets\t") > rindex($sheets_err, "sheets\t$t/out/sheets\t"), 'the second run\'s page is shown, and the bar says with how many style sheets; the picture it names is fetched after it was chosen', $sheeted->{page} ? scalar(@{ $sheeted->{page} }) . " lines; $sheeted->{said}" : $sheeted->{said});
+my %unused = map { my $one = visit('sheets', "$t/out/$_"); $_ => [($one->{page} ? "@{ $one->{page} }" : '') . ' runs=' . sheets_of('sheets', "$t/out/$_"), $one->{said}] } qw(sheetsagain sheetsunfit);
+check(!grep({ $unused{$_}[0] ne 'Pp0 T@the first run runs=2' || $unused{$_}[1] !~ /^site\.test answered \d+ bytes\. perl did not use the 1 style sheet the page names on site\.test itself: the page is shown as it was laid out first\. The page names no other host\.$/ } keys %unused), 'a second run that names style sheets again, and one that is not a page, are not shown: the first run\'s page is, the bar says the sheets were not used, and there are exactly two runs', join(' | ', map { "$_: $unused{$_}[0]" } sort keys %unused));
+my $lost_sheets = visit('lostsheets', "$t/out/sheetslost");
+check($lost_sheets->{page} && "@{ $lost_sheets->{page} }" eq 'Pp0 T@the second run' && sheets_of('lostsheets', "$t/out/sheetslost") == 2, 'a copy of lzrprf that shows a second run which names style sheets again: its page is shown, so the check above would notice, and still no third run is started', $lost_sheets->{page} ? "@{ $lost_sheets->{page} }" : $lost_sheets->{said});
+my $unsheeted = visit('sheets', "$t/out/sheetsnone");
+check($unsheeted->{page} && "@{ $unsheeted->{page} }" eq 'Pp0 T@the first run' && sheets_of('sheets', "$t/out/sheetsnone") == 1 && $unsheeted->{said} !~ /style sheet/, 'a page that names no style sheet is laid out once, and the bar says nothing of style sheets', $unsheeted->{page} ? "@{ $unsheeted->{page} }" : $unsheeted->{said});
+my @sheets_passed = grep { my $one = visit('sheets', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' || sheets_of('sheets', "$t/out/$_") != 1 } @sheets_unfit;
+my @sheets_fetched = grep { $_->{kind} eq 'trusted' && $_->{bytes} =~ m{^\S+ /sheet/\S*\?(?:slash|many|char|twice|after|first)} } @seen;
+check(!@sheets_passed && !@sheets_fetched, 'a page with a line =sheets broken in any one way is not drawn at all, is laid out once, and nothing of it is fetched: a path that does not begin with /, nine paths, a character no path may hold, a second such line, a line =sheets after the line =statement or before the line =pictures', @sheets_passed || @sheets_fetched ? "passed: @sheets_passed; " . scalar(@sheets_fetched) . ' fetched' : scalar(@sheets_unfit) . ' pages, none drawn');
 # 4. What a site is sent.                                [C4] [C5] [C6] [C7]
 print "\n4. What a site is sent: by the test site's own record.\n";
 my @https = grep { $_->{kind} eq 'trusted' && length $_->{bytes} } @seen;
@@ -1341,9 +1402,9 @@ my ($written) = $text_of_lzrprf =~ /^sub installer_file \{(.*?)^\}/ms;    # the 
 my %programs = map { $_ => 1 } ($text_of_lzrprf =~ s/^sub installer_file \{.*?^\}//msr) =~ m{(?<![\w/.])(/(?:usr/)?s?bin/[a-z-]+)}g;
 my @known = qw(/bin/ps /bin/sh /sbin/route /usr/bin/curl /usr/bin/env /usr/bin/open /usr/bin/osascript /usr/bin/perl /usr/bin/sandbox-exec /usr/bin/true /usr/bin/xattr /usr/sbin/sysctl);
 check(defined $written && join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these twelve: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
-my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured';
-check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured'}" eq '3 1 2 1 1 1' && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ visit\(\$1\) \}}m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n.*\n.*\n    my \$got = fixed\(/m,
-    'a request has four roads and no fifth: "visit" for what came from the bar, "pictured" from "visit" alone for the pictures of that page on its own host, and "fixed" twice, each behind a yes; "fetch" is called from those three and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
+my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted';
+check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '4 1 2 1 2 1 1' && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ visit\(\$1\) \}}m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n.*\n.*\n    my \$got = fixed\(/m,
+    'a request has four roads and no fifth: "visit" for what came from the bar, "pictured" and "sheeted" from "visit" alone for the pictures and style sheets of that page on its own host, and "fixed" twice, each behind a yes; "fetch" is called from those four and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
 my %marks = map { $_ => 1 } $text_of_lzrprf =~ /^#   \[(C\d+)\]/mg;
 my ($head, $body) = split /^use strict;$/m, $text_of_lzrprf, 2;
 my %marked = map { $_ => 1 } ($body // '') =~ /\[(C\d+)\]/g;
@@ -1353,7 +1414,7 @@ my ($in_time, $gone) = hears();
 check(defined $in_time && $in_time eq '' && !defined $gone, 'the two ends of a question are told apart: "sub hear" of lzrprf, run against a pipe of the test\'s own, gives an empty line when nothing is said in time, so "sub ask" answers 1, and nothing when the window is gone, so lzrprf ends', defined $in_time ? (defined $gone ? 'the same for both' : 'time over: an empty line; window gone: nothing') : 'time over: nothing, as if the window were gone');
 my @no_folder = grep { my $pid = open(my $in, '-|') // die "selftest: cannot fork: $!\n"; if (!$pid) { open STDERR, '>&', \*STDOUT; { no warnings; exec '/usr/bin/perl', $cli, 'try', "$base.keepcli/$_", '-', '-', 'deny', '/usr/bin/true'; } POSIX::_exit(127) } my $all = do { local $/; <$in> } // ''; close $in; $all !~ /^usage: lzrprf run / } '.', '..', '.x';    # nothing is typed and every answer is the first button, so a folder that was taken would have nothing done in it
 check(!@no_folder, 'the door for tests takes no folder named ".", ".." or with a dot first, so it cannot be pointed at the folder lzrprf itself keeps its state in', @no_folder ? "taken: @no_folder" : 'usage, three times');
-check(keys %marks == 13 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 13 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
+check(keys %marks == 14 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 14 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
 my $readme = slurp("$here/README.md");
 if (length $readme) {
     my %cited = map { $_ => 1 } $readme =~ /\[(C\d+)\]/g;

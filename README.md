@@ -55,7 +55,7 @@ Not a mathematical proof. Nobody has proven macOS correct, and nothing here says
 this repository is proven in this sense, and in no stronger one:
 
 1. It is a **condition in the code**: one line, or a few, that you can read. Each has a mark,
-   `[C1]` to `[C13]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
+   `[C1]` to `[C14]`, listed in the first lines of `lzrprf` and set again at the line that holds it.
 2. It is **probed on your computer**: `selftest` runs a hostile application against that
    condition. A probe on a container is first made outside every container, where it must
    succeed, so a refusal inside is the container's and not a probe that could never have
@@ -86,7 +86,7 @@ this repository is proven in this sense, and in no stronger one:
    itself more processor time (`lostsoft`), a copy that does not look
    beside the program starts with a file there that is not named (`lostbeside`), and a copy
    without the page container's limit on open files lets the hostile application allow
-   itself more (`lostfiles`; the same limit on `curl` has no such copy), and their lines say so. The other conditions have no such copy yet.
+   itself more (`lostfiles`; the same limit on `curl` has no such copy), a copy that shows a second run which names style sheets again shows its page (`lostsheets`), and their lines say so. The other conditions have no such copy yet.
 4. It is **proven again when what it rests on changes**: after an update of macOS, or a change
    of `lzrprf` or of the `selftest` beside it, no page is shown before the probes were made
    again `[C11]`. A run of `selftest` takes the mark of what it tests away at its start and
@@ -99,7 +99,7 @@ container and, for the things named in point 3, the weakened copies it must catc
 a proof that no other probe exists.
 
 `selftest` also reads this README when it stands beside it. It fails when the marks cited here
-are not exactly the thirteen in `lzrprf`, when a part named here (the word `sub` and a name) is
+are not exactly the fourteen in `lzrprf`, when a part named here (the word `sub` and a name) is
 not in `lzrprf`, or when one of eleven limits is not stated here as the number in `lzrprf`: 30
 seconds for a fetch and for a page, 6 MB for an answer, 12 MB for a list, 50000 lines, 2000 boxes,
 20000 characters in a block, 30 characters in a row that hang on the one before them,
@@ -272,7 +272,7 @@ One visit, in order (`sub visit`):
 | `[C1]` | The application is started in one place only, and only inside the page container. | `sub laid_out`, through `sub contain` | Reads the text: the program is started on one line. A copy that starts it uncontained is stopped by `[C3]`. |
 | `[C2]` | At every start lzrprf tries, inside that same container, what the container must refuse. Nothing starts unless all of it was refused and the same tries worked outside. | `sub holds` | A copy whose container refuses nothing: nothing is started. |
 | `[C3]` | No process is handed a byte of what was fetched, nor the connection to a site, before macOS itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, `curl` among its fixed switches. | `sub inside`, asked in `sub laid_out` and `sub fetch` | Copies without `[C1]` and `[C2]`: the system says "not contained", and the answer, or the connection, is withheld. |
-| `[C4]` | A request is made only for an address from the window's bar, for at most eight pictures the page laid out from it names on that same host (`sub pictured`), or for one of two fixed addresses after you said yes: a report, after you pressed "Send" for it, and the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`). | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has four roads and no fifth. |
+| `[C4]` | A request is made only for an address from the window's bar, for at most eight pictures and at most eight style sheets the page laid out from it names on that same host (`sub pictured`, `sub sheeted`), or for one of two fixed addresses after you said yes: a report, after you pressed "Send" for it, and the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`). | `sub behind`, `sub fixed` | The test site's own record: each address once, and nothing else. Reads the text: a request has four roads and no fifth. |
 | `[C5]` | Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded. | `sub visit`, `sub fixed`, `sub record` | A kept log that cannot be written: nothing is fetched. For every request the site received in a run that keeps a log, full or hosts only, the line was on the disk first. In a run that keeps nothing, the Log button shows the lines afterwards; that each was in memory before its request is read in `sub record`, not probed: no test looks into that memory while a request is open. That the lookup comes after the line is read in `sub visit`, not probed: the test's site is on this computer. |
 | `[C6]` | One place connects to a site, and it connects to a numeric address that was checked and written down. | `sub reach` | Reads the text: two `connect` lines, this one and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
 | `[C7]` | What a site is sent is made from the address alone: the same request from every computer, byte for byte, nothing kept from an earlier request. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received. The site sets a cookie; it never comes back. |
@@ -282,6 +282,7 @@ One visit, in order (`sub visit`):
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
 | `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
 | `[C13]` | The application opens no file for its fonts. lzrprf hands a page run, and never a picture run, eight fonts of the Mac by fixed paths in `/System/Library/Fonts/Supplemental` (Arial and Courier New, each plain, bold, italic and both), as one frame in front of the answer: `=fonts` and the eight lengths on one line, then their bytes. A face goes with length 0 unless it is a plain file and no link, of at most 2 MiB, that begins as a TrueType font; a pipe put in its place is not waited for. They are read once in a window, and the keeper hands them over after the same word of the system as the answer `[C3]`. A site cannot put a frame in front of lzrprf's: what it sends comes after it. | `sub faces`, `sub contained` | The application takes the frame off its input and says the length and SHA-256 of each face: they are the eight files as `selftest` reads them itself. A picture run gets no frame. A site whose answer holds a frame of its own: it arrives after the real one, byte for byte. A copy that reads its fonts from a folder of the test: a link to a font, a file one byte over 2 MiB, a pipe and a file that does not begin as a font each go with length 0, while a font of exactly 2 MiB is handed over whole; the same copy without O_NOFOLLOW hands over the font behind the link, and the test notices. |
+| `[C14]` | A page is laid out at most twice. The first run of a page is given the empty frame `=sheets` after the fonts, and may name up to eight style sheets on the page's own host in a line `=sheets`, checked as the paths of pictures are `[C9]`. lzrprf fetches them `[C4]` `[C5]` and runs the page a second time, with `=sheets`, the length of each and their answers byte for byte in front of the page's answer, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown: the first run's page is, and the bar says the sheets were not used. There is never a third run, and a picture run is given no style sheet. | `sub checked`, `sub sheeted`, `sub visit`, `sub contained` | The application says on each run the length and SHA-256 of each sheet it took off its input: none on the first run, the test site's answers on the second. A sheet whose body begins `=sheets 4` arrives inside its own length. A sheet over 1 MiB, a fetch that failed and a sheet not begun within the clock each go with length 0, the last neither logged nor asked for. Each sheet has two lines in the log and one request, of its own address; no other host is asked. Lines `=sheets` broken in six ways are refused with nothing fetched. A second run that names sheets again, or is not a page: the first run's page, two runs. A page that names none: one run. A picture run gets no frame. A copy that shows a second run naming sheets again shows it (`lostsheets`). |
 
 ## The claims, one by one
 
@@ -346,7 +347,7 @@ connection to lzrprf's own socket file, the question to the system's routing tab
 (`/sbin/route` in `sub route`), and `selftest`, which `sub proven` starts after your yes:
 it opens listeners on this computer and tries 192.0.2.1, an address no host answers. Outside lzrprf, the `curl` of the installer and of
 the file that `sub installer_file` writes fetch too (below, and "The installer"). `fetch` is
-called from three places, and `selftest` reads `lzrprf` and counts them:
+called from four places, and `selftest` reads `lzrprf` and counts them:
 
 - `sub visit`, which runs only for a line `go TEXT` from the window `[C4]`. The window writes
   that line when Return is pressed in the bar, and at no other time. The application cannot
@@ -368,12 +369,26 @@ called from three places, and `selftest` reads `lzrprf` and counts them:
   the bar says how many of the pictures were fetched and shown, and it still says that no
   other host was asked.
 
-  After the line `=pictures`, or where it would stand, the application may write one line
+  After the lines `=pictures` and `=sheets`, or where they would stand, the application may write one line
   `=statement TEXT`: in its own words, why it shows the page in compatibility-statement mode,
   1 to 200 plain printable characters (bytes 0x20 to 0x7e). lzrprf shows those words as plain
   text at the end of the line under the bar, and reads them for nothing else; they name no
   address and cause no fetch. A second such line, or one too long or with any other byte,
   makes the page no page (`sub stated`).
+- `sub sheeted`, called from `sub visit` alone, from release 32 on, before the pictures. A page
+  may name up to eight style sheets on its own host, by path, in a line `=sheets /path /path ...`
+  right after the line `=pictures` (or where it would stand), in the same grammar and with the
+  same checks as the paths of pictures; a second such line, or one in another place, makes the
+  page no page and nothing is fetched. Every page run is given, after the fonts `[C13]`, a frame
+  of style sheets: on the first run the empty line `=sheets`. When the first run names sheets,
+  each is fetched the way a picture is, its line in the log first, from `https://` the page's own
+  host and that path, never another host; one clock of 10 seconds for starting them, and a sheet
+  not begun by then, a fetch that failed and an answer over 1 MiB each go with length 0. The page
+  is then run a second time with `=sheets` and the length of each on one line, and the answers
+  as the site sent them, in front of the page's `[C14]`. The second run's page is shown when it
+  is a page and names no style sheet; otherwise the first run's is, and the line under the bar
+  says that the style sheets were not used. There is never a third run, and a picture run is
+  given neither frame. The pictures are fetched after the page that is shown was chosen.
 - `sub fixed`, which runs for two fixed addresses, each only after your yes in the window: the
   newest release number (`sub newer`) and a report you chose to send (`sub fault`). For the
   newest release number the yes is given once and kept with its address in `~/.lzrprf/look`:
@@ -848,14 +863,14 @@ written. The installer compares the `release` file byte for byte with the text w
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 31
+    release 32
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin e8909feab65033f582f0e0ccc2f032a07e0f803e96b59f41b7839d54a0a41ddb
-    lzrprf 241ee8825b0bc30958abe8f4b41f8ba6cf4c8cb525ae452a4bcbee866d777a9e
+    file lzrbrwsr-bin a958d8ee1cf6d3ba1f4cc51afe424abe4dffc66c66f2a06fdba9cac3f6cba6db
+    lzrprf c532880e815ccfb02dc46c99fb352c907bf0dd04b750fe0c99b877d1e037411a
 
 ## When a page cannot be shown
 
@@ -1491,7 +1506,7 @@ what the code and the system make impossible, and how you checked it.
    what ends the closed program when lzrprf itself is killed, and what if the keeper is
    killed first? By which names does
    `selftest` try to read a file of the home folder in the page and fetch containers?
-3. The first lines of `lzrprf` list thirteen conditions, [C1] to [C13], and each is marked again
+3. The first lines of `lzrprf` list fourteen conditions, [C1] to [C14], and each is marked again
    at the line that holds it. For each: is the line there, does it do what the condition says,
    and can you find a way around it?
 4. Follow one request from Return in the address bar to the page in the window. Can any byte

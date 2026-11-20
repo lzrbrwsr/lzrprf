@@ -33,7 +33,7 @@
 #   [C1]  The application is started in one place only, and only inside the page container.
 #   [C2]  At every start lzrprf tries, from inside that same container, what the container must refuse, and starts nothing unless all of it was refused and the same tries worked outside.
 #   [C3]  No process is handed a byte of what was fetched, nor the connection to a site, before the system itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, curl among its fixed switches.
-#   [C4]  A request is made only for an address that came from the window's bar, or for one of two fixed addresses after you said yes, or for a picture that the page laid out from such an address names on that same host, at most eight of them, by a path lzrprf checked. There is no fourth way to a request.
+#   [C4]  A request is made only for an address that came from the window's bar, or for one of two fixed addresses after you said yes, or for a picture or a style sheet that the page laid out from such an address names on that same host, at most eight of each, by a path lzrprf checked. There is no fourth way to a request.
 #   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
 #   [C6]  There is one place that connects to a site, and it connects to a numeric address that was checked and written down.
 #   [C7]  What a site is sent is made from the address alone: the same request from every computer, byte for byte, with nothing kept from an earlier request.
@@ -43,6 +43,7 @@
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #   [C13] The application opens no file for its fonts: lzrprf hands it eight fonts of the Mac, by fixed paths, in front of a page's answer and never a picture's, each a plain file and no link of at most 2 MiB that begins as a font, or with length 0; and only after the system said that the application is contained.
+#   [C14] A page is laid out at most twice: a second time only when its first run named style sheets on the page's own host, at most eight, which lzrprf fetches and hands the second run in front of the answer, after the fonts, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown, the first run's page is; there is never a third run, and a picture run is handed no style sheet.
 #
 # This file is the whole program. Its parts, in order: the containers, the
 # proof that they hold, one visit, the fetch, the window's side, the log, the
@@ -100,6 +101,9 @@ my $PIXELS = 262_144;                     # the most pixels in all its pictures 
 my $PICTURES = 8;                         # the most pictures one page may name on its own host, each fetched by a run of its own
 my $PICTURE_SECONDS = 20;                 # one clock for all of a page's pictures: a picture not begun by then stays a grey box
 my $PICTURE_PIXELS = 200_000;             # the most pixels in one fetched picture
+my $SHEETS = 8;                           # the most style sheets one page may name on its own host, fetched before it is laid out a second time
+my $SHEET_BYTES = 1024 * 1024;            # the most of one style sheet's answer that is handed over: a larger one goes with length 0
+my $SHEET_SECONDS = 10;                   # one clock for starting all of a page's style sheets: a sheet not begun by then goes with length 0
 my $DRAWN_PIXELS = 8 * $PICTURE_PIXELS;   # the most pixels the window is given for fetched pictures on one page, however often one is placed: a place beyond that stays a grey box
 my @FACES = map { "/System/Library/Fonts/Supplemental/$_.ttf" } 'Arial', 'Arial Bold', 'Arial Italic', 'Arial Bold Italic', 'Courier New', 'Courier New Bold', 'Courier New Italic', 'Courier New Bold Italic';    # the fonts a page is drawn with, in the application's order: plain, bold, italic, both, then the same in fixed width
 my $FACE_BYTES = 2 * 1024 * 1024;         # the most of one font that is handed over: the largest of the eight is 773,236 bytes on this macOS
@@ -621,26 +625,39 @@ sub visit {
     close $request;
     return idle("Nothing is shown: $why.") if $why;
     busy("$APP lays the page out, in its container.");
-    my ($lines, $hosts, $paths, $said) = laid_out($url, $got);
+    my ($lines, $hosts, $paths, $said, $named) = laid_out($url, $got, "=sheets\n");    # [C14] a first run is told that no style sheet came with the answer
     return fault($hosts) unless $lines;
+    my $styled = '';                        # what the bar says of the page's style sheets
+    if (@$named) {                          # [C14] the page names style sheets on its own host: they are fetched, and the page is laid out once more with them
+        my ($frame, $with) = sheeted($named, $host, $where, $kept) or return idle($UNWRITTEN);
+        busy("$APP lays the page out again with its style sheets, in its container.");
+        my @again = laid_out($url, $got, $frame);
+        my ($n, $one) = (scalar @$named, @$named == 1);
+        if ($again[0] && !@{ $again[4] }) {    # a second run that names style sheets again is not shown, and nothing starts a third
+            ($lines, $hosts, $paths, $said) = @again;
+            $styled = "$APP laid the page out again with $with of the $n " . ($one ? 'style sheet' : 'style sheets') . " it names on $host itself. ";
+        } else { $styled = "$APP did not use the $n " . ($one ? 'style sheet' : 'style sheets') . " the page names on $host itself: the page is shown as it was laid out first. " }
+    }
     my ($shown, $fetched, $wanted) = pictured($lines, $paths, $host, $where, $kept);
     return idle($UNWRITTEN) unless $shown;
     window('page', @$shown, '.');
     $DRAWN = 1;
-    idle("$host answered " . length($got) . ' bytes. ' . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
+    idle("$host answered " . length($got) . ' bytes. ' . $styled . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
 }
 
 # The request is over and the connection to the site is closed. Only now does
 # the application see the answer, in a page container, and only after the
-# system said that this very process is contained. Returns the checked lines,
-# the other hosts the page names, the paths of the pictures it names on its own
-# host and its statement ('' for none); or nothing, and one word for what went wrong.
+# system said that this very process is contained, with the frame of style
+# sheets it is given ("=sheets" and a line end on a first run). Returns the
+# checked lines, the other hosts the page names, the paths of the pictures it
+# names on its own host, its statement ('' for none) and the paths of the style
+# sheets it names; or nothing, and one word for what went wrong.
 sub laid_out {
-    my ($url, $got) = @_;
-    my ($wrote, $why) = contained($url, $got);
+    my ($url, $got, $sheets) = @_;
+    my ($wrote, $why) = contained($url, $got, $sheets);
     return (undef, $why) unless defined $wrote;
-    my ($lines, $hosts, $paths, $said) = checked($wrote) or return (undef, 'unfit');    # [C9]
-    return ($lines, $hosts, $paths, $said);
+    my ($lines, $hosts, $paths, $said, $named) = checked($wrote) or return (undef, 'unfit');    # [C9]
+    return ($lines, $hosts, $paths, $said, $named);
 }
 
 # The fonts a page is drawn with, as one frame in front of its answer:
@@ -665,15 +682,16 @@ sub faces {                               # [C13]
 # picture: it is given what was fetched on descriptor 0, under the same
 # limits, the same keeper and the same clock. Returns what it wrote, not yet
 # checked; or nothing, and one word for what went wrong. A picture run is
-# told one thing more, LZRPRF_PICTURE=1; a page run gets the fonts first.
+# told one thing more, LZRPRF_PICTURE=1; a page run gets the fonts first and
+# then the frame of its style sheets, $sheets, which a picture run has not.
 sub contained {
-    my ($url, $got, @picture) = @_;
+    my ($url, $got, $sheets) = @_;
     return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # read again before every run: the program on the disk is the file this window began with, or nothing is laid out
-    my $frame = @picture ? '' : faces();  # [C13] read here, before the keeper is a copy of this process, so once in a window; handed over by the keeper alone, after the same word as the answer
+    my $frame = defined $sheets ? faces() . $sheets : '';    # [C13] [C14] the fonts read here, before the keeper is a copy of this process, so once in a window; handed over by the keeper alone, after the same word as the answer
     pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) && pipe(my $held, my $hold) or return (undef, 'unstarted');
     my $page = fork // return (undef, 'unstarted');
     if (!$page) {
-        %ENV = (LZRPRF_CONTAINED => $url, @picture ? (LZRPRF_PICTURE => '1') : ());    # the application is told the address it lays out, and for a picture that it is one, and sees no other variable: these it is given before the system is asked [C3]
+        %ENV = (LZRPRF_CONTAINED => $url, defined $sheets ? () : (LZRPRF_PICTURE => '1'));    # the application is told the address it lays out, and for a picture that it is one, and sees no other variable: these it is given before the system is asked [C3]
         chdir '/';
         become($answer_out, $to_lzrprf, $TRY ? \*STDERR : undef, '/bin/sh', '-c', $PAGE_LIMITS, 'lzrprf', contain('', $PROGRAM), @ARGUMENTS);    # [C1]
     }
@@ -758,7 +776,7 @@ sub keeper {
 }
 
 # What the application may write, and nothing else: a first line that names
-# the other hosts the page asks for, its =pictures and =statement lines (sub stated), and then lines of five kinds, or a laid page.
+# the other hosts the page asks for, its =pictures, =sheets and =statement lines (sub stated), and then lines of five kinds, or a laid page.
 #
 #   U<kind><s><name>   a thing the application says the page is made of; <s> is + when it says its own code supports the thing and - when not; a tab and a version may follow
 #   P<style><depth>    a paragraph begins: plain, heading 1 2 3, list item, quote, code, rule; how far it is set in, 0 to 9
@@ -843,6 +861,11 @@ sub checked {
         return unless shift(@lines) =~ m{^=pictures((?: /[A-Za-z0-9._~/%?=&-]{0,511}){1,$PICTURES})$};
         @paths = split ' ', $1;
     }
+    my @sheets;
+    if (@lines && $lines[0] =~ /^=sheets/) {    # [C14] the style sheets the page names on its own host, by path alone, as its pictures are
+        return unless shift(@lines) =~ m{^=sheets((?: /[A-Za-z0-9._~/%?=&-]{0,511}){1,$SHEETS})$};
+        @sheets = split ' ', $1;
+    }
     my ($said, $boxes, $made, $block, $row, $word, $tail, $before, $begun) = ((stated(\@lines) // return), 0, 0, 0, '', 0, '');    # the words of the one =statement line, '' for none; a malformed one makes the page unfit
     for (@lines) {
         if (!$begun && /^U([dcjlmasx])[+-]([\x21-\x7e](?:[\x20-\x7e]{0,58}[\x21-\x7e])?)(?:\t[\x21-\x7e](?:[\x20-\x7e]{0,28}[\x21-\x7e])?)?$/) {    # only plain characters, so nothing in such a line acts on the display
@@ -851,7 +874,7 @@ sub checked {
             $before = $key;
             next;
         }
-        return laid(\@lines, \@hosts, $made, \@paths, $said) if !$begun++ && /^L/;    # from the first line of another kind on, a line that begins with U is no line at all; and that first line says whether the page is laid
+        return laid(\@lines, \@hosts, $made, \@paths, $said, \@sheets) if !$begun++ && /^L/;    # from the first line of another kind on, a line that begins with U is no line at all; and that first line says whether the page is laid
         if (/^T[\@-O]./s) {
             s/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/\x{fffd}/g;    # the last: a number above every character there is, which Perl would pass on and the window could not read
             return unless ($block += length($_) - 2) <= $BLOCK;    # counted as the application wrote it, before anything is put in below
@@ -865,7 +888,7 @@ sub checked {
         else { return unless /^P[p123lqcr][0-9]$/; $block = 0 }
     }
     utf8::encode($_) for @lines;
-    return (\@lines, \@hosts, \@paths, $said);
+    return (\@lines, \@hosts, \@paths, $said, \@sheets);
 }
 
 # A laid page. The application has laid the page out itself and says where
@@ -902,7 +925,7 @@ sub checked {
 # one form of its bytes, so its length and its alphabet are its whole check.
 my $N = qr/(0|[1-9][0-9]{0,5})/;          # a number in its one form
 sub laid {
-    my ($lines, $hosts, $from, $paths, $said) = @_;
+    my ($lines, $hosts, $from, $paths, $said, $sheets) = @_;
     no warnings 'utf8';
     my ($wide, $high) = $lines->[$from] =~ /^L${N}x$N$/ or return;
     return unless $wide >= 320 && $wide <= 2400 && $high >= 1 && $high <= 200_000;
@@ -940,7 +963,7 @@ sub laid {
     }
     return if $rows;                      # a picture with rows missing
     utf8::encode($_) for @$lines;
-    return ($lines, $hosts, $paths, $said);
+    return ($lines, $hosts, $paths, $said, $sheets);
 }
 
 # The pictures of a laid page. A page may name up to eight paths on its own
@@ -979,7 +1002,7 @@ sub pictured {
         record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;
         next if $why;
         busy("$APP decodes picture " . ($n + 1) . ', in its container.');
-        my ($wrote) = contained($url, $got, 'picture');    # [C1] [C3]
+        my ($wrote) = contained($url, $got);    # [C1] [C3] no frame of style sheets: a picture run
         $picture{$n} = pixels($wrote) if defined $wrote;    # [C9]
     }
     close $request;
@@ -991,6 +1014,33 @@ sub pictured {
         else { push @shown, "G$x,$y,$w,$h" }
     }
     return (\@shown, scalar(grep { $picture{$_} } keys %picture), scalar(keys %wanted));
+}
+
+# The style sheets a page names. Its first run may write a line
+# "=sheets /path ..." of up to eight paths on its own host, and each is
+# fetched the way a picture is: its line in the log first, then "fetch" to the
+# same checked addresses the page came from. One clock of $SHEET_SECONDS is
+# for starting them all. A sheet not begun by then, a fetch that failed and an
+# answer larger than $SHEET_BYTES each go with length 0. Returns the frame for
+# the second run, "=sheets", the length of each, a line end, then the answers
+# as the site sent them, and how many had bytes; or nothing when a line of the
+# log could not be written.                                              # [C14]
+sub sheeted {
+    my ($named, $host, $where, $kept) = @_;
+    open my $request, '>>', "$DIR/busy" or return;
+    flock $request, LOCK_SH or return;    # as in visit: no line of these requests falls into a clearing of the log
+    my ($until, @got) = (now() + $SHEET_SECONDS);
+    for my $n (0 .. $#$named) {
+        if (now() >= $until || !alive()) { push @got, ''; next }    # not begun in time: nothing is fetched for it
+        my $url = "https://$host$named->[$n]";
+        record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return;    # [C5] written down first, connected second
+        busy('Fetching style sheet ' . ($n + 1) . " of the page: $url");
+        my ($got, $why, $from) = fetch($url, $where);    # [C6] [C7]
+        record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;
+        push @got, !$why && length $got <= $SHEET_BYTES ? $got : '';
+    }
+    close $request;
+    return (join(' ', '=sheets', map { length } @got) . "\n" . join('', @got), scalar grep { length } @got);
 }
 
 sub pixels {                              # what a picture run wrote: [wide, high, each row in base64], or nothing when it is not exactly a picture
@@ -1407,8 +1457,8 @@ sub window {
 sub busy { window('busy ' . $_[0] =~ s/\s+/ /gr) }
 sub idle { window('idle ' . $_[0] =~ s/\s+/ /gr); return }
 
-# The =statement line of a page, which comes right after its =pictures line (or
-# its first line): the application's own words, in one sentence, for why it
+# The =statement line of a page, which comes right after its =pictures and
+# =sheets lines (or its first line): the application's own words, in one sentence, for why it
 # shows the page in compatibility-statement mode. At most one such line, of
 # 1 to $STATEMENT bytes that are each a plain printable character (0x20 to
 # 0x7e), so nothing in it acts on the window; a second one is a line of no kind
