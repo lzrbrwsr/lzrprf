@@ -3,16 +3,16 @@ This record, the installer and the download each stand in two places: https://lz
 https://github.com/lzrbrwsr/lzrprf. Compare them. A difference means one place does not hold this
 release: a copy that was changed, an older answer from a cache, or a release on its way. Fetch both again
 before you conclude, and install nothing while they differ.
-lzrprf and selftest are the files of that repository at commit 53a2d9860b9db0a1e98bc81b507bef1cb7c16fc8.
+lzrprf and selftest are the files of that repository at commit d041405199ac2e62f1b2609a89eb7e5858557421.
 Check a file with: shasum -a 256 FILE
 
-f313052c512f9cbad89183dd2a50c0d2393c96e63a329e3f8be2a082ec8dfa2b  install.sh
-3f12a81d807e38536376ade005c96a18dc033ef339db31bd40fc5b58ad40ae2b  lzrbrwsr-macos-arm64.tar.gz
+121c52538df4b0a5c29cee0aa1eef62c860b11d0bc459f6e2dd607a3c222fb99  install.sh
+318580236ad5e00be0cba04958550fa442146f35a9b57c5c3890c27675632dd4  lzrbrwsr-macos-arm64.tar.gz
 e90b0a714519f5959185152fa2acfd4cac03662896ab77a86392e988f87d30b4  LZRBRWSR.app/Contents/Info.plist
 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1  LZRBRWSR.app/Contents/MacOS/lzrbrwsr
 ed1b16dbede7d42d445946a747418a727825028a925276aef3b00dbd32bf65ea  LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin
 54dbcf635e61885963239b5dbcd1e1ba5b663aeffc39da17487f6cd66416ad38  LZRBRWSR.app/Contents/Resources/LICENSE.txt
-d538134742fe1726d098d7c7a351edcb100d7900e2ee285cb1a55050de5064dc  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
-95586a22a87b06910d2f838c6f7de475970385e563e77501d21229c4cec6a136  LZRBRWSR.app/Contents/Resources/release
-119fb6e67d92dd2cd54ab8b0ace731e206fdebbdaa8b3dc288b997289544eb0d  lzrprf
-1fc3c49acd9e5e9ff13b1870a7cfced60fa52d14cdd60df99d2ef7a4c873b8a2  selftest
+7cbea3d9d37e2dbef99a70c56ecda8814a1ee191ba5e4c81e5241a457aaac398  LZRBRWSR.app/Contents/Resources/lzrbrwsr.icns
+ee49d1a5e710d4092bd93658a30fa1af28649ceaa722d66937ddf7ed7f5727a0  LZRBRWSR.app/Contents/Resources/release
+744974775c254f8445af956e08e34dec29644c88777e21348ea54fa59379c489  lzrprf
+6ef4695822e3120a079b16cd2c9ee6d14f2391b66c2cd1be59f7b62c89d8d760  selftest
