@@ -17,9 +17,14 @@
 # it reads no settings file of yours that could switch off its checking of the
 # two sites. Then this file asks you, on your terminal, whether to print the
 # whole script here first, and, whatever you answered, whether to run it.
+# Each question takes y (yes, and the next question is asked too), n (no), or
+# a (auto: yes to this question and to every one after it, each printed with
+# its answer). "sh install.sh auto" starts in auto: that is how "Install it" in
+# lzrprf's window runs it, so a newer release installs with no key pressed and
+# every step stays in the Terminal window to read.
 #
 # What it does, in order:
-#   1. asks you the two questions;
+#   1. asks you the two questions (none in auto: each is printed with its yes);
 #   2. stops if an LZRBRWSR that is installed, in Applications or in your own
 #      Applications folder, is a newer release than this one;
 #   3. downloads lzrprf, the open container, from its public repository at one
@@ -32,8 +37,8 @@
 #      file must be, byte for byte, the three texts written out in this script;
 #   6. when this release would replace the lzrprf that is installed with
 #      another one, says so and asks: the container is never changed silently;
-#   7. runs lzrprf's own self-test on this computer, and stops if one attack
-#      was not held (a line FAILED). A line UNTESTED, something this Mac gave
+#   7. runs lzrprf's own self-test on this computer: hostile tries we made
+#      ourselves, just to be sure. It stops if one was not deflected (a line FAILED). A line UNTESTED, something this Mac gave
 #      no way to try, does not stop it: each is printed again with its reason.
 #      When all held, the test writes its mark, those checks named in it;
 #   8. only then puts lzrprf into ~/.lzrprf and LZRBRWSR.app into Applications,
@@ -78,6 +83,7 @@
 # All rights reserved. The licence: https://lzrbrwsr.com/terms.html
 set -eu
 unset IFS ARGV0	# two names a shell may have read for itself at its start; see the lines before the first case below
+AUTO=; for word in "$@"; do case "$word" in auto) AUTO=auto ;; esac; done	# "auto": every question answered yes; kept through the start again below
 PATH=/usr/bin:/bin:/usr/sbin:/sbin	# the system's own tools, whatever your shell was set to find first
 export PATH
 
@@ -145,7 +151,7 @@ oneonly) ;;
 			eval "value=\${$name:-}"
 			case "$value" in '') ;; *) set -- "$@" "$name=$value" ;; esac
 		done
-		exec /usr/bin/env -i "$@" /bin/sh "$0" again ;;
+		exec /usr/bin/env -i "$@" /bin/sh "$0" again ${AUTO:+auto} ;;
 	esac ;;
 esac
 set --
@@ -153,12 +159,12 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="a48dc04f8f1555d190744ddaa6455c8f138a6da4219888c84b21f5ad185b5e20"
-RELEASE="25"
-LZRPRF_COMMIT="e2a52a6c3cf71277fbce926127c0faf072560015"
+SHA256="2835140e04125aae2f62e8c634c890c670b243b180aa9a080998e9596af8aee5"
+RELEASE="26"
+LZRPRF_COMMIT="a239cc8326b2c897b86ce8fa53ab16863084735d"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
-LZRPRF_SHA256="69bd85540338b09722032a6085095ec1ef8a36d366ff6b49b4159c2712ee4ae1"
-SELFTEST_SHA256="09ea8c963565278edf3266835fc43a32ddb025c362c638893138b22ddcc2a792"
+LZRPRF_SHA256="9b1e6ed1076df8e5da3a356874d1919c9675555fbe8555708e0ef77dafc41d5b"
+SELFTEST_SHA256="54af87151fbf490df72f0f69202b39e69178812b1b3175e8a705dab976edc217"
 
 # Outside the tests, files come over https and nothing else, and an address
 # that sends on to another is not followed. In a test they come from files on
@@ -179,9 +185,9 @@ fi
 
 # Colour only when a person is looking at a terminal.
 if [ -t 1 ]; then
-	G="$(printf '\033[38;5;46m')" B="$(printf '\033[1;97m')" N="$(printf '\033[0m')"
+	G="$(printf '\033[38;5;46m')" B="$(printf '\033[1;97m')" Y="$(printf '\033[1;93m')" N="$(printf '\033[0m')"
 else
-	G="" B="" N=""
+	G="" B="" Y="" N=""
 fi
 
 cat <<ART
@@ -254,13 +260,23 @@ fi
 
 sum() { shasum -a 256 "$1" | cut -d' ' -f1; }
 
-# The two questions. They are asked on your terminal and answered from it, so
-# nothing that was piped into this script can answer for you.
+# The questions. They are asked on your terminal and answered from it, so
+# nothing that was piped into this script can answer for you. y is yes and the
+# next question is asked too; a is auto: yes to this one and to every one after
+# it, each printed with its answer, and nothing waits again.
 ask() {
+	if [ -n "$AUTO" ]; then
+		printf '  %s [a/y/n] a (auto)\n' "$1" >/dev/tty
+		return 0
+	fi
 	while :; do
-		printf '  %s [y/n] ' "$1" >/dev/tty
+		printf '  %s [a/y/n] ' "$1" >/dev/tty
 		read -r answer </dev/tty || stop "no answer came from the terminal."
 		case "$answer" in
+		a | A | auto | Auto | AUTO)
+			AUTO=auto
+			printf '  auto: this question and every one after it are answered yes\n' >/dev/tty
+			return 0 ;;
 		y | Y | yes | Yes | YES) return 0 ;;
 		n | N | no | No | NO) return 1 ;;
 		esac
@@ -328,8 +344,8 @@ unlock() {	# takes the lock away when it is this process's own
 made=""
 [ -d "$HOME/.lzrprf" ] || made=1
 mkdir -p "$HOME/.lzrprf"
-tmp="" me=""
-trap 'unlock; [ -z "$tmp" ] || rm -rf "$tmp"; [ -z "$made" ] || rmdir "$HOME/.lzrprf" 2>/dev/null || true' EXIT
+tmp="" me="" testing=""
+trap '[ -z "$testing" ] || { kill "$testing" 2>/dev/null; wait "$testing" 2>/dev/null; } || true; unlock; [ -z "$tmp" ] || rm -rf "$tmp"; [ -z "$made" ] || rmdir "$HOME/.lzrprf" 2>/dev/null || true' EXIT
 trap 'exit 130' INT TERM HUP QUIT
 take_lock
 chmod 700 "$HOME/.lzrprf"
@@ -473,14 +489,14 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 25
+release 26
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-file lzrbrwsr-bin b3959cc9b9485a6cae609a1953b2e94a4a717cee98a55e00ea7368b966903e18
-lzrprf 69bd85540338b09722032a6085095ec1ef8a36d366ff6b49b4159c2712ee4ae1
+file lzrbrwsr-bin 377d4b59276fdfbd76efdace1622d3d67fcb7ad1668f3a3b068b12e46476d197
+lzrprf 9b1e6ed1076df8e5da3a356874d1919c9675555fbe8555708e0ef77dafc41d5b
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
 grep -qx "lzrprf $LZRPRF_SHA256" "$tmp/release" || stop "the app's release file does not name the lzrprf this installer carries."
@@ -498,22 +514,24 @@ if [ -f "$HOME/.lzrprf/lzrprf" ] && [ "$(sum "$HOME/.lzrprf/lzrprf")" != "$LZRPR
 	step "  new        $LZRPRF_SHA256"
 	step "  every change to it: https://github.com/lzrbrwsr/lzrprf/commits/main"
 	if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
-		ask "Replace lzrprf with the new one? It is attacked on this Mac first." || stop "you said no to the new lzrprf."
+		ask "Replace lzrprf with the new one? First it deflects, here on this Mac, hostile tries we made ourselves to be sure." || stop "you said no to the new lzrprf."
 	fi
 fi
 
 # The container proves itself on this computer before anything is put in place:
-# a hostile program is run inside it and every one of its attempts must be refused.
+# we run hostile tries of our own inside it, made just to be sure, and it must
+# deflect every one of them.
 # It also leaves the mark of what it tested (this build of macOS, this lzrprf)
 # in ~/.lzrprf/proven: lzrprf starts nothing without that mark, and asks to be
 # tested again when macOS has changed.
 #
 # The test's steps are shown as they happen, each with its title and a beam
-# while it runs. Every word of it is read from the test's own output: its
+# while it runs that strikes lzrprf's wall and ricochets off it, in yellow and
+# bright white: the deflection. Every word of it is read from the test's own output: its
 # lines "now ..." and its numbered headings are the titles, and the lines
 # "held" under a heading are counted. Nothing here decides what held.
 shown() {	# shown <steps already printed> <frame> <seconds so far> <has the test ended: 0 or 1>
-	awk -v printed="$1" -v frame="$2" -v seconds="$3" -v ended="$4" -v G="$G" -v B="$B" -v N="$N" '
+	awk -v printed="$1" -v frame="$2" -v seconds="$3" -v ended="$4" -v G="$G" -v B="$B" -v Y="$Y" -v N="$N" '
 		/^now / { n++; title[n] = substr($0, 8); sub(/[.:;].*/, "", title[n]); next }
 		/^[0-9]+\. / { n++; title[n] = $0; sub(/^[0-9]+\. /, "", title[n]); sub(/[.:;].*/, "", title[n]); next }
 		/^(held|works) / { held[n]++ }
@@ -522,27 +540,33 @@ shown() {	# shown <steps already printed> <frame> <seconds so far> <has the test
 			clear = G == "" ? "" : "\r\033[K"
 			last = ended ? n : n - 1
 			for (i = printed + 1; i <= last; i++)
-				printf "%s    %-54s %s━━━━━━━▓█%s  %s\n", clear, title[i], G, N, failed[i] ? "FAILED" : held[i] ? held[i] " held" : "done"
+				printf "%s    %-54s %s━━━━━━━%s▌%s✦%s  %s\n", clear, title[i], G, B, Y, N, failed[i] ? "FAILED" : held[i] ? B held[i] " deflected" N : "done"
 			if (!ended && n > 0 && G != "") {
-				at = frame % 8
+				at = frame % 10
 				beam = ""
-				for (i = 0; i < at; i++) beam = beam "━"
-				beam = beam (frame % 2 ? B : G) "▒▓█" N
-				for (i = at; i < 7; i++) beam = beam " "
+				if (at < 7) {	# the beam flies at the wall
+					for (i = 0; i < at; i++) beam = beam "━"
+					beam = beam "▶" N
+					for (i = at; i < 6; i++) beam = beam " "
+					beam = beam B "▌ " N "  "
+				} else {	# it strikes the wall and ricochets off, yellow and bright white
+					spark[7] = Y "✦" B "   "; spark[8] = B "✸" Y " ✦ "; spark[9] = Y "·" B " ✧" Y "✦"
+					beam = "━━━━━━" Y "◀" B "▌" spark[at] N
+				}
 				printf "%s    %-54s %s%s%s  %s s", clear, title[n], G, beam, N, seconds
 			}
 			exit last > printed ? last : printed
 		}' "$tmp/selftest.out"
 }
-step "Validating the safety of lzrprf on this computer, about half a minute"
+step "lzrprf now deflects hostile tries we made ourselves, just to be sure: about half a minute"
 /usr/bin/perl "$tmp/selftest" >"$tmp/selftest.out" 2>&1 &
 testing=$!
 # Stopped with Ctrl-C: the test is told, and it ends every process it started and takes its files away.
 trap 'kill "$testing" 2>/dev/null || true; wait "$testing" 2>/dev/null || true; exit 130' INT TERM HUP QUIT
-printed=0 frame=0 began="$(date +%s)"
+printed=0 frame=0 seconds=0 began="$(date +%s)"
 while kill -0 "$testing" 2>/dev/null; do
 	seconds="$(($(date +%s) - began))"
-	if [ "$seconds" -gt 600 ]; then	# a test that does not end is ended, and counts as one that did not hold
+	if [ "$seconds" -gt 1800 ]; then	# DECLARED(half a minute on a quiet Mac; a Mac busy with other work can take many times that) a test that does not end is ended, and counts as one that did not hold
 		kill "$testing" 2>/dev/null || true
 		break
 	fi
@@ -555,18 +579,23 @@ while kill -0 "$testing" 2>/dev/null; do
 	fi
 done
 if wait "$testing"; then held=yes; else held=no; fi
+testing=""	# it has ended: nothing is left for the line that ends it at an exit
 trap 'exit 130' INT TERM HUP QUIT
 shown "$printed" 0 0 1 || true
 if [ "$held" = yes ]; then
 	untested="$(grep -c '^UNTESTED' "$tmp/selftest.out" || true)"
-	step "lzrprf self-test on this computer: all $(grep -c '^held' "$tmp/selftest.out") attacks held"
+	step "self-test on this computer: lzrprf deflected all $(grep -c '^held' "$tmp/selftest.out") hostile tries we made ourselves, just to be sure"
 	if [ "$untested" != 0 ]; then
 		step "$untested of its checks could not be tried on this Mac. Each one, and why:"
 		grep '^UNTESTED' "$tmp/selftest.out" | LC_ALL=C tr -c '\n\040-\176' '?' | cut -c1-300 | sed 's/^/      /'
 		step "the mark of this test names them, and LZRBRWSR shows them and asks before it starts"
 	fi
 else
-	grep '^FAILED' "$tmp/selftest.out" >&2 || true
+	if ! grep '^FAILED' "$tmp/selftest.out" >&2; then	# no try got through: the test itself ended early; its last words say why
+		printf '  The self-test ended before it was done. Its last lines:\n' >&2
+		tail -n 5 "$tmp/selftest.out" | LC_ALL=C tr -c '\n\040-\176' '?' | cut -c1-300 | sed 's/^/      /' >&2
+		[ "$seconds" -le 1800 ] || printf '  It did not end within 30 minutes: this Mac is very busy. Run the installer again when it is quieter.\n' >&2
+	fi
 	stop "lzrprf's self-test did not hold on this computer."
 fi
 
@@ -771,7 +800,8 @@ cat <<DONE
   LZRBRWSR is not signed by an Apple developer identity and not notarized,
   and that is on purpose. A signature says who made a program, not what it
   does, and the one who gives it can take it back. What vouches here is
-  lzrprf: you can read it, and it was just attacked on this Mac. After an
+  lzrprf: you can read it, and it just deflected, on this Mac, every hostile
+  try we made ourselves to be sure. After an
   update of macOS it asks to be tested again before it starts anything.
   To have your own AI check that all of this is true, copy the prompt from
   https://github.com/lzrbrwsr/lzrprf
