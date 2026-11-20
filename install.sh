@@ -21,10 +21,12 @@
 # a (auto: yes to this question and to every one after it, each printed with
 # its answer). "sh install.sh auto" starts in auto: that is how "Install it" in
 # lzrprf's window runs it, so a newer release installs with no key pressed and
-# every step stays in the Terminal window to read.
+# every step stays in the Terminal window to read. Started in auto, it shows no
+# question and no answer at all, because nobody is there making the choices:
+# each step is said as what it does, and on an update the Dock is left as it is.
 #
 # What it does, in order:
-#   1. asks you the two questions (none in auto: each is printed with its yes);
+#   1. asks you the two questions (none when started in auto);
 #   2. stops if an LZRBRWSR that is installed, in Applications or in your own
 #      Applications folder, is a newer release than this one;
 #   3. downloads lzrprf, the open container, from its public repository at one
@@ -83,7 +85,7 @@
 # All rights reserved. The licence: https://lzrbrwsr.com/terms.html
 set -eu
 unset IFS ARGV0	# two names a shell may have read for itself at its start; see the lines before the first case below
-AUTO=; for word in "$@"; do case "$word" in auto) AUTO=auto ;; esac; done	# "auto": every question answered yes; kept through the start again below
+AUTO=; GIVEN=; for word in "$@"; do case "$word" in auto) AUTO=auto GIVEN=auto ;; esac; done	# "auto": every question answered yes; kept through the start again below. GIVEN: started in auto, so no question is shown
 PATH=/usr/bin:/bin:/usr/sbin:/sbin	# the system's own tools, whatever your shell was set to find first
 export PATH
 
@@ -159,8 +161,8 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="1dda14cbd9bd4a816f97ae1ad31f95ed7f229c3b99c3cd67a55850321859098f"
-RELEASE="34"
+SHA256="5bbc8f141c9d2f1455aa66ad431f42521b06f8190226111c72fe5ff64a31218b"
+RELEASE="35"
 LZRPRF_COMMIT="8a78a5cf592b3433f0a27507a9247e0a533d5af8"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
 LZRPRF_SHA256="597252829bfd201472cdf24c565d3cee80f3d93729c5a933dd7b2a93baedea47"
@@ -265,6 +267,12 @@ sum() { shasum -a 256 "$1" | cut -d' ' -f1; }
 # next question is asked too; a is auto: yes to this one and to every one after
 # it, each printed with its answer, and nothing waits again.
 ask() {
+	if [ -n "$GIVEN" ]; then
+		# Started in auto (lzrprf's update, or "sh install.sh auto"): nobody is there to choose, so no choice is shown;
+		# what the yes does is said as a plain step instead, when the caller gave one.
+		[ -z "${2:-}" ] || step "$2"
+		return 0
+	fi
 	if [ -n "$AUTO" ]; then
 		printf '  %s [a/y/n] a (auto)\n' "$1" >/dev/tty
 		return 0
@@ -283,7 +291,12 @@ ask() {
 	done
 }
 if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
-	(: >/dev/tty) 2>/dev/null || stop "there is no terminal to ask you on, and this script runs only after you said so."
+	# Started in auto it asks nothing, so it needs no terminal: lzrprf's window runs it after "Install it" was pressed
+	# there, and shows every line it prints. By hand, the questions are asked on your terminal or not at all.
+	[ -n "$GIVEN" ] || (: >/dev/tty) 2>/dev/null || stop "there is no terminal to ask you on, and this script runs only after you said so."
+	if [ -n "$GIVEN" ]; then
+		step "started in auto: no question is asked, and each step is printed here as it runs"
+	else
 	printf '  This installer is the file %s\n  Its SHA-256 is %s\n  The published one: install.sh and release.txt at https://github.com/lzrbrwsr/lzrprf\n  Only your own comparison counts: a changed installer could print anything here.\n\n' "$0" "$(sum "$0")" >/dev/tty
 	if ask "Print the whole script here, before anything runs?"; then
 		# Every byte of the file, except control characters, which could hide a line from you. It holds none.
@@ -292,6 +305,7 @@ if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
 		ask "That was all of it. Run it now?" || stop "you said no."
 	else
 		ask "Run it now?" || stop "you said no."
+	fi
 	fi
 fi
 
@@ -489,13 +503,13 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 34
+release 35
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-file lzrbrwsr-bin db3d78bd142e325cddecae31e1b3e250deef83bd0f785d4ca2a5650b80df28e6
+file lzrbrwsr-bin 101317f12867ffcdeb0aed01f799a2fcaaad90c1b4a14bec45de8d19ab4f0b20
 lzrprf 597252829bfd201472cdf24c565d3cee80f3d93729c5a933dd7b2a93baedea47
 RELEASEFILE
 cmp -s "$tmp/release" "$tmp/unpacked/LZRBRWSR.app/Contents/Resources/release" || stop "the app's release file is not the one written out in the installer."
@@ -514,7 +528,7 @@ if [ -f "$HOME/.lzrprf/lzrprf" ] && [ "$(sum "$HOME/.lzrprf/lzrprf")" != "$LZRPR
 	step "  new        $LZRPRF_SHA256"
 	step "  every change to it: https://github.com/lzrbrwsr/lzrprf/commits/main"
 	if [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
-		ask "Replace lzrprf with the new one? First it deflects, here on this Mac, hostile tries we made ourselves to be sure." || stop "you said no to the new lzrprf."
+		ask "Replace lzrprf with the new one? First it deflects, here on this Mac, hostile tries we made ourselves to be sure." "lzrprf is replaced by the new one once it deflects, here on this Mac, hostile tries we made ourselves to be sure" || stop "you said no to the new lzrprf."
 	fi
 fi
 
@@ -740,7 +754,9 @@ trap 'gone "stopped while it was being put in place." 130' INT TERM HUP QUIT
 } || gone "the new files could not be written beside the installed ones, or were not the checked ones once written."
 # The renames, back to back.
 placing=1
+before=
 if [ -e "$dest/LZRBRWSR.app" ]; then
+	before=yes
 	mv "$dest/LZRBRWSR.app" "$stage/old.app" || gone "the LZRBRWSR.app that is installed could not be moved aside."
 fi
 mv "$stage/LZRBRWSR.app" "$dest/LZRBRWSR.app" || gone "the new LZRBRWSR.app could not be put in place."
@@ -771,7 +787,9 @@ case "$dest" in *[\&\<\>]*) dock="" ;; esac
 if [ -n "$dock" ] && [ -z "${LZRBRWSR_UNATTENDED:-}" ]; then
 	if defaults read "$dock" persistent-apps 2>/dev/null | grep -qF "$dest/LZRBRWSR.app"; then
 		step "LZRBRWSR is in the Dock already"
-	elif ask "Put LZRBRWSR in the Dock?"; then
+	elif [ -n "$GIVEN" ] && [ -n "$before" ]; then
+		step "the Dock is left as it is: this was an update, and whether LZRBRWSR is in the Dock is your own choice"
+	elif ask "Put LZRBRWSR in the Dock?" "LZRBRWSR is put in the Dock"; then
 		if defaults write "$dock" persistent-apps -array-add "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>$dest/LZRBRWSR.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>" && { [ -n "${LZRBRWSR_DOCK:-}" ] || killall Dock; }; then
 			step "LZRBRWSR is in the Dock"
 		else
