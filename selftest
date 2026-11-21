@@ -117,10 +117,11 @@ $SIG{$_} = sub { tidy() if $$ == $outside; exit 130 } for 'INT', 'TERM', 'HUP'; 
 my $text_of_lzrprf = slurp($lzrprf);
 length $text_of_lzrprf or die "selftest: there is no lzrprf beside selftest\n";
 
-# The test site's two certificates, both for the name site.test. lzrprf is
+# The test site's two certificates, both for the name site.test, and for
+# img.site.test, the name under it a page's picture is fetched from. lzrprf is
 # told to trust the first as its authority; nothing trusts the second.
 for my $name ('trusted', 'untrusted') {
-    system("/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout '$site_folder/$name.key' -out '$site_folder/$name.pem' -subj /CN=site.test -days 2 -addext subjectAltName=DNS:site.test -batch 2>/dev/null") == 0
+    system("/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout '$site_folder/$name.key' -out '$site_folder/$name.pem' -subj /CN=site.test -days 2 -addext subjectAltName=DNS:site.test,DNS:img.site.test -batch 2>/dev/null") == 0
         or die "selftest: cannot make a certificate\n";
 }
 
@@ -158,10 +159,10 @@ sub answer_for {                          # what the test site answers on its ht
     return $head . "Content-Type: text/html\r\nSet-Cookie: kept=never\r\nContent-Length: " . length($body) . "\r\nConnection: close\r\n\r\n$body";
 }
 sub logged {                              # lzrprf's log on the disk holds "connects to" for this address once more than it holds how such a request ended: the request now arriving is written down and has not ended
-    my ($path) = @_;
+    my ($path, $host) = @_;
     for my $log (glob "$base.*/log") {
         my $all = slurp($log);
-        my ($begins, $address) = ("https://site.test$path -> lzrprf connects ", "https://site.test$path");
+        my ($begins, $address) = ("https://$host$path -> lzrprf connects ", "https://$host$path");
         my $begun = () = $all =~ /\Q$begins\E(?:to|through Tor)/g;    # directly, or through Tor
         my $ended = () = $all =~ /\Q$address\E (?:answered|failed)/g;    # an address asked twice in one run (a home page, then a new tab that opens it): the second request is counted against its own line
         return 1 if $begun > $ended;
@@ -207,7 +208,8 @@ if (!$site) {
             while ($got !~ /\r\n\r\n/ && length $got < 65536) { $client->sysread($got, 65536, length $got) or last }
             my ($path) = $got =~ m{^GET (\S+)};
             $path //= '';
-            seen($kind, $got, $hello, logged($path));
+            my ($host) = $got =~ m{\r\nHost: ([a-z.]+)\r\n};
+            seen($kind, $got, $hello, logged($path, $host // 'site.test'));
             sleep 600 if $path eq '/slow';
             sleep 11 if $path =~ m{^/sheet/late};    # a style sheet that answers after the clock for starting them has run out
             exit 0 if $path =~ m{^/sheet/fail};    # and one that is never answered: the connection closes on it
@@ -577,7 +579,12 @@ my %list = (
     tiledalone => "=page\nL960x400\nR0,0,1,1,000000ff\nn" . $grey x 4 . "\n",
     pictured => "=page\n=pictures /out/pixgood /out/pixrow /out/pixhex /out/pixnone\nUd+HTML\t5\nL960x400\nI0,0,20,20,0\nI30,0,20,20,1\nI60,0,20,20,2\nI90,0,20,20,3\nG120,0,5,5\n",
     picturesbad => "=page\n=pictures out/pixgood\nL960x400\nG0,0,5,5\n",
-    picturesmany => "=page\n=pictures" . join('', map { " /p$_" } 1 .. 9) . "\nL960x400\nG0,0,5,5\n",
+    picturesmany => "=page\n=pictures" . join('', map { " /p$_" } 1 .. 25) . "\nL960x400\nG0,0,5,5\n",    # one more than the 24 a page may name: the page is not drawn, and none is fetched
+    picturesport => "=page\n=pictures https://img.site.test:8443/out/pixgood?port\nL960x400\nI0,0,20,20,0\n",    # an address of a picture with a port, a number for a host, or plain http: no page, nothing fetched
+    picturesnumber => "=page\n=pictures https://127.0.0.1/out/pixgood?number\nL960x400\nI0,0,20,20,0\n",
+    picturesplain => "=page\n=pictures http://img.site.test/out/pixgood?plain\nL960x400\nI0,0,20,20,0\n",
+    picturesfar => "=page\n=pictures /out/pixgood?farhome https://img.site.test/out/pixgood?far https://router.site.test/out/pixgood?farown https://other.test/out/pixgood?faraway\nL960x400\nI0,0,20,20,0\nI30,0,20,20,1\nI60,0,20,20,2\nI90,0,20,20,3\n",    # a picture on the page's host, one on a name under it, one on such a name that leads inside your own network, and one on another site
+    picturesmost => "=page\n=pictures" . join('', map { " /out/pixgood?most$_" } 1 .. 24) . "\nL960x400\n" . join('', map { 'I' . 30 * $_ . ",0,20,20,$_\n" } 0 .. 23),    # the most pictures a page may name, each placed
     picturesrange => "=page\n=pictures /out/pixgood\nL960x400\nI0,0,20,20,1\n",
     stated => "=page\n=statement Not supported yet: Grid, inline scripts, and 1 more.\nUd+HTML\t5\nL960x400\nG0,0,5,5\n",
     statedfull => "=page\n=statement " . '~' x 199 . "x\nPp0\nT\@x\n",
@@ -633,7 +640,7 @@ my @attempts = (
 my @good = ('Ud+-', "Ud+HTML\t5", "Uc-Grid\tLevel 1", 'Uc-Subgrid', "Ul-A library of the hostile application\t1.2.3", 'P10', 'T@A page by the hostile application', 'Pp0', 'THa link that is only a colour', 'B', 'I200x100', 'Pc1', 'TDfixed');
 my @unfit = qw(unknown script nofirst dot quit address keep event cr badutf8 bigbox smallbox otherdigit boxes blocklong blockbreak blockbox blockfirst hosts hostpath hostnumber emptytext style depth looks many noend nothing madelate madekind madeorder madename madetwice mademany madelong madeversion madetabs madecontrol madeother madespace madeempty madeflag madesign madetrail madebare madeblank madeversionspace);
 my @fit = qw(big control noread madefull manyfull boxesfull blockfull hung long joined);    # each is judged by itself below; "big" is the one of them that is not drawn
-my @laid_unfit = qw(laidrange laidzero laidnarrow laidmany laidmix laidflow laidrows laidrowlong laidbase64 laidpad laidpixels tiledwide tiledrow tiledrows tilednumber tiledtwice tiledunknown tiledzero tiledcut tiledgrid tiledshort tiledplace tiledoutside tiledmany tiledplaces tiledold tiledletter tiledpad tiledpads tiledrowshort tileddash tiledunder tiledpicture tiledalone picturesbad picturesmany picturesrange);    # laid pages, each broken in one way
+my @laid_unfit = qw(laidrange laidzero laidnarrow laidmany laidmix laidflow laidrows laidrowlong laidbase64 laidpad laidpixels tiledwide tiledrow tiledrows tilednumber tiledtwice tiledunknown tiledzero tiledcut tiledgrid tiledshort tiledplace tiledoutside tiledmany tiledplaces tiledold tiledletter tiledpad tiledpads tiledrowshort tileddash tiledunder tiledpicture tiledalone picturesbad picturesmany picturesport picturesnumber picturesplain picturesrange);    # laid pages, each broken in one way
 my @laid_fit = qw(laidgood laidcontrol pictured tiledgood);
 my @stated_unfit = qw(statedcontrol statedother statedlong statedtwice statedempty statedfirst);    # a =statement line, each broken in one way
 my @stated_fit = qw(stated statedfull);
@@ -729,6 +736,8 @@ my %about = (
     facesfollow => q{A broken lzrprf that follows a font link is caught},
     deny => q{A no to a host in your own network fetches nothing},
     output => q{Only a well-formed page from the application is drawn},
+    picturesfar => q{A picture is fetched under the page's host; on no other site},
+    picturesmost => q{All 24 pictures a page may name are fetched in time},
     answers => q{Site answers are handed on as sent, or not at all},
     sheets => q{Style sheets on the page's own host are fetched and used},
     view => q{A wider window lays out the kept page again, no refetch},
@@ -979,6 +988,8 @@ run_of('faces', part => 'echo', lzrprf => mutant('faces', %face_paths), typed =>
 run_of('facesfollow', part => 'echo', lzrprf => mutant('facesfollow', %face_paths, 'sysopen($in, $_, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)' => 'sysopen($in, $_, O_RDONLY | O_NONBLOCK)'), typed => "$t/facesfollow", fetches => ['/facesfollow']);
 run_of('deny', typed => "$t/denied", answer => 'deny');
 run_of('output', typed => join(',,', map { "$t/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), fetches => [(map { "/out/$_" } @unfit, @fit, @laid_unfit, @laid_fit, @stated_unfit, @stated_fit), @pixel_paths]);
+run_of('picturesfar', typed => "$t/out/picturesfar", fetches => ['/out/picturesfar', '/out/pixgood?farhome', '/out/pixgood?far'], prepare => sub { open my $out, '>', "$_[0]/public" or die "selftest: cannot write $_[0]/public: $!\n"; print $out "img.site.test\n"; close $out });    # img.site.test is taken for a host on the public internet, router.site.test is not: in a try every name leads to the test site
+run_of('picturesmost', typed => "$t/out/picturesmost", fetches => ['/out/picturesmost', map { "/out/pixgood?most$_" } 1 .. 24]);
 run_of('answers', part => 'echo', typed => "$t/elsewhere,,$t/pieces,,$t/large,,$t/forged", fetches => ['/elsewhere', '/pieces', '/large', '/forged']);
 run_of('sheets', typed => join(',,', map { "$t/out/$_" } @sheets_fit, @sheets_unfit), fetches => [(map { "/out/$_" } @sheets_fit, @sheets_unfit), @sheet_paths, '/out/pixgood?sheets', '/sheet/css?again', '/sheet/css?unfit']);
 run_of('view', typed => "$t/out/view,,=view 1301 811", fetches => ['/out/view']);    # a page, then the window grown wider: the kept answer is laid again at the new width
@@ -1453,7 +1464,9 @@ sub visit {                               # what the window was told after "addr
 }
 sub tried { my ($text, $where) = @_; return map { /^tried\t\Q$where\E: ([^\t]+)\t(.*)$/ ? [$1, $2] : () } split /\n/, $text }
 sub log_of { my ($name) = @_; return map { (split /\t/, $_, 3)[2] // '' } split /\n/, slurp("$base.$name/log") }
-sub request_for { my ($path) = @_; return "GET $path HTTP/1.1\r\nHost: site.test\r\nUser-Agent: LZRBRWSR\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n" }    # the one browser name, fixed: the same bytes on every computer and in every release
+my $page_accept = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';    # the one line of the kinds of answer the request of a page you visit takes, and no other request
+sub request_for { my ($path, $page, $host) = @_; return "GET $path HTTP/1.1\r\nHost: " . ($host // 'site.test') . "\r\nUser-Agent: LZRBRWSR\r\n" . ($page ? "Accept: $page_accept\r\n" : '') . "Accept-Encoding: identity\r\nConnection: close\r\n\r\n" }
+sub requests_of { my ($bytes) = @_; my ($path) = $bytes =~ /^GET (\S+) /; my ($host) = $bytes =~ /\r\nHost: ([^\r]+)\r\n/; return map { request_for($path // '', $_, $host) } 0, 1 }    # the two requests these bytes may be: of a picture, a style sheet or the release file, and of a page you visit    # the one browser name, fixed: the same bytes on every computer and in every release
 my @seen = map { my @part = split /\t/, $_, -1; { kind => $part[0], bytes => pack('H*', $part[1] // ''), hello => pack('H*', $part[2] // ''), logged => $part[3] // 0 } } split /\n/, slurp("$site_folder/seen");
 sub asked { my ($path) = @_; return grep { $_->{kind} eq 'trusted' && $_->{bytes} =~ /^GET \Q$path\E / } @seen }
 sub judge {                               # every attempt of the hostile application in one container, against what must come of it
@@ -1584,7 +1597,7 @@ my @tiled_good = ('L960x1', 'R0,0,960,1,ffffffff', 'K0,0,0,256,1', 'n' . encode_
 my $tiled = visit('output', "$t/out/tiledgood");
 check($tiled->{page} && "@{ $tiled->{page} }" eq "@tiled_good", 'tiles of a laid page are passed on as they are: a tile given once with its rows of red, green and blue, placed again at another corner of the grid where it is cut the same, and a tile cut by the edge of the page, among rectangles and text', $tiled->{page} ? scalar(@{ $tiled->{page} }) . ' lines' : $tiled->{said});
 my @laid_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @laid_unfit;
-check(!@laid_passed, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels, a line =pictures with a path that does not begin with / or with nine paths, a place I for a picture the line does not name, a tile wider than its cut, with a row 4 characters too long or too short or missing, a row that begins m as a picture\'s does, at a picture\'s length or at a tile\'s, a row with = or == at its end, with - or _ in it, numbered 32, 01 or twice, placed before it is given, off the grid of 256 or out of the page, narrower than its cut, placed where it is cut otherwise, 33 tiles or 1025 places, and a row of a tile under a picture or under no tile at all', @laid_passed ? "passed: @laid_passed" : scalar(@laid_unfit) . ' pages, none drawn');
+check(!@laid_passed, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels, a line =pictures with a path that does not begin with / or with 25 paths, a picture by an address with a port, a number for a host or plain http, a place I for a picture the line does not name, a tile wider than its cut, with a row 4 characters too long or too short or missing, a row that begins m as a picture\'s does, at a picture\'s length or at a tile\'s, a row with = or == at its end, with - or _ in it, numbered 32, 01 or twice, placed before it is given, off the grid of 256 or out of the page, narrower than its cut, placed where it is cut otherwise, 33 tiles or 1025 places, and a row of a tile under a picture or under no tile at all', @laid_passed ? "passed: @laid_passed" : scalar(@laid_unfit) . ' pages, none drawn');
 my $laid_clean = "X10,40,16,\@,333333,a\x{fffd}[2Jb\x{fffd}c\x{fffd}d" . "\x{301}" x 30 . "\x{fffd}e";
 utf8::encode($laid_clean);
 my $laid_marked = visit('output', "$t/out/laidcontrol");
@@ -1593,6 +1606,19 @@ check($laid_marked->{page} && "@{ $laid_marked->{page} }" eq "L960x400 $laid_cle
 my @pictured = ("Ud+HTML\t5", 'L960x400', 'M0,0,20,20,2,2', 'm' . encode_base64(pack('H*', 'ff0000ff00ff00ff'), ''), 'm' . encode_base64(pack('H*', '0000ff80ffffff00'), ''), 'G30,0,20,20', 'G60,0,20,20', 'G90,0,20,20', 'G120,0,5,5');
 my $pictured = visit('output', "$t/out/pictured");
 check($pictured->{page} && "@{ $pictured->{page} }" eq "@pictured" && $pictured->{said} =~ /\b1 of the 4 pictures the page draws from site\.test itself was fetched and shown\. The page names no other host\.$/, 'a picture the page names on its own host is fetched, decoded by the application in a container of its own, and given to the window as pixels lzrprf wrote; a picture with a row of the wrong length, with a character that is not hex, or none at all is drawn as the grey box', $pictured->{page} ? scalar(@{ $pictured->{page} }) . " lines; $pictured->{said}" : $pictured->{said});
+
+my $far = visit('picturesfar', "$t/out/picturesfar");
+my @far_log = log_of('picturesfar');
+my $far_at = sub { my ($line) = @_; my ($at) = grep { $far_log[$_] eq $line } 0 .. $#far_log; $at // -1 };
+my @far_page = ('L960x400', @pictured[2 .. 4], 'M30,0,20,20,2,2', @pictured[3, 4], 'G60,0,20,20', 'G90,0,20,20');
+my ($far_asked) = asked('/out/pixgood?far');
+my $far_named = $far_at->('the page site.test names a picture on img.site.test: https://img.site.test/out/pixgood?far');
+check($far->{page} && "@{ $far->{page} }" eq "@far_page" && $far_named >= 0 && $far_at->('https://img.site.test/out/pixgood?far -> lzrprf connects to the first that answers of: 127.0.0.1') > $far_named && $far_asked && $far_asked->{bytes} eq request_for('/out/pixgood?far', 0, 'img.site.test') && $far_asked->{logged} && $far->{said} =~ /^site\.test answered \d+ bytes\. 2 of the 4 pictures the page draws were fetched and shown; besides site\.test, lzrprf asked img\.site\.test for them\. The page names no other host\.$/, 'a picture the page names on a name under its own host is written in the log before its host is looked up and again before it is fetched, is asked for with the same fixed request, and is drawn; the bar says which other host was asked', ($far->{page} ? scalar(@{ $far->{page} }) . ' lines; ' : 'no page; ') . ($far_asked ? ($far_asked->{logged} ? 'its line was in the log first; ' : 'its line was not in the log when it came; ') : 'not asked; ') . $far->{said});
+check(!asked('/out/pixgood?farown') && !grep({ $_->[0] eq 'ask' && $_->[1] =~ /router\.site\.test/ } told('picturesfar')) && !grep({ /router\.site\.test, which is inside/ } @far_log) && $far_at->('https://router.site.test/out/pixgood?farown not fetched: router.site.test leads inside your own network (127.0.0.1), where no picture is fetched') > $far_at->('the page site.test names a picture on router.site.test: https://router.site.test/out/pixgood?farown'), 'a picture on a host that leads inside your own network is not fetched, and nothing is asked about it: its place stays a grey box, and the log says why', scalar(grep { /router\.site\.test/ } @far_log) . ' lines of the log name it');
+check(!asked('/out/pixgood?faraway') && !grep({ /other\.test/ && !/not fetched/ } @far_log) && $far_at->("https://other.test/out/pixgood?faraway not fetched: other.test is another site than site.test, and a page's picture is fetched from its own host and the names under it alone") >= 0, 'a picture the page names on another site is not fetched and its host is not even looked up: its place stays a grey box, and the log says why', scalar(grep { /other\.test/ } @far_log) . ' lines of the log name it');
+my $most = visit('picturesmost', "$t/out/picturesmost");
+check($most->{page} && !grep({ !asked("/out/pixgood?most$_") } 1 .. 24) && (grep { /^M/ } @{ $most->{page} }) == 24 && $most->{said} =~ /\b24 of the 24 pictures the page draws from site\.test itself were fetched and shown\./, 'all 24 pictures a page may name are fetched within the one clock of 20 seconds and drawn', sprintf('the run took %.1f seconds; %s', $run{picturesmost}{took} // 0, $most->{said}));
+check(!grep({ asked($_) } map({ "/p$_" } 1 .. 25), '/out/pixgood?port', '/out/pixgood?number', '/out/pixgood?plain'), 'a page that names 25 pictures, one more than it may, or a picture by an address with a port, a number for a host or plain http, is not drawn, and none of its pictures is fetched', 'none asked for');
 
 my $stated = visit('output', "$t/out/stated");
 check($stated->{page} && "@{ $stated->{page} }" eq "Ud+HTML\t5 L960x400 G0,0,5,5" && $stated->{said} =~ /^site\.test answered \d+ bytes\. The page names no other host\. Not supported yet: Grid, inline scripts, and 1 more\.$/, 'a line =statement is the application\'s own words for why the page is in compatibility-statement mode: they are shown as plain text at the end of lzrprf\'s strip, and are no line of the page', $stated->{page} ? scalar(@{ $stated->{page} }) . " lines; $stated->{said}" : $stated->{said});
@@ -1636,22 +1662,25 @@ print "\n4. What a site is sent: by the test site's own record.\n";
 my @https = grep { $_->{kind} eq 'trusted' && length $_->{bytes} } @seen;
 my @paths = map { $_->{bytes} =~ /^GET (\S+) / ? $1 : '?' } @https;
 check(join("\n", sort @paths) eq join("\n", sort @expected), 'the site was asked for what was typed, a bookmark or home page that was opened, a redirect that was followed, and the fixed addresses after a yes (the newest release, a report, the installer): each as often as it was asked for, and nothing else', scalar(@paths) . ' requests' . (join("\n", sort @paths) eq join("\n", sort @expected) ? '' : ': ' . join(' ', map { my $p = $_; (grep({ $_ eq $p } @paths) == grep({ $_ eq $p } @expected)) ? () : $p } sort keys %{ { map { $_ => 1 } @paths, @expected } })));
-my @other = grep { $_->{bytes} ne request_for($_->{bytes} =~ /^GET (\S+) / ? $1 : '') } @https;
-check(!@other, 'every request is the address and one fixed browser name, and nothing else: no cookie, no language, no number of this computer', @other ? 'another request: ' . unpack('H*', $other[0]{bytes}) : scalar(@https) . ' requests, each of the same 5 lines');
-my @named_otherwise = grep { my @lines = split /\r\n/, $_->{bytes}; my @agent = grep { /^user-agent:/i } @lines; @agent != 1 || $agent[0] ne 'User-Agent: LZRBRWSR' || grep { !/^(?:GET \S+ HTTP\/1\.1|Host: site\.test|User-Agent: LZRBRWSR|Accept-Encoding: identity|Connection: close|)$/ } @lines } @https;
+my @other = grep { my $bytes = $_->{bytes}; !grep { $bytes eq $_ } requests_of($bytes) } @https;
+check(!@other, 'every request is the address and one fixed browser name, and nothing else: no cookie, no language, no number of this computer', @other ? 'another request: ' . unpack('H*', $other[0]{bytes}) : scalar(@https) . ' requests, each of the same 5 lines, or 6 with the line Accept');
+my @as_pages = map { (asked($_))[0] } '/selftest?q=1', '/second', '/redirect/landed', '/home/page', '/marks/one';    # typed, typed again, a redirect said yes to, the home page, a bookmark
+my @as_parts = map { (asked($_))[0] } @pixel_paths, @sheet_paths[0 .. 2], '/latest-yes', '/install.sh', '/out/livefetchdata', '/out/pixgood?far';    # pictures, style sheets, the release file, a page kept running, a picture on another host
+check(!grep({ !$_ || $_->{bytes} ne (requests_of($_->{bytes}))[1] } @as_pages) && !grep({ !$_ || $_->{bytes} ne (requests_of($_->{bytes}))[0] } @as_parts), "the request of a page you visit, and only that, carries one more fixed line, \"Accept: $page_accept\": typed, a redirect said yes to, the home page and a bookmark carry it; a picture, a style sheet, the release file and what a page kept running asks for do not", scalar(grep { $_ } @as_pages) . ' pages and ' . scalar(grep { $_ } @as_parts) . ' others asked for');
+my @named_otherwise = grep { my @lines = split /\r\n/, $_->{bytes}; my @agent = grep { /^user-agent:/i } @lines; @agent != 1 || $agent[0] ne 'User-Agent: LZRBRWSR' || grep { !/^(?:GET \S+ HTTP\/1\.1|Host: (?:img\.)?site\.test|User-Agent: LZRBRWSR|Accept: \Q$page_accept\E|Accept-Encoding: identity|Connection: close|)$/ } @lines } @https;
 check(@https && !@named_otherwise, 'every request names one browser, exactly "User-Agent: LZRBRWSR", once, with no version and no other word, and carries no other header that could tell one computer or release from another', @named_otherwise ? 'another: ' . ($named_otherwise[0]{bytes} =~ /^(user-agent:[^\r]*)/mi ? $1 : 'no browser name') : scalar(@https) . ' requests');
 my $says = qx{/usr/bin/perl "$lzrprf" request "$t/selftest?q=1" "$t/second"};
 my ($one, $two) = map { (asked($_))[0] } '/selftest?q=1', '/second';
 check($one && $two && $says eq $one->{bytes} . $two->{bytes}, '"lzrprf request" prints the bytes the site received, byte for byte', length($says) . ' bytes');
 my @pictures_asked = map { (asked($_))[0] } @pixel_paths;
-my $picture_says = qx{/usr/bin/perl "$lzrprf" request "$t$pixel_paths[0]"};
-check(@pixel_paths == grep({ $_ && $_->{bytes} eq request_for($_->{bytes} =~ /^GET (\S+) / ? $1 : '') } @pictures_asked) && $pictures_asked[0] && $picture_says eq $pictures_asked[0]{bytes}, 'a picture of the page is asked for with the request of its own address and nothing else: the bytes "lzrprf request" prints for that address', scalar(grep { $_ } @pictures_asked) . ' of ' . @pixel_paths . ' pictures asked for');
+my $picture_says = qx{/usr/bin/perl "$lzrprf" request --other "$t$pixel_paths[0]"};
+check(@pixel_paths == grep({ $_ && $_->{bytes} eq request_for($_->{bytes} =~ /^GET (\S+) / ? $1 : '') } @pictures_asked) && $pictures_asked[0] && $picture_says eq $pictures_asked[0]{bytes}, 'a picture of the page is asked for with the request of its own address and nothing else: the bytes "lzrprf request --other" prints for that address', scalar(grep { $_ } @pictures_asked) . ' of ' . @pixel_paths . ' pictures asked for');
 check($two && $two->{bytes} !~ /cookie/i, 'the second request of a run carries nothing of the first: the site set a cookie, and it did not come back', 'the site sent Set-Cookie: kept=never with every answer');
 my @on_disk = grep { !$in_memory{ $_->{bytes} =~ /^GET (\S+) / ? $1 : '' } } @https;
 check(@on_disk > 10 && !grep({ !$_->{logged} } @on_disk), 'in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk', scalar(grep { $_->{logged} } @on_disk) . ' of ' . @on_disk . '; ' . (@https - @on_disk) . ' more from runs that keep nothing');
 my @opened = map { [steady($_->{hello})] } @https;
 my @resumed = grep { $_->[1] } @opened;
-if (@opened > 1 && !grep { !defined $_->[0] || $_->[0] ne $opened[0][0] } @opened) { check(!@resumed, 'the bytes that open the encryption are the same for every request, apart from the random values the protocol requires; no earlier connection is taken up again', scalar(@opened) . ' requests from ' . scalar(@order) . ' starts, ' . length($opened[0][0]) . ' bytes each') }
+if (@opened > 1 && !grep { !defined $_->[0] || $_->[0] ne $opened[0][0] } @opened) { check(!@resumed, 'the bytes that open the encryption are the same for every request, apart from the random values the protocol requires and the name of the host asked for; no earlier connection is taken up again', scalar(@opened) . ' requests from ' . scalar(@order) . ' starts, ' . length($opened[0][0]) . ' bytes each') }
 else { untested('the bytes that open the encryption are the same for every request', 'the system\'s curl varies them on this build of macOS, or the test site could not read them') }
 my @offers = map { join ' ', offered($_->{hello}) } @https;
 my $pinned = 'ciphers 1303 1302 1301 c02b c02f c02c c030 cca9 cca8 00ff curves 001d 0017';
@@ -2044,7 +2073,7 @@ check(($at{nav} // '') eq '0 0 1', 'after the first page of a tab there is nothi
 check(($at{hover} // '') =~ /^tab=0 mark=-?\d+ out=-1$/, 'the pointer moved over the tabs and the bookmarks and left them: the window found the first tab under it and went on', $at{hover} // 'nothing came of it: the window stopped');
 check(($at{suggest} // '') eq "h $t/window?q=1 none=0", 'typed into the bar, the start of a host suggests the page shown in this window, and words nothing was shown for suggest nothing', $at{suggest} // 'nothing came');
 check(($at{tech} // '') =~ /^open=true shown=true list=true tips=Log\|What this page is made of flies=(?:true|still)$/ && ($at{techclosed} // '') =~ /^false back=(?:true|still)$/, 'the bottom bar\'s two icons are the log and what the page is made of: the second opens that list in the centred modal every panel uses, wider than the others, flying out of its icon, and a second press closes it, flying back into the icon (with Reduce motion on, still)', ($at{tech} // 'nothing came') . ' then ' . ($at{techclosed} // 'nothing'));
-check(asked('/window?q=1') == 1 && (asked('/window?q=1'))[0]{bytes} eq request_for('/window?q=1'), 'what was typed into the bar is what the site was asked, once', 'compared the bytes');
+check(asked('/window?q=1') == 1 && (asked('/window?q=1'))[0]{bytes} eq request_for('/window?q=1', 1), 'what was typed into the bar is what the site was asked, once, as the request of a page you visit', 'compared the bytes');
 check(($at{made} // '') eq 'What Test says this page is made of: 5 things, 2 of them supported by Test itself, as it says. lzrprf checked the form of this list, not whether it is true.?Document?-   supported by Test: true??HTML 5   supported by Test: true?CSS?Grid Level 1   supported by Test: false??Subgrid   supported by Test: false?Libraries?A library of the hostile application 1.2.3   supported by Test: false', 'in the panel of the bottom bar\'s second icon the same window lists what the application says the page is made of, a row for each thing under the name of its kind: its name, its version, and true or false for whether the application says it supports it; and it says that lzrprf checked the form only', $at{made} // 'nothing came of it');
 check(($at{logmade} // '') eq 'Here Test lists what it says a page is made of. Nothing is listed for what is shown now.', 'when the log stands where the page stood, that list is empty and says so', $at{logmade} // 'nothing came of it');
 check(($at{log} // '') =~ m{^Every address lzrprf fetched for \S+ in this window is below\. Nothing is kept after this window closes\. To keep a log, type in Terminal: perl \S+ keep hosts\. No button of this window makes lzrprf keep more\.\|This window.*you typed \Q$t\E/window\?q=1}, 'the log is shown in the same window: this window\'s lines, with nothing kept on the disk and no question that keeps anything', substr($at{log} // 'nothing came of it', 0, 80));
@@ -2069,7 +2098,7 @@ check(@opens == 1 && $opens[0] eq "            become(undef, undef, undef, '/usr
 check(join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these twelve: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
 my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted';
 check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '5 1 3 1 3 3 1' && $text_of_lzrprf =~ /^        \(\$got, \$why, \$from\) = fetch\(\$url, \$where, \{ method => \$method, /m && $text_of_lzrprf =~ /^sub live_fetched \{/m && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^            \(\$shown\) = pictured\(\$checked, \$live->\{paths\}, \$live->\{host\}, undef, undef, \$live->\{pictures\}\);/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ typed\(\$1\) \}}m && $text_of_lzrprf =~ m{^sub typed \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ m{^sub navigated \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    \@WAY = \(\);\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n    return newer_looked\(/m && $text_of_lzrprf =~ /^    return newer_looked\(.*, 1\) if \$asked;\n/m && $text_of_lzrprf =~ /^sub newer_looked \{\n(?:    .*\n){3}    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
-    'a request has five roads and no sixth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures and style sheets of its page on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; and "live_fetched", for an address a page kept running asked for [C19]; "fetch" is called from those five and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
+    'a request has five roads and no sixth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures of its page, on its host or another, and its style sheets on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; and "live_fetched", for an address a page kept running asked for [C19]; "fetch" is called from those five and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
 my %marks = map { $_ => 1 } $text_of_lzrprf =~ /^#   \[(C\d+)\]/mg;
 my ($head, $body) = split /^use strict;$/m, $text_of_lzrprf, 2;
 my %marked = map { $_ => 1 } ($body // '') =~ /\[(C\d+)\]/g;
@@ -2217,14 +2246,21 @@ sub steady {
     $at += 1 + ord substr $hello, $at, 1;
     return ($hello, 0) if $at + 2 > length $hello;
     my $end = $at + 2 + unpack 'n', substr $hello, $at, 2;
+    my $head = substr $hello, 0, $at;     # all that stands before the extensions
     $at += 2;
-    my $resumes = 0;
+    my ($resumes, $rest) = (0, '');
     while ($at + 4 <= $end && $end <= length $hello) {
         my ($type, $size) = unpack 'nn', substr $hello, $at, 4;
-        substr($hello, $at + 4, $size) = "\0" x $size if $type == 51;
+        my $body = substr $hello, $at + 4, $size;
+        $body = "\0" x $size if $type == 51;
+        $body = '' if $type == 0 || $type == 21;    # the name of the host asked for, and the padding that fills the bytes up to one length whatever that name is: a picture's request names the picture's host
         $resumes = 1 if $type == 41 || $type == 35 && $size;
+        $rest .= pack('nn', $type, length $body) . $body;
         $at += 4 + $size;
     }
+    substr($head, 3, 2) = "\0\0";         # the two lengths before them count the name in
+    substr($head, 6, 3) = "\0\0\0";
+    $hello = $head . $rest;
     return ($hello, $resumes);
 }
 

@@ -8,7 +8,7 @@
 #   lzrprf log                                  print what the log on this computer holds
 #   lzrprf keep [nothing|hosts|all [DAYS]]      say, or choose, what is kept after a window closes
 #   lzrprf address TEXT...                      say what would be fetched if TEXT were typed into the bar
-#   lzrprf request TEXT...                      print the exact bytes a site is sent for TEXT
+#   lzrprf request [--other] TEXT...            print the exact bytes a site is sent for TEXT: as a page you visit, or with --other as a picture, a style sheet or the release file
 #   lzrprf public NUMBER...                     say whether a numeric address is on the public internet, and how this computer would send to it
 #   lzrprf mark                                 this build of macOS, this file and the selftest beside it (each file by its SHA-256), as one line; an empty line when no selftest can be read beside it
 #
@@ -34,11 +34,11 @@
 #   [C1]  The application is started in one place only, and only inside the page container.
 #   [C2]  At every start lzrprf tries, from inside that same container, what the container must refuse, and starts nothing unless all of it was refused and the same tries worked outside.
 #   [C3]  No process is handed a byte of what was fetched, nor the connection to a site, before the system itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, curl among its fixed switches.
-#   [C4]  A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in the window, or for one of three fixed addresses of the release file after you said yes (the newest release number, a report, the installer in its one or two places), or for a picture or a style sheet that the page laid out from such an address names on that same host, at most eight of each, by a path lzrprf checked. There is no fourth way to a request, besides what a page kept running asks for within [C19].
+#   [C4]  A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in the window, or for one of three fixed addresses of the release file after you said yes (the newest release number, a report, the installer in its one or two places), or for a picture the page laid out from such an address names, on that page's host or on a name under it (as img.example.com is for a page of example.com or www.example.com) and on no other site, at most twenty-four, each address checked as a typed one is and never inside your own network, or for a style sheet it names on that same host, at most eight, by a path lzrprf checked. There is no fourth way to a request, besides what a page kept running asks for within [C19].
 #   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
 #   [C6]  There is one place that connects to a site directly, and it connects to a numeric address that was checked and written down; the one other connection to the outside goes to the Tor client on this computer's loopback, only while Tor is on [C17].
-#   [C7]  What a site is sent is made from the address alone, with one fixed browser name, LZRBRWSR: the same request from every computer, byte for byte, with nothing kept from an earlier request. A page kept running adds to it only what [C19] lets it.
-#   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once.
+#   [C7]  What a site is sent is made from the address alone, with one fixed browser name, LZRBRWSR, and, only on the request of a page you visit, one fixed line of the kinds of answer it takes, Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8: the same request from every computer, byte for byte, with nothing kept from an earlier request. A page kept running adds to it only what [C19] lets it.
+#   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once, and never for a picture.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line, or a laid page, is not drawn at all. Its title, one line of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else.
 #   [C10] The window's process has no network of its own, writes no file, starts no other program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, lzrprf asks the system about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of that container's text, its list of services among it, is not asked about, and selftest makes its own tries from the real window. Of the system's services it looks up by name only the 41 its container lists and one local name, the clipboard's.
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
@@ -129,12 +129,14 @@ my %LAID = (R => 20_000, X => 30_000, G => 1000, M => 64, I => 1000, K => 32, J 
 my $RUN_TEXT = 2000;                      # the most characters in one run of text of a laid page
 my $ALL_TEXT = 1_000_000;                 # the most characters in all its runs together
 my $PIXELS = 262_144;                     # the most pixels in all its pictures together: one picture of 512 by 512
-my $PICTURES = 8;                         # the most pictures one page may name on its own host, each fetched by a run of its own
+my $PICTURES = 24;                        # DECLARED(lzrbrwsr src/page.rs MOST_PICTURES, the same number): the most pictures one page may name, on its own host or a name under it, each fetched by a run of its own
+my $PICTURES_AT_ONCE = 4;                 # DECLARED: the most pictures of one page fetched and decoded side by side, the owner's order of 2026-11-21: 24 one after the other took over 4 seconds
 my $PICTURE_SECONDS = 20;                 # one clock for all of a page's pictures: a picture not begun by then stays a grey box
 my $PICTURE_PIXELS = 200_000;             # the most pixels in one fetched picture
 my $SHEETS = 8;                           # the most style sheets one page may name on its own host, fetched before it is laid out a second time
 my $SHEET_BYTES = 1024 * 1024;            # the most of one style sheet's answer that is handed over: a larger one goes with length 0
 my $SHEET_SECONDS = 10;                   # one clock for starting all of a page's style sheets: a sheet not begun by then goes with length 0
+my @PICTURED;                             # the other hosts the pictures of the page last laid out were asked of, in its order: what the bar says
 my $DRAWN_PIXELS = 8 * $PICTURE_PIXELS;   # the most pixels the window is given for fetched pictures on one page, however often one is placed: a place beyond that stays a grey box
 my @FACES = map { "/System/Library/Fonts/Supplemental/$_.ttf" } 'Arial', 'Arial Bold', 'Arial Italic', 'Arial Bold Italic', 'Courier New', 'Courier New Bold', 'Courier New Italic', 'Courier New Bold Italic';    # the fonts a page is drawn with, in the application's order: plain, bold, italic, both, then the same in fixed width
 my $FACE_BYTES = 2 * 1024 * 1024;         # the most of one font that is handed over: the largest of the eight is 773,236 bytes on this macOS
@@ -505,12 +507,13 @@ function run() {
     }
 }
 END
-my ($witness, $to_witness, $from_witness);
+my ($witness, $to_witness, $from_witness, $witness_of) = (undef, undef, undef, 0);
 
 sub inside {                              # true when the system says that this process is contained; it is asked for two seconds, and then the answer is no
     my ($pid, $window) = @_;
     my $contained = $window ? qr/^\Q$pid\E 1 1 1 1 1 1 1 1\n\z/ : qr/^\Q$pid\E 1 1 1 1 [01] [01] [01] [01]\n\z/;    # the page and fetch containers refuse everything; what the last four say of them is not what holds them
     my $lost = sub {                      # the one that answers did not answer: it is ended, so that no late answer of its is ever read as the answer to a later question
+        return 0 if $witness_of != $$;    # by the process that started it alone: a picture's run beside others asks lzrprf's and ends nothing of lzrprf's
         kill 'KILL', $witness;
         waitpid $witness, 0;
         close $_ for $to_witness, $from_witness;
@@ -521,16 +524,20 @@ sub inside {                              # true when the system says that this 
         pipe(my $asked, $to_witness) && pipe($from_witness, my $told) or return 0;
         $witness = fork // return 0;
         become($asked, $told, undef, $SCRIPT, '-l', 'JavaScript', '-e', $WITNESS) unless $witness;
+        $witness_of = $$;
         close $_ for $asked, $told;
         $to_witness->autoflush(1);
     }
     my $until = now() + 2;
+    open my $turn, '<', $SELF or return 0;    # one question at a time: the runs that fetch a page's pictures side by side ask the same one, and each must read the answer to its own question, not another's
     while (now() < $until) {
+        flock $turn, LOCK_EX or return 0;
         print $to_witness "$pid\n" or return $lost->();
         my $ready = '';
         vec($ready, fileno $from_witness, 1) = 1;
         select($ready, undef, undef, $until - now() + 0.5) > 0 or return $lost->();
         my $says = readline($from_witness) // return $lost->();
+        flock $turn, LOCK_UN;
         return 1 if $says =~ $contained;
         select undef, undef, undef, 0.01; # not yet: the process is still being put into its container
     }
@@ -812,7 +819,7 @@ sub visit {
         record("$url -> lzrprf connects " . ($TOR_WANTED ? "through Tor, one circuit for $host" : 'to the first that answers of: ' . join(', ', map { $_->{text} } @$where)), $kept) or return idle($UNWRITTEN);    # [C5] written down first, connected second
         busy("Fetching $url");
         $tried = 1;
-        ($got, $why, $from, $certs) = fetch($url, $where);
+        ($got, $why, $from, $certs) = fetch($url, $where, undef, 1);    # the request of a page: the one that carries Accept
     }
     record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return idle($tried ? $UNENDED : $UNWRITTEN);    # an answer whose line could not be recorded is not shown, and the window says the fetch was tried
     close $request;
@@ -872,7 +879,7 @@ sub visit {
     $tab->{title} = $title;
     window("title $TAB $title");            # checked: plain characters, no control or format character, at most $TITLE (sub checked)
     window("history add $url\t$title");     # what the bar suggests while you type: the pages shown in this window, in its memory only, emptied by "Clear history" (function suggested)
-    idle("$host answered " . length($got) . ' bytes. ' . $styled . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . " the page draws from $host itself " . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them.' : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
+    idle("$host answered " . length($got) . ' bytes. ' . $styled . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . ' the page draws ' . (@PICTURED ? '' : "from $host itself ") . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown' . (@PICTURED ? '; besides ' . $host . ', lzrprf asked ' . join(', ', @PICTURED > 4 ? (@PICTURED[0 .. 3], '...') : @PICTURED) . ' for them' : '') . '. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them' . (@PICTURED ? ' for anything but a picture.' : '.') : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
 }
 
 # The request is over and the connection to the site is closed. Only now does
@@ -1148,8 +1155,8 @@ sub checked {
         $TITLED = $title;
     }
     my @paths;
-    if (@lines && $lines[0] =~ /^=pictures/) {    # the pictures the page names on its own host, by path alone [C9]
-        return unless shift(@lines) =~ m{^=pictures((?: /[A-Za-z0-9._~/%?=&-]{0,511}){1,$PICTURES})$};
+    if (@lines && $lines[0] =~ /^=pictures/) {    # the pictures the page names: on its own host by path alone, on a name under it as https://, a host by name and a path [C9]; of which host each may be is held where it is fetched (sub pictured)
+        return unless shift(@lines) =~ m{^=pictures((?: (?:https://$NAME)?/[A-Za-z0-9._~/%?=&,-]{0,511}){1,$PICTURES})$};
         @paths = split ' ', $1;
     }
     my @sheets;
@@ -1257,11 +1264,19 @@ sub laid {
     return ($lines, $hosts, $paths, $said, $sheets);
 }
 
-# The pictures of a laid page. A page may name up to eight paths on its own
-# host; each path a place I of the page draws is fetched once, one after the
-# other, the way the page was: its line in the log first, then "fetch" to the
-# same checked addresses the page came from, so a site is sent "request" of
-# the picture's address and nothing else. The application decodes it, in a
+# The pictures of a laid page. A page may name up to $PICTURES of them, each
+# a path on its own host or a full address https://HOST/PATH on a name under
+# that host (sub under): no other site is asked for a picture, whatever the page
+# names, so a page cannot make lzrprf tell a third party that you are here; each
+# one a place I of the page draws is fetched once, the way the page was: its
+# line in the log first, then "fetch", so a site is sent "request" of the
+# picture's address and nothing else. At most $PICTURES_AT_ONCE are fetched
+# and decoded side by side, each in a process of its own that writes nothing
+# to the log: lzrprf writes every line itself. A path goes to the same checked
+# addresses the page came from. A name under the host is checked as a typed address is
+# (sub address), its line is written before it is looked up, and a host that
+# leads inside your own network is not fetched at all, with no question: a
+# page cannot make lzrprf ask you about your router. The application decodes it, in a
 # page container of its own started as a page's is, and writes pixels:
 #
 #   P<w>,<h>      then exactly h lines p<hex>, 8 times w lowercase hex characters each:
@@ -1279,36 +1294,89 @@ sub laid {
 # pictures decoded, by number, which a new width places again; or nothing
 # when a line of the log could not be written.
 sub pictured {
-    my ($lines, $paths, $host, $where, $kept, $decoded) = @_;    # $decoded: the pictures of this page decoded before, by number; given when it is laid out again, and then nothing is fetched (sub relaid)
-    my %wanted = map { /^I\d+,\d+,\d+,\d+,(\d+)$/ ? ($1 => 1) : () } @$lines;
+    my ($lines, $paths, $host, $where, $kept, $decoded) = @_;    # $decoded: the pictures of this page decoded before, by their entry in =pictures; given when it is laid out again, and then nothing is fetched (sub relaid)
+    my %wanted = map { /^I\d+,\d+,\d+,\d+,(\d+)$/ ? ($paths->[$1] => 1) : () } @$lines;    # by entry: at another width the page may choose other sources, and an entry decoded then is placed again
+    @PICTURED = ();
     return ($lines, 0, 0, {}) unless %wanted;
     my %picture = $decoded ? %$decoded : ();
     if (!$decoded) {
         open my $request, '>>', "$DIR/busy" or return;
         flock $request, LOCK_SH or return;    # as in visit: no line of these requests falls into a clearing of the log
-        my $until = now() + $PICTURE_SECONDS;
-        for my $n (sort { $a <=> $b } keys %wanted) {
-            last unless now() < $until && alive();
-            my $url = "https://$host$paths->[$n]";
-            record("$url -> lzrprf connects to the first that answers of: " . join(', ', map { $_->{text} } @$where), $kept) or return;    # [C5] written down first, connected second
-            busy("Fetching picture " . ($n + 1) . " of the page: $url");
-            my ($got, $why, $from) = fetch($url, $where);    # [C6] [C7]
-            record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;
-            next if $why;
-            busy("$APP decodes picture " . ($n + 1) . ', in its container.');
-            my ($wrote) = contained($url, $got);    # [C1] [C3] no frame of style sheets: a picture run
-            $picture{$n} = pixels($wrote) if defined $wrote;    # [C9]
+        my ($until, $n, $lost, %running) = (now() + $PICTURE_SECONDS, 0, 0);    # %running: each picture fetched now, by the number fork gave for it: its entry, its address, what it said so far, its pipe
+        my @waiting = grep { $wanted{$_} } do { my %once; grep { !$once{$_}++ } @$paths };    # in the page's order
+        while (!$lost && alive() && (%running || @waiting && now() < $until)) {
+            while (!$lost && @waiting && keys(%running) < $PICTURES_AT_ONCE && now() < $until) {    # a picture not begun within the clock is not begun
+                my $entry = shift @waiting;
+                $n++;
+                my ($url, $there) = $entry =~ m{^/} ? ("https://$host$entry") : address($entry);    # a name under the host: checked as a typed address is
+                next unless defined $url;
+                if (defined $there && $there ne $host && !under($there, $host)) { record("$url not fetched: $there is another site than $host, and a page's picture is fetched from its own host and the names under it alone", $kept) or $lost = 1; next }    # [C4] nothing is looked up, nothing is asked
+                my $to = $where;
+                if (defined $there && $there ne $host) {
+                    record("the page $host names a picture on $there: $url", $kept) or ($lost = 1, last);    # [C5] before the name is even looked up
+                    my $why;
+                    ($to, $why) = $TOR_WANTED ? tor_where($there) : find($there);
+                    if ($to && grep { $_->{own} } @$to) { ($to, $why) = (undef, "$there leads inside your own network (" . join(', ', map { $_->{text} } @$to) . '), where no picture is fetched') }    # [C8] never for a picture, and nothing is asked
+                    if (!$to) { record("$url not fetched: $why", $kept) or $lost = 1; next }
+                    push @PICTURED, $there unless grep { $_ eq $there } @PICTURED;
+                }
+                record("$url -> lzrprf connects " . ($TOR_WANTED ? 'through Tor, one circuit for ' . ($there // $host) : 'to the first that answers of: ' . join(', ', map { $_->{text} } @$to)), $kept) or ($lost = 1, last);    # [C5] written down first, connected second
+                busy("Fetching picture $n of the page: $url");
+                pipe(my $from_run, my $to_lzrprf) or next;
+                my $run = fork // next;
+                if (!$run) {                    # fetched and decoded beside up to three others; what it says goes to lzrprf alone, which writes the log
+                    close $from_run;
+                    $RUN = getppid();           # it goes on while lzrprf does, and lzrprf ends it when the window is gone
+                    my ($got, $why, $from) = fetch($url, $to);    # [C6] [C7]
+                    my ($wrote) = $why ? () : contained($url, $got);    # [C1] [C3] no frame of style sheets: a picture run
+                    print $to_lzrprf join("\t", defined $wrote ? 1 : 0, length($got // ''), $from // '', $why // ''), "\n", $wrote // '';
+                    close $to_lzrprf;
+                    POSIX::_exit(0);
+                }
+                close $to_lzrprf;
+                $running{$run} = [$entry, $url, '', $from_run];
+            }
+            last if $lost || !%running;
+            my $read = '';
+            vec($read, fileno $_->[3], 1) = 1 for values %running;
+            select($read, undef, undef, 1) > 0 or next;
+            for my $run (grep { vec($read, fileno $running{$_}[3], 1) } keys %running) {
+                my $one = $running{$run};
+                my $came = sysread($one->[3], $one->[2], 262144, length $one->[2]);
+                next if defined $came ? $came && length $one->[2] <= $PAGE_BYTES + 1000 : $!{EINTR} || $!{EAGAIN};    # a read a signal broke off is tried again
+                delete $running{$run};    # it has said all it says
+                close $one->[3];
+                waitpid $run, 0;
+                my ($head, $wrote) = split /\n/, $one->[2], 2;
+                my ($decoded, $length, $from, $why) = split /\t/, $head // '', 4;
+                $why = 'the request could not be made' unless defined $from && ($length // '') =~ /^\d+$/;
+                record("$one->[1] " . (length $why ? "failed: $why" : "answered: $length bytes from $from"), $kept) or ($lost = 1, last);
+                $picture{ $one->[0] } = pixels($wrote) if !length $why && $decoded && defined $wrote;    # [C9]
+            }
         }
+        kill 'KILL', keys %running;     # the window is gone or a line could not be written: what still runs is ended, each by the number fork gave
+        waitpid $_, 0 for keys %running;
         close $request;
+        return if $lost;
     }
     my ($drawn, @shown) = (0);
     for (@$lines) {
         my ($x, $y, $w, $h, $n) = /^I(\d+),(\d+),(\d+),(\d+),(\d+)$/ or (push(@shown, $_), next);
-        my $one = $picture{$n};
+        my $one = $picture{ $paths->[$n] };
         if ($one && ($drawn += $one->[0] * $one->[1]) <= $DRAWN_PIXELS) { push @shown, "M$x,$y,$w,$h,$one->[0],$one->[1]", map { "m$_" } @$one[2 .. $#$one] }
         else { push @shown, "G$x,$y,$w,$h" }
     }
-    return (\@shown, scalar(grep { $picture{$_} } keys %picture), scalar(keys %wanted), \%picture);
+    return (\@shown, scalar(grep { $picture{$_} } keys %wanted), scalar(keys %wanted), \%picture);
+}
+
+# Whether a host is a name under a page's host: the page's host with "www."
+# taken off, a dot before it, and one name or more in front. Only who holds a
+# name can give out the names under it, so a picture there comes from the site
+# you visit and from no third party. [C4]
+sub under {
+    my ($there, $host) = @_;
+    my $own = $host =~ s/^www\.//r;
+    return $own =~ /\./ && length $there > length($own) + 1 && substr($there, -length($own) - 1) eq ".$own";
 }
 
 # A size of the window's page: "view", its width and its height in points,
@@ -2371,7 +2439,9 @@ sub find {
     my ($host) = @_;
     if ($PEER ne '-') {                   # "lzrprf try" only: every name leads to the test's listener
         my ($to, $port) = split /:/, $PEER;
-        return [{ family => AF_INET, addr => pack_sockaddr_in($port, inet_aton($to)), text => $to, own => !public($to) }];
+        my ($public, $names) = (0);
+        $public = grep { chomp; $_ eq $host } <$names> if open $names, '<', kept_in() . '/public';    # the names the test's file "public" lists are taken for hosts on the public internet, to try what is fetched there
+        return [{ family => AF_INET, addr => pack_sockaddr_in($port, inet_aton($to)), text => $to, own => !$public && !public($to) }];
     }
     my ($found) = said($FIND_SECONDS, '/usr/bin/perl', $SELF, 'lookup', $host);
     my (@where, %had, $looked);
@@ -2586,17 +2656,21 @@ sub tor_reach {
 # made from the address and from nothing else but one fixed browser name,
 # LZRBRWSR: no version, no other word, the same from every computer and every
 # release (some sites answer a request with no browser name only with a
-# redirect, so it names one). No cookie, no language, no page you came from,
+# redirect, so it names one). The request of a page you visit says too which
+# answers it takes, in one fixed line (some sites refuse a request that does
+# not); a picture, a style sheet, the release file and what a page kept
+# running asks for do not carry it. No cookie, no language, no page you came from,
 # no number of this computer or of this copy. Every computer that runs lzrprf
 # sends the same bytes for the same address, so they tell a site nothing
 # about which one you are. curl is
 # told to send exactly this (the switches in "fetch"), and selftest compares
 # these bytes with the bytes its test site really received.              # [C7]
 my $BROWSER = 'LZRBRWSR';                # DECLARED: the one browser name every request carries, the owner's order of 2026-11-20; a fixed word, never a version or anything of this computer
+my $PAGE_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';    # DECLARED: the kinds of answer the request of a page you visit takes, the owner's order of 2026-11-21; one fixed line, the same on every computer
 sub request {
-    my ($url) = @_;
+    my ($url, $page) = @_;                # $page: the request of a page you visit (sub visit), the one that says which answers it takes
     my ($host, $rest) = $url =~ m{^https://([^/]+)(/.*)$} or return '';
-    return "GET $rest HTTP/1.1\r\nHost: $host\r\nUser-Agent: $BROWSER\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+    return "GET $rest HTTP/1.1\r\nHost: $host\r\nUser-Agent: $BROWSER\r\n" . ($page ? "Accept: $PAGE_ACCEPT\r\n" : '') . "Accept-Encoding: identity\r\nConnection: close\r\n\r\n";
 }
 
 # The request. curl does the https, and it is told the address and nothing
@@ -2619,7 +2693,7 @@ sub request {
 # place of GET, or POST with the page's body (handed to curl on its input) and
 # its type of three; and for another host than the page's, the page's Origin.
 sub fetch {
-    my ($url, $where, $ask) = @_;
+    my ($url, $where, $ask, $page) = @_;    # $page: the request of a page you visit, which carries the line Accept (sub request)
     my ($way, $roots) = ("$DIR/way.$$", $PEER ne '-' ? kept_in() . '/authority.pem' : $ROOTS);
     my $none = 'the request could not be made';
     my $up = $ask && $ask->{method} eq 'POST' ? $ask->{body} : undef;    # [C19] the body a page's POST carries, all that is carried besides the request
@@ -2634,7 +2708,7 @@ sub fetch {
         %ENV = ();                        # curl takes no setting from the environment
         my @curl = ($CURL, '-q', '-g', '-s', '-i', '--raw', '--path-as-is', '--proto', '=https', '--tlsv1.2', '--http1.1', '--noproxy', '*', '--no-sessionid', '--ciphers', $TLS_CIPHERS, '--curves', $TLS_CURVES,
             '--cacert', $roots, '--max-time', $FETCH_SECONDS, '--max-filesize', $FETCH_BYTES, '--write-out', "$WROTE%{certs}",
-            '-H', "User-Agent: $BROWSER", '-H', 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close', @asked,
+            '-H', "User-Agent: $BROWSER", '-H', $page ? "Accept: $PAGE_ACCEPT" : 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close', @asked,
             '--unix-socket', $way, '--', $url);
         if ($PEER ne '-' && open my $instead, '<', kept_in() . '/fetcher') { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to probe this container too
         become($body_in, $out, undef, '/bin/sh', '-c', $FETCH_LIMITS, 'lzrprf', contain($FETCH, shift @curl, '-D', "WAY=$way", '-D', "ROOTS=$roots"), @curl);    # the memory limit first, then the container
@@ -6543,7 +6617,7 @@ elsif ($command eq 'try' && @ARGV > 4 && $ARGV[0] =~ m{^\Q$DIR\E/[A-Za-z0-9][A-Z
 elsif ($command eq 'log' && !@ARGV) { show() }
 elsif ($command eq 'keep' && @ARGV <= 2) { keep_command(@ARGV) }
 elsif ($command eq 'address' && @ARGV) { print "$_\t", (address($_))[0] // 'not fetched: not an address lzrprf fetches', "\n" for @ARGV }
-elsif ($command eq 'request' && @ARGV) { print request((address($_))[0] // '') for @ARGV }
+elsif ($command eq 'request' && @ARGV) { my $other = $ARGV[0] eq '--other' && shift @ARGV; print request((address($_))[0] // '', !$other) for @ARGV }
 elsif ($command eq 'public' && @ARGV) {
     for my $number (@ARGV) {
         my ($failed, $one) = getaddrinfo($number, 443, { socktype => SOCK_STREAM, flags => AI_NUMERICHOST });
@@ -6563,4 +6637,4 @@ elsif ($command eq 'behind' && @ARGV > 6 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ 
     behind();
 }
 elsif ($command eq 'lookup' && @ARGV == 1 && $ARGV[0] =~ /^$NAME$/) { lookup(@ARGV) }    # started for one address that was typed, not by hand
-else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf incognito [/path/to/program [arguments]]\n       lzrprf log\n       lzrprf keep [nothing|hosts|all [DAYS]]\n       lzrprf address TEXT...\n       lzrprf request TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }
+else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf incognito [/path/to/program [arguments]]\n       lzrprf log\n       lzrprf keep [nothing|hosts|all [DAYS]]\n       lzrprf address TEXT...\n       lzrprf request [--other] TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }
