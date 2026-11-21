@@ -288,6 +288,7 @@ One visit, in order (`sub visit`):
 | `[C16]` | An incognito window writes nothing that outlives it. Its log, history, tabs and everything it fetched are held in its memory or in one folder of its own, readable by you alone, in your temporary folder, named `lzrprf-i.<process number>.<12 random hex digits>`; of `~/.lzrprf` it reads, and never writes, the self-test's result, the home page, the search address, whether the bar is shown and the bookmarks. The folder is removed however the window ends, and one left by a run whose processes are all gone is removed at the next start. | `sub incognito_begun`, `sub swept`, `sub removed`, `sub leave` | Run `incognito`: two pages, a bookmark opened, the star and the import tried; every file of the run's lzrprf folder hashed before and after, byte for byte the same, and the window's folder gone. Runs `incognitokilled` and `incognitoswept`: kill -9 of the sweeper, the process behind the window and lzrprf leaves the folder; the next start removes it. |
 | `[C18]` | A page may keep running with its tab, from release 53 on. An HTML page's answer goes to the application inside the frame `=live LEN`, and after its first list, checked and drawn as any other `[C9]`, the application writes `=ready` and stays in its container with the tab. lzrprf hands it three lines and nothing else: `=click X Y` for a click in the page (in the laid page's points after lzrprf's scrolling), `=key NAME` or `=key NAME shift` for a key, and `=text TEXT` (1 to 48 bytes of UTF-8, no control or format character) only while the page has said `=focus 1`; every line at most 64 bytes, checked twice, in the window and in lzrprf. The page answers with `=focus 0` or `=focus 1`, `=go ADDRESS` (a link followed or a GET form sent: a visit like a typed address, with every check of one), `=statement TEXT`, and `=again`, its lines and `=ready`, checked as a first list and drawn with the pictures already decoded, so nothing is fetched. A line of no form ends the page and keeps its last drawing. A tab that closes or goes elsewhere sends `=end`; the page is given one second, then it and its keeper are ended, and when lzrprf itself ends the keeper ends the page. At most three pages run at once (the oldest is ended first), each for at most half an hour and four laid pages of lines. | `sub contained`, `sub keeper`, `sub live_kept`, `sub live_input`, `sub live_answered`, `sub live_end` | A page whose script changes its text on a click is drawn again after each of two clicks. Text typed before any field has the focus reaches nothing; after `=focus 1` keys and finished text reach the page, and its `=go` is fetched as a typed address with the field in it, written in the log first. A tab that goes elsewhere tells the page `=end` before the site is asked for anything, and no process of it is left. An answer with a line of no kind ends the page: its first drawing stays and the next click reaches nothing. |
 | `[C19]` | A page kept running with its tab, from the moment it is read, may ask lzrprf for an address with GET, HEAD or POST, from release 54 on (while it is read from release 55 on, for the scripts it names by address, within the 30 seconds a page has to be read), one at a time and at most 600 times in its life. The application writes `=fetch METHOD LEN TYPE URL` and the body; each is checked as an address typed into the bar is (https only), written in the log first `[C5]` with the page it came from, and fetched through the one place that connects `[C6]`, carrying the fixed request of `[C7]` with nothing added but, for a POST, at most 64 KiB of the page's body and one of three types, and for another host the page's own `Origin`. A host inside your own network is refused without a question. The page is handed back `=fetched STATUS LEN LEN`: the status, six headers (the content type and the five of CORS) and the body, and nothing else. | `sub live_asked`, `sub live_fetched`, `sub live_parts`, `sub live_replied`, `sub fetch` | A page's script asks the test site for a path on its own host and draws the answer: the site is asked once, with the fixed request bytes, written in the log before the line that connects, and the page is handed only the content type of the answer's headers. A request to another host is written down with the page's host, fails there, and the page draws its error. A page that names `/s.js` asks for it before its first list: the site is asked once, it is written in the log before the line that connects, and the first list drawn carries what the script changed. |
+| `[C20]` | The application's tool, opened by its icon in the bottom bar and never in an incognito window. lzrprf reads this computer's processes and launchd jobs with the system's own programs (`ps`, `launchctl`, `plutil`, `codesign`) and hands what it saw to the application in its container, which has no network and no file, so nothing of it leaves this computer. A look changes nothing. lzrprf changes something only for a row you ticked and then confirmed, where each change is said in lzrprf's own words and written in the log first: a launchd job of your account is switched off, a process of yours is asked to end; never a job or a process of the system or of Apple, never lzrprf's own, never with a password. The jobs you switched off are kept in `~/.lzrprf/quieted`, looked at again at each start and every five minutes while a window is open, switched off again when something switched them on, and switched on again when you say so. | `sub tool_shown`, `sub tool_look`, `sub tool_checked`, `sub tool_may`, `sub tool_done`, `sub tool_watch` | Runs `tool`, `toolbad` and `toolwatch`, with stand-ins for what the system's programs say, so no real job and no real process is touched: the application is handed the processes, the jobs, the open apps and who signed their programs; of the changes it names, only a process of yours outside the system and a job of your account that is not Apple's can be ticked; a process of root, a job of the system, of Apple or one lzrprf never saw cannot. What was ticked is changed and nothing else, each change after its log line, and a process that is no longer the one listed is left alone. An answer with one line out of form shows nothing. A job switched off that is loaded again at a start is switched off again and the window told. |
 
 ## The claims, one by one
 
@@ -362,7 +363,7 @@ called from four places, and `selftest` reads `lzrprf` and counts them:
   "Tabs, the home page, bookmarks, redirects"). The application cannot write any of these: it
   has no pipe to that side, and nothing it writes is passed on as words to lzrprf.
 - `sub pictured`, called from `sub visit` after the page was laid out, and from `sub relaid`
-  (the page laid out again at a new width, or in a tab chosen again) with the pictures it
+  (the page laid out again at a new width, also in a tab chosen again) with the pictures it
   decoded then, which fetches nothing. A laid
   page may name up to twenty-four pictures, in its order, in a second line
   `=pictures ENTRY ENTRY ...`, and place them with `I` lines. Each entry is a path beginning
@@ -701,9 +702,12 @@ the window alone, and nothing in it comes from a page.
 
 - **Tabs.** Each tab keeps its own page as lzrprf keeps the page shown: its address, the
   answer, the style sheets it was laid out with and its pictures, its title, the addresses it
-  went to and lzrprf's last words in it (`sub tabbed`). Choosing a tab lays its kept page out
-  again at the window's width (`sub relaid`): nothing is fetched and nothing is written in the
-  log. At most 32 tabs; closing the last leaves one empty tab. Cmd-T opens a tab, Cmd-W closes
+  went to and lzrprf's last words in it (`sub tabbed`). A tab is chosen on the press, also
+  while lzrprf is busy with a page: the window shows the drawing it kept of that tab at once
+  (it keeps one for each of the 8 tabs shown last), and lzrprf is told when it is free
+  (`sub tab_shown`). A tab with no kept drawing is sent the list lzrprf kept of its page, and
+  only a page kept at another width is laid out again (`sub relaid`): nothing is fetched and
+  nothing is written in the log. At most 32 tabs; closing the last leaves one empty tab. Cmd-T opens a tab, Cmd-W closes
   one. A tab's title is the page's `=title` line, checked `[C9]`.
 - **The home page.** The cogwheel's "Make current page the home page" keeps the address of the
   tab in one plain file of yours, `~/.lzrprf/home`, one line (`sub menu`, `sub home`). A new
@@ -738,9 +742,11 @@ the window alone, and nothing in it comes from a page.
   64 MiB unpacked), Safari's binary `Bookmarks.plist` with a reader of its own
   (`sub plist_binary`), and an exported HTML file (`sub import_html`). Firefox's
   `places.sqlite` would need `sqlite3` and is not read: its own backups hold the same
-  bookmarks. `plutil` is not used either. macOS gives Safari's file only to a program you
-  granted Full Disk Access: when it refuses, the wizard says so and tells you to export the
-  bookmarks from Safari and choose the HTML file. The window cannot show a file picker: its
+  bookmarks. `plutil` is not used either. Where macOS keeps a browser's files from lzrprf
+  (Safari's always, another browser's when its protection of an app's data says so), lzrprf
+  asks for no more access than it has: it never tells you to give it Full Disk Access. The
+  wizard says the browser's own export as numbered steps (`sub import_steps`) and takes the
+  HTML file; for Chrome it names the same file from the Google account too (Google Takeout). The window cannot show a file picker: its
   container answers only the clipboard service and reads nothing under your home folder
   `[C10]`, so the HTML step offers the bookmarks files lzrprf finds in Downloads, Desktop and
   Documents, and takes a path you type in your home folder. The source's bookmarks bar goes into
@@ -758,8 +764,13 @@ the window alone, and nothing in it comes from a page.
   lzrprf as they are shown (`history add`), held in the window's memory only, at most 500, and
   cleared with "Clear browsing history": nothing of them is written to the disk. Opening one is
   a visit like a typed address `[C4]`.
-- **The bottom bar.** At its right end two line icons: the log, and what the page is made of.
-  The second opens, in a panel of its own over the page, the list the application gave of what
+- **The bottom bar.** It says in a few words what just happened: after a page the status the
+  site answered with, the time all of it took and how much came (`200 · 412 ms · 89 kB`). The
+  sentence in full is the tip of those words and a line of the log. At its right end two line
+  icons: the log, and what the page is made of. The first opens the log on a page of its own
+  over the page shown, which stays as it is under it: this window's lines, the newest first,
+  then the last of the log kept on this computer. Its Close button, a second press on the
+  icon or the back arrow closes it again. The second opens, in a panel of its own over the page, the list the application gave of what
   the page is made of, each thing with its version and whether the application says it
   supports it, under the sentence that lzrprf checked the form of that list and not whether it
   is true.
@@ -1071,16 +1082,16 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 58
-    new Pictures a page keeps on a name under its own host are shown, a site's own error page is shown as a page, and boxes are drawn in their stacking order
+    release 59
+    new LZRDFNDR finds the background programs that report on you and switches off the ones you tick, the bar says the status and the milliseconds, the log is a page of its own, and a tab changes at once
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin dcc5ec884e6190a96b6923eec7dddbb6f94d9704c407eaa161327810f6bab3a4
+    file lzrbrwsr-bin 98c933c8c1cb9cd684c8f191a26dd7a7d5685e9bf6ea5a7dab69a21755a7b29d
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-    lzrprf d9796872d306e298fb86fc3caab33d67d3cb51f6a94712449951f20a8a3cf72e
+    lzrprf e368b447d044b8f5eb0ca7c1182e360e3aef66f9d875426ae1d28dbdea94f465
 
 ## When a page cannot be shown
 
@@ -1365,7 +1376,9 @@ full addresses holds them; a log of hosts only holds `https://example.com` in ea
     2026-11-18T09:14:03Z  4711  https://example.com/ -> lzrprf connects to the first that answers of: 93.184.215.14
     2026-11-18T09:14:04Z  4711  https://example.com/ answered: 931 bytes from 93.184.215.14
 
-The Log button of the window shows the lines of that window, from memory, and the log on this
+The Log button of the window shows the lines of that window, from memory: every address
+fetched, and what you did in it that fetched nothing, such as a tab opened or closed, a
+bookmark or a setting (`sub noted`). Under them it shows the log on this
 computer when there is one, with the button that clears it and, while a log is kept, the
 questions that keep less (`sub log_shown`).
 

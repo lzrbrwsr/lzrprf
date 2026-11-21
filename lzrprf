@@ -50,6 +50,7 @@
 #   [C15] Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: Local State and each profile's Bookmarks of Chrome, Edge, Brave and Vivaldi, Firefox's profiles.ini and newest bookmarkbackups/*.jsonlz4, Safari's Bookmarks.plist, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import [C12].
 #   [C18] A page kept running with its tab is handed three kinds of line and nothing else: a click, a key, and text typed while it says a field of it has the focus, each checked in the window and here; what it writes back is checked as a first list is, an address it asks for is a visit like a typed one, and it ends with its tab, at most three at once.
 #   [C19] A page kept running with its tab, from the moment it is read, may ask lzrprf for an address with GET, HEAD or POST, one at a time and at most 600 times in its life: each is checked as an address typed into the bar is, written down first and fetched through the one place that connects, carrying the fixed request of [C7] with nothing added but, for a POST, at most 64 KiB of the page's body and one of three types, and for another host the page's own Origin; the page is handed back the status, six headers and the body, and nothing else.
+#   [C20] The application's tool, opened by its icon in the bottom bar and never in an incognito window: lzrprf reads this computer's processes and launchd jobs with the system's own programs (ps, launchctl, plutil, codesign) and hands what it saw to the application in its container, which has no network and no file, so nothing of it leaves this computer. A look changes nothing. lzrprf changes something only for a row you ticked and then confirmed, where each change is said in lzrprf's own words and written in the log first: a launchd job of your account is switched off (launchctl disable, then bootout), a process of yours is asked to end (TERM); never a job or a process of the system or of Apple, never lzrprf's own, never with a password. The jobs you switched off are kept in ~/.lzrprf/quieted, looked at again at each start and every five minutes while a window is open, switched off again when something switched them on, and switched on again when you say so.
 #
 # This file is the whole program. Its parts, in order: the containers, the
 # proof that they hold, one visit, the fetch, the window's side, the log, the
@@ -106,14 +107,15 @@ my $PAGE_ROOM = 2097152;                 # the address space, in KiB, a page con
 my $LIVE_SECONDS = 1800;                  # DECLARED(half an hour: a page kept running with its tab, sub live_kept, is ended after this whatever it does, and its last drawing stays; reading a long form takes minutes, not hours)
 my $LIVE_BYTES = 4 * $PAGE_BYTES;         # DECLARED(the most a page kept running may write in all after its first list: four full laid pages of tiles; a page that redraws more than that is ended and its last drawing stays)
 my $LIVE_MOST = 3;                        # DECLARED(the most pages kept running at once, each in a container of up to $PAGE_ROOM: three stay under 8 GiB of a 16 GB Mac; the oldest is ended first, its drawing kept)
-my $LIVE_INPUT = 64;                      # DECLARED(LONGEST_INPUT of the application's scripted module in page.rs: the longest input line it reads, its line end not counted)
+my $LIVE_INPUT = 64;                      # DECLARED(LONGEST_INPUT of the application's scripted module, src/page/scripted.rs: the longest input line it reads, its line end not counted)
 my $LIVE_TEXT = 48;                       # DECLARED(LONGEST_TEXT of the same module: the most bytes of the text of one "=text" line)
 my $LIVE_HELD = 4096;                     # DECLARED(the most input the keeper holds for a page that does not read it: 64 lines of $LIVE_INPUT; beyond it the keeper reads no more, the pipe from lzrprf fills, and lzrprf ends the page when a line cannot be written at once)
 my $LIVE_FETCH_MOST = 600;               # DECLARED([C19] the most addresses one page kept running may ask for in its life: one every three seconds for its half hour; a page that asks for more is answered "=fetched 0 0 0")
-my $LIVE_FETCH_UP = 65536;                # DECLARED([C19] LONGEST_BODY_UP of the application's scripted module in page.rs: the most bytes of a body a page's request carries up)
+my $LIVE_FETCH_UP = 65536;                # DECLARED([C19] LONGEST_BODY_UP of the application's scripted module, src/page/scripted.rs: the most bytes of a body a page's request carries up)
 my $LIVE_FETCH_LINE = 8300;               # DECLARED([C19] the longest "=fetch" line: its words, 65536, the longest type and an address of LONGEST_GO, 8192, as the application writes it)
 my $LIVE_HEAD_BYTES = 8192;               # DECLARED([C19] REPLY_HEAD_BYTES of the same module: the most bytes of the header lines of one reply; lines past it are left out)
 my $TRY_QUIET = 2;                        # DECLARED("lzrprf try" only: once the test's lines are all given, it ends after every page kept running has written nothing for this long; a page's timers and its requests run in milliseconds)
+my ($LISTS_KEPT, $LIST_USED) = (8, 0);    # DECLARED(the tabs whose page lists lzrprf keeps, the ones shown last (sub lists_bounded): 8, the tabs a person moves among; the window keeps as many drawings)
 my $LIVE_END_SECONDS = 1;                 # DECLARED(what a page is given to end by itself after "=end" before it is ended: the application reads the line and returns at once)
 my $PIECES = 50_000;                      # the most lines one page may have
 my $BOXES = 2000;                         # the most grey boxes among them
@@ -129,7 +131,7 @@ my %LAID = (R => 20_000, X => 30_000, G => 1000, M => 64, I => 1000, K => 32, J 
 my $RUN_TEXT = 2000;                      # the most characters in one run of text of a laid page
 my $ALL_TEXT = 1_000_000;                 # the most characters in all its runs together
 my $PIXELS = 262_144;                     # the most pixels in all its pictures together: one picture of 512 by 512
-my $PICTURES = 24;                        # DECLARED(lzrbrwsr src/page.rs MOST_PICTURES, the same number): the most pictures one page may name, on its own host or a name under it, each fetched by a run of its own
+my $PICTURES = 24;                        # DECLARED(lzrbrwsr src/page/pictures.rs MOST_PICTURES, the same number): the most pictures one page may name, on its own host or a name under it, each fetched by a run of its own
 my $PICTURES_AT_ONCE = 4;                 # DECLARED: the most pictures of one page fetched and decoded side by side, the owner's order of 2026-11-21: 24 one after the other took over 4 seconds
 my $PICTURE_SECONDS = 20;                 # one clock for all of a page's pictures: a picture not begun by then stays a grey box
 my $PICTURE_PIXELS = 200_000;             # the most pixels in one fetched picture
@@ -165,6 +167,7 @@ my ($FROM, @EVENTS);                      # what the window says; or, without a 
 my $FROM_HELD = '';                       # what the window said that is not a whole line yet (sub hear)
 my @LIVE;                                 # the pages kept running with their tabs, the oldest first (sub live_kept)
 my @LIVE_TOLD = ('off', 0);               # what the window was last told of the selected tab's page kept running (sub live_told)
+my $WENT = 0;                             # when the visit shown began, on the clock nobody can set (sub go)
 my $DRAWN = 0;                            # a page was handed to the window, and the window has not said yet that it could not draw it
 my @VIEW_WIDE = (320, 1600);              # the narrowest and the widest a page is laid out: a window's width outside them is taken as the nearer one, and the application refuses a =view frame outside them
 my @VIEW_HIGH = (240, 2160);              # the same for the height of its first screen, which a page's vh is taken from
@@ -172,6 +175,7 @@ my @VIEW = (960, 768);                    # the size of the window's page, in po
 my $LAID_WIDE;                            # the width the run being checked was asked to lay its page at: a laid page of any other width is unfit
 my $SHOWN;                                # the page shown, kept to lay it out again when the window's page changes width: its address, its answer, the frame of style sheets it was laid with, whether that was a second run, its host, its decoded pictures, the width it was laid at
 my @HELD;                                 # what the window said while lzrprf looked for its latest size, in order: heard before anything new
+my @LATER;                                # Tor turned on or off in the window while a question was open: heard by the loop of sub behind once the question is answered, so the window's onion never waits for an answer that was dropped
 my $TABS_MOST = 32;                       # the most tabs one window holds: the owner's order of 2026-11-20
 my $TITLE = 200;                          # the most characters of a page's title, the =title line, shown in its tab
 my $VISITED = 100;                        # the most addresses a tab's history holds, the oldest dropped first: a list nothing is fetched from, emptied by "Clear history"
@@ -243,14 +247,15 @@ END
 # hold no more than 256 open files (where lzrprf itself was started with a
 # lower limit that no process may raise, that lower limit stands), may
 # take no more memory than the shell that starts it holds plus 2 GiB
-# ($PAGE_ROOM), and is told one thing: the address it lays out. It sees no
+# ($PAGE_ROOM), and is told one thing: the address it lays out (and, beside
+# it, that the run is for a picture or for the application's tool). It sees no
 # other variable. Each limit is set before the next step, and a limit the
 # system will not set starts nothing. Each is set twice, as the limit that
 # counts now and as the limit that may not be raised again ("limit" below):
 # which of the two a bare "ulimit" sets differs between the shells macOS can
 # use as /bin/sh, and with one of them the program could have raised its
 # limits again (found before release 17 went out; said here from then on).
-my $PAGE_LIMITS = 'limit() { ulimit -S "$@" && ulimit -H "$@"; } && v=$(/bin/ps -o vsz= -p $$) && limit -t 30 && limit -f 0 && limit -c 0 && { limit -n 256 2>/dev/null || [ "$(ulimit -H -n)" -le 256 ] 2>/dev/null; } && limit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" ${LZRPRF_PICTURE:+"LZRPRF_PICTURE=$LZRPRF_PICTURE"} "$@"';
+my $PAGE_LIMITS = 'limit() { ulimit -S "$@" && ulimit -H "$@"; } && v=$(/bin/ps -o vsz= -p $$) && limit -t 30 && limit -f 0 && limit -c 0 && { limit -n 256 2>/dev/null || [ "$(ulimit -H -n)" -le 256 ] 2>/dev/null; } && limit -v $((v + ' . $PAGE_ROOM . ')) && exec /usr/bin/env -i "LZRPRF_CONTAINED=$LZRPRF_CONTAINED" ${LZRPRF_PICTURE:+"LZRPRF_PICTURE=$LZRPRF_PICTURE"} ${LZRPRF_TOOL:+"LZRPRF_TOOL=$LZRPRF_TOOL"} "$@"';
 
 # What curl's container is allowed on top of it: one socket file, behind which
 # lzrprf holds the connection to the site, and the list of certificate
@@ -677,34 +682,39 @@ sub behind {
     return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
     $UNEXPIRED = !expire_log();           # [C12] the days you chose, at the start of a window; when a request of another window is open just then, it is tried again before each request of this window and each press of Log, until it is done
     welcome() unless $INCOGNITO;          # once after each install or update: what is new, and what $APP does and does not do for you; an incognito window writes nothing, so it shows none
-    newer() unless $INCOGNITO;           # [C16] it would write its answer and an installer's lines
-    window('checked ' . ($INCOGNITO ? 'none' : checked_kept()));    # when lzrprf last looked for a newer release, shown under Check for updates
     window('incognito') if $INCOGNITO;
-    idle($INCOGNITO ? "$APP is contained, in an incognito window: its log, history and tabs are held in its memory and one folder of its own, removed when it closes. Nothing is written to ~/.lzrprf." : "$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : ''));
+    idle(($INCOGNITO ? "$APP is contained, in an incognito window: its log, history and tabs are held in its memory and one folder of its own, removed when it closes. Nothing is written to ~/.lzrprf." : "$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : '')), $INCOGNITO ? 'Contained, incognito' : 'Contained');
+    said_noted();                         # the first line of this window's log: that it is contained, and what is kept
     marks_told();
     window('marksbar ' . (marks_bar() ? 'on' : 'off'), 'search ' . (engine() ? 'set' : 'none'));
     nav_told();
     if (my $home = home()) { go($home, 'you opened your home page') }    # [C4] an address that came from the bar, kept when you made it the home page
-    while (defined(my $event = hear(undef, 1))) {
+    newer() unless $INCOGNITO;           # [C16] it would write its answer and an installer's lines. Only now, once the window is idle and its first page is drawn: a look for a newer release never stands before the first drawing
+    window('checked ' . ($INCOGNITO ? 'none' : checked_kept()));    # when lzrprf last looked for a newer release, shown under Check for updates
+    tool_watch();                        # [C20] the jobs you switched off, looked at once as the window starts
+    while (defined(my $event = hear(scalar(tool_due()), 1))) {
         if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { typed($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window; a size said while it was fetched and laid out is the size it is laid out again at
         elsif ($event eq 'live') { live_turn() }    # a page kept running with its tab answered, or is to end (sub live_answered)
         elsif ($event =~ /^page (click (?:0|[1-9][0-9]{0,5}) (?:0|[1-9][0-9]{0,5})|key (?:[\x21-\x7e]|Space|Escape|Enter|Tab|Backspace|Delete|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown)(?: shift)?|text [^\x00-\x1f\x7f]{1,$LIVE_TEXT})$/) { live_input($1) }    # a click in the page, a key while it has the keyboard, text typed into its field: handed to the page kept running, and to nothing else
         elsif (viewing($event)) { relaid() }    # the window's page has a new size: the page shown is laid out again at its width, from what was kept, and nothing is fetched
         elsif ($event =~ /^tab move (0|[1-9][0-9]?) (0|[1-9][0-9]?)$/) { tab_moved($1, $2) }    # a tab dragged along the strip to another place among the tabs: the page shown stays as it is
-        elsif ($event =~ /^tab (new|select|close)(?: (0|[1-9][0-9]?))?$/) { tabbed($1, $2); relaid() }    # a tab chosen in the strip: its page is laid out again from what was kept, and nothing is fetched, unless a new tab opens the home page
-        elsif ($event =~ /^menu (clear-history|clear-sessions|home|bookmarks-bar)$/) { menu($1) }
+        elsif ($event =~ /^tab (new|select|close)(?: (0|[1-9][0-9]?))?( kept)?$/) { tabbed($1, $2, $3); relaid() }    # a tab chosen in the strip: the window shows the drawing it kept of it ("kept"), or lzrprf sends the one it kept, and only a page kept at another width is laid out again; nothing is fetched, unless a new tab opens the home page
+        elsif ($event =~ /^menu (clear-history|clear-sessions|home|bookmarks-bar)$/) { menu($1); said_noted() }
         elsif ($event =~ /^mark open (0|[1-9][0-9]{0,2})$/) { $MARKS[$1] ? go($MARKS[$1][2], 'you opened a bookmark', $1) : idle('That bookmark is no longer there.') }    # [C4] an address kept from the bar or typed into the window's own modal
-        elsif ($event =~ /^mark remove (0|[1-9][0-9]{0,2})$/) { mark_removed($1) }
-        elsif ($event =~ /^mark save\t(-|0|[1-9][0-9]{0,2})\t([A-Za-z0-9 ._\/-]{0,300})\t([^\t\x00-\x1f\x7f]{1,800})\t([\x20-\x7f]{1,2100})$/) { mark_saved($1, $2, $3, $4) }
+        elsif ($event =~ /^mark remove (0|[1-9][0-9]{0,2})$/) { mark_removed($1); said_noted() }
+        elsif ($event =~ /^mark save\t(-|0|[1-9][0-9]{0,2})\t([A-Za-z0-9 ._\/-]{0,300})\t([^\t\x00-\x1f\x7f]{1,800})\t([\x20-\x7f]{1,2100})$/) { mark_saved($1, $2, $3, $4); said_noted() }
         elsif ($event =~ /^nav (back|forward|reload)$/) { navigated($1) }    # [C4] an address this tab went to already, from its own list
-        elsif ($event =~ /^search (brave|duckduckgo|google)$/) { search_set($ENGINES{$1}) }
-        elsif ($event =~ /^search custom\t([\x21-\x7e]{1,2000})$/) { search_set($1) }
+        elsif ($event =~ /^search (brave|duckduckgo|google)$/) { search_set($ENGINES{$1}); said_noted() }
+        elsif ($event =~ /^search custom\t([\x21-\x7e]{1,2000})$/) { search_set($1); said_noted() }
         elsif ($event eq 'log') { log_shown() }
         elsif ($event =~ /^tor (on|off)$/) { $1 eq 'on' ? tor_on() : tor_off('you turned Tor off') }    # Tor, from the onion icon of the bottom bar: started on this request only, ended on this one
+        elsif ($event =~ /^tool (open|sense)$/) { tool_shown($1) }    # [C20] the application's tool, from its icon in the bottom bar: a look, which changes nothing
+        elsif ($event =~ /^tool (act|undo) ((?:0|[1-9][0-9]{0,2})(?:,(?:0|[1-9][0-9]{0,2})){0,199})$/) { tool_done($1, $2) }    # [C20] the rows you ticked, and for a switching off confirmed
+        elsif ($event eq '') { tool_watch() }    # [C20] nothing was said for a while: the jobs you switched off are looked at again
         elsif ($event eq 'update-check') { $INCOGNITO ? idle('An incognito window looks for no newer release; a window that is not incognito does, in its cogwheel menu.') : newer(1) }
         elsif ($event =~ /^frame (full|-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4})$/) { frame_said($1) }    # the window was moved, resized or made full screen: kept for the next window
-        elsif ($event eq 'incognito') { incognito_opened() }
-        elsif ($event =~ /^import (sources|go)$/) { $1 eq 'go' ? import_go() : import_sources() }    # [C15] "Import bookmarks..." in the window's wizard: nothing is read before a browser is chosen, nothing written before Import
+        elsif ($event eq 'incognito') { incognito_opened(); said_noted() }
+        elsif ($event =~ /^import (sources|go)$/) { $1 eq 'go' ? (import_go(), said_noted()) : import_sources() }    # [C15] "Import bookmarks..." in the window's wizard: nothing is read before a browser is chosen, nothing written before Import
         elsif ($event =~ /^import profiles (chrome|edge|brave|vivaldi|firefox|safari|file)$/) { import_profiles($1) }
         elsif ($event =~ /^import preview (chrome|edge|brave|vivaldi|firefox|safari|file) (0|[1-9][0-9]?)$/) { import_preview($1, $2) }
         elsif ($event =~ /^import path ([\x20-\x7e]{1,1000})$/) { import_path($1) }
@@ -842,7 +852,7 @@ sub visit {
             $NEXT = [$fit, 'you chose to follow a redirect to', undef];
             return idle("$url redirects to $fit ($status). lzrprf goes there as a new request.$moved");
         }
-        window('page', '.');
+        window("page $TAB", '.');
         return idle("Nothing is shown: $url redirects " . (defined $to ? "to $to " : '') . "($status), and lzrprf did not go there." . (length $why ? " $why" : ''));
     }
     busy("$APP lays the page out, in its container.");
@@ -869,9 +879,10 @@ sub visit {
     my $title = $TITLED;                    # the title the run that is shown wrote
     my ($shown, $fetched, $wanted, $decoded) = pictured($lines, $paths, $host, $where, $kept);
     return live_dropped($live, $UNWRITTEN) unless $shown;
-    window('page', @$shown, '.');
+    window("page $TAB", @$shown, '.');    # the tab a list is for is named, so a list that arrives once another tab was chosen in the window goes to that tab's kept drawing
     $DRAWN = 1;
-    $SHOWN = { url => $url, got => $got, frame => $with_sheets, two => $two, host => $host, pictures => $decoded, wide => $LAID_WIDE };
+    $SHOWN = { url => $url, got => $got, frame => $with_sheets, two => $two, host => $host, pictures => $decoded, wide => $LAID_WIDE, list => $shown, used => ++$LIST_USED };    # list: what was sent, sent again from here when the tab is chosen again (sub tab_shown)
+    lists_bounded();
     live_kept($live, $tab, $lines, $paths, $host, $decoded, $shown) if $live;    # the page goes on with this tab: clicks and keys in it reach it, and what it draws again is checked as this list was
     live_told();
     $tab->{secure} = secured($url, $from, $got, $certs);
@@ -879,7 +890,9 @@ sub visit {
     $tab->{title} = $title;
     window("title $TAB $title");            # checked: plain characters, no control or format character, at most $TITLE (sub checked)
     window("history add $url\t$title");     # what the bar suggests while you type: the pages shown in this window, in its memory only, emptied by "Clear history" (function suggested)
-    idle("$host answered " . length($got) . ' bytes. ' . $styled . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . ' the page draws ' . (@PICTURED ? '' : "from $host itself ") . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown' . (@PICTURED ? '; besides ' . $host . ', lzrprf asked ' . join(', ', @PICTURED > 4 ? (@PICTURED[0 .. 3], '...') : @PICTURED) . ' for them' : '') . '. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them' . (@PICTURED ? ' for anything but a picture.' : '.') : 'The page names no other host.') . (length $said ? " $said" : ''));    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
+    my $whole = "$host answered " . length($got) . ' bytes. ' . $styled . ($wanted ? "$fetched of the $wanted " . ($wanted == 1 ? 'picture' : 'pictures') . ' the page draws ' . (@PICTURED ? '' : "from $host itself ") . ($fetched == 1 ? 'was' : 'were') . ' fetched and shown' . (@PICTURED ? '; besides ' . $host . ', lzrprf asked ' . join(', ', @PICTURED > 4 ? (@PICTURED[0 .. 3], '...') : @PICTURED) . ' for them' : '') . '. ' : '') . (@$hosts ? 'The page names ' . @$hosts . (@$hosts == 1 ? ' other host' : ' other hosts') . ' (' . join(', ', @$hosts > 4 ? (@$hosts[0 .. 3], '...') : @$hosts) . '). lzrprf asked none of them' . (@PICTURED ? ' for anything but a picture.' : '.') : 'The page names no other host.') . (length $said ? " $said" : '');    # the application's own words why the page is in compatibility-statement mode, last and as plain text (sub stated)
+    noted($whole);
+    idle($whole, sprintf("%s \xc2\xb7 %d ms \xc2\xb7 %s", $got =~ m{\AHTTP/1\.[01] (\d{3})} ? $1 : '?', (now() - $WENT) * 1000, length($got) < 1000 ? length($got) . ' B' : sprintf('%d kB', length($got) / 1000)));    # the strip: how the site answered, how long all of it took, how much came
 }
 
 # The request is over and the connection to the site is closed. Only now does
@@ -929,7 +942,7 @@ sub faces {                               # [C13]
 #
 # A page kept running with its tab. With $keep (a page run, never a picture
 # run) the answer goes in the frame "=live", its length in bytes and a line
-# end, then the answer; the application's half is page.rs, module scripted.
+# end, then the answer; the application's half is src/page/scripted.rs.
 # An application that keeps the page (an HTML page its engines read) writes
 # its first list and then a line "=ready", and stays: its keeper keeps its
 # input open and hands it the lines lzrprf writes into a third pipe, the
@@ -943,7 +956,7 @@ sub faces {                               # [C13]
 # from a line of the window it checked (sub live_input); every answer of the
 # page is checked before anything of it is drawn (sub live_answered).
 sub contained {
-    my ($url, $got, $sheets, $keep) = @_;
+    my ($url, $got, $sheets, $keep, $tool) = @_;    # $tool: the run is the application's tool ([C20], sub tool_shown): handed lzrprf's look at this computer as a picture run is handed a picture, and read to its end
     return (undef, 'changed') unless defined $BEGAN && $BEGAN eq (sum_of($PROGRAM) // '');    # read again before every run: the program on the disk is the file this window began with, or nothing is laid out
     $keep = 0 unless defined $sheets;     # a picture run is never kept
     my $frame = defined $sheets ? "=view $VIEW[0] $VIEW[1]\n" . faces() . $sheets : '';    # the size first, numbers lzrprf holds to its bounds (sub viewing); [C13] [C14] the fonts read here, before the keeper is a copy of this process, so once in a window; handed over by the keeper alone, after the same word as the answer
@@ -953,7 +966,7 @@ sub contained {
     pipe(my $answer_out, my $answer_in) && pipe(my $from_page, my $to_lzrprf) && pipe(my $held, my $hold) or return (undef, 'unstarted');
     my $page = fork // return (undef, 'unstarted');
     if (!$page) {
-        %ENV = (LZRPRF_CONTAINED => $url, defined $sheets ? () : (LZRPRF_PICTURE => '1'));    # the application is told the address it lays out, and for a picture that it is one, and sees no other variable: these it is given before the system is asked [C3]
+        %ENV = (LZRPRF_CONTAINED => $url, $tool ? (LZRPRF_TOOL => '1') : defined $sheets ? () : (LZRPRF_PICTURE => '1'));    # the application is told the address it lays out, and for a picture that it is one, and sees no other variable: these it is given before the system is asked [C3]
         chdir '/';
         become($answer_out, $to_lzrprf, $TRY ? \*STDERR : undef, '/bin/sh', '-c', $PAGE_LIMITS, 'lzrprf', contain('', $PROGRAM), @ARGUMENTS);    # [C1]
     }
@@ -1419,11 +1432,12 @@ sub relaid {
         }
         $SHOWN->{wide} = $VIEW[0];
         my $kept = live_of($TABS[$TAB]);
-        if ($kept && $kept->{wide} == $VIEW[0] && $kept->{shown}) { window('relaid', @{ $kept->{shown} }, '.'); $DRAWN = 1; next }    # the page kept running was laid at this width: its last drawing, as its scripts left it, and nothing is laid out
+        if ($kept && $kept->{wide} == $VIEW[0] && $kept->{shown}) { window("relaid $TAB", @{ $kept->{shown} }, '.'); $kept->{unsent} = 0; $DRAWN = 1; next }    # the page kept running was laid at this width: its last drawing, as its scripts left it, and nothing is laid out
         my @again = laid_out($SHOWN->{url}, $SHOWN->{got}, $SHOWN->{frame}, 1);
         if (!$again[0] || $SHOWN->{two} && @{ $again[4] }) { live_dropped($again[5]); next }    # not shown: the page as it is shown stays, and so does the run kept running with it
         my ($shown) = pictured($again[0], $again[2], $SHOWN->{host}, undef, undef, $SHOWN->{pictures});
-        window('relaid', @$shown, '.');
+        window("relaid $TAB", @$shown, '.');
+        $SHOWN->{list} = $shown;
         $DRAWN = 1;
         live_end($kept, 'it was laid out anew at another width', 1) if $kept;    # the new run is the page kept running now, laid at the width shown
         live_kept($again[5], $TABS[$TAB], $again[0], $again[2], $SHOWN->{host}, $SHOWN->{pictures}, $shown) if $again[5];
@@ -1445,22 +1459,31 @@ sub relaid {
 # line lzrprf tells the window all the tabs again: "tabs COUNT SELECTED" and a
 # line "title N TEXT" for each, the text checked by sub checked.
 sub tabbed {
-    my ($how, $n) = @_;
+    my ($how, $n, $kept) = @_;
     $TABS[$TAB]{shown} = $SHOWN;
     my $opened;
-    if ($how eq 'new' && !defined $n && @TABS < $TABS_MOST) { push @TABS, fresh_tab(); $TAB = $#TABS; $opened = 1 }
+    if ($how eq 'new' && !defined $n && @TABS < $TABS_MOST) { push @TABS, fresh_tab(); $TAB = $#TABS; $opened = 1; noted('you opened a new tab') }
     elsif ($how eq 'select' && defined $n && $n < @TABS) { $TAB = $n }
     elsif ($how eq 'close' && defined $n && $n < @TABS) {
         my $live = live_of($TABS[$n]);
         live_end($live, 'its tab was closed') if $live;
+        noted('you closed a tab' . (length($TABS[$n]{url} // '') ? ": $TABS[$n]{url}" : ''));
         splice @TABS, $n, 1;
         @TABS = (fresh_tab()) unless @TABS;
         $TAB-- if $TAB > $n || $TAB > $#TABS;
     }
     $SHOWN = $TABS[$TAB]{shown};
-    tab_shown($how eq 'new' && !$opened ? "A window holds $TABS_MOST tabs at most: close one to open another." : undef);
+    tab_shown($how eq 'new' && !$opened ? "A window holds $TABS_MOST tabs at most: close one to open another." : undef, $how eq 'select' && $kept);
     my $home = $opened && home();
     go($home, 'you opened your home page') if $home;    # [C4] the address kept from the bar when you made it the home page
+}
+
+# The lists sent for the tabs' pages are kept for the $LISTS_KEPT tabs shown last, so a tab chosen
+# again is sent its drawing and the application is not run; the others are laid out again when chosen.
+# A list holds its pictures as text, so this bounds what lzrprf holds for tabs nobody looks at.
+sub lists_bounded {
+    my @kept = sort { $b->{used} <=> $a->{used} } grep { $_ && $_->{list} } map { $_ == $TAB ? $SHOWN : $TABS[$_]{shown} } 0 .. $#TABS;
+    delete $_->{list} for @kept[$LISTS_KEPT .. $#kept];
 }
 
 # A tab dragged along the strip: "tab move FROM TO" takes the tab at FROM out and puts it in at TO,
@@ -1477,17 +1500,28 @@ sub tab_moved {
     window('tabs ' . @TABS . " $TAB", map { "title $_ $TABS[$_]{title}" } 0 .. $#TABS);
 }
 
+# A tab is shown at once, and the application is not run for it when its drawing was kept: the
+# window shows the drawing it kept itself when it says "kept", and nothing of the page is sent; else
+# lzrprf sends the list it kept, when it was laid at the width the window has now. Only a page kept
+# at another width, or one whose list was let go (sub lists_bounded), is laid out again (sub relaid),
+# with the page of the tab before cleared first. A page kept running that drew again while its tab
+# was not shown is sent its new drawing.
 sub tab_shown {
-    my ($says) = @_;
+    my ($says, $kept) = @_;
     my $tab = $TABS[$TAB];
     window('tabs ' . @TABS . " $TAB", map { "title $_ $TABS[$_]{title}" } 0 .. $#TABS);
     window("address $tab->{url}");
-    window('page', '.');                  # the page of the tab before is gone before anything of this one is shown
+    my $live = live_of($tab);
+    my $list = $live && $live->{shown} && $live->{wide} == $VIEW[0] ? $live->{shown} : $SHOWN && $SHOWN->{list} && $SHOWN->{wide} == $VIEW[0] ? $SHOWN->{list} : undef;
+    $DRAWN = 0;
+    if ($kept && $SHOWN) { if ($live && $live->{unsent} && $list && $list == $live->{shown}) { window("relaid $TAB", @$list, '.'); $DRAWN = 1 } }    # the window's own drawing stands; a page kept running that drew meanwhile is sent, read where it was
+    elsif ($list) { window("page $TAB", @$list, '.'); $DRAWN = 1 }
+    else { window("page $TAB", '.'); $SHOWN->{wide} = 0 if $SHOWN }    # the page of the tab before is gone; no width: sub relaid lays this one out again at the window's
+    $live->{unsent} = 0 if $live && $DRAWN;
+    if ($SHOWN) { $SHOWN->{used} = ++$LIST_USED; lists_bounded() }
     window($tab->{secure} ? ('secure begin', (map { "secure line $_" } @{ $tab->{secure} }), 'secure end') : 'secure none');
     nav_told();
-    $DRAWN = 0;
-    $SHOWN->{wide} = 0 if $SHOWN;         # no width: sub relaid lays it out again at the window's
-    idle($says // $tab->{says} // 'A new tab. Type an address above and press Return.');
+    idle($says // $tab->{says} // 'A new tab. Type an address above and press Return.', defined $says ? undef : $tab->{brief});
 }
 
 # The cogwheel's menu, each item one line of the window. "menu clear-history"
@@ -1642,6 +1676,7 @@ sub home {                                # the home page you set, when it is st
 sub go {
     my @next = @_;
     @WAY = ();
+    $WENT = now();                        # the strip says how long the whole of it took, redirects followed and pictures fetched
     while (@next) {
         undef $NEXT;
         visit(@next);
@@ -2234,14 +2269,34 @@ sub import_profiles {
     $IMPORT_KEY = $key;
     delete $IMPORT_BLOCKED{$key};
     @IMPORT_FROM = $key eq 'file' ? import_files() : import_profiles_of($key);
-    return import_refused("macOS does not let $APP read the files of $BROWSERS{$key}[0]. Two ways: in $BROWSERS{$key}[0], export the bookmarks as an HTML file (Chrome: Bookmarks, Bookmark Manager, the three dots, Export bookmarks) and choose A bookmarks file (HTML) here; or give $APP Full Disk Access in System Settings, Privacy & Security, and open the import again.") if $IMPORT_BLOCKED{$key};
+    return import_refused(import_steps($key)) if $IMPORT_BLOCKED{$key};
     return import_preview($key, 0) if $key ne 'file' && @IMPORT_FROM == 1;
     return import_refused("lzrprf found no profile of $BROWSERS{$key}[0] with bookmarks on this Mac.") if $key ne 'file' && !@IMPORT_FROM;
     window('import begin', (map { "import profile $_ $IMPORT_FROM[$_][0]" } 0 .. $#IMPORT_FROM), 'import step profile');
     return idle($key eq 'file' ? (@IMPORT_FROM ? 'Choose the bookmarks file, or type its path.' : 'No bookmarks file was found in Downloads, Desktop or Documents: type its path.') : "Choose the profile of $BROWSERS{$key}[0] to import from.");
 }
 
-sub import_refused { window("import refused $_[0]"); return idle($_[0]) }
+sub import_refused { window("import refused $_[0]"); return idle($_[0] =~ s/\t.*//sr) }    # the strip under the bar says the first line; the wizard shows every line
+
+# What the wizard says when macOS keeps a browser's own files from lzrprf (its
+# protection of another app's data). lzrprf asks for no more access than it
+# has: it never tells you to give it Full Disk Access, since a browser that can
+# read every file of yours is the opposite of what this one is for. The way in
+# is the browser's own export, said as numbered steps, one a line (the lines
+# parted by tabs, as one line to the window). For Chrome there is a second way,
+# from the Google account the bookmarks are kept in: Google hands them out as a
+# file (Takeout), the same kind of file, and gives no program another door.
+sub import_steps {
+    my ($key) = @_;
+    my $name = $BROWSERS{$key}[0];
+    my @export = $key eq 'safari' ? ('In Safari choose File, Export, Bookmarks...')
+        : $key eq 'firefox' ? ('In Firefox choose Bookmarks, Manage Bookmarks (Shift Command O).', 'Press Import and Backup, then Export Bookmarks to HTML...')
+        : ("In $name choose Bookmarks, Bookmark Manager (Option Command B).", 'Press the three dots at the top right of that page and choose Export bookmarks.');
+    push @export, 'Save the file in Downloads, under the name it has.', 'Here choose A bookmarks file (HTML): the file is found by itself, the newest first.';
+    my @said = ("macOS keeps the files of $name from $APP, and $APP asks for no more access than it has. Export the bookmarks instead:", map { ($_ + 1) . ". $export[$_]" } 0 .. $#export);
+    push @said, 'Or from your Google account, where Chrome keeps them when sync is on: at takeout.google.com choose Chrome alone, download it, and import the Bookmarks.html in it the same way.' if $key eq 'chrome';
+    return join "\t", @said;
+}
 
 sub import_path {                         # a bookmarks file typed as a path: in your home folder, by a path that does not climb out of it
     return import_refused("$UNKEPT, so it imports no bookmarks.") if $INCOGNITO;    # [C16]
@@ -2259,7 +2314,7 @@ sub import_preview {
     my $from = $key eq ($IMPORT_KEY // '') ? $IMPORT_FROM[$n] : undef;
     return import_refused('Choose the browser again: that choice is no longer there.') unless $from;
     my ($text, $why) = import_read($from->[1]);
-    return import_refused($key eq 'safari' ? 'macOS did not let lzrprf read Safari\'s bookmarks: it gives that file only to a program you granted Full Disk Access. In Safari choose File, Export, Bookmarks..., keep the file in Downloads, then choose A bookmarks file (HTML) here.' : "lzrprf could not read $from->[0]: $why.") unless defined $text;
+    return import_refused($key eq 'safari' ? import_steps($key) : "lzrprf could not read $from->[0]: $why.") unless defined $text;
     $IMPORT_SEEN = 0;
     my ($bar, $rest) = { chrome => \&import_chromium, edge => \&import_chromium, brave => \&import_chromium, vivaldi => \&import_chromium, firefox => \&import_firefox, safari => \&import_safari, file => \&import_html }->{$key}->($text);
     return import_refused("$from->[0] is not a bookmarks file lzrprf can read.") unless $bar;
@@ -2495,6 +2550,383 @@ sub reach {
         vec($ready, fileno $site, 1) = 1;
         return ($site, $one->{text}) if select(undef, $ready, undef, $left < 10 ? $left : 10) > 0 && !unpack 'i', getsockopt($site, SOL_SOCKET, SO_ERROR);
     }
+    return;
+}
+
+# The application's tool, opened by its icon at the right end of the strip.
+# lzrprf looks at this computer with the system's own programs: its processes
+# (ps), the launchd jobs of your account and of the system (launchctl, and
+# the property lists of the three LaunchAgents and LaunchDaemons folders,
+# read with plutil), and who signed their programs (codesign). What it saw
+# goes to the application in its container, as an answer does for a page: no
+# network and no file, so nothing of the look leaves this computer. The
+# application answers with a list, and lzrprf holds every line of it to its
+# own rules before the window is given it (sub tool_checked, sub tool_may).
+# A look changes nothing. A change is made only for a row you ticked and then
+# confirmed in the window, where each change is said in lzrprf's own words,
+# and each is written in the log first: a launchd job of your account is
+# switched off (launchctl disable, then bootout), a process of yours is asked
+# to end (TERM). Never a job or a process of the system or of Apple, never
+# lzrprf's own, never with a password. A job you switched off is kept in
+# ~/.lzrprf/quieted, looked at again at each start and every $TOOL_WATCH
+# seconds while a window is open, switched off again when it came back, and
+# switched on again when you say so (launchctl enable, then bootstrap). An
+# incognito window has no tool: it would write.                     # [C20]
+my $TOOL_ROWS = 200;                      # DECLARED([C20] the most rows the application may name: more than a list a person ticks through)
+my $TOOL_ACTS = 12;                       # DECLARED([C20] the most changes of one row: a product with a dozen jobs and helpers)
+my $TOOL_PROCS = 4000;                    # DECLARED([C20] the most processes of one look that are handed on: several times what a busy Mac runs)
+my $TOOL_FILES = 400;                     # DECLARED([C20] the most property lists read in one folder of launchd jobs)
+my $TOOL_SIGNED = 80;                     # DECLARED([C20] the most programs whose signature is read anew in one look, each about a twentieth of a second of codesign; what one look left out the next reads)
+my $TOOL_ASKED = 40;                      # DECLARED([C20] the most loaded jobs with no property list in the three folders that launchd is asked about one by one)
+my $TOOL_WATCH = 300;                     # DECLARED([C20] seconds between two looks at the jobs you switched off, while a window is open)
+my $TOOL_LABEL = qr/[A-Za-z0-9][A-Za-z0-9._-]{0,199}/;    # a launchd label lzrprf acts on: one written any other way is listed nowhere and never acted on
+my (%TOOL, %TOOL_SIGN, %TOOL_FILE);       # the last look (its processes, jobs and rows); the signatures and the property lists read already, each by its file's time and size
+my $TOOL_LOOKED;                          # when the jobs you switched off were last looked at; nothing before the first look of a window
+
+sub tool_stand { my $stand = kept_in() . '/toolstand'; return $TRY && -d $stand ? $stand : undef }    # "lzrprf try" only: a folder whose files stand for what the system's programs say, so a test acts on no real job and no real process
+sub tool_asked {                          # what one of the system's programs says, and whether it ended well
+    my ($name, $seconds, @command) = @_;
+    my $stand = tool_stand() // return said($seconds, @command);
+    open my $in, '<', "$stand/$name" or return ('', 0);
+    local $/;
+    return (scalar(<$in>) // '', 1);
+}
+sub tool_ran {                            # [C20] a change, made by one of the system's programs; a test's stand-in notes it and changes nothing
+    my ($note, @command) = @_;
+    my $stand = tool_stand() // return (said(10, @command))[1];
+    return put("$stand/done", O_APPEND, $note);
+}
+sub tool_plain {                          # text of the system as one line of at most $most bytes: no control character, and UTF-8 or plain ASCII
+    my ($text, $most) = @_;
+    utf8::encode($text) if utf8::is_utf8($text);
+    $text =~ s/[\x00-\x1f\x7f]/ /g;
+    if (length $text > $most) { $text = substr($text, 0, $most); $text =~ s/[\xc0-\xff][\x80-\xbf]*\z// }    # not cut inside a character
+    my $copy = $text;
+    $text =~ s/[^\x20-\x7e]/?/g unless utf8::decode($copy);
+    return $text;
+}
+sub tool_text {                           # [C20] text of the application, shown as text and nowhere acted on: 1 to $most characters, none a control or format character
+    my ($text, $most) = @_;
+    no warnings 'utf8';
+    my $copy = $text;
+    return unless utf8::decode($copy) && length $copy >= 1 && length $copy <= $most && $copy !~ /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}\p{NChar}]|[^\x{0}-\x{10ffff}]/;
+    return $text;
+}
+sub tool_places {                         # where launchd jobs are written down: [whose, folder]; the first two are your account's
+    if (defined(my $stand = tool_stand())) { return (['gui', "$stand/agents"], ['system', "$stand/daemons"]) }
+    return (['gui', "$HOME/Library/LaunchAgents"], ['gui', '/Library/LaunchAgents'], ['system', '/Library/LaunchDaemons']);
+}
+sub tool_services {                       # of what launchctl prints of a domain: the jobs loaded there, each with its process (0: none runs), and the jobs switched off there
+    my ($said) = @_;
+    my (%loaded, %off);
+    my ($block) = $said =~ /^\tservices = \{\n(.*?)^\t\}/ms;
+    for (split /\n/, $block // '') { $loaded{$2} = $1 if /^\s+(\d+)\s+\S+\s+(\S+)\s*$/ }
+    my ($set) = $said =~ /^\tdisabled services = \{\n(.*?)^\t\}/ms;
+    for (split /\n/, $set // '') { $off{$1} = 1 if /^\s+"([^"]+)" => disabled\s*$/ }
+    return (\%loaded, \%off);
+}
+sub tool_file {                           # a launchd property list: its label, the program it runs, that program's arguments, and when it runs (R at load, K kept alive, I on an interval, C by the calendar)
+    my ($file) = @_;
+    my @is = stat $file or return;
+    return unless -f _ && $is[7] <= 1024 * 1024;
+    my $key = "$is[9] $is[7]";
+    return @{$TOOL_FILE{$file}[1]} if $TOOL_FILE{$file} && $TOOL_FILE{$file}[0] eq $key;
+    my ($text, $ok) = said(5, '/usr/bin/plutil', '-convert', 'json', '-o', '-', '--', $file);
+    my $list = $ok ? import_json($text) : undef;
+    my @got;
+    if (ref $list eq 'HASH') {
+        my @args = ref $list->{ProgramArguments} eq 'ARRAY' ? grep { defined && !ref } @{$list->{ProgramArguments}} : ();
+        my $flags = join '', map { $list->{$_->[0]} ? $_->[1] : () } [RunAtLoad => 'R'], [KeepAlive => 'K'], [StartInterval => 'I'], [StartCalendarInterval => 'C'];
+        my $first = @args ? $args[0] : undef;    # read into a name of its own: $args[0] in a list given to grep would make that element when @args is empty, and the join would warn of it
+        @got = ($list->{Label}, (grep { defined && !ref } $list->{Program}, $first, $list->{BundleProgram}, '')[0], join(' ', @args), $flags);
+    }
+    else {                                # a list with a date or data in it, which is no JSON: its label and its program are asked for one by one
+        my @one = map { my ($said, $there) = said(5, '/usr/bin/plutil', '-extract', $_, 'raw', '-o', '-', '--', $file); chomp $said; $there ? $said : undef } 'Label', 'Program', 'ProgramArguments.0';
+        @got = ($one[0], $one[1] // $one[2] // '', '', '');
+    }
+    @got = defined $got[0] && !ref $got[0] && $got[0] =~ /^$TOOL_LABEL\z/ ? ($got[0], tool_plain($got[1], 1000), tool_plain($got[2], 400), $got[3]) : ();
+    $TOOL_FILE{$file} = [$key, \@got];
+    return @got;
+}
+sub tool_signed {                         # who signed these programs, as codesign says: [path, the team (or "adhoc", "none", "-"), the identifier]
+    my @paths = @_;
+    my (%key, @ask);
+    for my $path (@paths) {
+        my @is = stat $path or next;
+        $key{$path} = "$is[9] $is[7]";
+        push @ask, $path if @ask < $TOOL_SIGNED && !($TOOL_SIGN{$path} && $TOOL_SIGN{$path}[0] eq $key{$path});
+    }
+    if (@ask) {
+        my %asked = map { $_ => 1 } @ask;
+        my ($said) = tool_asked('sign', 60, '/bin/sh', '-c', 'for p; do printf "=%s\n" "$p"; "$0" -dv --verbose=2 "$p" 2>&1; done', '/usr/bin/codesign', @ask);
+        for my $part (split /^=/m, $said) {
+            my ($path, $rest) = split /\n/, $part, 2;
+            next unless defined $path && $asked{$path};
+            $rest //= '';
+            my ($team) = $rest =~ /^TeamIdentifier=([A-Za-z0-9]{1,20})$/m;
+            my ($name) = $rest =~ /^Identifier=([\x21-\x7e]{1,200})$/m;
+            $team //= $rest =~ /^Signature=adhoc$/m ? 'adhoc' : $rest =~ /not signed at all/ ? 'none' : '-';
+            $TOOL_SIGN{$path} = [$key{$path}, $team, $name // '-'];
+        }
+    }
+    return map { $TOOL_SIGN{$_} && $TOOL_SIGN{$_}[0] eq $key{$_} ? [$_, @{$TOOL_SIGN{$_}}[1, 2]] : () } grep { defined $key{$_} } @paths;
+}
+sub tool_kept {                           # [C20] the launchd jobs you switched off here: [label, its property list or nothing, when]
+    open my $in, '<', "$DIR/quieted" or return [];
+    return [map { chomp; my @one = split /\t/, $_, -1; @one == 3 && $one[0] =~ /^$TOOL_LABEL\z/ && $one[1] =~ m{^(?:/[\x20-\x7e]{1,1000})?\z} && $one[2] =~ /^[0-9TZ:-]{1,30}\z/ ? [@one] : () } <$in>];
+}
+sub tool_keep {                           # [C20] that list, written beside the old one and through to the disk, then given its name in one step
+    my ($kept) = @_;
+    unlink "$DIR/quieted.new";
+    if (!@$kept) { return !-e "$DIR/quieted" || unlink "$DIR/quieted" }
+    unless (put("$DIR/quieted.new", O_EXCL, map { join "\t", @$_ } @$kept) && rename "$DIR/quieted.new", "$DIR/quieted") { unlink "$DIR/quieted.new"; return 0 }
+    synced();
+    return 1;
+}
+
+# One look. With $full, everything named above; without, only the jobs you
+# switched off, which is all the tool needs to open. What is handed to the
+# application is lines of text: "me", "proc", "open" (an app that is open
+# now), "job", "sign" and "kept". What lzrprf itself saw is held in %TOOL,
+# and a change is made against that, never against the application's word.
+sub tool_look {
+    my ($full) = @_;
+    my (%procs, %jobs, %own, %open, @lines);
+    my $kept = tool_kept();
+    if ($full) {
+        my ($list, $listed) = tool_asked('procs', 10, '/bin/ps', '-axww', '-o', 'pid=,ppid=,uid=,lstart=,comm=');
+        return unless $listed;
+        for (split /\n/, $list) {
+            my ($pid, $ppid, $owner, $began, $path) = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+\s+\S+\s+\d+\s+[\d:]+\s+\d+)\s+(.*?)\s*$/ or next;
+            last if keys %procs >= $TOOL_PROCS;
+            $procs{$pid} = { ppid => $ppid, uid => $owner, began => $began =~ s/\s+/ /gr, path => tool_plain($path, 1000), args => '' };
+        }
+        my ($args) = tool_asked('args', 10, '/bin/ps', '-axww', '-o', 'pid=,args=');
+        for (split /\n/, $args) { my ($pid, $rest) = /^\s*(\d+)\s+(.*)$/ or next; $procs{$pid}{args} = tool_plain($rest, 400) if $procs{$pid} }
+        for (my $up = $$; $up > 1 && $procs{$up} && !$own{$up}; $up = $procs{$up}{ppid}) { $own{$up} = 1 }    # lzrprf's own: this process and what started it, up to launchd
+        my %mine = ($$ => 1);
+        for (my $grew = 1; $grew;) { $grew = 0; for (keys %procs) { next if $mine{$_} || !$mine{$procs{$_}{ppid}}; $mine{$_} = $own{$_} = $grew = 1 } }    # and all it started: the window's pages, their keepers, the Tor client
+        my ($gui, $gui_said) = tool_asked('jobs', 10, '/bin/launchctl', 'print', "gui/$<");
+        return unless $gui_said;
+        my ($system) = tool_asked('system', 10, '/bin/launchctl', 'print', 'system');
+        my %in = (gui => [tool_services($gui)], system => [tool_services($system)]);
+        for my $place (tool_places()) {
+            my ($domain, $folder) = @$place;
+            opendir(my $dir, $folder) or next;
+            my @names = sort grep { /\.plist\z/ && !/[\x00-\x1f\x7f]/ } readdir $dir;
+            closedir $dir;
+            splice @names, $TOOL_FILES if @names > $TOOL_FILES;
+            for my $name (@names) {
+                my ($label, $program, $with, $flags) = tool_file("$folder/$name") or next;
+                next if $jobs{$domain}{$label};
+                my ($loaded, $off) = @{$in{$domain}};
+                $jobs{$domain}{$label} = { pid => $loaded->{$label} // 0, state => exists $loaded->{$label} ? ($loaded->{$label} ? 'run' : 'load') : $off->{$label} ? 'off' : 'file',
+                    program => $program, file => tool_plain("$folder/$name", 1000), flags => $flags . ($off->{$label} ? 'D' : ''), args => $with };
+            }
+        }
+        my $asked = 0;
+        for my $domain ('gui', 'system') {    # what is loaded and written down in none of the three folders: an open app, or a job an app registered from inside itself
+            my ($loaded, $off) = @{$in{$domain}};
+            for my $label (sort keys %$loaded) {
+                next if $jobs{$domain}{$label} || $label =~ /^com\.apple\./ || $label !~ /^$TOOL_LABEL\z/;
+                if ($label =~ /^application\.(.+?)\.\d+\.\d+\z/) { $open{$1} = 1; next }
+                my ($one) = $asked++ < $TOOL_ASKED ? tool_asked("job.$label", 5, '/bin/launchctl', 'print', ($domain eq 'gui' ? "gui/$<" : 'system') . "/$label") : ('');
+                my ($program) = $one =~ /^\tprogram = (.+)$/m;
+                $jobs{$domain}{$label} = { pid => $loaded->{$label}, state => $loaded->{$label} ? 'run' : 'load', program => tool_plain($program // '', 1000), file => '', flags => $off->{$label} ? 'D' : '', args => '' };
+            }
+        }
+        my $ours = qr{^/(?:System|bin|sbin|usr(?!/local/)|Library/Apple)/};    # the system's own programs: Apple signed them, and they are never changed here
+        my (%want, @want);
+        for my $path ((map { $_->{program} } map { values %$_ } values %jobs), map { $_->{path} =~ m{^(/.*?\.app)/} ? $1 : $_->{path} } @procs{sort { $a <=> $b } keys %procs}) {
+            push @want, $path if $path =~ m{^/} && $path !~ $ours && !$want{$path}++;
+        }
+        push @lines, map { "proc $_ $procs{$_}{ppid} $procs{$_}{uid} " . ($procs{$_}{began} =~ tr/ /_/r) . "\t$procs{$_}{path}\t$procs{$_}{args}" } sort { $a <=> $b } keys %procs;
+        push @lines, map { "open $_" } sort keys %open;
+        for my $domain ('gui', 'system') { push @lines, map { my $job = $jobs{$domain}{$_}; "job $domain $_ $job->{pid} $job->{state}\t$job->{program}\t$job->{file}\t$job->{flags}\t$job->{args}" } sort keys %{$jobs{$domain} // {}} }
+        push @lines, map { "sign $_->[0]\t$_->[1]\t$_->[2]" } tool_signed(@want);
+    }
+    push @lines, map { "kept $_->[0]\t$_->[1]\t$_->[2]" } @$kept;
+    %TOOL = (procs => \%procs, jobs => \%jobs, own => \%own, kept => { map { $_->[0] => $_ } @$kept });
+    return join '', map { "$_\n" } "me $<", @lines;
+}
+
+# lzrprf's own rules for a change the application names, whatever the
+# application says of it: what the change is, in lzrprf's own words, or
+# nothing when lzrprf does not make it. A process: one of yours that lzrprf
+# itself saw in this look, not lzrprf, what it started or what started it,
+# and not a program of the system. A launchd job: one of your account that
+# lzrprf itself saw, written down in one of your account's two folders or in
+# none, and not one of Apple's or an open app. A job switched on again: one
+# you switched off here.                                             # [C20]
+sub tool_may {
+    my ($kind, $what) = @_;
+    if ($kind eq 'stop') {
+        my $proc = $what =~ /^[1-9][0-9]{0,6}\z/ ? $TOOL{procs}{$what} : undef;
+        return unless $proc && $what > 1 && $proc->{uid} == $< && !$TOOL{own}{$what};
+        return unless $proc->{path} =~ m{^/} && $proc->{path} !~ m{^/(?:System|bin|sbin|usr(?!/local/)|Library/Apple)/};
+        return "the process $what, started $proc->{began}, $proc->{path}";
+    }
+    return unless $what =~ /^$TOOL_LABEL\z/ && $what !~ /^(?:com\.apple\.|application\.)/i;
+    if ($kind eq 'quiet') {
+        my $job = $TOOL{jobs}{gui}{$what} or return;
+        return if $job->{state} eq 'off';
+        my ($folder) = $job->{file} =~ m{^(.*)/[^/]+\z};
+        return if $job->{file} ne '' && !grep { $_->[0] eq 'gui' && $_->[1] eq $folder } tool_places();
+        return "the launchd job $what of your account" . ($job->{file} ne '' ? ", written down in $job->{file}" : '') . ($job->{program} ne '' ? ", which runs $job->{program}" : '');
+    }
+    my $kept = $kind eq 'wake' ? $TOOL{kept}{$what} : undef or return;
+    return "the launchd job $what, switched off here on $kept->[2]" . ($kept->[1] ne '' ? ", written down in $kept->[1]" : '');
+}
+
+# The application's answer, checked: its title, its words, the heading of its
+# list, the words of its three buttons (look, switch off, switch on again),
+# and its rows, each a tag, a title and a sentence, with the changes it names
+# for that row. Text is shown as text. A change is kept only when sub
+# tool_may lets it be made, and a row with none left cannot be ticked. An
+# answer with one line in no such form is not shown at all.           # [C20]
+sub tool_checked {
+    my ($wrote) = @_;
+    return unless defined $wrote && $wrote =~ s/\n\z//;
+    my @lines = split /\n/, $wrote, -1;
+    return if @lines > ($TOOL_ACTS + 1) * $TOOL_ROWS + 8;
+    my (%said, %rows, @order);
+    for (@lines) {
+        if (/^(title|head) (.+)\z/s) { defined($said{$1} = tool_text($2, 60)) or return }
+        elsif (/^words (.+)\z/s) { defined($said{words} = tool_text($1, 600)) or return }
+        elsif (/^button (sense|act|undo) (.+)\z/s) { defined($said{$1} = tool_text($2, 40)) or return }
+        elsif (/^row (0|[1-9][0-9]{0,2}) ([^\t]*)\t([^\t]*)\t([^\t]*)\z/s) {
+            return if $1 >= $TOOL_ROWS || $rows{$1};
+            my %row = (tag => tool_text($2, 24), title => tool_text($3, 100), detail => tool_text($4, 600), acts => []);
+            return if grep { !defined } @row{qw(tag title detail)};
+            $rows{$1} = \%row;
+            push @order, $1;
+        }
+        elsif (/^(stop|quiet|wake) (0|[1-9][0-9]{0,2}) ([\x21-\x7e]{1,200})\z/) {
+            my $row = $rows{$2} or return;
+            return if @{$row->{acts}} >= $TOOL_ACTS;
+            push @{$row->{acts}}, [$1, $3];
+        }
+        else { return }
+    }
+    return unless defined $said{title};
+    for my $row (values %rows) {
+        my @acts = map { my $fact = tool_may(@$_); defined $fact ? [@$_, $fact] : () } @{$row->{acts}};
+        my @wake = grep { $_->[0] eq 'wake' } @acts;
+        @acts = @wake ? @wake : ((grep { $_->[0] eq 'quiet' } @acts), grep { $_->[0] eq 'stop' } @acts);    # a job is switched off before its process is asked to end, so launchd does not start it again
+        @$row{qw(acts mode)} = (\@acts, @wake ? 'undo' : @acts ? 'act' : 'none');
+        $row->{fact} = tool_plain(join('; ', map { ($_->[0] eq 'stop' ? 'Ends ' : $_->[0] eq 'quiet' ? 'Switches off ' : 'Switches on again ') . $_->[2] } @acts), 4000);
+    }
+    return { %said, rows => \%rows, order => \@order };
+}
+
+sub tool_none { window('tool none'); return idle($_[0]) }
+
+# "tool open" and "tool sense", from the window: the look, the application's
+# answer to it, and the list the window shows. $said: what lzrprf did a
+# moment ago, in its own words, shown over the list.
+sub tool_shown {
+    my ($how, $said) = @_;
+    return tool_none('An incognito window has no tool of the application: it would write what you switch off.') if $INCOGNITO;
+    window('tool busy ' . ($how eq 'sense' ? 'Reading the processes and the launchd jobs of this computer' : 'Asking the application'));
+    my $look = tool_look($how eq 'sense');
+    return tool_none('The system did not list its processes and launchd jobs, so the application was asked nothing.') unless defined $look;
+    my ($wrote, $why) = contained('tool', "=tool $how\n$look", undef, 0, 1);    # [C1] [C3] in the page container, as a picture is: no network, no file
+    my $list = defined $wrote ? tool_checked($wrote) : undef;
+    return tool_none(defined $wrote ? 'This application has no tool, or its answer was not in the form lzrprf takes, so nothing of it is shown.' : "The application's tool was not run: " . ($why // 'it did not start') . '.') unless $list;
+    $TOOL{rows} = $list->{rows};
+    record("You looked at this computer's processes and launchd jobs with the application's tool: " . @{$list->{order}} . ' rows, nothing changed') if $how eq 'sense' && !defined $said;
+    window('tool begin', "tool title $list->{title}", (map { defined $list->{$_} ? "tool $_ $list->{$_}" : () } 'words', 'head'), (map { defined $list->{$_} ? "tool button $_ $list->{$_}" : () } 'sense', 'act', 'undo'),
+        (map { my $row = $list->{rows}{$_}; "tool row $_ $row->{mode}\t$row->{tag}\t$row->{title}\t$row->{detail}\t$row->{fact}" } @{$list->{order}}), defined $said ? "tool said $said" : (), 'tool end');
+    return;
+}
+
+# "tool act I,I,.." and "tool undo I,I,..", from the window, after you ticked
+# those rows and, for a switching off, confirmed lzrprf's own words for each.
+# A list is acted on once: after it the computer is looked at again.  # [C20]
+sub tool_done {
+    my ($kind, $picked) = @_;
+    my $rows = delete $TOOL{rows};
+    return tool_none('That list is no longer the newest look at this computer, so nothing was changed. Look again.') if $INCOGNITO || !$rows;
+    window('tool busy ' . ($kind eq 'act' ? 'Switching off what you ticked' : 'Switching on again what you ticked'));
+    my (%seen, @did, @not);
+    for my $i (split /,/, $picked) {
+        my $row = $rows->{$i};
+        next if $seen{"row $i"}++ || !$row || $row->{mode} ne $kind;
+        for my $act (@{$row->{acts}}) {
+            next if $seen{"$act->[0] $act->[1]"}++;
+            my ($ok, $says) = $act->[0] eq 'stop' ? tool_stop($act->[1]) : $act->[0] eq 'quiet' ? tool_quiet($act->[1]) : tool_wake($act->[1]);
+            push @{$ok ? \@did : \@not}, $says;
+        }
+    }
+    my $said = join ' ', @did ? 'Done: ' . join('; ', @did) . '.' : (), @not ? 'Not done: ' . join('; ', @not) . '.' : ();
+    return tool_shown('sense', tool_plain($said, 3000) || 'Nothing you ticked is a change lzrprf makes.');
+}
+sub tool_stop {                           # [C20] a process of yours is asked to end: looked at again first, and ended only when it is still the one that was listed
+    my ($pid) = @_;
+    my $fact = tool_may('stop', $pid) or return (0, "process $pid is not one lzrprf ends");
+    my $proc = $TOOL{procs}{$pid};
+    my ($now) = tool_asked("proc.$pid", 5, '/bin/ps', '-o', 'uid=,lstart=,comm=', '-p', $pid);
+    my ($owner, $began, $path) = $now =~ /^\s*(\d+)\s+(\S+\s+\S+\s+\d+\s+[\d:]+\s+\d+)\s+(.*?)\s*$/ or return (1, "process $pid had ended already");
+    return (0, "process $pid is no longer the one that was listed") unless $owner == $proc->{uid} && ($began =~ s/\s+/ /gr) eq $proc->{began} && tool_plain($path, 1000) eq $proc->{path};
+    record("You ended a process from the application's tool: $fact") or return (0, "process $pid: the log could not be written, so it was left running");    # written down first
+    return (tool_ran("TERM $pid"), "process $pid was asked to end") if defined tool_stand();
+    kill('TERM', $pid) or return (0, "process $pid could not be asked to end");
+    for (my $until = now() + 2; now() < $until && kill(0, $pid);) { Time::HiRes::sleep(0.05) }
+    return (1, kill(0, $pid) ? "process $pid was asked to end and is still ending" : "process $pid ended");
+}
+sub tool_off {                            # [C20] a launchd job of your account, switched off and taken out of launchd; true when launchd no longer holds it
+    my ($label) = @_;
+    my $off = tool_ran("disable $label", '/bin/launchctl', 'disable', "gui/$</$label");
+    tool_ran("bootout $label", '/bin/launchctl', 'bootout', "gui/$</$label");    # of a job that is not loaded there is nothing to take out, and launchctl says so: that is no failure
+    for (my $until = now() + 3; now() < $until;) {
+        return $off unless (tool_asked("job.$label.after", 5, '/bin/launchctl', 'print', "gui/$</$label"))[1];
+        Time::HiRes::sleep(0.2);
+    }
+    return 0;
+}
+sub tool_quiet {                          # [C20]
+    my ($label) = @_;
+    my $fact = tool_may('quiet', $label) or return (0, "launchd job $label is not one lzrprf switches off");
+    my $job = $TOOL{jobs}{gui}{$label};
+    record("You switched a launchd job off from the application's tool: $fact") or return (0, "launchd job $label: the log could not be written, so it was left as it is");    # written down first
+    my $kept = tool_kept();
+    @$kept = ((grep { $_->[0] ne $label } @$kept), [$label, $job->{file} =~ m{^/[\x20-\x7e]{1,1000}\z} ? $job->{file} : '', strftime('%Y-%m-%dT%H:%M:%SZ', gmtime)]);
+    tool_keep($kept) or return (0, "launchd job $label: the list of what you switched off could not be written, so it was left as it is");
+    return tool_off($label) ? (1, "launchd job $label is switched off") : (0, "launchd job $label could not be switched off");
+}
+sub tool_wake {                           # [C20] a job you switched off here, switched on again: enabled, and loaded again when its property list is still there
+    my ($label) = @_;
+    my $fact = tool_may('wake', $label) or return (0, "launchd job $label is not one you switched off here");
+    my $file = $TOOL{kept}{$label}[1];
+    record("You switched a launchd job on again from the application's tool: $fact") or return (0, "launchd job $label: the log could not be written, so it was left switched off");
+    my $on = tool_ran("enable $label", '/bin/launchctl', 'enable', "gui/$</$label");
+    tool_ran("bootstrap $label", '/bin/launchctl', 'bootstrap', "gui/$<", $file) if $file ne '' && -f $file;
+    tool_keep([grep { $_->[0] ne $label } @{tool_kept()}]);
+    return $on ? (1, "launchd job $label is switched on again" . ($file ne '' && -f $file ? '' : ', and starts when its app or the next login starts it')) : (0, "launchd job $label could not be switched on again");
+}
+
+# The jobs you switched off, looked at again: at the start of a window and
+# every $TOOL_WATCH seconds while it is open. One that is loaded again, or
+# no longer switched off, was put back by its app or its installer: it is
+# switched off again, as you chose, written in the log first, and the window
+# lights the tool's icon. Nothing else of the computer is read for this, and
+# with nothing switched off nothing is read at all.                   # [C20]
+sub tool_due {                            # the seconds until the next such look; nothing when there is nothing to look at
+    return if $INCOGNITO || !-s "$DIR/quieted";
+    my $left = ($TOOL_LOOKED // now()) + $TOOL_WATCH - now();
+    return $left > 1 ? $left : 1;
+}
+sub tool_watch {
+    return if $INCOGNITO || defined $TOOL_LOOKED && now() < $TOOL_LOOKED + $TOOL_WATCH;
+    $TOOL_LOOKED = now();
+    my $kept = tool_kept();
+    return unless @$kept;
+    my ($gui, $said) = tool_asked('jobs', 10, '/bin/launchctl', 'print', "gui/$<");
+    return unless $said;
+    my ($loaded, $off) = tool_services($gui);
+    my @back = grep { exists $loaded->{$_} || !$off->{$_} } map { $_->[0] } @$kept;
+    @back = grep { record("The launchd job $_, which you switched off, was switched on again by something else, and lzrprf switched it off again") && tool_off($_) } @back;
+    window('tool back ' . @back) if @back;
     return;
 }
 
@@ -2899,7 +3331,11 @@ sub newer_looked {
     my $got = fixed(($asked ? 'you chose Check for updates: ' : '') . "lzrprf looks for a newer release: $newest", $newest, $host);
     my ($there) = defined $got ? $got =~ m{\AHTTP/1\.1 200 .*?\r\n\r\n(?:[0-9a-f]{1,4}\r\n)?(\d{1,6})\s*(?:0\r\n\r\n)?\z}s : ();    # one number and nothing else, or the answer counts for nothing
     checked_said(!defined $there ? 'failed' : $there > $release ? "newer $there" : "same $release", $asked);
-    idle(!defined $there ? 'lzrprf could not read the newest release number just now. The log says what was fetched.' : $there > $release ? "A newer release of $APP is published: $there." : "You run the newest release of $APP, $release.") if $asked;
+    if ($asked) {                         # that it is the newest stands in the menu, beside Check for updates, and in this window's log: the strip stays as it was
+        my $says = !defined $there ? 'lzrprf could not read the newest release number just now. The log says what was fetched.' : $there > $release ? "A newer release of $APP is published: $there." : "You run the newest release of $APP, $release.";
+        noted($says);
+        defined $there && $there <= $release ? aside($says) : idle($says);
+    }
     return unless defined $there && $there > $release;
     return unless ask("A newer release of $APP is published: $there. You run $release. Install it fetches the installer and runs it here, in this window, with no further question: every line it prints is shown and kept in $DIR/install.txt.", 'Later', 'Install it') == 2;
     installed($there, $installer, $same);
@@ -3138,7 +3574,23 @@ sub window {
 }
 
 sub busy { window('busy ' . $_[0] =~ s/\s+/ /gr) }
-sub idle { my $says = $_[0] =~ s/\s+/ /gr; $TABS[$TAB]{says} = $says; window("idle $says"); return }    # the words are the selected tab's, shown again when it is chosen again
+sub idle {                                # what lzrprf says, in full; with $short the strip shows that instead ("brief"), and the full words stand where they belong: with what the page is made of, or on the log page
+    my ($says, $short) = map { defined ? s/\s+/ /gr : undef } @_[0, 1];
+    @{ $TABS[$TAB] }{qw(says brief)} = ($says, $short);
+    window("brief $short") if length($short // '');
+    window("idle $says");
+    return;
+}
+sub aside {                               # said in full, with the strip left as it was: an answer that belongs elsewhere than the strip
+    my ($says, $shut) = @_;
+    my ($was, $short) = @{ $TABS[$TAB] }{qw(says brief)};
+    window('log shut') if $shut;
+    idle($says, length($short // '') ? $short : $was // '');
+    @{ $TABS[$TAB] }{qw(says brief)} = ($was, $short);
+    return;
+}
+sub noted { push @SESSION, line($_[0]); return }
+sub said_noted { my $says = $TABS[$TAB]{says}; noted($says) if length($says // ''); return }    # what the strip just said of something you did that fetched nothing: a bookmark, a setting, a window    # a line of this window's log alone, in its memory: what happened here and fetched nothing
 
 # The =statement line of a page, which comes right after its =pictures and
 # =sheets lines (or its first line): the application's own words, in one sentence, for why it
@@ -3160,6 +3612,7 @@ sub stated {
 
 sub hear {                                # the next thing the window says; nothing (undef) when the window is gone, an empty line when it said nothing in time
     my ($seconds, $main) = @_;            # $main: the loop of sub behind, the one place that takes "live", the word that a page kept running answered or is to end (sub live_turn); elsewhere what such a page writes is read and held, and taken there later
+    push @HELD, splice @LATER if $main && @LATER;
     return shift @HELD if @HELD;
     my $until = defined $seconds ? now() + $seconds : undef;
     while (1) {
@@ -3228,10 +3681,14 @@ sub live_end {                            # "=end" for the page, then its keeper
     syswrite($live->{relay}, "=end\n");    # never waited for: a page that reads nothing is ended below all the same
     close $live->{relay};
     my $until = now() + ($now ? 0 : $LIVE_END_SECONDS);
-    while (!$gone && (my $left = $until - now()) > 0) {    # the page is given a moment to end by itself: its end is the end of what it writes
+    while (!$gone && (my $left = $until - now()) > 0) {    # the page is given a moment to end by itself: its end is the end of what it writes. The window is never kept waiting for it: once the window says anything, the page is ended at once
+        last if $FROM && index($FROM_HELD, "\n") >= 0;
         my $ready = '';
         vec($ready, fileno $live->{from}, 1) = 1;
+        vec($ready, fileno $FROM, 1) = 1 if $FROM;
         select($ready, undef, undef, $left) > 0 or next;
+        last if $FROM && vec($ready, fileno $FROM, 1) && !vec($ready, fileno $live->{from}, 1);
+        next unless vec($ready, fileno $live->{from}, 1);
         my $more = sysread($live->{from}, my $rest, 65536);
         $gone = 1 if defined $more ? !$more : !$!{EINTR};
     }
@@ -3274,7 +3731,7 @@ sub live_turn {
 # A request of a page kept running ([C19]). While it is kept, and while it is
 # read before its first list (sub contained), the page may write, in place of
 # an answer, one request at a time, and waits for its reply before it writes
-# anything else (page.rs, module scripted):
+# anything else (src/page/scripted.rs):
 #
 #   =fetch METHOD BODYLEN TYPE URL   then exactly BODYLEN bytes of its body
 #       METHOD   GET, HEAD or POST
@@ -3471,10 +3928,11 @@ sub live_answered {                       # [C18]
             return live_end($live, 'it drew a list that is not fit') unless $checked;
             ($shown) = pictured($checked, $live->{paths}, $live->{host}, undef, undef, $live->{pictures});    # its decoded pictures only: nothing is fetched
             $live->{shown} = $shown;
+            $live->{unsent} = 1;           # not yet in the window: a tab not shown keeps its old drawing there until it is chosen again (sub tab_shown)
         }
         $live->{focus} = $focus if defined $focus;
         next unless $live->{tab} == $TABS[$TAB];    # a tab not selected draws when it is chosen again (sub relaid), and follows no address
-        if ($shown) { window('relaid', @$shown, '.'); $DRAWN = 1 }    # where it was read in the page is kept
+        if ($shown) { window("relaid $TAB", @$shown, '.'); $live->{unsent} = 0; $DRAWN = 1 }    # where it was read in the page is kept
         live_told();
         idle($words) if defined $words;
         return go($go, 'you followed the page to') if defined $go;    # [C4] a visit like a typed address; it ends this page first (sub visit)
@@ -3505,7 +3963,7 @@ sub asked {                               # a question in a line of its own kind
     while ((my $left = $until - now()) > 0) {
         my $event = hear($left) // leave();
         return $1 if $event =~ /^button $ASKED ([123])$/ && $1 <= @buttons;
-        viewing($event);                  # a new size of the window's page said meanwhile is still its size; the page is laid out at it after the question (sub relaid)
+        viewing($event); push @LATER, $event if $event =~ /^tor (?:on|off)$/;    # a new size of the window's page said meanwhile is still its size; the page is laid out at it after the question (sub relaid); Tor turned on or off is heard after it too
     }
     return 1;
 }
@@ -3552,29 +4010,36 @@ sub own_network {
 # Every question here has the button that keeps less, or changes nothing,
 # first, and a question nobody answers counts as that one.
 sub log_shown {
-    $DRAWN = 0;                           # what the window shows from here on is lzrprf's own, not a page of the application
+    $DRAWN = 0;                           # what the window shows from here on is lzrprf's own, over the page: a fault it says now is not of a page the application drew
     $UNEXPIRED = !expire_log() if $UNEXPIRED;
     my ($mode, $days, $unread) = keeping();
     my ($holds, $count, @lines) = holds_log();
-    my $plain = sub { map { ('T@' . (length > 300 ? substr($_, 0, 300) . ' ...' : $_), 'B') } map { s/\t/   /gr =~ s/[^\x20-\x7e]/?/gr } @_ };
+    my $rows = sub { map { my ($when, undef, $what) = split /\t/, s/[^\x20-\x7e\t]/?/gr, 3; "log line $when\t" . (length($what // '') > 600 ? substr($what, 0, 600) . ' ...' : $what // '') =~ s/\t/   /gr } @_ };    # the time, what happened; the number of the run stays in the file
     my @mine = @SESSION > 200 ? @SESSION[-200 .. -1] : @SESSION;
-    window('page', 'P30', 'T@This window', 'Pc0', $plain->(@mine ? @mine : '(nothing yet)'), $count ? ('P30', 'T@On this computer', 'Pc0', $plain->(@lines)) : (), '.');
     my $says = "Every address lzrprf fetched for $APP in this window is below" . (@SESSION > @mine ? ', its last ' . @mine . ' lines' : '') . '. ' . kept_words($mode, $days, $unread)
         . ($count ? " The log on this computer holds $holds." . ($count > @lines ? ' Below are its last ' . @lines . ' lines.' : '') . " The whole of it: $DIR/log" . ($mode eq 'nothing' ? ' It was written earlier, and nothing more is added to it.' : '') : '')
         . ($UNMARKED ? ' The log could not be marked for Time Machine to leave it out of backups.' : '');
     undef $UNMARKED;                      # said once
+    my $more = $mode eq 'nothing' ? " To keep a log, type in Terminal: perl $SELF keep hosts. No button of this window makes lzrprf keep more." : '';
+    # The log page of the window, over the page shown, which stays as it is under it: these words, then this
+    # window's lines, then the last of the log on this computer. "log shut" closes it again.
+    window('log begin', "log note $says$more", 'log part This window', $rows->(@mine), $count ? ('log part On this computer', $rows->(@lines)) : (), 'log end');
     if ($count) {                         # the clear, one click away whenever there is a log on this computer
+        window("brief $count " . ($count == 1 ? 'line is' : 'lines are') . ' kept on this computer.');
         if (ask($says, 'Keep the log', 'Clear the log') == 2) {
-            return idle('The log was kept.') unless ask("Clear the log? It holds $holds. This cannot be undone.", 'Keep', 'Clear') == 2;
+            window('brief Clear the log? This cannot be undone.');
+            return aside('The log was kept.') unless ask("Clear the log? It holds $holds. This cannot be undone.", 'Keep', 'Clear') == 2;
             my $cleared = clear_log();
-            window('page', '.');
+            window('log shut');
             return idle(!$cleared ? 'The log was not cleared: an address is being fetched right now, or the log could not be written. Nothing was removed.' : $mode eq 'nothing' ? 'The log was cleared: there is no log on this computer now.' : 'The log was cleared. Its first line now says so.');
         }
         $says = 'The log is as it was. ' . kept_words($mode, $days, $unread);
     }
-    return idle("$says To keep a log, type in Terminal: perl $SELF keep hosts. No button of this window makes lzrprf keep more.") if $mode eq 'nothing';
-    return idle($says) unless ask($says, 'Close', 'Keep less') == 2;
+    return aside("$says$more") if $mode eq 'nothing';
+    window('brief Kept on this computer: ' . ($mode eq 'all' ? 'full addresses.' : 'hosts only.'));
+    return aside($says, 1) unless ask($says, 'Close', 'Keep less') == 2;
     choose_keeping($mode, $days);
+    window('log shut');
 }
 
 # Keeping less, in the window: full addresses can become hosts only, and
@@ -3966,10 +4431,17 @@ var to = $.NSFileHandle.fileHandleWithStandardOutput, from = $.NSFileHandle.file
 var looks = {}, paragraphs = {};
 var canvas, sheet = null, inks = {}, typefaces = {}, space = null;    // the view of a laid page, the laid page it shows, and what drawing it needs more than once
 var again = false, viewing = '';    // the list being drawn is the page shown laid out again at a new width ("relaid"); the size of the page's view last told to lzrprf
+// Each tab's last drawing, kept so that a tab chosen again is shown in the frame it was chosen in, before lzrprf hears of it:
+// [tab] = { lines, sheet (the laid page made of them, once it was shown), share (where it was read), address, used }, for the
+// DRAWINGS_MOST tabs shown last. lzrprf names the tab each list is for ("page N", "relaid N"): a list for a tab that is not in
+// front goes to its kept drawing and not to the screen. A press of the strip made while lzrprf is busy is never dropped: the
+// tab shows at once, and the newest such press is said to lzrprf the moment it is free (pendingTab: { line, to }).
+var drawings = [], DRAWINGS_MOST = 8, drawnLines = [], drawnUsed = 0, pendingTab = null, perlTab = 0, listFor = 0;    // DECLARED(8 drawings: the tabs a person moves among, as lzrprf keeps 8 lists)
+var NEWLINE = null;    // a line end as bytes, made once (the "heard:" of the window's hand)
 var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
 var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
 var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false, drag = null, moving = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
-var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, torIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
+var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, torIcon: false, toolIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
 var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 30, TOP = TABS_HIGH + BAR_ROW, MARGIN = 22, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
 // Where the pointer is, in a view's own coordinates. It is converted from the window's content view, a view
 // this script keeps, and never from a nil: a nil made in the script can reach AppKit as a stray pointer and end
@@ -3978,7 +4450,7 @@ var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 30, TOP = TABS_HIGH + 
 var frameView = null;
 function pointIn(view, event) { return view.convertPointFromView(event.locationInWindow, frameView || view); }
 
-var root, homeView, listScroll, listView, secureBox, secureScroll, secureText, engineField, listing = null, pageShown = false, navState = [0, 0, 0], searchSet = false, searchNext = null, secureLines = null, securePinned = false;    // the frame every view stands in, the home page, the list page, the lock's panel; which list is open; whether a page is drawn; what back, forward and reload would do; whether a search engine is chosen and what follows its choice; the lock's lines
+var root, homeView, listScroll, listView, secureBox, secureScroll, secureText, engineField, listing = null, logParts = null, logRows = [], logNote = '', logLaid = null, logClosing = false, briefNext = null, pageShown = false, navState = [0, 0, 0], searchSet = false, searchNext = null, secureLines = null, securePinned = false;    // the frame every view stands in, the home page, the list page, the lock's panel; which list is open; whether a page is drawn; what back, forward and reload would do; whether a search engine is chosen and what follows its choice; the lock's lines
 
 function say(line) { to.writeData($(line + '\n').dataUsingEncoding(4)); }
 
@@ -4026,24 +4498,38 @@ function heard(line) {
         if (line != '.') return list.push(line);
         var lines = list;
         list = null;
-        try { draw(lines); } catch (fault) { unlaid(); page.string = $(''); listed([]); say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); }
+        if (listFor != selected && listFor >= 0 && listFor < tabs.length) {    // a list for a tab that is not in front: it becomes that tab's kept drawing, and the screen stays as it is
+            var before = drawings[listFor];
+            keep(listFor, { lines: lines, sheet: null, share: again && before ? before.share : shares[listFor] || 0, address: before ? before.address : '' });
+            again = false;
+            return;
+        }
+        drawnLines = lines;
+        try { draw(lines); } catch (fault) { drawnLines = []; unlaid(); page.string = $(''); listed([]); say('fault ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); }
         again = false;
         if (pageShown != lines.length > 0) { pageShown = lines.length > 0; pieces(); }
         return;
     }
     var at = line.indexOf(' '), word = at < 0 ? line : line.slice(0, at), rest = at < 0 ? '' : line.slice(at + 1);
-    if (word == 'page' || word == 'relaid') { list = []; again = word == 'relaid'; }
-    else if (word == 'busy' || word == 'idle') { if (word == 'busy') restoring = null; strip(rest.split('\t'), word == 'idle', false); }    // busy: a new page is coming, from its top
+    var aside = selected != perlTab;    // the window shows a tab lzrprf has not been told of yet: what lzrprf says of its own tab's bar, lock and arrows is said again once it is told
+    if (word == 'page' || word == 'relaid') { list = []; again = word == 'relaid'; listFor = /^\d{1,2}$/.test(rest) ? +rest : perlTab; perlTab = listFor; }
+    else if (word == 'busy' || word == 'idle') { if (word == 'busy') restoring = null; else logClosing = false; strip(rest.split('\t'), word == 'idle', false); }    // busy: a new page is coming, from its top
     else if (word == 'tabs') tabsTold(rest);
     else if (word == 'title') { var gap = rest.indexOf(' '), which = +rest.slice(0, gap); if (tabs[which]) tabs[which].title = rest.slice(gap + 1); tabsView.needsDisplay = true; }
     else if (word == 'install') installTold(rest);
     else if (word == 'checked') checkedTold(rest);
     else if (word == 'tor') torTold(rest);
+    else if (word == 'tool') toolTold(rest);
     else if (word == 'welcome') welcomeTold(rest);
-    else if (word == 'ask') { asked++; strip(rest.split('\t'), false, true); }
+    else if (word == 'brief') briefNext = rest;    // the few words the strip shows in place of the next line's; the line in full is the strip's tip
+    else if (word == 'log') logTold(rest);
+    else if (word == 'ask') { asked++; if (logClosing) { briefNext = null; say('button ' + asked + ' 1'); } else strip(rest.split('\t'), false, true); }    // the log page was closed: what lzrprf still asks about the log is answered by the first button, which changes nothing
+    else if (word == 'address' && aside) { if (drawings[perlTab]) drawings[perlTab].address = rest; }
     else if (word == 'address') { bar.stringValue = $(rest); current = rest; listing = null; suggestHidden(); pieces(); redrawn(); }
+    else if (word == 'nav' && aside) { }
     else if (word == 'nav') { navState = rest.split(' ').map(Number); belt.needsDisplay = true; }
     else if (word == 'search') { searchSet = rest != 'none' ? searchSet || rest == 'set' : false; if (rest == 'ask') { searchNext = 'go ' + bar.stringValue.js.replace(/[^\x20-\x7e]/g, '\x7f').slice(0, 2100); engineAsked(); } }
+    else if (word == 'secure' && aside) { }
     else if (word == 'secure') { if (rest == 'begin') secureLines = []; else if (rest.slice(0, 5) == 'line ' && secureLines) secureLines.push(rest.slice(5)); else if (rest == 'none') secureLines = null; if (!secureBox.hidden && rest != 'begin' && rest.slice(0, 5) != 'line ') secureShown(); }
     else if (word == 'marks') { if (rest == 'begin') { marks = []; folders = []; markCount = 0; folderAt = {}; } else { listSized(); redrawn(); } }
     else if (word == 'history') historyTold(rest);
@@ -4057,20 +4543,35 @@ function heard(line) {
 }
 
 // lzrprf's strip: its words, and for a question two buttons. While a question
-// is open, or lzrprf is busy, the bar takes nothing.
+// is open, or lzrprf is busy, the bar takes nothing. Only the strip's own views
+// change here: the window is laid out again (place) only when the strip changes
+// its height, for a question, and the chrome is drawn again only when whether it
+// takes a press changed, so "busy" and "idle" cost the few views they change.
 function strip(parts, open, question) {
+    var wasAsking = asking, wasFree = free;
     asking = question;
     free = !!open && !question;    // the tabs, the cogwheel and the bar take something only while lzrprf waits for it
-    words.stringValue = $(parts[0] || '');
+    words.stringValue = $(briefNext !== null ? briefNext : parts[0] || '');
+    words.toolTip = $(briefNext !== null ? parts[0] || '' : '');
+    briefNext = null;
     first.title = $(parts[1] || '');
     second.title = $(parts[2] || '');
     first.hidden = !question;
     second.hidden = !question || !parts[2];
     bar.enabled = free && !modalOpen;
-    logs.enabled = free && !modalOpen;
+    logs.enabled = (free || listing == 'log') && !modalOpen;    // the log's icon closes the log page too, also while lzrprf asks about the log
     if (!free) suggestHidden();
-    redrawn();
-    place();
+    if (wasAsking != asking) place();
+    else if (wasFree != free) redrawn();
+    stripBack.needsDisplay = true;
+    if (free && !asking && pendingTab) {    // a press of the strip made while lzrprf was busy: said now, the tab it chose already shown
+        var press = pendingTab;
+        pendingTab = null;
+        shares[selected] = shareNow();
+        if (press.closed !== undefined) closing = press.closed;
+        sent(press.line);
+        return;
+    }
     if (free && !modalOpen && searchSet && searchNext) {    // a search engine was just chosen: the bar to type into, or the words typed before it was asked for
         var next = searchNext;
         searchNext = null;
@@ -4108,12 +4609,13 @@ function place() {
     cog.frame = $.NSMakeRect(wide - 50, row + 13, 30, 30);
     marksView.frame = $.NSMakeRect(0, row - MARKS_ROW, wide, MARKS_ROW);
     stripBack.frame = $.NSMakeRect(0, 0, wide, tall);
-    words.frame = asking ? $.NSMakeRect(20, 10, wide - 340, tall - 18) : $.NSMakeRect(20, 6, wide - 136, 17);
+    words.frame = asking ? $.NSMakeRect(20, 10, wide - 340, tall - 18) : $.NSMakeRect(20, 6, wide - 168, 17);
     first.frame = $.NSMakeRect(wide - 304, (tall - 30) / 2, 132, 30);
     second.frame = $.NSMakeRect(wide - 162, (tall - 30) / 2, 138, 30);
     var pageTop = high - TOP;
     scroll.frame = $.NSMakeRect(0, tall, wide, Math.max(1, pageTop - tall));
-    torIcon.frame = $.NSMakeRect(wide - 106, 3, 26, 24);    // the icons at the right end of lzrprf's strip: Tor, the log, then what the page is made of
+    toolIcon.frame = $.NSMakeRect(wide - 138, 3, 26, 24);    // the icons at the right end of lzrprf's strip: the application's tool, Tor, the log, then what the page is made of
+    torIcon.frame = $.NSMakeRect(wide - 106, 3, 26, 24);
     logs.frame = $.NSMakeRect(wide - 74, 3, 26, 24);
     techs.frame = $.NSMakeRect(wide - 42, 3, 26, 24);
     homeView.frame = $.NSMakeRect(0, tall, wide, Math.max(1, pageTop - tall));
@@ -4330,7 +4832,7 @@ function stroked(path, colour, width, halo, blur) {    // a line, with its glow 
 function titled(item, words) { item.attributedTitle = styled(words, inked(sans(13), WHITE)); }
 
 function sent(line) { free = false; bar.enabled = false; logs.enabled = false; redrawn(); say(line); }
-function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox, logs, techs, torIcon, torView, suggestBox, wizardView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
+function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox, logs, techs, torIcon, torView, toolIcon, toolView, suggestBox, wizardView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
 function takes() { return free && !modalOpen; }    // whether the chrome takes a press now
 
 // The frame: the window is clear outside its rounded corners, and this draws, at its very edge,
@@ -4431,26 +4933,95 @@ function framed() {
 
 // The tabs.
 function tabsTold(rest) {
-    var told = rest.split(' '), count = +told[0], now = +told[1];
-    if (closing !== null) { shares.splice(closing, 1); closing = null; }
+    var told = rest.split(' '), count = +told[0], now = +told[1], chosen = !!pendingTab && pendingTab.to !== undefined;
+    if (!chosen && now != selected && selected !== closing && selected < tabs.length) keep(selected, keptNow());    // the tab leaving the screen (for a new tab, or after one closed) keeps its drawing
+    if (closing !== null) {
+        shares.splice(closing, 1);
+        drawings.splice(closing, 1);
+        if (chosen && pendingTab.to > closing) pendingTab.to--;
+        closing = null;
+    }
     while (tabs.length < count) tabs.push({ title: '' });
     tabs.length = count;
     if (shares.length > count) shares.length = count;
-    if (moving) moving = false; else restoring = shares[now] || 0;    // a tab only moved along the strip: the page shown stays where it is read
-    selected = now;
+    if (drawings.length > count) drawings.length = count;
+    perlTab = now;
+    if (moving) moving = false; else if (!chosen) restoring = shares[now] || 0;    // a tab only moved along the strip: the page shown stays where it is read
+    selected = chosen ? Math.min(pendingTab.to, count - 1) : now;    // a tab chosen while lzrprf was busy stays chosen: lzrprf is told of it when it is free
     redrawn();
+}
+
+// A tab's drawing, kept (drawings), and shown again. The drawing on the screen is kept as it is: the
+// laid page already made, where it is read, and the address in the bar. Only the DRAWINGS_MOST tabs
+// shown last keep theirs; the others are drawn from what lzrprf sends when they are chosen.
+function keptNow() { return { lines: drawnLines, sheet: sheet && scroll.documentView.isEqual(canvas) ? sheet : null, share: shareNow(), address: current }; }
+function keep(at, one) {
+    if (at < 0) return;
+    if (!one.lines.length) { drawings[at] = null; return; }    // no page is no drawing: lzrprf says what such a tab shows
+    one.used = ++drawnUsed;
+    drawings[at] = one;
+    var held = [];
+    drawings.forEach(function (d, i) { if (d && i != at) held.push(i); });
+    held.sort(function (a, b) { return drawings[a].used - drawings[b].used; });
+    while (held.length > DRAWINGS_MOST - 1) drawings[held.shift()] = null;
+}
+function shownAgain(one) {
+    drawnLines = one.lines;
+    var first = 0;
+    while (first < one.lines.length && one.lines[first].charAt(0) == 'U') first++;
+    if (one.sheet) {    // the laid page as it was made: nothing of it is made again
+        sheet = one.sheet;
+        if (!scroll.documentView.isEqual(canvas)) scroll.documentView = canvas;
+        fit();
+        canvas.scrollPoint($.NSMakePoint(0, Math.round(one.share * sheet.high)));
+        listed(one.lines.slice(0, first));
+    } else {
+        restoring = one.share;
+        try { draw(one.lines); } catch (fault) { drawnLines = []; unlaid(); page.string = $(''); listed([]); }
+        restoring = null;
+        if (sheet && scroll.documentView.isEqual(canvas)) one.sheet = sheet;
+    }
+    bar.stringValue = $(one.address || '');
+    current = one.address || '';
+    pageShown = one.lines.length > 0;
+    listing = null;
+    pieces();
+}
+// A tab chosen in the window: the strip shows it at once, with its kept drawing, or with no page until
+// lzrprf sends one. Returns whether a kept drawing was shown, which lzrprf is told ("kept").
+function tabChosen(n) {
+    if (n == selected || n < 0 || n >= tabs.length) return false;
+    shares[selected] = shareNow();
+    keep(selected, keptNow());
+    selected = n;
+    tabsView.needsDisplay = true;
+    var one = drawings[n];
+    if (one) { one.used = ++drawnUsed; shownAgain(one); return true; }
+    drawnLines = [];
+    unlaid();
+    page.string = $('');
+    listed([]);
+    if (pageShown) { pageShown = false; pieces(); }
+    return false;
 }
 
 function shareNow() { return sheet && sheet.high > 0 && scroll.documentView.isEqual(canvas) ? Math.min(1, Math.max(0, canvas.visibleRect.origin.y / sheet.high)) : 0; }
 
-function tabSaid(line, closed) {
-    if (!takes()) return;
+// A press of the strip, said to lzrprf: at once when it is free, else the moment it is (strip). A tab
+// chosen is shown in this very frame (tabChosen), whatever lzrprf is doing; kept says whether the
+// press already showed it. Only an open question or modal takes the press instead.
+function tabSaid(line, closed, kept) {
+    if (modalOpen || asking) return;
+    var chose = /^tab select (\d+)$/.exec(line), to = chose ? +chose[1] : undefined;
+    if (chose && kept === undefined) kept = tabChosen(to);
+    if (chose && kept) line += ' kept';
+    if (!takes()) { pendingTab = { line: line, to: to, closed: closed }; return; }    // the newest press waits for lzrprf, and is never dropped
     shares[selected] = shareNow();
     if (closed !== undefined) closing = closed;
     sent(line);
 }
 
-function newTab() { if (takes() && tabs.length < 32) { focusing = true; tabSaid('tab new'); } }
+function newTab() { if (!modalOpen && !asking && tabs.length < 32) { focusing = true; tabSaid('tab new'); } }
 
 // The window's own three dots at the left of the strip: close, minimise, full screen. Then the
 // tabs side by side, each at most 260 points wide, all shrinking to share the strip when there are
@@ -4559,6 +5130,7 @@ function tabLeft(i, wide) {    // where a tab is drawn: at its place, or, while 
 }
 
 function tabHeld(i) {
+    var was = selected, kept = i != selected ? tabChosen(i) : null;    // chosen on the way down: the strip and the tab's kept drawing show in the frame of the press
     var start = $.NSEvent.mouseLocation, wide = tabWide();
     for (;;) {    // until the button is let go: 6 is a drag of the left button, 2 its release
         var next = win.nextEventMatchingMaskUntilDateInModeDequeue((1 << 6) | (1 << 2), $.NSDate.distantFuture, $('NSEventTrackingRunLoopMode'), true);
@@ -4572,19 +5144,22 @@ function tabHeld(i) {
     var to = drag ? drag.slot : i;
     drag = null;
     tabsView.needsDisplay = true;
-    if (!takes()) return;
+    if (!takes()) { if (kept !== null) tabSaid('tab select ' + i, undefined, kept); return; }    // lzrprf is busy: the tab chosen is said when it is free
+    var told = was;    // the tab lzrprf has chosen
     if (to != i) {    // the strip shows the new order at once; lzrprf moves the tab and tells the tabs again
-        var one = tabs.splice(i, 1)[0], was = selected;
+        var one = tabs.splice(i, 1)[0];
         tabs.splice(to, 0, one);
-        shares[was] = shareNow();
+        shares[selected] = shareNow();
         while (shares.length < tabs.length) shares.push(0);
-        var share = shares.splice(i, 1)[0];
-        shares.splice(to, 0, share);
-        selected = placeOf(was, i, to);
+        shares.splice(to, 0, shares.splice(i, 1)[0]);
+        while (drawings.length < tabs.length) drawings.push(null);
+        drawings.splice(to, 0, drawings.splice(i, 1)[0]);
+        told = placeOf(was, i, to);
+        selected = to;    // the tab held is the chosen one
         moving = true;
         sent('tab move ' + i + ' ' + to);
     }
-    if (to != selected) tabSaid('tab select ' + to);
+    if (to != told) tabSaid('tab select ' + to, undefined, !!kept);
 }
 
 // The bar's row: back, forward and reload at its left, then the bar, a pill of dark glass with the
@@ -4596,7 +5171,7 @@ function typing() { var editor = bar.currentEditor; return !!editor && !editor.i
 
 function navAt(at) { for (var k = 0; k < 3; k++) if (Math.abs(at.x - (28 + k * 40)) <= 17 && Math.abs(at.y - BAR_ROW / 2) <= 16) return k; return -1; }
 function lockAt(at) { return at.x >= PILL.origin.x + 6 && at.x <= PILL.origin.x + 36 && at.y >= PILL.origin.y && at.y <= PILL.origin.y + PILL.size.height; }
-function navOn(k) { return takes() && (k == 0 ? navState[0] || !!listing : !!navState[k]); }
+function navOn(k) { return k == 0 && listing == 'log' ? !modalOpen : takes() && (k == 0 ? navState[0] || !!listing : !!navState[k]); }
 
 function arrowed(cx, cy, way) {    // a line arrow, pointing left (-1) or right (1)
     var p = $.NSBezierPath.bezierPath, tip = cx + 8 * way;
@@ -4668,6 +5243,7 @@ function beltClicked(event) {
 
 function navPressed(k) {
     if (!navOn(k)) return;
+    if (k == 0 && listing == 'log') return logClosed();
     if (k == 0 && listing) { listing = null; return place(); }    // back from the bookmarks or the tabs page to what the tab shows
     sent('nav ' + ['back', 'forward', 'reload'][k]);
 }
@@ -4703,7 +5279,7 @@ function cogItems() {
         ['Search engine...', '', false, function () { if (takes()) engineAsked(); }, '', 'lens'],
         ['Clear browsing history', '⇧⌘⌫', false, clearing, '', 'bin'],
         ['Make current page the home page', '', false, function () { if (takes()) sent('menu home'); }, '', 'house'],
-        ['Show the log', '', false, function () { if (logs.enabled && !modalOpen) sent('log'); }, '', 'page'],
+        ['Show the log', '', listing == 'log', function () { logPressed(); }, '', 'page'],
         ['Check for updates', checkedWords(), false, INCOGNITO ? function () { words.stringValue = $(UNKEPT_TIP); } : function () { if (takes()) say('update-check'); }, INCOGNITO ? UNKEPT_TIP : '', 'turn']];
 }
 
@@ -4808,7 +5384,7 @@ function clearing() {
 
 function sessionsWarned() {
     modal('Clear history and sessions?', 'This will require logging in again on all pages. lzrprf sends no cookie to any site, so no site keeps a login through it today: what is cleared is the history and every page lzrprf keeps for a tab. Proceed?',
-        [['Cancel', closeModal], ['Proceed', function () { closeModal(); sent('menu clear-sessions'); }]], 'small');
+        [['Cancel', closeModal], ['Proceed', function () { closeModal(); drawings = []; sent('menu clear-sessions'); }]], 'small');
 }
 
 // Bookmarks, as lzrprf read them from their folder and told them: "marks begin", "mark F FOLDER",
@@ -4944,9 +5520,9 @@ function marksClicked(event) {
     folderMenu(one.item ? one.item.folder : '', one.more).popUpMenuPositioningItemAtLocationInView($(), $.NSMakePoint(one.x, -2), marksView);
 }
 
-// The home page, where a tab shows no page: two curved beams through the dark glass, the laser's
-// glint above the name, the name LZRBRWSR in the wide face with its letters far apart, BROWSE WITH
-// ZERO TRUST under it, and four square buttons: search, bookmarks, the tabs, a new tab.
+// The home page, where a tab shows no page: two straight beams through the dark glass, the name
+// LZRBRWSR written in straight laser lines (function wordmark), BROWSE WITH ZERO TRUST under it, and
+// four square buttons: search, bookmarks, the tabs, a new tab.
 var HOME_BUTTONS = 4, HOME_SIDE = 60, HOME_GAP = 40;
 function homeLaid() {
     var size = homeView.frame.size, cx = size.width / 2, group = 300, top = Math.min(size.height - 30, Math.round(size.height / 2 + group / 2 + 18));
@@ -4963,21 +5539,20 @@ function beamed(from, to, strength) {    // one straight beam, as a laser is: a 
     return p;
 }
 
-function glint(cx, cy, length) {    // the laser's mark: a thin bright lens on a slant, white at its heart
-    var dx = length * 0.7, dy = length * 0.72, p = $.NSBezierPath.bezierPath, nx = -dy / length * 2.2, ny = dx / length * 2.2;
-    p.moveToPoint($.NSMakePoint(cx + dx, cy + dy));
-    p.curveToPointControlPoint1ControlPoint2($.NSMakePoint(cx - dx, cy - dy), $.NSMakePoint(cx + nx, cy + ny), $.NSMakePoint(cx + nx, cy + ny));
-    p.curveToPointControlPoint1ControlPoint2($.NSMakePoint(cx + dx, cy + dy), $.NSMakePoint(cx - nx, cy - ny), $.NSMakePoint(cx - nx, cy - ny));
-    $.NSGraphicsContext.saveGraphicsState;
-    glow(GREEN, 16);
-    GREEN.setFill;
-    p.fill;
-    $.NSGraphicsContext.restoreGraphicsState;
-    $.NSGraphicsContext.saveGraphicsState;
-    glow(WHITE, 6);
-    WHITE.setFill;
-    $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(cx - 4, cy - 1.6, 8, 3.2)).fill;
-    $.NSGraphicsContext.restoreGraphicsState;
+// The name, LZRBRWSR written in straight laser lines, our own face lzr: each letter is its strokes
+// on a grid 760 wide and 70 high, from the left edge and the line the letters stand on, drawn as a
+// laser is: a white core in the beam's glow. It is as high as asked, and narrower when the window is.
+var NAME_LINES = [[0, 70, 0, 0, 42, 0], [96, 70, 142, 70, 96, 0, 142, 0], [196, 0, 196, 70, 242, 70, 242, 33, 196, 33], [213, 33, 242, 0], [296, 0, 296, 70, 330, 70, 330, 37], [296, 37, 342, 37, 342, 0, 296, 0], [396, 0, 396, 70, 442, 70, 442, 33, 396, 33], [413, 33, 442, 0], [496, 70, 512, 0, 528, 51, 544, 0, 560, 70], [660, 70, 614, 70, 614, 43, 660, 27, 660, 0, 614, 0], [714, 0, 714, 70, 760, 70, 760, 33, 714, 33], [732, 33, 760, 0]];
+function wordmark(cx, y, high, room) {
+    var k = Math.min(high / 70, room / 760), left = cx - 380 * k, p = $.NSBezierPath.bezierPath;
+    NAME_LINES.forEach(function (line) {
+        p.moveToPoint($.NSMakePoint(left + line[0] * k, y + line[1] * k));
+        for (var i = 2; i < line.length; i += 2) p.lineToPoint($.NSMakePoint(left + line[i] * k, y + line[i + 1] * k));
+    });
+    p.lineCapStyle = 1;     // round ends
+    p.lineJoinStyle = 1;    // round corners
+    stroked(p, tint(0.22), 3.4, GREEN, 20);
+    stroked(p, $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.957, 0.992, 1, 1), 1.7, GREEN, 6);
 }
 
 function homeIcon(k, cx, cy) {
@@ -5007,8 +5582,7 @@ function paintHome() {
             centred(styled(line, inked(sans(12.5), k == 3 ? GREY : ICON)), cx, laid.top - 136 - k * 19, 0);
         });
     } else {
-        glint(cx, laid.top - 52, 52);
-        centred(spaced('LZRBRWSR', wide(34, -0.4), WHITE, 17), cx, laid.top - 150, 17);
+        wordmark(cx, laid.top - 140, 46, w - 96);
         centred(spaced('BROWSE WITH ZERO TRUST', wide(12, 0), GREY, 5.5), cx, laid.top - 182, 5.5);
     }
     laid.buttons.forEach(function (box, k) {
@@ -5034,10 +5608,54 @@ function homeClicked(event) {
     secureHidden();
     var k = homeAt(event);
     if (k < 0 || !takes()) return;
-    if (k == 0) searched();
+    if (k == 0) { homeShot(0); searched(); }
     else if (k == 1) listOpened('marks');
     else if (k == 2) listOpened('tabs');
-    else newTab();
+    else { homeShot(3); newTab(); }
+}
+
+function homeShot(k) {    // the search button, when a search engine is set, shoots at the middle of the bar's words; the plus at the middle of the new tab's card
+    if (k == 0 && searchSet) shotAt(homeView, homeMiddle(0), bar, $.NSMakePoint(2 + Math.min(bar.frame.size.width, bar.placeholderAttributedString.size.width) / 2, bar.frame.size.height / 2));
+    else if (k == 3 && tabs.length < 32) shotAt(homeView, homeMiddle(3), tabsView, $.NSMakePoint(TABS_X + (tabs.length + 0.5) * Math.max(1, Math.min(260, Math.floor((tabsView.frame.size.width - TABS_X - 48) / (tabs.length + 1)))), tabsView.frame.size.height / 2));
+}
+
+// The shot. The search button and the plus of the home screen fire the beam the screen is lit by
+// at what they act on: the middle of the words in the bar that say where to type, or the middle
+// of the tab that opens. The beam leaves the button in the frame of the press, is there within
+// SHOT_FLY, and ends in one small flash that spreads, whole, for SHOT_FLASH and is gone. It is drawn in a view of
+// its own with a layer of its own over the window's, so a frame of it draws nothing else again,
+// and that view takes no press: what lies under it does. With "Reduce motion" there is no shot.
+var SHOT_FLY = 0.11, SHOT_FLASH = 0.22, shot = null, shotView = null;    // DECLARED(0.11 s and 0.22 s: seven frames of flight and thirteen of flash at 60 a second, seen and never waited for)
+function homeMiddle(k) { var at = homeLaid().buttons[k]; return $.NSMakePoint(at.origin.x + HOME_SIDE / 2, at.origin.y + HOME_SIDE / 2); }
+
+function shotAt(fromView, from, toView, to) {
+    if (!flightAllowed()) return;
+    if (!shotView) { shotView = $.LzrprfShot.alloc.initWithFrame(root.bounds); shotView.wantsLayer = true; root.addSubview(shotView); }
+    if (shot) shot.timer.invalidate;
+    shotView.frame = root.bounds;
+    shot = { from: fromView.convertPointToView(from, shotView), to: toView.convertPointToView(to, shotView), began: Date.now(), timer: $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(1 / 60, hand, 'shotTick:', $(), true) };
+    shotView.hidden = false;
+    shotView.needsDisplay = true;
+}
+
+function shotTicked() {
+    if (!shot) return;
+    if ((Date.now() - shot.began) / 1000 >= SHOT_FLY + SHOT_FLASH) { shot.timer.invalidate; shot = null; shotView.hidden = true; return; }
+    shotView.needsDisplay = true;
+}
+
+function paintShot() {
+    if (!shot) return;
+    var t = (Date.now() - shot.began) / 1000, on = function (f) { return $.NSMakePoint(shot.from.x + (shot.to.x - shot.from.x) * f, shot.from.y + (shot.to.y - shot.from.y) * f); };
+    if (t < SHOT_FLY) { var head = t / SHOT_FLY; return beamed(on(Math.max(0, head - 0.5)), on(head), 1.8); }    // the bolt: its head, and half the way behind it
+    var left = Math.max(0, 1 - (t - SHOT_FLY) / SHOT_FLASH), wide = 3 + 7 * (1 - left);
+    if (left > 0.5) beamed(on(1 - (left - 0.5)), on(1), 2 * (left - 0.5) * 1.8);    // the last of the bolt runs into the flash
+    var spark = $.NSBezierPath.bezierPathWithOvalInRect($.NSMakeRect(shot.to.x - wide, shot.to.y - wide, 2 * wide, 2 * wide));
+    $.NSGraphicsContext.saveGraphicsState;
+    glow(tint(1), 16);    // whole to its last frame: the flash spreads and is gone, never growing faint
+    $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.957, 0.992, 1, 0.9).setFill;
+    spark.fill;
+    $.NSGraphicsContext.restoreGraphicsState;
 }
 
 // Search. The first press of the search button asks which engine words typed into the bar go to:
@@ -5089,6 +5707,7 @@ function listRows() {
 }
 
 function listPlaced() {    // each row with its top, in the list's flipped view
+    if (listing == 'log') return { rows: [], end: logPlaced().end };
     var rows = listRows(), y = 132, wide = Math.min(760, listScroll.frame.size.width - 64), x = Math.round((listScroll.frame.size.width - wide) / 2);
     rows.forEach(function (row) { row.y = y; row.x = x; row.w = wide; row.h = row.heading ? 36 : 54; y += row.h + (row.heading ? 0 : 8); });
     return { rows: rows, end: y + 40 };
@@ -5096,8 +5715,9 @@ function listPlaced() {    // each row with its top, in the list's flipped view
 
 function listSized() { if (listView) listView.setFrameSize($.NSMakeSize(listScroll.contentSize.width, Math.max(listScroll.contentSize.height, listPlaced().end))); }
 
-function paintList() {
+function paintList(dirty) {
     if (!listing) return;
+    if (listing == 'log') return paintLog(dirty);
     var size = listView.frame.size, cx = size.width / 2, laid = listPlaced(), count = laid.rows.filter(function (r) { return !r.heading; }).length, lit = takes();
     var title = spaced(listing == 'tabs' ? 'TABS' : 'BOOKMARKS', wide(26, -0.4), WHITE, 12);
     title.drawAtPoint($.NSMakePoint(Math.round(cx - (title.size.width - 12) / 2), 34));
@@ -5125,13 +5745,123 @@ function paintList() {
     });
 }
 
+// The log page: what lzrprf did for this window, and the last of the log it keeps on this
+// computer, as lzrprf told them: "log begin", "log note TEXT" (what is kept, in full), then for
+// each part "log part NAME" and its lines "log line WHEN<tab>WHAT", oldest first, and "log end",
+// which shows the page. "log shut" closes it. The page lies over what the tab shows, which stays
+// as it is under it. Its Close button, the log's icon in the strip, the menu's line and the back
+// arrow each close it; a question lzrprf still asks about the log then is answered by its first
+// button, which changes nothing.
+function logTold(rest) {
+    if (rest == 'begin') { logParts = []; return; }
+    if (rest == 'shut') { if (listing == 'log') { listing = null; place(); } return; }
+    if (!logParts) return;
+    var kind = rest.slice(0, 5), gap = rest.indexOf('\t');
+    if (kind == 'note ') logNote = rest.slice(5);
+    else if (kind == 'part ') logParts.push({ heading: rest.slice(5), lines: [] });
+    else if (kind == 'line ' && logParts.length) logParts[logParts.length - 1].lines.push({ when: rest.slice(5, gap < 0 ? rest.length : gap), what: gap < 0 ? '' : rest.slice(gap + 1) });
+    else if (rest == 'end') {
+        logRows = [];
+        logParts.forEach(function (part) { logRows.push({ heading: part.heading }); logRows = logRows.concat(part.lines.reverse()); });    // the newest line first: the page opens at its top
+        logParts = null;
+        logLaid = null;
+        logClosing = false;
+        listOpened('log');
+        logs.enabled = !modalOpen;
+    }
+}
+
+function logPressed() {    // the log's icon and the menu's line: the page opens, and closes again
+    if (modalOpen) return;
+    if (listing == 'log') return logClosed();
+    if (logs.enabled) { techHidden(); sent('log'); }
+}
+
+function logClosed() {
+    if (listing != 'log') return;
+    listing = null;
+    if (asking) { logClosing = true; say('button ' + asked + ' 1'); }
+    place();
+}
+
+function logWhen(when) {    // the time on this computer's clock: of today the hour, the minute and the second, of another day the day as well
+    var at = new Date(when), two = function (n) { return (n < 10 ? '0' : '') + n; };
+    if (isNaN(at.getTime())) return when.slice(0, 19);
+    var hour = two(at.getHours()) + ':' + two(at.getMinutes());
+    return at.toDateString() == new Date().toDateString() ? hour + ':' + two(at.getSeconds()) : two(at.getDate()) + '.' + two(at.getMonth() + 1) + '. ' + hour;
+}
+
+function logInk(what) {    // what went wrong or was refused in the warning's colour, what you did in white, an answer in the beam's, the rest quiet
+    return /failed: |refused|could not|did not|was not|not cleared/.test(what) ? YELLOW : /^[Yy]ou /.test(what) ? WHITE : / answered/.test(what) ? GREEN : / -> lzrprf connects /.test(what) ? GREY : ICON;
+}
+
+function logShut(laid) { return $.NSMakeRect(laid.x + laid.w - 88, 30, 88, 30); }    // the Close button, at the top of the page on the box's right edge
+
+function logPlaced() {    // the box and each line with its top and height, in the list's flipped view; measured once for a width
+    var wide = Math.min(900, listScroll.frame.size.width - 64);
+    if (logLaid && logLaid.w == wide) return logLaid;
+    var x = Math.round((listScroll.frame.size.width - wide) / 2), y = 132 + 16, rows = [], room = wide - 36 - 92, lines = 0;
+    logRows.forEach(function (row, i) {
+        if (row.heading) {
+            if (lines == 0 && rows.length) { rows.push({ none: true, y: y }); y += 24; }
+            if (rows.length) y += 12;
+            rows.push({ heading: row.heading, y: y });
+            y += 28;
+            lines = 0;
+            return;
+        }
+        var said = styled(row.what, inked(mono(11.5), logInk(row.what))), high = Math.max(15, Math.ceil(said.boundingRectWithSizeOptions($.NSMakeSize(room, 4000), 1).size.height));
+        rows.push({ when: logWhen(row.when), said: said, y: y, h: high });
+        y += high + 7;
+        lines++;
+    });
+    if (lines == 0) { rows.push({ none: true, y: y }); y += 24; }
+    var note = styled(logNote, inked(sans(11.5), GREY)), noteHigh = logNote ? Math.ceil(note.boundingRectWithSizeOptions($.NSMakeSize(wide - 8, 4000), 1).size.height) : 0;
+    logLaid = { w: wide, x: x, top: 132, rows: rows, room: room, boxEnd: y + 9, note: note, noteHigh: noteHigh, end: y + 9 + 18 + noteHigh + 40 };
+    return logLaid;
+}
+
+function paintLog(dirty) {
+    var size = listView.frame.size, cx = size.width / 2, laid = logPlaced();
+    var from = dirty && dirty.origin ? dirty.origin.y - 4 : 0, to = dirty && dirty.size ? dirty.origin.y + dirty.size.height + 4 : laid.end;    // only the lines in what is drawn anew: a long log scrolls as fast as a short one
+    var title = spaced('LOG', wide(26, -0.4), WHITE, 12);
+    title.drawAtPoint($.NSMakePoint(Math.round(cx - (title.size.width - 12) / 2), 34));
+    centred(styled('What this window did.', inked(sans(12.5), GREY)), cx, 80, 0);
+    var shut = logShut(laid), hot = hover.list == -2, pill = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(shut, 15, 15);
+    $.NSGraphicsContext.saveGraphicsState;
+    if (hot) glow(GREEN, 10);
+    FILL.setFill;
+    pill.fill;
+    $.NSGraphicsContext.restoreGraphicsState;
+    stroked(pill, hot ? GREEN : DIM, hot ? 1.3 : 1, hot ? GREEN : null, 6);
+    var cross = $.NSBezierPath.bezierPath, mx = shut.origin.x + 20, my = shut.origin.y + 15;
+    cross.moveToPoint($.NSMakePoint(mx - 4, my - 4)); cross.lineToPoint($.NSMakePoint(mx + 4, my + 4));
+    cross.moveToPoint($.NSMakePoint(mx + 4, my - 4)); cross.lineToPoint($.NSMakePoint(mx - 4, my + 4));
+    stroked(cross, hot ? WHITE : GREEN, 1.5);
+    styled('Close', inked(sans(12.5, true), WHITE)).drawAtPoint($.NSMakePoint(shut.origin.x + 34, shut.origin.y + 7));
+    var card = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(laid.x, laid.top, laid.w, laid.boxEnd - laid.top), 12, 12);
+    FILL.setFill;
+    card.fill;
+    stroked(card, LINE, 1);
+    laid.rows.forEach(function (row) {
+        if (row.y > to || row.y + (row.h || 28) < from) return;
+        if (row.heading) return spaced(row.heading.toUpperCase(), sans(10.5, true), GREEN, 1.6).drawAtPoint($.NSMakePoint(laid.x + 18, row.y + 4));
+        if (row.none) return styled('Nothing yet.', inked(sans(11.5), GREY)).drawAtPoint($.NSMakePoint(laid.x + 18, row.y));
+        styled(row.when, inked(mono(11), GREY)).drawAtPoint($.NSMakePoint(laid.x + 18, row.y));
+        row.said.drawInRect($.NSMakeRect(laid.x + 18 + 92, row.y, laid.room, row.h + 2));
+    });
+    if (laid.noteHigh) laid.note.drawInRect($.NSMakeRect(laid.x + 4, laid.boxEnd + 18, laid.w - 8, laid.noteHigh + 2));
+}
+
 function listAt(event) {
+    if (listing == 'log') { var on = pointIn(listView, event), shut = logShut(logPlaced()); return on.x >= shut.origin.x && on.x < shut.origin.x + shut.size.width && on.y >= shut.origin.y && on.y < shut.origin.y + shut.size.height ? -2 : -1; }
     var at = pointIn(listView, event), rows = listPlaced().rows;
     for (var i = 0; i < rows.length; i++) if (!rows[i].heading && at.y >= rows[i].y && at.y < rows[i].y + rows[i].h && at.x >= rows[i].x && at.x < rows[i].x + rows[i].w) return i;
     return -1;
 }
 
 function listClicked(event) {
+    if (listing == 'log') { if (listAt(event) == -2) logClosed(); return; }    // the one thing on the log page that takes a press, also while lzrprf asks about the log
     var i = listAt(event), row = i >= 0 ? listPlaced().rows[i] : null;
     if (!row || !takes()) return;
     if (row.mark !== undefined) { listing = null; place(); return sent('mark open ' + row.mark); }
@@ -5207,6 +5937,163 @@ function paintIcon(view, glyph, hot, on, lit) {
     var size = view.frame.size, cx = size.width / 2, cy = size.height / 2;
     if (hot && on) { var back = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(1, 1, size.width - 2, size.height - 2), 7, 7); glass(back, true); }
     stroked(glyph(cx, cy), lit ? GREEN : hot && on ? WHITE : on ? ICON : EDGE, 1.3, lit || hot && on ? GREEN : null, 7);
+}
+
+// The application's tool. Its icon stands left of Tor's in the bottom bar. A press asks lzrprf to
+// open it ("tool open"); lzrprf answers with a list between "tool begin" and "tool end": the
+// tool's title, its words, the words of its buttons, and its rows, each with the application's
+// tag, title and sentence, and lzrprf's own words for what ticking it would change. All of it is
+// drawn as text. A row is ticked by a click; the button that changes something takes a press once
+// a row is ticked, and then shows only the ticked rows with lzrprf's words for each change, and
+// asks once more. Only "tool act" and "tool undo", with the numbers of the ticked rows, change
+// anything, and lzrprf checks each against what it saw itself (sub tool_may).
+var tool = null, toolIn = null, toolIcon = null, toolScroll = null, toolView = null, toolWaiting = false, toolBack = 0, toolItems = null, TOOL_WIDE = 800, TOOL_HIGH = 660;    // DECLARED(as wide as its three buttons side by side, and as tall as most laptop windows leave)
+function toolPressed() {
+    if (modalOpen) { if (modalKind == 'tool') closeModal(); return; }
+    techHidden();
+    secureHidden();
+    suggestHidden();
+    toolWaiting = true;
+    toolBack = 0;
+    toolIcon.needsDisplay = true;
+    say('tool open');
+}
+function toolTold(rest) {
+    var at = rest.indexOf(' '), word = at < 0 ? rest : rest.slice(0, at), more = at < 0 ? '' : rest.slice(at + 1);
+    if (word == 'begin') toolIn = { title: '', words: '', head: '', said: '', buttons: {}, rows: [] };
+    else if (word == 'none') { toolWaiting = false; toolIn = null; tool = null; if (modalOpen && modalKind == 'tool') closeModal(); }    // no list: lzrprf's strip says why
+    else if (word == 'back') { toolBack = +more || 0; if (toolIcon) { toolIcon.toolTip = $(toolBack + (toolBack == 1 ? ' launchd job you switched off was' : ' launchd jobs you switched off were') + ' switched on again by something else, and switched off again'); toolIcon.needsDisplay = true; } }
+    else if (word == 'busy') { if (tool && modalOpen && modalKind == 'tool') { tool.busy = more; toolChanged(); } }
+    else if (!toolIn) return;
+    else if (word == 'title' || word == 'words' || word == 'head' || word == 'said') toolIn[word] = more;
+    else if (word == 'button') { var gap = more.indexOf(' '); if (gap > 0) toolIn.buttons[more.slice(0, gap)] = more.slice(gap + 1); }
+    else if (word == 'row') { var parts = more.split('\t'), lead = parts[0].split(' '); if (parts.length == 5 && lead.length == 2) toolIn.rows.push({ i: +lead[0], mode: lead[1], tag: parts[1], title: parts[2], detail: parts[3], fact: parts[4], on: false }); }
+    else if (word == 'end') {
+        tool = toolIn; toolIn = null; tool.busy = ''; tool.confirm = false;
+        toolIcon.toolTip = $(tool.title);
+        if (modalOpen && modalKind == 'tool') { panelTitle.stringValue = $(tool.title); toolChanged(); }
+        else if (toolWaiting && !modalOpen) { flyNext = { icon: toolIcon, at: Date.now() }; modal(tool.title, '', toolChoices(), 'tool'); toolChanged(); }
+        toolWaiting = false;
+    }
+}
+function toolTicked(mode) { return tool ? tool.rows.filter(function (row) { return row.on && row.mode == mode; }) : []; }
+function toolNumbers(mode) { return toolTicked(mode).map(function (row) { return row.i; }).join(','); }
+function toolChoices() {
+    if (!tool) return [['Close', closeModal]];
+    if (tool.confirm) return [['Back', toolBacked], ['Switch off ' + toolTicked('act').length, toolConfirmed]];
+    var out = [['Close', closeModal]];
+    if (tool.buttons.undo && tool.rows.some(function (row) { return row.mode == 'undo'; })) out.push([tool.buttons.undo, toolUndone]);
+    if (tool.buttons.sense) out.push([tool.buttons.sense, toolSensed]);
+    if (tool.buttons.act && tool.rows.some(function (row) { return row.mode == 'act'; })) out.push([tool.buttons.act, toolActed]);
+    return out;
+}
+function toolEnabled() {    // which buttons take a press now: the one that changes something only once a row of its kind is ticked, none but Close while lzrprf works
+    var acts = toolTicked('act').length, undos = toolTicked('undo').length;
+    panelButtons.forEach(function (one, k) { var act = modalActions[k]; one.enabled = act == closeModal || !!tool && !tool.busy && (act == toolActed || act == toolConfirmed ? acts > 0 : act == toolUndone ? undos > 0 : true); });
+}
+function toolChanged() {
+    if (!tool || !modalOpen || modalKind != 'tool') return;
+    toolItems = null;
+    buttons(toolChoices());
+    toolEnabled();
+    toolSized();
+}
+function toolSized() {
+    if (!toolScroll || !tool) return;
+    toolItems = null;
+    var room = toolScroll.contentSize;
+    toolView.setFrameSize($.NSMakeSize(room.width, Math.max(room.height, toolLaid().high)));
+    toolView.needsDisplay = true;
+}
+function toolBacked() { tool.confirm = false; toolChanged(); }
+function toolActed() { if (!toolTicked('act').length) return; tool.confirm = true; toolChanged(); toolView.scrollPoint($.NSMakePoint(0, 0)); }
+function toolConfirmed() { var which = toolNumbers('act'); if (!which) return; tool.confirm = false; tool.busy = 'Switching off what you ticked'; say('tool act ' + which); toolChanged(); }
+function toolUndone() { var which = toolNumbers('undo'); if (!which) return; tool.busy = 'Switching on again what you ticked'; say('tool undo ' + which); toolChanged(); }
+function toolSensed() { tool.busy = 'Reading the processes and the launchd jobs of this computer'; say('tool sense'); toolChanged(); }
+
+function toolLaid() {    // what the list draws, from its top: each piece with where it begins and how tall it is
+    if (toolItems) return toolItems;
+    var w = toolScroll.contentSize.width - 2, y = 2, items = [], inner = w - 52;
+    function tall(text, font, width) { return Math.ceil(styled(text, inked(font, WHITE)).boundingRectWithSizeOptions($.NSMakeSize(width, 4000), 1).size.height); }
+    function note(text, font, colour, gap) { if (!text) return; var h = tall(text, font, w - 8); items.push({ text: text, font: font, colour: colour, y: y, h: h }); y += h + gap; }
+    if (tool.confirm) note('You are about to switch these off. Under each row lzrprf says, in its own words, what it will change and nothing else: a launchd job of your account is switched off and kept off until you switch it on again here, and a process is asked to end. An app that needs what you switch off may start it again or stop working until you switch it on again. Each change is written in the log first.', sans(13), WHITE, 14);
+    else {
+        note(tool.words, sans(13), WHITE, 12);
+        note(tool.said, sans(12.5), YELLOW, 12);
+    }
+    note(tool.busy, sans(12.5, true), GREEN, 12);
+    var rows = tool.confirm ? toolTicked('act') : tool.rows;
+    if (!tool.confirm && tool.head && rows.length) note(tool.head, sans(14, true), WHITE, 10);
+    rows.forEach(function (row) {
+        var detail = tall(row.detail, sans(11.5), inner), fact = tool.confirm && row.fact ? tall(row.fact, mono(10.5), inner) + 6 : 0, h = 11 + 19 + detail + fact + 11;
+        items.push({ row: row, y: y, h: h, detail: detail, fact: fact });
+        y += h + 8;
+    });
+    toolItems = { items: items, high: y + 2, wide: w };
+    return toolItems;
+}
+function paintTool() {
+    if (!tool) return;
+    var laid = toolLaid(), w = laid.wide, seen = toolView.visibleRect;
+    laid.items.forEach(function (one) {
+        if (one.y + one.h < seen.origin.y - 4 || one.y > seen.origin.y + seen.size.height + 4) return;    // only what shows is drawn
+        if (!one.row) return styled(one.text, inked(one.font, one.colour)).drawInRect($.NSMakeRect(4, one.y, w - 8, one.h + 2));
+        var row = one.row, can = row.mode != 'none', card = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(1.5, one.y + 0.5, w - 3, one.h - 1), 10, 10);
+        FILL.setFill; card.fill;
+        if (row.on) glass(card, true);
+        stroked(card, row.on ? GREEN : LINE, row.on ? 1.2 : 1, row.on ? GREEN : null, 5);
+        if (can && !tool.confirm) {    // the box that is ticked
+            var box = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(14.5, one.y + 12.5, 16, 16), 4, 4);
+            if (row.on) {
+                GREEN.setFill; box.fill;
+                var tick = $.NSBezierPath.bezierPath;
+                tick.moveToPoint($.NSMakePoint(18.5, one.y + 20.5)); tick.lineToPoint($.NSMakePoint(21.5, one.y + 24)); tick.lineToPoint($.NSMakePoint(27, one.y + 17));
+                stroked(tick, DARK, 1.8);
+            }
+            else stroked(box, ICON, 1.2);
+        }
+        var tag = styled(row.tag.toUpperCase(), inked(sans(9.5, true), row.mode == 'undo' ? GREEN : can ? YELLOW : GREY)), tagWide = Math.ceil(tag.size.width);
+        tag.drawAtPoint($.NSMakePoint(w - 16 - tagWide, one.y + 14));
+        $(row.title).drawInRectWithAttributes($.NSMakeRect(42, one.y + 10, w - 42 - 28 - tagWide, 19), inked(sans(13.5, true), can ? WHITE : GREY, true));
+        styled(row.detail, inked(sans(11.5), GREY)).drawInRect($.NSMakeRect(42, one.y + 30, w - 54, one.detail + 2));
+        if (one.fact) styled(row.fact, inked(mono(10.5), DIM)).drawInRect($.NSMakeRect(42, one.y + 30 + one.detail + 6, w - 54, one.fact));
+    });
+}
+function toolClicked(event) {
+    if (!tool || tool.busy || tool.confirm) return;
+    var at = pointIn(toolView, event), items = toolLaid().items;
+    for (var k = 0; k < items.length; k++) {
+        var one = items[k];
+        if (!one.row || one.row.mode == 'none' || at.y < one.y || at.y >= one.y + one.h) continue;
+        one.row.on = !one.row.on;
+        toolEnabled();
+        toolView.needsDisplay = true;
+        return;
+    }
+}
+function toolParts(cx, cy) {    // a satellite, tilted, its two panels out; and the beam it sends down (the button is flipped: y grows down, so y is turned here)
+    var c = Math.SQRT1_2, at = function (x, y) { return $.NSMakePoint(cx + c * (x + y), cy - c * (y - x)); };
+    var body = $.NSBezierPath.bezierPath, beam = $.NSBezierPath.bezierPath;
+    function box(path, x0, y0, x1, y1) { path.moveToPoint(at(x0, y0)); path.lineToPoint(at(x1, y0)); path.lineToPoint(at(x1, y1)); path.lineToPoint(at(x0, y1)); path.closePath; }
+    function line(path, x0, y0, x1, y1) { path.moveToPoint(at(x0, y0)); path.lineToPoint(at(x1, y1)); }
+    box(body, -2.5, -2.5, 2.5, 2.5);
+    box(body, -9.5, -2, -4, 2);
+    box(body, 4, -2, 9.5, 2);
+    line(body, -4, 0, -2.5, 0);
+    line(body, 2.5, 0, 4, 0);
+    line(body, -6.75, -2, -6.75, 2);
+    line(body, 6.75, -2, 6.75, 2);
+    line(body, 0, 2.5, 0, 4.5);
+    line(beam, 0, -4, 0, -7);
+    line(beam, 0, -8.5, 0, -11);
+    line(beam, -1.8, -12, 1.8, -12);
+    return [body, beam];
+}
+function toolIconDrawn(view) {
+    var size = view.frame.size, cx = size.width / 2, cy = size.height / 2, hot = hover.toolIcon && !modalOpen, lit = modalOpen && modalKind == 'tool', parts = toolParts(cx, cy);
+    if (hot) glass($.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(1, 1, size.width - 2, size.height - 2), 7, 7), true);
+    stroked(parts[0], lit ? GREEN : hot ? WHITE : ICON, 1.2, lit || hot ? GREEN : null, 7);
+    stroked(parts[1], toolBack ? YELLOW : GREEN, 1.3, toolBack ? YELLOW : GREEN, 5);    // the beam is always lit; yellow once something you switched off came back
 }
 
 // What the page is made of, in the modal every other panel uses (centred, over the veil), larger
@@ -5379,7 +6266,7 @@ function importTold(rest) {
     if (word == 'profile') { var gap = more.indexOf(' '); return wiz.comingProfiles.push(more.slice(gap + 1)); }
     if (word == 'preview') { wiz.preview = counted(more); return; }
     if (word == 'done') { wiz.done = counted(more); return; }
-    if (word == 'refused') { wiz.error = more; wiz.step = wiz.from; return wizardShown(); }
+    if (word == 'refused') { wiz.error = more.split('\t').join('\n'); wiz.step = wiz.from; return wizardShown(); }    // steps come one a line
     if (word != 'step') return;
     wiz.error = '';
     if (more == 'source') { wiz.sources = wiz.comingSources; wiz.pick = -1; for (var i = 0; i < wiz.sources.length; i++) if (wiz.sources[i].found && wiz.sources[i].key != 'file') { wiz.pick = i; break; } }
@@ -5535,7 +6422,7 @@ function wizClicked(event) {
 // modal flies back into the onion, and the onion glows blue. "tor failed WHY" stops the pulse in
 // yellow and says why; until Tor is turned off nothing is fetched, not through Tor and not
 // directly. With Reduce motion on, nothing pulses or flares: the stations still light.
-var TOR_STATIONS = ['Directory', 'Certificates', 'Relays', 'Circuits', 'Ready'], TOR_RUN = 0.9, TOR_BEAT = 1.4, TOR_FLARE = 0.7;    // DECLARED(seconds: a pulse from one station to the next; one breath of the onion while it connects; the last station's flare, then the flight back)
+var TOR_STATIONS = ['Directory', 'Certificates', 'Relays', 'Circuits', 'Ready'], TOR_RUN = 0.9, TOR_BEAT = 1.4, TOR_FLARE = 0, TOR_QUIET = 95;    // DECLARED(seconds: a pulse from one station to the next; one breath of the onion while it connects; no wait after the last station, the modal flies back at once; and how long the onion breathes after lzrprf last said a step, longer than lzrprf's $TOR_SECONDS, so a word that never came cannot keep it breathing)
 var torState = 'off', torStep = 0, torPct = 0, torWords = '', torLitAt = 0, torTimer = null, torIcon = null, torView = null, TOR_BLUE;
 function torPressed() {
     if (modalOpen) return;
@@ -5568,7 +6455,7 @@ function torTold(rest) {
     if (word == 'step') { torState = 'starting'; torStep = +parts[1] || 0; torPct = +parts[2] || 0; torWords = parts.slice(3).join(' '); torLitAt = Date.now(); }
     else if (word == 'on') {
         torState = 'on'; torStep = TOR_STATIONS.length; torPct = 100; torWords = 'Connected to Tor'; torLitAt = Date.now();
-        if (modalOpen && modalKind == 'tor') $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(flightAllowed() ? TOR_FLARE : 0.3, hand, 'torLanded:', $(), false);    // the flare, then the flight into the onion
+        if (modalOpen && modalKind == 'tor') $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(TOR_FLARE, hand, 'torLanded:', $(), false);    // the flight into the onion, in the next turn of the window, once the last station is drawn lit
     }
     else if (word == 'off') { torState = 'off'; torStep = 0; torPct = 0; torWords = ''; if (modalOpen && modalKind == 'tor') closeModal(); }
     else if (word == 'failed') { torState = 'failed'; torWords = parts.slice(1).join(' '); }
@@ -5582,7 +6469,7 @@ function torChanged() {
     torRedrawn();
 }
 function torRedrawn() { if (torIcon) torIcon.needsDisplay = true; if (torView) torView.needsDisplay = true; }
-function torMoving() { return flightAllowed() && (torState == 'starting' || Date.now() - torLitAt < TOR_FLARE * 1000); }
+function torMoving() { return flightAllowed() && !!win && (win.occlusionState & 2) != 0 && (torState == 'starting' && Date.now() - torLitAt < TOR_QUIET * 1000 || Date.now() - torLitAt < TOR_FLARE * 1000); }    // 2: the window is seen; an animation nobody sees costs nothing
 function torTicking() {
     if (torTimer || !torMoving()) return;
     torTimer = $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(1 / 30, hand, 'torTick:', $(), true);
@@ -5657,8 +6544,9 @@ function modal(title, about, choices, kind) {
     panelTitle.textColor = WHITE;
     panelSub.stringValue = $(about);
     panelSub.textColor = WHITE;
-    panelSub.hidden = kind == 'tech' || kind == 'tor';    // the list says its own first sentence; Tor's beam says its own words
+    panelSub.hidden = kind == 'tech' || kind == 'tor' || kind == 'tool';    // the list says its own first sentence; Tor's beam says its own words
     torView.hidden = kind != 'tor';
+    toolScroll.hidden = kind != 'tool';
     panelText.string = $('');
     panelScroll.hidden = kind != 'big';
     form.hidden = kind != 'form';
@@ -5704,7 +6592,7 @@ function closeModal() {
     modalOpen = false;
     veil.hidden = !back;
     bar.enabled = free;
-    logs.enabled = free;
+    logs.enabled = free || listing == 'log';
     redrawn();
     if (free) win.makeFirstResponder(bar);
 }
@@ -5712,10 +6600,12 @@ function closeModal() {
 // A modal opened from an icon of the bottom bar flies out of that icon into its place, and back
 // into it when it closes, so the eye sees where it came from and where it went. One picture of the
 // panel is taken once the modal is laid out and drawn larger (or smaller) each frame, eased, for
-// FLIGHT_SECONDS; the panel itself is clear meanwhile and the veil fades with it. Every icon of the
+// FLIGHT_SECONDS; the panel itself is hidden meanwhile. Nothing grows faint: the picture is whole the whole
+// way, and the veil is there from the first frame to the last. Every icon of the
 // bar flies the same way: a press names its icon in flyNext, and the modal that opens within
-// FLIGHT_ASKED milliseconds takes it. With Reduce motion on, nothing flies.
-var FLIGHT_SECONDS = 0.3, FLIGHT_ASKED = 3000, flyNext = null, modalFrom = null, flight = null, flyer;
+// FLIGHT_ASKED milliseconds takes it. With Reduce motion on, nothing flies. A frame that fails ends
+// the flight, so its timer never outlives it.
+var FLIGHT_SECONDS = 0.16, FLIGHT_ASKED = 3000, flyNext = null, modalFrom = null, flight = null, flyer;    // DECLARED(0.16 s: ten frames at 60 a second, a movement the eye follows and never waits for)
 function boxOf(rect) { return { x: rect.origin.x, y: rect.origin.y, w: rect.size.width, h: rect.size.height }; }
 function flightAllowed() { return !$.NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion; }
 function flyOut() {
@@ -5750,7 +6640,7 @@ function flew(now) {
         var picture = $.NSImage.alloc.initWithSize(r.size);
         picture.addRepresentation(rep);
         flyer.image = picture;
-        panel.alphaValue = 0;
+        panel.hidden = true;
         flyer.hidden = false;
         flight.began = now;
     }
@@ -5758,8 +6648,6 @@ function flew(now) {
     var e = flight.opening ? 1 - Math.pow(1 - t, 3) : t * t * t;    // out of the icon fast and settling; into it slowly, then quickly
     var a = flight.from, b = flight.to, at = function (one, two) { return one + (two - one) * e; };
     flyer.frame = $.NSMakeRect(at(a.x, b.x), at(a.y, b.y), Math.max(1, at(a.w, b.w)), Math.max(1, at(a.h, b.h)));
-    flyer.alphaValue = flight.opening ? 0.35 + 0.65 * e : 1 - 0.75 * e;
-    veil.alphaValue = flight.opening ? e : 1 - e;
     if (t >= 1) flightEnded();
 }
 function flightEnded() {
@@ -5768,15 +6656,14 @@ function flightEnded() {
     flight = null;
     if (flyer) flyer.hidden = true;
     if (!panel) return;
-    panel.alphaValue = 1;
-    veil.alphaValue = 1;
+    panel.hidden = false;
     if (was && !was.opening) { veil.hidden = !modalOpen; redrawn(); }
 }
 
 function placeModal() {
     if (!veil) return;
     var all = root.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
-    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', tor = modalKind == 'tor', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : tor ? 640 : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : tor ? 320 : 230;
+    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', tor = modalKind == 'tor', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : tor ? 640 : modalKind == 'tool' ? TOOL_WIDE : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : tor ? 320 : modalKind == 'tool' ? Math.min(TOOL_HIGH, high - 48) : 230;
     veil.frame = $.NSMakeRect(0, 0, wide, high);
     panel.frame = $.NSMakeRect(Math.round((wide - w) / 2) - M, Math.round((high - h) / 2) - M, w + 2 * M, h + 2 * M);
     panel.needsDisplay = true;
@@ -5785,10 +6672,15 @@ function placeModal() {
     engineField.frame = $.NSMakeRect(M + 26, M + 68, w - 52, 26);
     var withPath = !pathField.hidden;
     pathField.frame = $.NSMakeRect(M + 26, M + 66, w - 52, 26);
-    wizardView.frame = $.NSMakeRect(M + 26, M + 64 + (withPath ? 38 : 0), w - 52, Math.max(40, h - 64 - 116 - (withPath ? 38 : 0)));
+    var more = 0;    // what the wizard says in yellow may be numbered steps, one a line: it takes the room it needs from the list under it
+    if (wizard && wiz && wiz.error) { var rows = 0; wiz.error.split('\n').forEach(function (line) { rows += Math.max(1, Math.ceil(line.length * 7 / (w - 52))); }); more = Math.max(0, Math.min(rows * 17 + 4 - 52, h - 64 - 116 - 60)); }
+    if (more) { var sub = panelSub.frame; panelSub.frame = $.NSMakeRect(sub.origin.x, sub.origin.y - more, sub.size.width, sub.size.height + more); }
+    wizardView.frame = $.NSMakeRect(M + 26, M + 64 + (withPath ? 38 : 0), w - 52, Math.max(40, h - 64 - 116 - more - (withPath ? 38 : 0)));
     panelScroll.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 170));
     form.frame = $.NSMakeRect(M + 26, M + 64, w - 52, h - 154);
     torView.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 128));
+    toolScroll.frame = $.NSMakeRect(M + 26, M + 64, w - 52, Math.max(40, h - 134));
+    if (modalKind == 'tool') toolSized();
     if (tech) {    // the list fills the panel between its title and its Close button
         var listHigh = Math.max(40, h - 134);
         under.frame = $.NSMakeRect(M + 26, M + 64, w - 52, listHigh);
@@ -6123,9 +7015,14 @@ ObjC.registerSubclass({ name: 'LzrprfHome', superclass: 'NSView', methods: {
     'mouseExited:': { implementation: function (event) { hovered('home', null); } }
 } });
 
+ObjC.registerSubclass({ name: 'LzrprfShot', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { try { paintShot(); } catch (e) { } } },    // a frame that cannot be drawn is skipped: it never ends the window
+    'hitTest:': { implementation: function (point) { return $(); } }    // no press is its own: every one goes to what lies under it
+} });
+
 ObjC.registerSubclass({ name: 'LzrprfList', superclass: 'NSView', methods: {
     'isFlipped': { implementation: function () { return true; } },
-    'drawRect:': { implementation: function (dirty) { paintList(); } },
+    'drawRect:': { implementation: function (dirty) { paintList(dirty); } },
     'mouseDown:': { implementation: function (event) { listClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('list', event); } },
     'mouseExited:': { implementation: function (event) { hovered('list', null); } }
@@ -6162,6 +7059,18 @@ ObjC.registerSubclass({ name: 'LzrprfTorIcon', superclass: 'NSButton', methods: 
     'drawRect:': { implementation: function (dirty) { torIconDrawn(torIcon); } },
     'mouseEntered:': { implementation: function (event) { hovered('torIcon', event); } },
     'mouseExited:': { implementation: function (event) { hovered('torIcon', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfToolIcon', superclass: 'NSButton', methods: {
+    'drawRect:': { implementation: function (dirty) { toolIconDrawn(toolIcon); } },
+    'mouseEntered:': { implementation: function (event) { hovered('toolIcon', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('toolIcon', null); } }
+} });
+
+ObjC.registerSubclass({ name: 'LzrprfTool', superclass: 'NSView', methods: {
+    'isFlipped': { implementation: function () { return true; } },
+    'drawRect:': { implementation: function (dirty) { try { paintTool(); } catch (e) { } } },    // a list that cannot be drawn is left undrawn: it never ends the window
+    'mouseDown:': { implementation: function (event) { toolClicked(event); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfTorBeam', superclass: 'NSView', methods: {
@@ -6259,11 +7168,14 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     } },
     'first:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 1'); } } },
     'second:': { types: ['void', ['id']], implementation: function (sender) { if (asking) { strip(['']); say('button ' + asked + ' 2'); } } },
-    'log:': { types: ['void', ['id']], implementation: function (sender) { if (logs.enabled && !modalOpen) { techHidden(); flyNext = { icon: logs, at: Date.now() }; sent('log'); } } },
+    'log:': { types: ['void', ['id']], implementation: function (sender) { logPressed(); } },
     'techs:': { types: ['void', ['id']], implementation: function (sender) { flyNext = { icon: techs, at: Date.now() }; techToggled(); } },
-    'flown:': { types: ['void', ['id']], implementation: function (timer) { flew(Date.now()); } },
+    'flown:': { types: ['void', ['id']], implementation: function (timer) { try { flew(Date.now()); } catch (fault) { flightEnded(); } } },
     'tor:': { types: ['void', ['id']], implementation: function (sender) { torPressed(); } },
-    'torTick:': { types: ['void', ['id']], implementation: function (timer) { torTicked(); } },
+    'tool:': { types: ['void', ['id']], implementation: function (sender) { toolPressed(); } },
+    'torTick:': { types: ['void', ['id']], implementation: function (timer) { try { torTicked(); } catch (fault) { torTimer.invalidate; torTimer = null; } } },
+    'windowDidChangeOcclusionState:': { types: ['void', ['id']], implementation: function (note) { torTicking(); } },    // the onion breathes again once the window is seen again
+    'shotTick:': { types: ['void', ['id']], implementation: function (timer) { try { shotTicked(); } catch (e) { timer.invalidate; shot = null; } } },
     'torLanded:': { types: ['void', ['id']], implementation: function (timer) { torLanded(); } },
     'importing:': { types: ['void', ['id']], implementation: function (sender) { if (!INCOGNITO) importOpened(); } },
     'incognito:': { types: ['void', ['id']], implementation: function (sender) { say('incognito'); } },    // lzrprf starts a second lzrprf, in incognito: this process starts nothing
@@ -6287,7 +7199,7 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'tabsPage:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) listOpened('tabs'); } },
     'nextTab:': { types: ['void', ['id']], implementation: function (sender) { tabMoved(1); } },
     'previousTab:': { types: ['void', ['id']], implementation: function (sender) { tabMoved(-1); } },
-    'tabNumber:': { types: ['void', ['id']], implementation: function (sender) { var n = sender.tag < 0 ? tabs.length - 1 : sender.tag; if (takes() && n >= 0 && n < tabs.length && n != selected) tabSaid('tab select ' + n); } },
+    'tabNumber:': { types: ['void', ['id']], implementation: function (sender) { var n = sender.tag < 0 ? tabs.length - 1 : sender.tag; if (!modalOpen && !asking && n >= 0 && n < tabs.length && n != selected) tabSaid('tab select ' + n); } },
     'markMenu:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('mark open ' + sender.tag); } },
     'folderChosen:': { types: ['void', ['id']], implementation: function (sender) { folderChosen(); } },
     'controlTextDidBeginEditing:': { types: ['void', ['id']], implementation: function (note) { belt.needsDisplay = true; } },
@@ -6295,20 +7207,28 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'modalPress:': { types: ['void', ['id']], implementation: function (sender) { var act = modalActions[sender.tag]; if (modalOpen && act) act(); } },
     'bar:': { types: ['void', ['id']], implementation: function (sender) { if (bar.enabled) win.makeFirstResponder(bar); } },
     'applicationShouldTerminateAfterLastWindowClosed:': { types: ['bool', ['id']], implementation: function (sender) { return true; } },
+    // What lzrprf wrote, as it comes. Only the new bytes are looked at for a line end, and only the whole
+    // lines are read as text: a line that comes in many pieces (a picture's) is not read again with every
+    // piece. A line that is no UTF-8 is read as Latin-1, and a line whose handling fails is passed over:
+    // neither keeps the lines after it from being heard, and the window is always told of the next bytes.
     'heard:': { types: ['void', ['id']], implementation: function (note) {
         var data = from.availableData;
         if (data.length == 0) { app.terminate(win); return; }    // lzrprf is gone: so is its window
-        held.appendData(data);
-        var all = $.NSString.alloc.initWithDataEncoding(held, 4);
-        if (!all.isNil()) {
-            var text = all.js, end = text.lastIndexOf('\n');
-            if (end >= 0) {
-                held.setLength(0);
-                held.appendData($(text.slice(end + 1)).dataUsingEncoding(4));
-                text.slice(0, end).split('\n').forEach(heard);
+        try {
+            if (!NEWLINE) NEWLINE = $('\n').dataUsingEncoding(4);
+            var start = +held.length;    // a length and a place in bytes come from the bridge as text: each is made a number before it is added to
+            held.appendData(data);
+            var end = held.rangeOfDataOptionsRange(NEWLINE, 1, $.NSMakeRange(start, held.length - start));    // 1: from the end
+            if (end.length > 0) {
+                var upto = +end.location, whole = held.subdataWithRange($.NSMakeRange(0, upto));
+                held = $.NSMutableData.dataWithData(held.subdataWithRange($.NSMakeRange(upto + 1, held.length - upto - 1)));
+                var text = $.NSString.alloc.initWithDataEncoding(whole, 4);
+                if (text.isNil()) text = $.NSString.alloc.initWithDataEncoding(whole, 5);
+                text.js.split('\n').forEach(function (line) { try { heard(line); } catch (fault) { } });
             }
+        } finally {
+            from.waitForDataInBackgroundAndNotify;
         }
-        from.waitForDataInBackgroundAndNotify;
     } }
 } });
 
@@ -6352,7 +7272,7 @@ function menus() {
     app.mainMenu = main;
 }
 
-function tabMoved(by) { if (takes() && tabs.length > 1) tabSaid('tab select ' + ((selected + by + tabs.length) % tabs.length)); }
+function tabMoved(by) { if (!modalOpen && !asking && tabs.length > 1) tabSaid('tab select ' + ((selected + by + tabs.length) % tabs.length)); }
 
 // The four places a test replaces, to keep the window off the screen and to read what it holds.
 function kind() { return 0; }                // an application with a window and a place in the Dock
@@ -6494,6 +7414,8 @@ function run(argv) {
     logs.enabled = false;
     torIcon = $.LzrprfTorIcon.alloc.initWithFrame($.NSMakeRect(0, 0, 26, 24));    // Tor, left of the log: grey while off, blue while on
     torIcon.bordered = false; torIcon.title = $(''); torIcon.toolTip = $('Tor: off'); torIcon.target = hand; torIcon.action = 'tor:'; root.addSubview(torIcon); tracked(torIcon);
+    toolIcon = $.LzrprfToolIcon.alloc.initWithFrame($.NSMakeRect(0, 0, 26, 24));    // the application's tool, left of Tor
+    toolIcon.bordered = false; toolIcon.title = $(''); toolIcon.toolTip = $("The application's tool"); toolIcon.target = hand; toolIcon.action = 'tool:'; root.addSubview(toolIcon); tracked(toolIcon);
     homeView = $.LzrprfHome.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 600));
     root.addSubview(homeView);
     listScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 600));
@@ -6569,6 +7491,14 @@ function run(argv) {
     torView = $.LzrprfTorBeam.alloc.initWithFrame($.NSMakeRect(0, 0, 580, 190));
     torView.hidden = true;
     panel.addSubview(torView);
+    toolScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 700, 400));    // the list of the application's tool, in the modal
+    toolScroll.hasVerticalScroller = true;
+    toolScroll.borderType = 0;
+    toolScroll.drawsBackground = false;
+    toolView = $.LzrprfTool.alloc.initWithFrame($.NSMakeRect(0, 0, 700, 400));
+    toolScroll.documentView = toolView;
+    toolScroll.hidden = true;
+    panel.addSubview(toolScroll);
     tracked(wizardView);
     pathField = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 400, 26));
     pathField.font = sans(13);

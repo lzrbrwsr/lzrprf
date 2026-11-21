@@ -371,6 +371,21 @@ if ($part eq 'curl') {
 my ($kind) = $address =~ m{/out/(\w+)};
 $kind //= '';
 if ($kind eq 'spin') { 1 while 1 }
+if ($ENV{LZRPRF_TOOL}) {
+    my @in = <STDIN>;
+    if (grep { /^job gui test\.badform / } @in) { print "title Standin\nbogus line\n"; exit 0 }
+    print "title Standin\nwords Words of the stand-in.\nhead Found\nbutton sense Look\nbutton act Off\nbutton undo On\n";
+    my $n = 0;
+    for (@in) {
+        if (/^proc (\d+) \d+ \d+ \S+\t\S*spyd\t/) { print "row $n proc\tProcess $1\tA process the stand-in names.\nstop $n $1\n"; $n++ }
+        elsif (/^job (?:gui|system) (\S+) \d+ \S+\t/) { print "row $n job\tJob $1\tA job the stand-in names.\nquiet $n $1\n"; $n++ }
+        elsif (/^kept (\S+)\t/) { print "row $n kept\tKept $1\tA job you switched off.\nwake $n $1\n"; $n++ }
+    }
+    my $signed = join ',', map { /^sign \S+\t(\S+)\t(\S+)$/ ? "$1/$2" : () } @in;
+    my $open = join ',', map { /^open (\S+)$/ ? $1 : () } @in;
+    print "row $n bad\tNever seen\tsigned=$signed open=$open\nstop $n 1\nstop $n 99999\nquiet $n com.never.seen\nwake $n com.never.kept\n" if $in[0] =~ /sense/;
+    exit 0;
+}
 if ($ENV{LZRPRF_PICTURE}) {
     my $picture = do { local $/; <STDIN> } // '';
     print STDERR "picture\t$address\t", ($picture =~ /\A=(view|fonts|sheets)/ ? $1 : 'none'), "\n";
@@ -412,12 +427,12 @@ sub live_reply {                          # [C19] the one reply lzrprf writes to
     while (length $$held < $headlen + $bodylen) { sysread(STDIN, $$held, 65536, length $$held) or exit 0 }
     return ($status, substr($$held, 0, $headlen, ''), substr($$held, 0, $bodylen, ''));
 }
-sub live_page {                           # a page kept running, as the application's scripted module keeps one (page.rs): its first list and "=ready", then one answer, ending in "=ready", for each line lzrprf sends; every line is reported
+sub live_page {                           # a page kept running, as the application's scripted module keeps one (src/page/scripted.rs): its first list and "=ready", then one answer, ending in "=ready", for each line lzrprf sends; every line is reported
     print STDERR "live\t$address\tpid $$\n";
     my ($held, $typed) = ($after, '');
     my ($origin) = $address =~ m{^(https://[^/]+)};
     my $first = "=page\nPp0\nT\@before any click\n";
-    if ($kind eq 'livescript') {          # [C19] its reader meets <script src="/s.js"> and asks lzrprf for it while the page is read, before its first list, as the application's loading.rs does through page.rs; the script writes what came into the page's text
+    if ($kind eq 'livescript') {          # [C19] its reader meets <script src="/s.js"> and asks lzrprf for it while the page is read, before its first list, as the application's loading.rs does through src/page/scripted_wire.rs; the script writes what came into the page's text
         print "=fetch GET 0 - $origin/s.js\n";
         my ($status, $head, $body) = live_reply(\$held);
         print STDERR "live\t$address\tscript $status " . length($body) . "\n";
@@ -700,12 +715,193 @@ function hovers() {                          // the pointer moves over the tabs 
     tabsView.mouseMoved(ev); var tab = hover.tab; marksView.mouseMoved(ev); var mark = hover.mark; tabsView.mouseExited(ev);
     return 'tab=' + tab + ' mark=' + mark + ' out=' + hover.tab;
 }
+function shotTried() {                     // the plus of the home screen fires its shot: there at once, no press is its own, gone within half a second; the test waits here, the window never does
+    if (!flightAllowed()) { homeShot(3); return 'still ' + (shot === null && shotView === null); }
+    homeShot(3);
+    var fired = !!shot && !shotView.hidden, hit = shotView.hitTest($.NSMakePoint(5, 5));
+    $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(0.45));
+    return 'fired=' + fired + ' through=' + (!hit || hit.isNil()) + ' gone=' + (shot === null && shotView.hidden);
+}
+function wordmarkTried() {                  // the name of the home screen drawn into a picture of the test's own: its white core lies on a stroke of the L and not in the gap after it
+    var image = $.NSImage.alloc.initWithSize($.NSMakeSize(800, 100)), fault = 'none';
+    image.lockFocus;
+    $.NSColor.blackColor.setFill;
+    $.NSBezierPath.fillRect($.NSMakeRect(0, 0, 800, 100));
+    try { wordmark(400, 20, 46, 760); } catch (e) { fault = plain(e).slice(0, 80); }
+    image.unlockFocus;
+    var rep = $.NSBitmapImageRep.imageRepWithData(image.TIFFRepresentation), scale = rep.pixelsWide / 800, left = 400 - 380 * 46 / 70;
+    function white(x, y) { var c = rep.colorAtXY(Math.round(x * scale), Math.round((100 - y) * scale)).colorUsingColorSpace($.NSColorSpace.sRGBColorSpace); return c.redComponent > 0.7 && c.blueComponent > 0.7 ? 1 : 0; }
+    return 'fault=' + fault + ' stroke=' + white(left, 43) + ' gap=' + white(left + 70 * 46 / 70, 43);
+}
+function paintedOff(w, h, paint) {          // a painting function drawn into a picture of the test's own, called here and not from a drawRect that would swallow what it throws: its fault, and whether it drew anything (its bytes differ from the same black picture with nothing drawn)
+    function packed(drawn) {
+        var image = $.NSImage.alloc.initWithSize($.NSMakeSize(w, h)), fault = 'none';
+        image.lockFocus;
+        $.NSColor.blackColor.setFill;
+        $.NSBezierPath.fillRect($.NSMakeRect(0, 0, w, h));
+        if (drawn) try { paint(); } catch (e) { fault = plain(e).slice(0, 80); }
+        image.unlockFocus;
+        return [fault, image.TIFFRepresentation];
+    }
+    var blank = packed(false), drawn = packed(true);
+    return drawn[0] + '/' + (drawn[1].isEqualToData(blank[1]) ? 'dark' : 'lit');
+}
+function toolButtonOf(act) { for (var k = 0; k < modalActions.length; k++) if (modalActions[k] == act) return panelButtons[k]; return null; }
+function toolRowPressed(i) {                 // a press on a row of the tool's list, as a real mouse-down event at its middle
+    var one = toolLaid().items.filter(function (it) { return it.row && it.row.i == i; })[0];
+    if (!one) return;
+    var at = toolView.convertPointToView($.NSMakePoint(60, one.y + one.h / 2), frameView);
+    toolClicked($.NSEvent.mouseEventWithTypeLocationModifierFlagsTimestampWindowNumberContextEventNumberClickCountPressure(1, at, 0, 0, win.windowNumber, $(), 0, 1, 1));
+}
+function toolState() {
+    var act = toolButtonOf(toolActed), undo = toolButtonOf(toolUndone), confirm = toolButtonOf(toolConfirmed);
+    return (tool ? tool.rows.map(function (row) { return row.i + row.mode + (row.on ? '+' : '-'); }).join('') : 'none') + ' act=' + (act ? act.enabled : 'none') + ' undo=' + (undo ? undo.enabled : 'none') + ' confirm=' + (confirm ? confirm.title.js + ':' + confirm.enabled : 'none');
+}
+function toolTried() {                       // the application's tool told by lines as lzrprf writes them; what the window says is caught here and never reaches lzrprf
+    var caught = [], sayAll = say, out = [];
+    say = function (line) { caught.push(line); };
+    try {
+        toolPressed();
+        var list = ['tool busy Asking the application', 'tool row 9 act\tEARLY\tbefore begin\tnot in a list\t', 'tool begin', 'tool title Test tool', 'tool words What runs on this computer.', 'tool head Running now', 'tool button sense Look again', 'tool button act Switch off', 'tool button undo Switch on again',
+            'tool row 0 act\tAGENT\ttest.spy.agent\tA launchd job of your account.\tSwitches off gui/501/test.spy.agent', 'tool row 1 none\tSYSTEM\tcom.apple.spyish\tPart of macOS.\t', 'tool row 2 act\tPROCESS\tspyd\tA process of your account.\tEnds 4242', 'tool row 3 undo\tOFF\ttest.spy.old\tYou switched it off.\tSwitches on again gui/501/test.spy.old', 'tool end'];
+        list.forEach(function (line) { heard(line); });
+        if (flight) flightEnded();    // the panel's flight out of the icon, which the run loop would end within a sixth of a second: ended here, so the panel is in its place and seen
+        out.push('open=' + caught.join(',') + ' modal=' + (modalOpen && modalKind == 'tool') + ' ' + toolState());
+        toolRowPressed(0); out.push(toolState());
+        toolRowPressed(1); toolRowPressed(2); out.push(toolState());
+        toolRowPressed(0); out.push(toolState());
+        toolRowPressed(2); out.push(toolState());
+        toolRowPressed(0); toolRowPressed(2);
+        out.push('seen=' + (toolView.visibleRect.size.height > 0) + ' paint=' + paintedOff(toolView.frame.size.width, Math.min(toolView.frame.size.height, 1200), paintTool) + ' icon=' + paintedOff(26, 24, function () { toolIconDrawn(toolIcon); }));
+        toolButtonOf(toolActed).performClick(null);
+        out.push('asked=' + tool.confirm + ' said=' + caught.length + ' ' + toolState() + ' paint=' + paintedOff(toolView.frame.size.width, Math.min(toolView.frame.size.height, 1200), paintTool));
+        toolButtonOf(toolBacked).performClick(null); toolRowPressed(2); toolButtonOf(toolActed).performClick(null);
+        out.push('back ' + toolState());
+        toolButtonOf(toolConfirmed).performClick(null);
+        out.push('sent=' + caught.slice(1).join(',') + ' busy=' + !!tool.busy + ' ' + toolState());
+        list.slice(2, -1).concat(['tool said Switched off 1 of 1.', 'tool end']).forEach(function (line) { heard(line); });
+        out.push('again ' + toolState() + ' busy=' + !!tool.busy);
+        heard('tool none');
+        out.push('none tool=' + (tool === null) + ' modal=' + modalOpen + ' paint=' + paintedOff(100, 100, paintTool));
+        heard('tool back 2');
+        out.push('back=' + toolBack + ' tip=' + plain(toolIcon.toolTip.js) + ' icon=' + paintedOff(26, 24, function () { toolIconDrawn(toolIcon); }));
+        out.push('said=' + caught.length);
+    } catch (e) { out.push('fault ' + plain(e).slice(0, 120)); }
+    say = sayAll;
+    toolBack = 0; toolIcon.toolTip = $('');
+    if (modalOpen) closeModal();
+    if (flight) flightEnded();
+    return out.join(' ; ');
+}
+function logFilled(lines) {                  // the log page as lzrprf tells it, with this many lines
+    heard('log begin'); heard('log note What is kept, in full.');
+    if (lines >= 0) heard('log part This window');
+    for (var i = 0; i < lines; i++) heard('log line 2026-11-21T10:' + (10 + i % 50) + ':00Z\t' + (i % 3 ? 'site.test answered 200 with ' + i + ' bytes' : 'you typed https://site.test/' + i));
+    heard('log end');
+}
+function logTried() {                        // the log page drawn off the screen when empty, short and long, then closed by each of its three ways, with and without a question of lzrprf open
+    var caught = [], sayAll = say, out = [], keep = [logRows, logNote, asking, asked];
+    say = function (line) { caught.push(line); };
+    try {
+        [-1, 0, 3, 600].forEach(function (n) {
+            logFilled(n);
+            var began = Date.now(), painted = paintedOff(listView.frame.size.width, Math.min(listView.frame.size.height, 3000), function () { paintLog(null); });
+            out.push(n + ':' + (listing == 'log') + ':' + painted + ':' + (logLaid ? logLaid.rows.length : 0) + ':' + ((Date.now() - began) < 20000));
+        });
+        var ways = [['pill', function () { var shut = logShut(logPlaced()), at = listView.convertPointToView($.NSMakePoint(shut.origin.x + 44, shut.origin.y + 15), frameView); listClicked($.NSEvent.mouseEventWithTypeLocationModifierFlagsTimestampWindowNumberContextEventNumberClickCountPressure(1, at, 0, 0, win.windowNumber, $(), 0, 1, 1)); }],
+            ['arrow', function () { navPressed(0); }], ['cog', function () { cogItems().filter(function (item) { return item[0] == 'Show the log'; })[0][3](); }]];
+        [false, true].forEach(function (question) {
+            ways.forEach(function (way) {
+                logFilled(3);
+                caught = [];
+                if (question) { asking = true; asked = 41; }
+                var was = listing;
+                way[1]();
+                var line = way[0] + (question ? '?' : '') + '=' + was + '>' + listing + ':page=' + !scroll.hidden + ':closing=' + logClosing + ':said=' + caught.join(',');
+                if (question) { heard('ask Keep a log?\tNo\tYes'); line += ':then=' + caught.slice(1).join(','); }
+                out.push(line);
+                asking = keep[2]; asked = keep[3]; logClosing = false;
+            });
+        });
+    } catch (e) { out.push('fault ' + plain(e).slice(0, 120)); }
+    say = sayAll;
+    asking = keep[2]; asked = keep[3]; logClosing = false;
+    if (listing == 'log') { listing = null; place(); }
+    logRows = keep[0]; logNote = keep[1]; logLaid = null;
+    return out.join(' ');
+}
+function importStepsTried() {                // what the import wizard shows when lzrprf says macOS keeps Chrome's files from it: lzrprf's own words for that, given here as the test read them from lzrprf
+    if (typeof STEPS == 'undefined') return 'none';
+    var out;
+    try {
+        wiz = { step: 'source', from: 'source', sources: [], profiles: [], comingSources: [], comingProfiles: [], key: 'chrome', label: 'Chrome', pick: -1, viaProfile: false, preview: null, done: null, error: '', waiting: '' };
+        heard('import refused ' + STEPS);
+        var f = panelSub.frame, need = panelSub.cell.cellSizeForBounds($.NSMakeRect(0, 0, f.size.width, 100000)).height;
+        out = 'modal=' + (modalOpen && modalKind == 'wizard') + ' shown=' + !panelSub.hidden + ' fits=' + (need <= f.size.height + 1) + ' need=' + Math.ceil(need) + ' high=' + f.size.height + ' text=' + plain(panelSub.stringValue.js.replace(/\n/g, '|'));
+    } catch (e) { out = 'fault ' + plain(e).slice(0, 120); }
+    if (modalOpen) closeModal();
+    wiz = null;
+    if (flight) flightEnded();
+    return out;
+}
+function flightTried() {                     // a step of the panel's flight that throws: the timer that steps it must stop, not throw sixty times a second for ever
+    var was = flew, steps = 0, out;
+    try {
+        flew = function () { steps++; throw new Error('a step that fails'); };
+        flightBegun({ x: 0, y: 0, w: 10, h: 10 }, { x: 20, y: 20, w: 40, h: 40 }, true);
+        var timer = flight.timer;
+        $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(0.25));
+        out = 'steps=' + steps + ' flight=' + (flight === null) + ' timer=' + timer.isValid;
+    } catch (e) { out = 'fault ' + plain(e).slice(0, 120); }
+    flew = was;
+    if (flight) flightEnded();
+    return out;
+}
 function told(word, rest) {
-    if (step == 0 && word == 'idle') { step = 1; say('test start title=' + win.title.js + ' visible=' + win.visible + ' policy=' + app.activationPolicy + ' bar=' + bar.stringValue.js + ' enabled=' + bar.enabled + ' menu=' + app.mainMenu.itemAtIndex(0).submenu.title.js); bar.stringValue = $(GO); bar.performClick(null); }
+    if (step == 0 && word == 'idle') { step = 1; say('test shot ' + shotTried()); say('test wordmark ' + wordmarkTried()); say('test start title=' + win.title.js + ' visible=' + win.visible + ' policy=' + app.activationPolicy + ' bar=' + bar.stringValue.js + ' enabled=' + bar.enabled + ' menu=' + app.mainMenu.itemAtIndex(0).submenu.title.js); bar.stringValue = $(GO); bar.performClick(null); }
     else if (step == 1 && word == 'ask') { step = 2; say('test asked ' + first.title.js + '|' + second.title.js + '|bar=' + bar.enabled + '|' + plain(words.stringValue.js).slice(0, 60)); second.performClick(null); }
-    else if (step == 2 && word == 'idle') { step = 3; say('test page title=' + win.title.js + ' visible=' + win.visible + ' drawn=' + pictures + ' links=' + links() + ' editable=' + page.editable + ' menu=' + page.menuForEvent(null).numberOfItems + ' bar=' + bar.stringValue.js + ' words=' + plain(words.stringValue.js) + ' text=' + plain(page.string.js)); say('test made ' + plain(made.string.js)); say('test hover ' + hovers()); say('test secure ' + (secureLines ? secureLines.length + ' ' + secureLines.filter(function (one) { return one.charAt(0) == '#'; }).join('|') : 'none')); say('test nav ' + navState.join(' ')); say('test suggest ' + suggested('site.t').map(function (one) { return one.kind + ' ' + one.url; }).join('|') + ' none=' + suggested('nowhere-at-all').length); techs.performClick(null); say('test tech open=' + techOpen + ' shown=' + (!veil.hidden && modalKind == 'tech' && !under.hidden && panel.frame.size.width > 700) + ' list=' + under.superview.isEqual(panel) + ' tips=' + logs.toolTip.js + '|' + techs.toolTip.js + ' flies=' + (flightAllowed() ? !!flight && flight.opening && flight.from.w == techs.frame.size.width : 'still')); techs.performClick(null); say('test techclosed ' + techOpen + ' back=' + (flightAllowed() ? !!flight && !flight.opening && flight.to.x == techs.frame.origin.x && !veil.hidden : 'still')); logs.performClick(null); }
+    else if (step == 2 && word == 'idle') { step = 3; say('test page title=' + win.title.js + ' visible=' + win.visible + ' drawn=' + pictures + ' links=' + links() + ' editable=' + page.editable + ' menu=' + page.menuForEvent(null).numberOfItems + ' bar=' + bar.stringValue.js + ' strip=' + plain(words.stringValue.js) + ' words=' + plain(words.toolTip.js) + ' text=' + plain(page.string.js)); say('test made ' + plain(made.string.js)); say('test hover ' + hovers()); say('test secure ' + (secureLines ? secureLines.length + ' ' + secureLines.filter(function (one) { return one.charAt(0) == '#'; }).join('|') : 'none')); say('test nav ' + navState.join(' ')); say('test suggest ' + suggested('site.t').map(function (one) { return one.kind + ' ' + one.url; }).join('|') + ' none=' + suggested('nowhere-at-all').length); techs.performClick(null); say('test tech open=' + techOpen + ' shown=' + (!veil.hidden && modalKind == 'tech' && !under.hidden && panel.frame.size.width > 700) + ' list=' + under.superview.isEqual(panel) + ' tips=' + logs.toolTip.js + '|' + techs.toolTip.js + ' flies=' + (flightAllowed() ? !!flight && flight.opening && flight.from.w == techs.frame.size.width : 'still')); techs.performClick(null); say('test techclosed ' + techOpen + ' back=' + (flightAllowed() ? !!flight && !flight.opening && flight.to.x == techs.frame.origin.x && !veil.hidden : 'still')); logs.performClick(null); }
     else if (step == 3 && word == 'ask') { step = 5; say('test log a question came: ' + first.title.js + '|' + second.title.js); app.terminate(null); }    // with nothing kept and no log, the Log button has no question
-    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.stringValue.js).slice(0, 600) + '|' + plain(page.string.js).slice(0, 2000)); say('test logmade ' + plain(made.string.js)); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE, SETTINGS)); app.terminate(null); }
+    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.toolTip.js).slice(0, 600) + '|' + listing + ' strip=' + plain(words.stringValue.js) + '|' + plain(logRows.map(function (row) { return row.heading || row.what; }).join('|')).slice(0, 2000)); say('test logmade ' + plain(made.string.js)); logs.performClick(null); say('test logshut ' + listing + ' page=' + !scroll.hidden); say('test toolpanel ' + toolTried()); say('test logpaths ' + logTried()); say('test importsteps ' + importStepsTried()); say('test flight ' + flightTried()); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE, SETTINGS)); more(); }
+    else if (step == 6 && word == 'idle') { step = 7; say('test idlehome ' + idleCost(2)); bar.stringValue = $(GO2); bar.performClick(null); }
+    else if (step == 7 && word == 'ask') second.performClick(null);
+    else if (step == 7 && word == 'busy' && /^Fetching (?!picture|style)/.test(rest) && !modalOpen && !asking) { step = 8; tabSaid('tab select 0'); drawnBefore = pictures; say('test pressed selected=' + selected + ' pending=' + (pendingTab ? pendingTab.line : 'none') + ' text=' + plain(page.string.js).slice(0, 40)); }
+    else if (step == 8 && word == 'ask') second.performClick(null);
+    else if (step == 8 && word == 'idle' && pendingTab === null && !free) step = 9;    // the press waited for this idle, and has just been said to lzrprf
+    else if (step == 9 && word == 'idle') { step = 10; say('test kept selected=' + selected + ' tabs=' + tabs.length + ' drawn=' + (pictures - drawnBefore) + ' pending=' + (pendingTab === null) + ' kept1=' + !!drawings[1] + ' text=' + plain(page.string.js).slice(0, 40)); say('test idlepage ' + idleCost(2)); app.terminate(null); }
+}
+var drawnBefore = 0, counted = { place: 0, redrawn: 0, ticks: 0 };
+var CLOCK = (function () { try { ObjC.bindFunction('clock', ['unsigned long', []]); ObjC.bindFunction('clock_gettime_nsec_np', ['unsigned long long', ['int']]); return $.clock() > 0 && $.clock_gettime_nsec_np(16) > 0; } catch (e) { return false; } })();    // the processor time of this process in millionths of a second, and of this thread, the window's own, in billionths (16: the clock of the calling thread)
+var placeAll = place, redrawnAll = redrawn, torTickedAll = torTicked, shotTickedAll = shotTicked, flewAll = flew;    // every laying out, repaint and timer step is counted, then done as before
+place = function () { counted.place++; return placeAll.apply(this, arguments); };
+redrawn = function () { counted.redrawn++; return redrawnAll.apply(this, arguments); };
+torTicked = function () { counted.ticks++; return torTickedAll.apply(this, arguments); };
+shotTicked = function () { counted.ticks++; return shotTickedAll.apply(this, arguments); };
+flew = function () { counted.ticks++; return flewAll.apply(this, arguments); };
+function more() {                            // the first window run goes on past the log: a second tab, a page in it, and the first tab chosen while that page loads; the other runs end here
+    if (typeof GO2 == 'undefined') return app.terminate(null);
+    step = 6;
+    say('test torunseen ' + torUnseen());
+    newTab();
+}
+function idleCost(seconds) {                 // the window left alone for a while, in quarters: the processor time it spent in each against the time that passed, the timers still set, and what moved
+    counted = { place: 0, redrawn: 0, ticks: 0 };
+    var spent = [], main = [], at = Date.now();
+    for (var quarter = 0; quarter < 4; quarter++) {
+        var began = CLOCK ? $.clock() : 0, mainBegan = CLOCK ? $.clock_gettime_nsec_np(16) : 0;
+        $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(seconds / 4));
+        spent.push(CLOCK ? Math.round(($.clock() - began) / 1000) : -1);
+        main.push(CLOCK ? Math.round(($.clock_gettime_nsec_np(16) - mainBegan) / 1e6) : -1);
+    }
+    return 'cpu_ms=' + spent.join(',') + ' main_ms=' + main.join(',') + ' wall_ms=' + (Date.now() - at) + ' timers=' + (torTimer ? 1 : 0) + (flight ? 1 : 0) + (shot ? 1 : 0) + ' place=' + counted.place + ' redrawn=' + counted.redrawn + ' ticks=' + counted.ticks;
+}
+function torUnseen() {                       // Tor connecting while nobody sees the window: the onion's timer is not started, as its breathing would be drawn for no one
+    var was = [torState, torLitAt];
+    torState = 'starting'; torLitAt = Date.now(); torTicking();
+    var ran = !!torTimer;
+    if (torTimer) { torTimer.invalidate; torTimer = null; }
+    torState = was[0]; torLitAt = was[1];
+    return 'timer=' + ran + ' seen=' + ((win.occlusionState & 2) != 0) + ' motion=' + flightAllowed();
 }
 END
 
@@ -783,6 +979,9 @@ my %about = (
     upsame => q{When the same release is published, nothing is asked},
     upbad => q{An update answer that is not a number counts for nothing},
     upcheck => q{Check for updates looks once and keeps when it looked},
+    tool => q{The application's tool: opened, a look at this computer, the rows ticked switched off, one switched on again},
+    toolbad => q{The application's tool answers with a line in no form lzrprf takes},
+    toolwatch => q{A launchd job you switched off is loaded again when a window starts},
     tor => q{Tor on: the client starts on request, every request goes through it with the site's own circuit, and Tor off ends it},
     torfail => q{Tor that does not connect: nothing is fetched, not through Tor and not directly, and the client is ended},
     liveclick => q{A page kept running gets each click and is drawn again after it},
@@ -817,6 +1016,7 @@ my %about = (
     home => q{A page made the home page opens in a new tab},
     tabmove => q{A tab dragged along the strip moves among the tabs, and its page stays},
     tabslots => q{The window's own tab drag, run with no window},
+    heardreader => q{The window's reader of what lzrprf writes, run with no window},
     homestart => q{A kept home page opens when the window starts},
     homebad => q{A home page that is no https address opens nothing},
     homelink => q{A home page file that is a link is not followed},
@@ -1019,7 +1219,7 @@ run_of('logbusy', typed => '=log', prepare => sub {
 });
 # What is kept. A run with a path and a query in every address, so that a file holding either is found.
 my $secret_path = 'secret-path?token=sesame';
-my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', '/incognito/one', '/incognito/two', '/incognito/mark', '/out/nap?incognitokilled', (map { "/out/$_" } @heavy), map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
+my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/window?q=2', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', '/incognito/one', '/incognito/two', '/incognito/mark', '/out/nap?incognitokilled', (map { "/out/$_" } @heavy), map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
 run_of('memory', keep => undef, typed => "$t/nothing/$secret_path,,=log", answer => '2', fetches => ["/nothing/$secret_path"]);    # yes to the own network, then nobody answers
 run_of('hosts', keep => 'hosts 30', typed => "$t/hosts/$secret_path,,=log", answer => '2', fetches => ["/hosts/$secret_path"]);
 my %broken = (junk => sub { open my $out, '>', "$_[0]/keep"; print $out "keep everything\n" }, huge => sub { open my $out, '>', "$_[0]/keep"; print $out "all 3651\n" },
@@ -1120,6 +1320,33 @@ END
         open my $named, '>', "$folder/torclient" or die "selftest: cannot write $folder/torclient: $!\n"; print $named "$folder/standin.pl\n"; close $named;
     };
 }
+sub tool_stand_in {                       # stand-ins for what the system's programs say of this computer, so the tool's runs act on no real job and no real process: "lzrprf try" reads them in place of ps, launchctl and codesign, and notes each change in "done" instead of making it
+    my ($kind) = @_;
+    return sub {
+        my ($folder) = @_;
+        my $stand = "$folder/toolstand";
+        mkdir $_ or die "selftest: cannot make $_: $!\n" for $stand, "$stand/agents", "$stand/daemons";
+        my $file = sub { my ($name, $text) = @_; open my $out, '>', "$stand/$name" or die "selftest: cannot write $stand/$name: $!\n"; print $out $text; close $out };
+        my $list = sub { my ($label, $program) = @_; qq{<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>Label</key><string>$label</string><key>ProgramArguments</key><array><string>$program</string><string>--quiet</string></array><key>RunAtLoad</key><true/></dict></plist>\n} };
+        $file->('prog', "a program\n");
+        $file->('procs', "    1     0     0 Mon Nov  2 11:48:55 2026     /sbin/launchd\n 4242     1   $< Sat Nov 21 10:00:00 2026     /Applications/Spy.app/Contents/MacOS/spyd\n 4243     1     0 Sat Nov 21 10:00:01 2026     /Library/Spy/spyd\n 4244     1   $< Sat Nov 21 10:00:02 2026     /usr/libexec/spyd\n 4245     1   $< Sat Nov 21 10:00:03 2026     /Applications/Spy.app/Contents/MacOS/spyd\n");
+        $file->('args', " 4242 /Applications/Spy.app/Contents/MacOS/spyd --telemetry\n");
+        $file->('proc.4242', "  $< Sat Nov 21 10:00:00 2026     /Applications/Spy.app/Contents/MacOS/spyd\n");
+        $file->('proc.4245', "  $< Sat Nov 21 11:11:11 2026     /Applications/Spy.app/Contents/MacOS/spyd\n");
+        $file->('jobs', "gui/$< = {\n\tservices = {\n\t\t    4242      0 \ttest.spy.agent\n\t\t       0      - \tcom.apple.spyish\n\t\t     900      0 \tapplication.com.example.app.1.2\n\t\t       0      - \ttest.spy.nofile\n" . ($kind eq 'bad' ? "\t\t       0      - \ttest.badform\n" : '') . "\t}\n\tdisabled services = {\n\t\t\"test.spy.old\" => disabled\n\t\t\"test.spy.agent\" => enabled\n\t}\n}\n");
+        $file->('system', "system = {\n\tservices = {\n\t\t    4243      0 \ttest.spy.daemon\n\t}\n}\n");
+        $file->('job.test.spy.nofile', "gui/$</test.spy.nofile = {\n\tprogram = /Applications/Spy.app/Contents/MacOS/helper\n}\n");
+        $file->('sign', "=$stand/prog\nExecutable=$stand/prog\nIdentifier=com.example.spy\nTeamIdentifier=ABCDE12345\n");
+        $file->('agents/test.spy.agent.plist', $list->('test.spy.agent', "$stand/prog"));
+        $file->('agents/test.spy.old.plist', $list->('test.spy.old', "$stand/prog"));
+        $file->('agents/com.apple.spyish.plist', $list->('com.apple.spyish', "$stand/prog"));
+        $file->('daemons/test.spy.daemon.plist', $list->('test.spy.daemon', '/Library/Spy/spyd'));
+        if ($kind eq 'watch') { open my $out, '>', "$folder/quieted" or die "selftest: cannot write $folder/quieted: $!\n"; print $out "test.spy.agent\t$stand/agents/test.spy.agent.plist\t2026-11-21T00:00:00Z\n"; close $out }
+    };
+}
+run_of('tool', typed => '=tool open,,=tool sense,,=tool act 0,1,2,3,4,5,6,7,8,9,,=tool undo 9', prepare => tool_stand_in('ok'));    # [C20] the application's tool: opened, a look, the rows ticked switched off, one switched on again
+run_of('toolbad', typed => '=tool sense', prepare => tool_stand_in('bad'));    # [C20] an answer of the application with a line in no form lzrprf takes
+run_of('toolwatch', prepare => tool_stand_in('watch'));    # [C20] a job you switched off that is loaded again when a window starts
 run_of('tor', typed => "=tor on,,$t/drawn?tor,,=tor off", fetches => ['/drawn?tor'], prepare => tor_stand_in('ok'));    # Tor on, a page through it, Tor off
 run_of('torfail', typed => "=tor on,,$t/drawn?torfail", prepare => tor_stand_in('fail'));    # Tor that cannot connect, then a page: nothing may reach the site
 # Pages kept running with their tabs (the =live frame): the hostile application keeps the page as the real one keeps an HTML page, and answers each line lzrprf hands it.
@@ -1162,6 +1389,7 @@ my $slots_js = join("\n", 'function run(argv) {',
     q{var $ = function () { return 0; }; $.NSEvent = {}; Object.defineProperty($.NSEvent, 'mouseLocation', { get: function () { return { x: pointer }; } }); $.NSDate = { distantFuture: 0 };},
     q{var win = { nextEventMatchingMaskUntilDateInModeDequeue: function () { var next = moves.shift(); if (next !== undefined) pointer = next; return { type: next === undefined ? 2 : 6, isNil: function () { return false; } }; } };},
     q{var tabsView = { needsDisplay: false, displayIfNeeded: 0 }, can = true;},
+    q{var drawings = [], modalOpen = false, asking = false; function tabChosen(n) { selected = n; return false; }},
     q{function tabWide() { return 100; } function takes() { return can; } function sent(line) { said.push(line); } function tabSaid(line) { said.push(line); } function shareNow() { return 0.5; }},
     ($text_of_lzrprf =~ /^(function (?:slotOf|placeOf)\(.*)$/mg), ($text_of_lzrprf =~ /^(function tabLeft\(i, wide\) \{.*?^\}\n)/ms), ($text_of_lzrprf =~ /^(function tabHeld\(i\) \{.*?^\}\n)/ms),
     q{function tried(i, at, now, along) { tabs = [{ title: 'a' }, { title: 'b' }, { title: 'c' }]; selected = now; shares = []; said = []; pointer = 0; moves = along; tabHeld(i); return said.join(',') + ' ' + selected + ' ' + tabs.map(function (one) { return one.title; }).join('') + ' ' + moving; }},
@@ -1171,6 +1399,20 @@ my $slots_js = join("\n", 'function run(argv) {',
     q{return slots + "\n" + held + "\n" + [tabLeft(0, 100), tabLeft(1, 100), tabLeft(2, 100)].join(' ');},
     '}');
 run_of('tabslots', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', $slots_js]);    # the window's own two functions, read from lzrprf and run with no window
+my ($heard_impl) = $text_of_lzrprf =~ /^    'heard:': \{ types: \['void', \['id'\]\], implementation: (function \(note\) \{\n.*?\n    \}) \}\n/ms;
+my $heard_js = join("\n", 'ObjC.import("Foundation");',    # the reader of the window's hand, read from lzrprf: its pipe, its "heard" and the bridge's decoding stand in here, and every decoding is counted
+    q{var decoded = [], spy = (function (real) { var f = function (x) { return real(x); }; f.NSMakeRange = function (a, b) { return real.NSMakeRange(a, b); }; f.NSMutableData = real.NSMutableData; f.NSString = { alloc: { initWithDataEncoding: function (data, code) { decoded.push(data.length + '/' + code); return real.NSString.alloc.initWithDataEncoding(data, code); } } }; return f; })($);},
+    'function run(argv) {',
+    q{var real = spy, $ = spy, NEWLINE = null, held = real.NSMutableData.data, chunks = [], armed = 0, handled = [], ended = 0, many = '', marks = [];},
+    q{var from = {}; Object.defineProperty(from, 'availableData', { get: function () { return chunks.shift(); } }); Object.defineProperty(from, 'waitForDataInBackgroundAndNotify', { get: function () { armed++; return 0; } });},
+    q{var app = { terminate: function () { ended++; } }, win = 0;},
+    q{function heard(line) { handled.push(line); if (line == 'boom') throw new Error('a line whose handling fails'); }},
+    'var reader = ' . ($heard_impl // 'null') . ';',
+    q{for (var i = 0; i < 300; i++) many += 'l' + i + '\n';},
+    q{[['one\ntw', 4], ['o\nboom\nthree\n', 4], [many, 4], ['café\n', 5], ['', 4]].forEach(function (one) { chunks.push(real(one[0]).dataUsingEncoding(one[1])); var before = decoded.length; try { reader(null); } catch (e) { handled.push('threw ' + String(e).replace(/[^\x20-\x7e]/g, '?').slice(0, 60)); } marks.push(decoded.slice(before).join('+') || '-'); });},
+    q{return 'armed=' + armed + ' ended=' + ended + ' handled=' + handled.length + ' ' + handled.slice(0, 4).join(',') + ',' + handled[303] + ',' + String(handled[handled.length - 1]).replace(/[^\x20-\x7e]/g, '?') + ' decoded=' + marks.join(' ');},
+    '}');
+run_of('heardreader', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', $heard_js]);    # chunks of lines: one split in two, one with a line whose handling throws, one of 300 lines, one in Latin-1, then the end of the pipe
 run_of('home', typed => "$t/home/page,,=menu home,,=tab new", fetches => ['/home/page', '/home/page']);    # the page made the home page, then a new tab opens it
 run_of('homestart', fetches => ['/home/start'], prepare => sub { open my $out, '>', "$_[0]/home"; print $out "$t/home/start\n" });    # a home page kept from before: the window opens it at its start
 run_of('homebad', prepare => sub { open my $out, '>', "$_[0]/home"; print $out "http://site.test/home/bad\n" });    # a home page that is no address lzrprf fetches: nothing is opened
@@ -1315,9 +1557,14 @@ run_of('lostmemoryprobe', lzrprf => mutant('lostmemoryprobe', %{ $lost{memory} }
 run_of('lostfiles', lzrprf => mutant('lostfiles', %{ $lost{files} }), typed => "$t/lostfiles", fetches => ['/lostfiles']);
 run_of('lostsoft', lzrprf => mutant('lostsoft', %{ $lost{soft} }), typed => "$t/lostsoft", fetches => ['/lostsoft']);    # a page container whose limits count now but may be raised again, as a shell that sets only that kind would leave them    # a page container without its limit on open files
 my $echo_at = encode_base64(pack('CCna4x8', 16, 2, $port{echo}, inet_aton('127.0.0.1')), '');
-run_of('window', app => bundle('window', 'release 3'), answer => 'ask', keep => undef, fetches => ['/window?q=1'], prepare => sub {    # nothing is kept, as when nobody chose
+my $import_steps = do {                  # what lzrprf says when macOS keeps Chrome's files from it: its sub import_steps, read from lzrprf and run here, for the window to show
+    my ($text) = $text_of_lzrprf =~ /^(sub import_steps \{.*?^\}\n)/ms;
+    defined $text ? eval("package Steps; no warnings; our %BROWSERS = (chrome => ['Chrome']); our \$APP = 'Test'; $text; import_steps('chrome')") // '' : '';
+};
+my $steps_js = $import_steps =~ s/\\/\\\\/gr =~ s/'/\\'/gr =~ s/\t/\\t/gr =~ s/\n/\\n/gr;
+run_of('window', app => bundle('window', 'release 3'), answer => 'ask', keep => undef, fetches => ['/window?q=1', '/window?q=2'], prepare => sub {    # nothing is kept, as when nobody chose; GO2 is the page of the second tab
     open my $out, '>', "$_[0]/window" or die "selftest: cannot write $_[0]/window: $!\n";
-    print $out "var GO = 'site.test/window?q=1', PORT = '$echo_at', FILE = '$site_folder/window.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number', OUTSIDE = '$outside', SETTINGS = '$settings_file';\n$window_tries$window_test";
+    print $out "var STEPS = '$steps_js', GO = 'site.test/window?q=1', GO2 = 'site.test/window?q=2', PORT = '$echo_at', FILE = '$site_folder/window.inside', SECRET = '$secret', KEEP = '$_[0]/keep', TEMP = '$temp_file', NUMBERED = '$by_number', OUTSIDE = '$outside', SETTINGS = '$settings_file';\n$window_tries$window_test";
 });
 my $open_services = mutant('openservices', "(deny mach-lookup)\n" => '', q{$window ? qr/^\Q$pid\E 1 1 1 1 1 1 1 1\n\z/} => q{$window ? qr/^\Q$pid\E 1 1 1 [01] 1 1 1 1\n\z/});    # the window's container without its refusal of the system's services, and without the question about them at the start, so that its window opens and the tries are made: the list of the ones it names then refuses nothing
 run_of('openservices', lzrprf => $open_services, app => bundle('openservices', 'release 3', pair_line($open_services)), answer => 'ask', keep => undef, fetches => ['/openservices?q=1'], prepare => sub {
@@ -1373,7 +1620,7 @@ function drawn(lines, characters) {
 function told(word, rest) {
     if (word == 'ask' && !last) return second.performClick(null);    // the test site is on this computer: yes, this once
     if (word != 'idle' && word != 'ask') return;
-    if (last) { say('test heavylog ' + (Date.now() - began) + ' ms ' + plain(words.stringValue.js).slice(0, 60)); return app.terminate(null); }
+    if (last) { say('test heavylog ' + (Date.now() - began) + ' ms ' + plain(words.toolTip.js).slice(0, 60)); return app.terminate(null); }
     if (at >= 0) say('test heavy' + at + ' ' + (got || 'not drawn: ' + plain(rest).slice(0, 160)));
     got = '';
     began = Date.now();
@@ -1443,7 +1690,7 @@ sub told {                                # what the window was told in one run:
     my (@all, $list, $kind);
     for my $line (split /\n/, out($name), -1) {
         if ($list) { if ($line eq '.') { push @all, [$kind, $list]; undef $list } else { push @$list, $line } next }
-        if ($line eq 'page' || $line eq 'relaid') { ($kind, $list) = ($line, []); next }    # a page, or the page shown laid out again from what was kept
+        if ($line =~ /^(page|relaid)(?: (?:0|[1-9][0-9]?))?$/) { ($kind, $list) = ($1, []); next }    # a page, or the page shown laid out again from what was kept; lzrprf names the tab it is for
         my ($word, $rest) = split / /, $line, 2;
         push @all, [$word // '', $rest // ''];
     }
@@ -1708,16 +1955,17 @@ check(@mark_asked == 1 && $mark_asked[0] =~ /\tCancel\tProceed\tProceed and upda
 my @tab_told = told('tabs');
 my ($back_at) = grep { $tab_told[$_][0] eq 'tabs' && $tab_told[$_][1] eq '2 0' } 0 .. $#tab_told;
 my ($back_address) = defined $back_at ? map { $_->[1] } grep { $_->[0] eq 'address' } @tab_told[$back_at .. $#tab_told] : ();
-my ($back_page) = defined $back_at ? grep { $_->[0] eq 'relaid' && @{ $_->[1] } } @tab_told[$back_at .. $#tab_told] : ();
-check("@{[ words('tabs', 'tabs') ]}" eq '2 1 2 0 1 0 1 0 1 0' && ($back_address // '') eq "$t/tabs/one" && $back_page && asked('/tabs/one') == 1 && (grep { /^you typed / } log_of('tabs')) == 2 && (words('tabs', 'address'))[-1] eq '' && (words('tabs', 'title'))[-1] eq '0 ',
-    'tabs: a new tab, a second address in it, the first tab chosen again (its page laid out again from what it kept: the site is not asked again and the log gets no line), a tab that is not there changes nothing, and closing the last leaves one empty tab', join(' ', words('tabs', 'tabs')));
+my ($back_page) = defined $back_at ? grep { $_->[0] =~ /^(?:page|relaid)$/ && @{ $_->[1] } } @tab_told[$back_at .. $#tab_told] : ();
+my $tab_runs = () = err('tabs') =~ /^tried\tpage container: what it is given\t/mg;    # each run of the application in a page container says this once
+check("@{[ words('tabs', 'tabs') ]}" eq '2 1 2 0 1 0 1 0 1 0' && ($back_address // '') eq "$t/tabs/one" && $back_page && asked('/tabs/one') == 1 && (grep { /^you typed / } log_of('tabs')) == 2 && (words('tabs', 'address'))[-1] eq '' && (words('tabs', 'title'))[-1] eq '0 ' && $tab_runs == 2,
+    'tabs: a new tab, a second address in it, the first tab chosen again (its page sent again from the list lzrprf kept of it: the site is not asked again, the log gets no line, and the application is not run again, so it ran twice in all, once for each page), a tab that is not there changes nothing, and closing the last leaves one empty tab', join(' ', words('tabs', 'tabs')) . "; the application ran $tab_runs times");
 my @move_told = told('tabmove');
 my ($moved_at) = grep { $move_told[$_][0] eq 'tabs' && $move_told[$_][1] eq '2 0' } 0 .. $#move_told;
 my @after_move = defined $moved_at ? @move_told[$moved_at + 1 .. $#move_told] : ();
 my ($next_tabs) = grep { $after_move[$_][0] eq 'tabs' } 0 .. $#after_move;
 my @with_move = defined $next_tabs ? @after_move[0 .. $next_tabs - 1] : ();
 check("@{[ words('tabmove', 'tabs') ]}" eq '2 1 2 0 2 1' && defined $next_tabs && !grep({ $_->[0] =~ /^(?:page|relaid|address|busy)$/ } @with_move) && (words('tabmove', 'address'))[-1] eq "$t/tabmove/one" && asked('/tabmove/one') == 1 && asked('/tabmove/two') == 1 && (grep { /^you typed / } log_of('tabmove')) == 2
-    && out('tabslots') =~ m{^1 0 1 2 / 2 0 1 3 / 0 2 3 1\n 0 abc false \| tab select 1 0 abc false \| tab move 0 1 1 bac true \| tab move 2 0,tab select 0 1 cab true \|  0 abc false\n214 84 284$}m,
+    && out('tabslots') =~ m{^1 0 1 2 / 2 0 1 3 / 0 2 3 1\n 0 abc false \| tab select 1 1 abc false \| tab move 0 1 1 bac true \| tab move 2 0,tab select 0 0 cab true \|  0 abc false\n214 84 284$}m,
     'a tab moved along the strip: the second tab moved before the first stays the selected one, the page shown is neither cleared nor laid out again, a place that is not there and its own place change nothing, and the other tab, chosen then, is the first page (nothing is fetched again, the log gets no line); in the window, read from lzrprf and run with no window: a press that only trembles is a click and chooses the tab, a drag sends the move and then chooses the dragged tab when it was not the chosen one, a window that takes no press sends nothing, and the tab held is drawn under the pointer while the ones it passes stand aside', join(' ', words('tabmove', 'tabs')) . ' | ' . (out('tabslots') =~ s/\s+$//r =~ s/\n/ ; /gr));
 check(slurp("$base.home/home") eq "$t/home/page\n" && (grep { $_ eq "The home page is set: $t/home/page. A new tab and the next window open it." } words('home', 'idle')) == 1 && asked('/home/page') == 2 && (grep { $_ eq "you opened your home page $t/home/page" } log_of('home')) == 1,
     'the cogwheel\'s "Make current page the home page" keeps the address of the tab in one plain file, home, and a new tab opens it, written in the log first like a typed address', slurp("$base.home/home") =~ s/\n/ /r || 'no file');
@@ -1747,8 +1995,8 @@ my $chrome_counts = "4 4 3 1 1\tImported from Chrome\t1 in folders deeper than 4
 my %chrome_said = map { $_ => 1 } words('importchrome', 'import');
 check(slurp("$base.framekept/frame") eq "-1800 40 1000 700\n", 'the last size and place the window said it rested at is kept in the file frame, and a line in another shape changes nothing', -e "$base.framekept/frame" ? slurp("$base.framekept/frame") =~ s/\n/ /gr : 'no file frame');
 my %blocked_said = map { $_ => 1 } words('importblocked', 'import');
-check($blocked_said{'source chrome 2 1 Chrome'} && (grep { /^refused macOS does not let \S+ read the files of Chrome\. Two ways: .*export the bookmarks as an HTML file.*Full Disk Access/ } keys %blocked_said) && !grep({ /^(?:preview|done) / } keys %blocked_said),
-    'a Chrome whose Local State and bookmarks macOS keeps lzrprf from opening is told to the wizard as kept out (2), never as not found, and choosing it says the two ways in (an HTML export, or Full Disk Access) and reads nothing', join(' | ', grep { /^(?:source chrome|refused)/ } keys %blocked_said));
+check($blocked_said{'source chrome 2 1 Chrome'} && (grep { /^refused macOS keeps the files of Chrome from \S+, and \S+ asks for no more access than it has\. Export the bookmarks instead:\t1\. In Chrome choose Bookmarks, Bookmark Manager[^\t]*\t2\. [^\t]*Export bookmarks\.\t3\. Save the file in Downloads[^\t]*\t4\. Here choose A bookmarks file \(HTML\)[^\t]*\tOr from your Google account[^\t]*takeout\.google\.com[^\t]*$/ && !/Full Disk Access/ } keys %blocked_said) && !grep({ /^(?:preview|done) / } keys %blocked_said),
+    'a Chrome whose Local State and bookmarks macOS keeps lzrprf from opening is told to the wizard as kept out (2), never as not found, and choosing it says the export from Chrome as four numbered steps and the same file from the Google account, never asks for Full Disk Access, and reads nothing', join(' | ', grep { /^(?:source chrome|refused)/ } keys %blocked_said));
 my @chrome_bar = bar_names('importchrome');
 check($chrome_said{'source chrome 1 2 Chrome'} && $chrome_said{'source edge 0 0 Edge'} && $chrome_said{'source firefox 0 0 Firefox'} && $chrome_said{'source safari 0 1 Safari'} && $chrome_said{'source file 1 0 A bookmarks file (HTML)'} && $chrome_said{'profile 0 Person 1'} && $chrome_said{'profile 1 Work'} && $chrome_said{'step done'},
     'the import wizard is told which browsers are on this Mac and how many profiles each has, Chrome\'s by the names in its Local State, and a browser not there is shown as not found', join(' | ', grep { /^(?:source|profile) / } words('importchrome', 'import')));
@@ -1794,9 +2042,13 @@ check(last_said('logend') eq 'lzrprf tried the fetch. Nothing of its answer is s
     'a log that cannot be written any more when the answer is there: the answer is not shown, and the window says the fetch was tried and not that nothing was fetched', last_said('logend') . ' (' . @ended . ' lines)');
 unlink "$secret.linked";
 my @kept = log_of('logkeep');
-my @log_page = map { $_->[0] eq 'page' ? $_->[1] : () } told('logkeep');
+my @log_page = log_part('logkeep', 'On this computer');
 check(@kept == 30003 && $kept[0] eq "you typed https://earlier.test/1" && $kept[-1] eq "$t/after failed: you said no to a host inside your own network", 'the log is only added to, and has no size at which a line is dropped', scalar(@kept) . ' lines after 30000');
-check(@log_page && @{ $log_page[0] } == 408 && (words('logkeep', 'ask'))[0] =~ /^Every address lzrprf fetched for perl in this window is below\. Kept on this computer until you clear it: full addresses\. The log on this computer holds 30000 lines.* Below are its last 200 lines\./, 'the log is shown in the window, where a page stands: this window\'s lines, and under them the last of the log on this computer', (words('logkeep', 'ask'))[0] // 'nothing');
+check(@log_page == 200 && "@{[ (words('logkeep', 'log'))[0, -1] ]}" eq 'begin shut' && (words('logkeep', 'ask'))[0] =~ /^Every address lzrprf fetched for perl in this window is below\. Kept on this computer until you clear it: full addresses\. The log on this computer holds 30000 lines.* Below are its last 200 lines\./, 'the log is shown in the window, on a page of its own over the page shown: this window\'s lines, and under them the last 200 of the log on this computer', (words('logkeep', 'ask'))[0] // 'nothing');
+my @kept_told = map { join ' ', $_->[0], ref $_->[1] ? 'page' : $_->[1] } told('logkeep');
+my ($kept_at) = grep { $kept_told[$_] =~ /^idle The log is as it was\. Kept on this computer until you clear it: full addresses\./ } 0 .. $#kept_told;
+check(defined $kept_at && $kept_at >= 2 && $kept_told[$kept_at - 1] eq 'brief Contained' && $kept_told[$kept_at - 2] eq 'log shut' && (words('logkeep', 'ask'))[1] =~ /^The log is as it was\. / && slurp("$base.logkeep/keep") eq "all 0\n" && @kept == 30003,
+    'what closing the log page sends while its questions stand, the first button of each, keeps the log and what is kept as they were, closes the page and gives the strip back its short words', defined $kept_at ? join(' / ', @kept_told[($kept_at > 2 ? $kept_at - 2 : 0) .. $kept_at]) : 'no word that the log is as it was');
 my @cleared = log_of('logclear');
 check(@cleared == 1 && $cleared[0] =~ /^you cleared the log: it held 3 lines, / && last_said('logclear') eq 'The log was cleared. Its first line now says so.', 'the log is cleared by your button, after you were asked twice, and its first line then says so', $cleared[0] // 'nothing');
 check(log_of('logbusy') == 3 && last_said('logbusy') =~ /^The log was not cleared: /, 'the log is not cleared while a request is between its first line and its last', last_said('logbusy'));
@@ -1809,7 +2061,8 @@ sub holding {                             # the files under a folder that hold a
     return @found;
 }
 sub page_of { my ($name) = @_; return map { $_->[0] eq 'page' ? @{ $_->[1] } : () } told($name) }
-sub shows { my ($name, $what) = @_; return scalar grep { /^T\@\S+   \d+   \Q$what\E$/ } page_of($name) }    # the Log button showed this line
+sub shows { my ($name, $what) = @_; return scalar grep { /^line \S+\t\Q$what\E$/ } words($name, 'log') }    # the Log button showed this line
+sub log_part { my ($name, $part) = @_; my ($in, @lines); for (words($name, 'log')) { if (/^part (.*)$/) { $in = $1 eq $part } elsif ($in && /^line /) { push @lines, $_ } } return @lines }    # the lines of one part of the log page
 sub log_asked { my ($name) = @_; return (grep { /^Every address lzrprf fetched/ } words($name, 'ask'), words($name, 'idle'))[0] // '' }    # what the Log button said, as a question or without one
 my @memory_files = (holding("$base.memory", 'secret-path', 'sesame', 'site.test', '127.0.0.1'),
     (map { my $name = $_; map { "keep$name/$_" } holding("$base.keep$name", 'site.test', 'broken') } qw(junk link huge two fifo lines folder)),
@@ -1823,7 +2076,7 @@ my ($hosts_seen) = asked("/hosts/$secret_path");
 check("@hosts_log" eq join(' ', "you typed $t", 'you allowed site.test, which is inside your own network (127.0.0.1), this once', "$t -> lzrprf connects to the first that answers of: 127.0.0.1", "$t answered: " . length(answer_for('')) . ' bytes from 127.0.0.1') && !@hosts_files,
     'hosts only: the log on the disk holds the time, the host, the numeric address and how it ended; no file holds the path or the query', @hosts_files ? "found in @hosts_files" : scalar(@hosts_log) . ' lines');
 check($hosts_seen && $hosts_seen->{logged}, 'and its line was on the disk before the site received the request', $hosts_seen ? 'by the site\'s own record' : 'nothing arrived');
-check(shows('hosts', "you typed $t/hosts/$secret_path") && shows('hosts', "you typed $t") && grep({ $_ eq 'T@On this computer' } page_of('hosts')) && log_asked('hosts') =~ /Kept on this computer for 30 days: hosts only\./, 'the Log button shows this window\'s full lines from memory, and the shortened lines on the disk', substr(log_asked('hosts'), 0, 120));
+check(shows('hosts', "you typed $t/hosts/$secret_path") && shows('hosts', "you typed $t") && grep({ $_ eq 'part On this computer' } words('hosts', 'log')) && log_asked('hosts') =~ /Kept on this computer for 30 days: hosts only\./, 'the Log button shows this window\'s full lines from memory, and the shortened lines on the disk', substr(log_asked('hosts'), 0, 120));
 my @taken = grep { !(asked("/broken/$_") == 1 && !-e "$base.keep$_/log" && (words("keep$_", 'idle'))[0] =~ m{/keep is not a setting lzrprf takes, so: Nothing is kept after this window closes\.$}) } sort keys %broken;
 check(!@taken && slurp("$site_folder/keep.target") eq "all 0\n", 'a setting that is no setting means nothing is kept, and the window says so: words lzrprf does not take, a link to a file that says "all", a file with a second name, a number of days above ' . 3650 . ', two lines, a pipe or a folder in its place (a file of another owner is refused by the same line; making one needs an administrator, so it is not tried)', @taken ? "taken as a setting: @taken" : scalar(keys %broken) . ' settings, no log');
 my @expired = log_of('expire');
@@ -1985,6 +2238,32 @@ my ($tor_inside, $tor_outside) = (in_tor_box("$base.torbox/inside"), in_tor_box(
 check(defined $tor_container && $tor_inside eq "inside\n" && $tor_outside eq '' && -s $secret,
     'the Tor client\'s container lets the client read its own folder and nothing of yours: a file in the home folder cannot be read from inside it',
     'inside=' . ($tor_inside eq "inside\n" ? 'read' : 'not read') . ' secret=' . ($tor_outside eq '' ? 'refused' : 'read'));
+my @tool_said = words('tool', 'tool');
+my @tool_lists = map { [split /\n/] } join("\n", @tool_said) =~ /^begin\n(.*?)\nend$/msg;
+my $tool_modes = sub { join ' ', map { /^row (\d+) (\w+)\t/ ? "$1$2" : () } @{$tool_lists[$_[0]] // []} };
+my $tool_done = slurp("$base.tool/toolstand/done");
+my @tool_log = log_of('tool');
+my $tool_at = sub { my ($like) = @_; (grep { $tool_log[$_] =~ $like } 0 .. $#tool_log)[0] // -1 };
+check(@tool_lists == 4 && join('/', @{$tool_lists[0]}) eq 'title Standin/words Words of the stand-in./head Found/button sense Look/button act Off/button undo On'
+    && $tool_modes->(1) eq '0act 1none 2none 3act 4none 5act 6act 7none 8none 9none'
+    && grep({ /^row 9 none\tbad\tNever seen\tsigned=ABCDE12345\/com\.example\.spy open=com\.example\.app\t$/ } @{$tool_lists[1]})
+    && grep({ $_ eq "row 0 act\tproc\tProcess 4242\tA process the stand-in names.\tEnds the process 4242, started Sat Nov 21 10:00:00 2026, /Applications/Spy.app/Contents/MacOS/spyd" } @{$tool_lists[1]})
+    && grep({ $_ eq "row 5 act\tjob\tJob test.spy.agent\tA job the stand-in names.\tSwitches off the launchd job test.spy.agent of your account, written down in $base.tool/toolstand/agents/test.spy.agent.plist, which runs $base.tool/toolstand/prog" } @{$tool_lists[1]}),
+    'the application\'s tool: opened, it shows the application\'s title, words and buttons; a look hands the application the processes, the launchd jobs, the open apps and who signed their programs, and of what it names lzrprf lets be ticked only a process of yours outside the system and a job of your account that is not Apple\'s and not switched off already, each with lzrprf\'s own words for the change; a process of root or of the system, a job of the system, of Apple or never seen cannot be ticked',
+    scalar(@tool_lists) . ' lists, modes ' . $tool_modes->(1));
+check($tool_done eq "TERM 4242\ndisable test.spy.agent\nbootout test.spy.agent\ndisable test.spy.nofile\nbootout test.spy.nofile\nenable test.spy.agent\nbootstrap test.spy.agent\n"
+    && grep({ $_ eq 'said Done: process 4242 was asked to end; launchd job test.spy.agent is switched off; launchd job test.spy.nofile is switched off. Not done: process 4245 is no longer the one that was listed.' } @{$tool_lists[2] // []})
+    && $tool_modes->(2) =~ / 9undo 10undo 11none$/ && grep({ $_ eq 'said Done: launchd job test.spy.agent is switched on again.' } @{$tool_lists[3] // []}) && $tool_modes->(3) =~ / 9undo 10none$/
+    && slurp("$base.tool/quieted") =~ /\Atest\.spy\.nofile\t\t\d{4}-\d\d-\d\dT[\d:]{8}Z\n\z/
+    && $tool_at->(qr/^You ended a process from the application's tool: the process 4242, /) >= 0 && $tool_at->(qr/^You switched a launchd job off from the application's tool: the launchd job test\.spy\.agent of your account/) >= 0
+    && $tool_at->(qr/^You switched a launchd job on again from the application's tool: the launchd job test\.spy\.agent, switched off here on /) >= 0 && !grep({ /4243|4244|4245|com\.apple\.spyish|test\.spy\.old|test\.spy\.daemon|com\.never/ } @tool_log),
+    'the tool changes only what you ticked and lzrprf itself saw: the process is asked to end, the two jobs are switched off and kept in the list of what you switched off, each written in the log first; a process that is no longer the one listed is left alone and said so; of the rows that could not be ticked nothing is changed and nothing logged; a job switched on again leaves the list',
+    $tool_done =~ s/\n/ | /gr);
+check(join('/', words('toolbad', 'tool')) eq 'busy Reading the processes and the launchd jobs of this computer/none' && last_said('toolbad') =~ /not in the form lzrprf takes, so nothing of it is shown/ && !-e "$base.toolbad/toolstand/done",
+    'an answer of the application\'s tool with one line in no form lzrprf takes is not shown at all, and nothing is changed', join('/', words('toolbad', 'tool')));
+check(join('/', words('toolwatch', 'tool')) eq 'back 1' && slurp("$base.toolwatch/toolstand/done") eq "disable test.spy.agent\nbootout test.spy.agent\n"
+    && grep({ $_ eq 'The launchd job test.spy.agent, which you switched off, was switched on again by something else, and lzrprf switched it off again' } log_of('toolwatch')),
+    'a launchd job you switched off that is loaded again when a window starts is switched off again, written in the log first, and the window is told', join('/', words('toolwatch', 'tool')));
 check(!words('welcomedalready', 'welcome') && asked('/drawn?welcomed2') == 1, 'a release that was welcomed already shows no welcome again', scalar(words('welcomedalready', 'welcome')) . ' welcome lines');
 my @uplate_file = installer_files('uplate');
 check(asked('/second/late.sh') == 2 && @uplate_file == 1 && slurp($uplate_file[0]) eq $installer_body && (grep { /^The two places hold different installers for now\./ } install_said('uplate')) == 1 && (grep { $_ eq 'The installer was fetched from two places, and both hold the same file.' } install_said('uplate')) == 1,
@@ -2066,8 +2345,10 @@ check((out('lostservices') . err('lostservices')) =~ /^test closed The system di
 print "\n8. lzrprf's real window, kept off the screen: its buttons are pressed by the test.\n";
 my %at = map { /^test (\w+) (.*)$/ ? ($1 => $2) : () } split /\n/, $window;
 check(($at{start} // '') eq 'title=Test visible=false policy=2 bar= enabled=true menu=Test', 'there is one window, it carries the application\'s name, and the bar on top is lzrprf\'s', $at{start} // 'nothing came of it');
+check(($at{shot} // '') =~ /^(?:fired=true through=true gone=true|still true)$/, 'on the home screen the plus fires its shot: it is there right after the press, it takes no press of its own (what lies under it does), and it is gone within half a second while the window goes on; with Reduce motion on there is none', $at{shot} // 'nothing came of it');
+check(($at{wordmark} // '') eq 'fault=none stroke=1 gap=0', 'the home screen\'s name is drawn in straight laser lines: its white core lies on the strokes of the letters and not between them', $at{wordmark} // 'nothing came of it');
 check(($at{asked} // '') =~ /^No\|Yes, this once\|bar=false\|site\.test is not on the public internet/, 'a question stands in lzrprf\'s strip of that window, and the bar takes nothing while it is open', $at{asked} // 'nothing came of it');
-check(($at{page} // '') =~ m{^title=Test visible=false drawn=1 links=0 editable=false menu=1 bar=\Q$t\E/window\?q=1 words=site\.test answered \d+ bytes\. .* text=A page by the hostile application\?a link that is only a colour}, 'the page is drawn in the same window; the bar shows the address that was sent; a link is a colour and leads nowhere', substr($at{page} // 'nothing came of it', 0, 150));
+check(($at{page} // '') =~ m{^title=Test visible=false drawn=1 links=0 editable=false menu=1 bar=\Q$t\E/window\?q=1 strip=200 \S \d+ ms \S \d+ k?B words=site\.test answered \d+ bytes\. .* text=A page by the hostile application\?a link that is only a colour}, 'the page is drawn in the same window; the bar shows the address that was sent; the strip shows the status the site answered with, the time the whole took and the size, and holds the sentence in full as its tip; a link is a colour and leads nowhere', substr($at{page} // 'nothing came of it', 0, 150));
 check(($at{secure} // '') =~ /^\d+ # Connection\|# Redirects on the way here\|# Certificate 1 of [1-6]: the site/, 'the lock knows the page shown: its connection, the redirects on the way and the certificate the site presented, from the fetch itself', $at{secure} // 'nothing came');
 check(($at{nav} // '') eq '0 0 1', 'after the first page of a tab there is nothing to go back or forward to, and it can be loaded again', $at{nav} // 'nothing came');
 check(($at{hover} // '') =~ /^tab=0 mark=-?\d+ out=-1$/, 'the pointer moved over the tabs and the bookmarks and left them: the window found the first tab under it and went on', $at{hover} // 'nothing came of it: the window stopped');
@@ -2075,8 +2356,32 @@ check(($at{suggest} // '') eq "h $t/window?q=1 none=0", 'typed into the bar, the
 check(($at{tech} // '') =~ /^open=true shown=true list=true tips=Log\|What this page is made of flies=(?:true|still)$/ && ($at{techclosed} // '') =~ /^false back=(?:true|still)$/, 'the bottom bar\'s two icons are the log and what the page is made of: the second opens that list in the centred modal every panel uses, wider than the others, flying out of its icon, and a second press closes it, flying back into the icon (with Reduce motion on, still)', ($at{tech} // 'nothing came') . ' then ' . ($at{techclosed} // 'nothing'));
 check(asked('/window?q=1') == 1 && (asked('/window?q=1'))[0]{bytes} eq request_for('/window?q=1', 1), 'what was typed into the bar is what the site was asked, once, as the request of a page you visit', 'compared the bytes');
 check(($at{made} // '') eq 'What Test says this page is made of: 5 things, 2 of them supported by Test itself, as it says. lzrprf checked the form of this list, not whether it is true.?Document?-   supported by Test: true??HTML 5   supported by Test: true?CSS?Grid Level 1   supported by Test: false??Subgrid   supported by Test: false?Libraries?A library of the hostile application 1.2.3   supported by Test: false', 'in the panel of the bottom bar\'s second icon the same window lists what the application says the page is made of, a row for each thing under the name of its kind: its name, its version, and true or false for whether the application says it supports it; and it says that lzrprf checked the form only', $at{made} // 'nothing came of it');
-check(($at{logmade} // '') eq 'Here Test lists what it says a page is made of. Nothing is listed for what is shown now.', 'when the log stands where the page stood, that list is empty and says so', $at{logmade} // 'nothing came of it');
-check(($at{log} // '') =~ m{^Every address lzrprf fetched for \S+ in this window is below\. Nothing is kept after this window closes\. To keep a log, type in Terminal: perl \S+ keep hosts\. No button of this window makes lzrprf keep more\.\|This window.*you typed \Q$t\E/window\?q=1}, 'the log is shown in the same window: this window\'s lines, with nothing kept on the disk and no question that keeps anything', substr($at{log} // 'nothing came of it', 0, 80));
+check(($at{logmade} // '') eq ($at{made} // 'no list') && ($at{logshut} // '') eq 'null page=true', 'the log lies over the page, which stays as it is under it: the list of what the page is made of is still the page\'s, and a second press on the log\'s icon closes the log and shows the page again', ($at{logmade} // 'nothing came of it') . ' / ' . ($at{logshut} // 'no word of the closing'));
+check(($at{log} // '') =~ m{^Every address lzrprf fetched for \S+ in this window is below\. Nothing is kept after this window closes\. To keep a log, type in Terminal: perl \S+ keep hosts\. No button of this window makes lzrprf keep more\.\|log strip=200 \S \d+ ms \S \d+ k?B\|This window\|site\.test answered \d+ bytes\. [^|]*\|.*\|you typed \Q$t\E/window\?q=1\|(?:[^|]*\|)*Test is contained: [^|]*$}, 'the log is shown in the same window, on a page of its own: this window\'s lines, the newest first, down to its first line, which fetched nothing (that the window is contained), with nothing kept on the disk and no question that keeps anything, and the strip left as it was', substr($at{log} // 'nothing came of it', 0, 80));
+for my $idle ('idlehome', 'idlepage') {    # the window left alone two seconds, on the home page of a new tab and on a drawn page
+    my ($quarters, $mains, $wall, $rest) = ($at{$idle} // '') =~ /^cpu_ms=(\d+,\d+,\d+,\d+) main_ms=(\d+,\d+,\d+,\d+) wall_ms=(\d+) (timers=.*)$/;
+    my ($first, @later) = split /,/, $quarters // '';
+    my (undef, @main_later) = split /,/, $mains // '';
+    my ($cpu, $main) = (0, 0); $cpu += $_ for @later; $main += $_ for @main_later;
+    check(defined $quarters && $wall >= 1900 && $main * 100 <= 3 * $wall * 3 / 4 && $cpu * 100 <= 3 * $wall * 3 / 4 && $rest eq 'timers=000 place=0 redrawn=0 ticks=0',
+        "an idle window costs close to nothing ($idle): once half a second has passed since lzrprf last said anything, the whole process and the window's own thread each spend under 3 in 100 of the time that passes, measured with the system's clocks in quarters of two seconds (the first quarter is shown and not judged: the window finishes what the last message began there); no timer is set and nothing is laid out, repainted or stepped meanwhile", $at{$idle} // 'nothing came: the window stopped before');
+}
+check(($at{torunseen} // '') =~ /^timer=false seen=false motion=(?:true|false)$/, 'the onion of Tor connecting breathes only while the window is seen: with the window not seen its timer of 30 frames a second is not started (it ran on, drawing for nobody, for as long as Tor said connecting)', $at{torunseen} // 'nothing came');
+check(($at{toolpanel} // '') eq 'open=tool open modal=true 0act-1none-2act-3undo- act=false undo=false confirm=none ; 0act+1none-2act-3undo- act=true undo=false confirm=none ; 0act+1none-2act+3undo- act=true undo=false confirm=none ; 0act-1none-2act+3undo- act=true undo=false confirm=none ; 0act-1none-2act-3undo- act=false undo=false confirm=none ; seen=true paint=none/lit icon=none/lit ; asked=true said=1 0act+1none-2act+3undo- act=none undo=none confirm=Switch off 2:true paint=none/lit ; back 0act+1none-2act-3undo- act=none undo=none confirm=Switch off 1:true ; sent=tool act 0 busy=true 0act+1none-2act-3undo- act=false undo=false confirm=none ; again 0act-1none-2act-3undo- act=false undo=false confirm=none busy=false ; none tool=true modal=false paint=none/dark ; back=2 tip=2 launchd jobs you switched off were switched on again by something else, and switched off again icon=none/lit ; said=2',
+    'the application\'s tool in the window, told by lines as lzrprf writes them and pressed by real mouse events, with what it says caught and kept from lzrprf: a row before "tool begin" and a busy line before any list change nothing; the list holds its rows; a tick on a row that can be switched off lets the button that switches off take a press, a row lzrprf can change nothing in takes no tick, and taking off the last tick takes the press away again; that button only asks, showing the ticked rows, and the words "tool act" are said only after the second press, naming exactly the rows ticked then; while lzrprf works no button but Close takes a press; a new list comes unticked; "tool none" closes the panel and "tool back" colours the icon and says why; the list, the question and the icon each paint to their end into a picture of the test\'s own, with nothing thrown', $at{toolpanel} // 'nothing came: the window stopped before');
+check(($at{logpaths} // '') eq '-1:true:none/lit:1:true 0:true:none/lit:2:true 3:true:none/lit:4:true 600:true:none/lit:601:true pill=log>null:page=true:closing=false:said= arrow=log>null:page=true:closing=false:said= cog=log>null:page=true:closing=false:said= pill?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1 arrow?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1 cog?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1',
+    'the log page paints to its end into a picture of the test\'s own with nothing thrown, empty, with a part and no line, short, and 600 lines long; its Close pill (pressed by a real mouse event), the back arrow and the line of the cogwheel\'s menu each close it and show the page again, saying nothing to lzrprf; with a question of lzrprf open, each answers it with the first button, which changes nothing, and the next question about the log is answered the same way and not shown', $at{logpaths} // 'nothing came: the window stopped before');
+my $steps_shown = $import_steps =~ s/\t/|/gr;
+check(length $import_steps && ($at{importsteps} // '') =~ /^modal=true shown=true fits=true need=\d+ high=\d+ text=\Q$steps_shown\E$/ && $import_steps =~ /\t1\. In Chrome choose Bookmarks, Bookmark Manager[^\t]*\t2\. [^\t]*Export bookmarks\.\t3\. Save the file in Downloads[^\t]*\t4\. Here choose A bookmarks file \(HTML\)[^\t]*\tOr from your Google account[^\t]*takeout\.google\.com/ && $import_steps !~ /Full Disk Access/,
+    'the import wizard, told what lzrprf says when macOS keeps Chrome\'s files from it (lzrprf\'s own sub import_steps, read from it and run here), shows each line on a line of its own: the steps of Chrome\'s own export numbered 1 to 3 and a fourth to choose the file here, the Google account named beside them as the second way, nothing that asks for Full Disk Access, and the whole of it fits in the room the panel gives it', $at{importsteps} // 'nothing came: the window stopped before');
+check(($at{flight} // '') eq 'steps=1 flight=true timer=false', 'a step of a panel\'s flight that throws stops its timer at once: the flight ends and its timer is no longer valid, where it went on stepping sixty times a second', $at{flight} // 'nothing came: the window stopped before');
+my $many_bytes = length(join '', map { "l$_\n" } 0 .. 299) - 1;
+check(out('heardreader') =~ /^armed=4 ended=1 handled=305 one,two,boom,three,l299,caf\? decoded=3\/4 14\/4 $many_bytes\/4 4\/4\+4\/5 -$/m,
+    'the window\'s reader of what lzrprf writes, read from lzrprf and run with no window: a line in two pieces is heard whole once its end comes; a line whose handling throws is passed over and the line after it is heard; a chunk of 300 lines is decoded once, its bytes each once, not again for each line; a line that is no UTF-8 is read as Latin-1; it waits for the next bytes after each chunk, and the end of the pipe ends the window', out('heardreader') =~ s/\s+$//r || err('heardreader') =~ s/\s+/ /gr);
+my $later_heard = later_heard();
+check($later_heard eq 'press=2 kept=tor on,tor off seen=tor on,view 900 700,tor off next=tor on,tor off left=0', 'Tor turned on and then off in the window while a question is open is kept, in its order, and heard by the loop of sub behind right after the answer, the first thing it hears; the question takes the answer that names it: "sub asked" and "sub hear", read from lzrprf and run here', $later_heard);
+check(($at{pressed} // '') =~ /^selected=0 pending=tab select 0 kept text=A page by the hostile/ && ($at{kept} // '') =~ /^selected=0 tabs=2 drawn=0 pending=true kept1=true text=A page by the hostile/ && asked('/window?q=2') == 1,
+    'a tab pressed while a page loads in another is shown at once with the drawing it kept, and the press is not lost: it waits for lzrprf and is said when lzrprf is free; the page that then arrives is kept for its own tab and not drawn over the one chosen, and after lzrprf has heard the press nothing more is drawn (the runs of the application are counted in the run of tabs, where its error output is the test\'s)', ($at{pressed} // 'no press') . ' / ' . ($at{kept} // 'not after'));
 my %heavy_at = map { /^test (heavy\w+) (.*)$/ ? ($1 => $2) : () } split /\n/, out('heavy') . err('heavy');
 my @heavy_ms = map { ($heavy_at{"heavy$_"} // '') =~ /^lines=\d+ characters=\d+ set_ms=(\d+) laid_ms=(\d+)(?: drawn_ms=(\d+) forms=[\d\/,]*)?$/ ? $1 + $2 + ($3 // 0) : undef } 0 .. $#heavy;
 my @heavy_drawn = map { ($heavy_at{"heavy$_"} // '') =~ / drawn_ms=(\d+) / ? " of them $1 ms drawing it" : '' } 0 .. $#heavy;    # a laid page only
@@ -2092,13 +2397,18 @@ check(@started == 1 && $started[0] =~ /contain\('', \$PROGRAM\)/, 'the applicati
 my $connects = () = $text_of_lzrprf =~ /\bconnect\(/g;
 check($connects == 3 && $text_of_lzrprf =~ /^print 'network ', \(connect\(\$s, pack_sockaddr_in\(\$port, inet_aton\('127\.0\.0\.1'\)\)\)/m && $text_of_lzrprf =~ /^        connect\(\$site, \$one->\{addr\}\);/m && $text_of_lzrprf =~ /^    connect\(\$tor, pack_sockaddr_in\(\$TOR->\{port\}, inet_aton\('127\.0\.0\.1'\)\)\) or return;/m, 'lzrprf connects in three places: to the site, from "reach"; to the Tor client on this computer\'s loopback, from "tor_reach", only while Tor is on; and, as one of the tries at the start, to a listener it opened itself on this computer', "$connects places");
 my %programs = map { $_ => 1 } $text_of_lzrprf =~ m{(?<![\w/.])(/(?:usr/)?s?bin/[a-z-]+)}g;
-my @known = qw(/bin/ps /bin/sh /sbin/route /usr/bin/curl /usr/bin/env /usr/bin/open /usr/bin/osascript /usr/bin/perl /usr/bin/sandbox-exec /usr/bin/true /usr/bin/xattr /usr/sbin/sysctl);    # "open" only to start the application again after a done install, when you pressed Close and restart: the installer itself runs in lzrprf's own window, and nothing is opened in Terminal
+my @known = qw(/bin/launchctl /bin/ps /bin/sh /sbin/route /usr/bin/codesign /usr/bin/curl /usr/bin/env /usr/bin/open /usr/bin/osascript /usr/bin/perl /usr/bin/plutil /usr/bin/sandbox-exec /usr/bin/true /usr/bin/xattr /usr/sbin/sysctl);    # "open" only to start the application again after a done install, when you pressed Close and restart: the installer itself runs in lzrprf's own window, and nothing is opened in Terminal
 my @opens = grep { m{/usr/bin/open} } split /\n/, $text_of_lzrprf;
 check(@opens == 1 && $opens[0] eq "            become(undef, undef, undef, '/usr/bin/open', '-n', \$app);", 'lzrprf names "open" on one line, which opens the application it ran from and nothing else (Close and restart after a done install)', scalar(@opens) . ' lines');
-check(join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these twelve: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
+check(join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these fifteen: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
 my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted';
-check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '5 1 3 1 3 3 1' && $text_of_lzrprf =~ /^        \(\$got, \$why, \$from\) = fetch\(\$url, \$where, \{ method => \$method, /m && $text_of_lzrprf =~ /^sub live_fetched \{/m && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^            \(\$shown\) = pictured\(\$checked, \$live->\{paths\}, \$live->\{host\}, undef, undef, \$live->\{pictures\}\);/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ typed\(\$1\) \}}m && $text_of_lzrprf =~ m{^sub typed \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ m{^sub navigated \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    \@WAY = \(\);\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n    return newer_looked\(/m && $text_of_lzrprf =~ /^    return newer_looked\(.*, 1\) if \$asked;\n/m && $text_of_lzrprf =~ /^sub newer_looked \{\n(?:    .*\n){3}    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
+check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '5 1 3 1 3 3 1' && $text_of_lzrprf =~ /^        \(\$got, \$why, \$from\) = fetch\(\$url, \$where, \{ method => \$method, /m && $text_of_lzrprf =~ /^sub live_fetched \{/m && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^            \(\$shown\) = pictured\(\$checked, \$live->\{paths\}, \$live->\{host\}, undef, undef, \$live->\{pictures\}\);/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ typed\(\$1\) \}}m && $text_of_lzrprf =~ m{^sub typed \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ m{^sub navigated \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    \@WAY = \(\);\n    \$WENT = now\(\);  +# [^\n]*\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n    return newer_looked\(/m && $text_of_lzrprf =~ /^    return newer_looked\(.*, 1\) if \$asked;\n/m && $text_of_lzrprf =~ /^sub newer_looked \{\n(?:    .*\n){3}    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
     'a request has five roads and no sixth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures of its page, on its host or another, and its style sheets on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; and "live_fetched", for an address a page kept running asked for [C19]; "fetch" is called from those five and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
+my ($window_js) = $text_of_lzrprf =~ /^sub window_text \{\n    return <<'END';\n(.*?)^END$/ms;
+my %functions; $functions{$_}++ for ($window_js // '') =~ /^function (\w+)\(/mg;
+my @twice = grep { $functions{$_} > 1 } sort keys %functions;
+check(($window_js // '') ne '' && $window_js !~ /alphaValue|\banimator\b|fade/i, 'nothing of the window fades: no part of it is made more or less see-through over time, and nothing goes through AppKit\'s own animator; a move is a short flight and a change is at once', join(' ', ($window_js // '') =~ /(alphaValue|\banimator\b|fade\w*)/gi) || 'none');
+check(keys %functions > 100 && !@twice, 'every function of the window has a name of its own: of two with one name the last stands for both, and the first is never called', @twice ? "named twice: @twice" : scalar(keys %functions) . ' functions');
 my %marks = map { $_ => 1 } $text_of_lzrprf =~ /^#   \[(C\d+)\]/mg;
 my ($head, $body) = split /^use strict;$/m, $text_of_lzrprf, 2;
 my %marked = map { $_ => 1 } ($body // '') =~ /\[(C\d+)\]/g;
@@ -2109,7 +2419,7 @@ my ($in_time, $gone) = hears();
 check(defined $in_time && $in_time eq '' && !defined $gone, 'the two ends of a question are told apart: "sub hear" of lzrprf, run against a pipe of the test\'s own, gives an empty line when nothing is said in time, so "sub ask" answers 1, and nothing when the window is gone, so lzrprf ends', defined $in_time ? (defined $gone ? 'the same for both' : 'time over: an empty line; window gone: nothing') : 'time over: nothing, as if the window were gone');
 my @no_folder = grep { my $pid = open(my $in, '-|') // die "selftest: cannot fork: $!\n"; if (!$pid) { open STDERR, '>&', \*STDOUT; { no warnings; exec '/usr/bin/perl', $cli, 'try', "$base.keepcli/$_", '-', '-', 'deny', '/usr/bin/true'; } POSIX::_exit(127) } my $all = do { local $/; <$in> } // ''; close $in; $all !~ /^usage: lzrprf run / } '.', '..', '.x';    # nothing is typed and every answer is the first button, so a folder that was taken would have nothing done in it
 check(!@no_folder, 'the door for tests takes no folder named ".", ".." or with a dot first, so it cannot be pointed at the folder lzrprf itself keeps its state in', @no_folder ? "taken: @no_folder" : 'usage, three times');
-check(keys %marks == 19 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 19 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
+check(keys %marks == 20 && join(' ', sort keys %marks) eq join(' ', sort keys %marked), 'each of the 20 conditions in lzrprf\'s first lines is marked at the line that holds it', scalar(keys %marked) . ' marks in the code');
 my $readme = slurp("$here/README.md");
 if (length $readme) {
     my %cited = map { $_ => 1 } $readme =~ /\[(C\d+)\]/g;
@@ -2292,10 +2602,22 @@ sub unmark {                              # the mark of this copy is taken out o
 
 sub plain_mark { $_[0] =~ s/, untested: [^\n]*//r }    # a line of the file of marks without the checks that could not be tried: the mark of its copy
 
+sub later_heard {                         # "sub asked" and "sub hear" of lzrprf, taken out and run here: Tor turned on and off while a question is open, then the loop of sub behind hearing again
+    my ($asked) = $text_of_lzrprf =~ /^(sub asked \{.*?^\}\n)/ms;
+    my ($hear) = $text_of_lzrprf =~ /^(sub hear \{.*?^\}\n)/ms;
+    defined $asked && defined $hear or return 'not found in lzrprf';
+    my $vars = 'package Later; no warnings; our ($FROM, $FROM_HELD, $ASKED, $ANSWER, $ANSWER_SECONDS, $TRY, $TRY_QUIET, @LATER, @HELD, @EVENTS, @LIVE, @said, @seen, @script);';
+    my $press = eval "$vars \$FROM = 1; \$ASKED = 0; \$ANSWER_SECONDS = 5; \@said = \@seen = \@LATER = \@HELD = (); \@script = ('tor on', 'view 900 700', 'tor off', 'button 1 2'); sub window { push \@said, \$_[0] } sub viewing { push \@seen, \$_[0] } sub now { Time::HiRes::time() } sub leave { die qq{left\\n} } sub hear { shift \@script } $asked asked('ask Keep a log?', 'No', 'Yes')" // 'x';    # the window's answer comes after three other lines
+    no warnings 'once';
+    my @kept = @Later::LATER;
+    my @next = eval "$vars $hear (hear(0, 1), hear(0, 1))";    # the real "sub hear" now, as the loop of sub behind calls it
+    return "press=$press kept=" . join(',', @kept) . ' seen=' . join(',', @Later::seen) . ' next=' . join(',', @next) . ' left=' . (@Later::LATER + @Later::HELD);
+}
+
 sub hears {                               # "sub hear" of lzrprf, taken out and run here against a pipe: what it returns when nothing is said in time, then when the other end is gone
     my ($text) = $text_of_lzrprf =~ /^(sub hear \{.*?^\})/ms;
     defined $text && pipe(my $from, my $to) or return ('x', 'x');
-    my @got = eval "package Heard; no warnings; my \$FROM = \$from; my \$FROM_HELD = ''; my \@EVENTS; my \@HELD; my \@LIVE; my \$TRY = 0; my \$TRY_QUIET = 2; sub now { require Time::HiRes; Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) } $text; my \$quiet = hear(0.2); close \$to; (\$quiet, scalar hear(0.2))";    # with no page kept running, which it also hears
+    my @got = eval "package Heard; no warnings; my \$FROM = \$from; my \$FROM_HELD = ''; my \@EVENTS; my \@HELD; my \@LATER; my \@LIVE; my \$TRY = 0; my \$TRY_QUIET = 2; sub now { require Time::HiRes; Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) } $text; my \$quiet = hear(0.2); close \$to; (\$quiet, scalar hear(0.2))";    # with no page kept running, which it also hears
     return @got == 2 ? @got : ('x', 'x');
 }
 
