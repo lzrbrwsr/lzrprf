@@ -1190,14 +1190,14 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 61
-    new Pull a tab out of the window to make it a window of its own; reopen a closed tab (Cmd-Shift-T), find in the page (Cmd-F), zoom (Cmd plus, minus, 0); enter a support member licence code
+    release 62
+    new Pages built from module scripts run: import and export, top-level await and import(), each one fetched through the one road and held to the page's own script policy
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin 27cfd19ca9c8343a885f57adb831834da9d13d0f024b6e9af5db52f950e1f714
+    file lzrbrwsr-bin cca34c0a7dda919c1c38f3d92e003797923e0e8f01a32aead56b0949ae0a90ea
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
     lzrprf 3542e7982ae1e1751289336adbace265c7b12847d5463874a4d0c00034eb9e69
 
