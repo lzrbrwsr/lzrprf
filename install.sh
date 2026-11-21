@@ -161,8 +161,8 @@ umask 022
 BASE="${LZRBRWSR_BASE:-https://lzrbrwsr.com}"
 SECOND="${LZRBRWSR_SECOND:-${LZRBRWSR_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main}}"
 FILE="lzrbrwsr-macos-arm64.tar.gz"
-SHA256="6b7be8a1b404adbd9f67868b9e05160458bc3a2eee6f879ee7d80ced8b0bf722"
-RELEASE="61"
+SHA256="355a7d69fec96e8343ee7b5602d340cc9fb457919b56817142ae84adbd108717"
+RELEASE="62"
 LZRPRF_COMMIT="6ddd70c4ef98f671e99a33eb6a1448cc6af01621"
 LZRPRF_BASE="${LZRPRF_BASE:-https://raw.githubusercontent.com/lzrbrwsr/lzrprf/$LZRPRF_COMMIT}"
 LZRPRF_SHA256="3542e7982ae1e1751289336adbace265c7b12847d5463874a4d0c00034eb9e69"
@@ -503,14 +503,14 @@ cmp -s "$tmp/plist" "$tmp/unpacked/LZRBRWSR.app/Contents/Info.plist" || stop "th
 # installer is fetched from, by Terminal, after you chose to install it. "report" is where a report
 # goes, and only when you pressed Send.
 cat >"$tmp/release" <<'RELEASEFILE'
-release 61
-new Pull a tab out of the window to make it a window of its own; reopen a closed tab (Cmd-Shift-T), find in the page (Cmd-F), zoom (Cmd plus, minus, 0); enter a support member licence code
+release 62
+new Pages built from module scripts run: import and export, top-level await and import(), each one fetched through the one road and held to the page's own script policy
 newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
 installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
 same https://lzrbrwsr.com/install.sh
 report https://origin.lzrbrwsr.com/report
 file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-file lzrbrwsr-bin 27cfd19ca9c8343a885f57adb831834da9d13d0f024b6e9af5db52f950e1f714
+file lzrbrwsr-bin cca34c0a7dda919c1c38f3d92e003797923e0e8f01a32aead56b0949ae0a90ea
 file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
 lzrprf 3542e7982ae1e1751289336adbace265c7b12847d5463874a4d0c00034eb9e69
 RELEASEFILE
