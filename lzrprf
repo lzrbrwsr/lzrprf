@@ -4037,7 +4037,7 @@ sub newer {
     my ($release, $newest, undef, $installer, $same) = beside();
     return $asked && checked_said('none') unless $newest && $installer;
     return newer_looked($release, $newest, $installer, $same, 1) if $asked;
-    my $may = '';
+    my ($may, $back) = ('', strip_back());
     if (open my $in, '<', "${\ shared()}/look") { $may = <$in> // '' }
     $may = $may eq "yes $newest" ? 'yes' : $may =~ /^no\b/ ? 'no' : '';    # a yes for another address is no yes for this one; a no stays a no
     if (!$may) {
@@ -4051,6 +4051,7 @@ sub newer {
             record('that answer could not be kept: no newer release is looked for now, and you are asked again at the next start');
             $may = 'no';
         }
+        $back->();                        # the question was in the strip: answered, it leaves the window closed to every press until this
     }
     return unless $may eq 'yes';
     return newer_looked($release, $newest, $installer, $same, 0);
@@ -4062,6 +4063,7 @@ sub newer {
 # it under Check for updates. An incognito window looks for nothing and keeps nothing.    # [C16]
 sub newer_looked {
     my ($release, $newest, $installer, $same, $asked) = @_;
+    my $back = strip_back();
     busy('Looking for a newer release.');
     my ($host) = $newest =~ m{^https://([^/]+)};
     my $got = fixed(($asked ? 'you chose Check for updates: ' : '') . "lzrprf looks for a newer release: $newest", $newest, $host);
@@ -4071,10 +4073,13 @@ sub newer_looked {
         my $says = !defined $there ? 'lzrprf could not read the newest release number just now. The log says what was fetched.' : $there > $release ? "A newer release of $APP is published: $there." : "You run the newest release of $APP, $release.";
         noted($says);
         defined $there && $there <= $release ? aside($says) : idle($says);
+        $back = strip_back();             # what the strip says now is what a "Later" below puts back
     }
+    else { $back->() }                    # the start's own look: it said busy, so it says idle, with the strip's words as they were
     return unless defined $there && $there > $release;
-    return unless ask("A newer release of $APP is published: $there. You run $release. Install it fetches the installer and runs it here, in this window, with no further question: every line it prints is shown and kept in ${\ shared()}/install.txt.", 'Later', 'Install it') == 2;
+    return $back->() unless ask("A newer release of $APP is published: $there. You run $release. Install it fetches the installer and runs it here, in this window, with no further question: every line it prints is shown and kept in ${\ shared()}/install.txt.", 'Later', 'Install it') == 2;
     installed($there, $installer, $same);
+    return $back->();                     # the installer did not run to its end (an install that is done never comes back here): its modal says why, and the window takes a press again
 }
 
 # A welcome, once after each install or update. At the first start of a
@@ -4314,6 +4319,13 @@ sub window {
     }
 }
 
+# The strip as it is now, to put back. The window takes a press only after lzrprf said "idle": a line
+# "busy", and a question once it is answered, leave it closed to every press. So whatever speaks in the
+# strip beside a page (the look for a newer release) ends by putting the strip back, on every way out.
+sub strip_back {
+    my ($was, $short) = @{ $TABS[$TAB] }{qw(says brief)};
+    return sub { idle($was // '', $short); return };
+}
 sub busy { window('busy ' . $_[0] =~ s/\s+/ /gr) }
 sub idle {                                # what lzrprf says, in full; with $short the strip shows that instead ("brief"), and the full words stand where they belong: with what the page is made of, or on the log page
     my ($says, $short) = map { defined ? s/\s+/ /gr : undef } @_[0, 1];

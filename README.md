@@ -1311,8 +1311,8 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 63
-    new Profiles: the icon left of the cogwheel opens each profile in a window of its own, with its own bookmarks, history, log, home page and search, kept apart from every other profile
+    release 64
+    new Fix: after the look for a newer release at the start the window takes a press again; in release 63 it stayed on Looking for a newer release and took none
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -1320,7 +1320,7 @@ here:
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin cca34c0a7dda919c1c38f3d92e003797923e0e8f01a32aead56b0949ae0a90ea
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-    lzrprf 5930b46c03a8ad323fbbaecef38b408949f32cc53fde66f353b2891c467ff3cd
+    lzrprf 53d2612886367d001147bfa07b77f70534181c3a7e206352494ebdadef0cbd68
 
 ## When a page cannot be shown
 
