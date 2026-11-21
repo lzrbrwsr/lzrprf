@@ -5,6 +5,7 @@
 #
 #   lzrprf run /path/to/program [arguments]     open the window, with the program contained behind it
 #   lzrprf incognito [/path/to/program [args]]  the same in an incognito window, which leaves nothing behind when it closes [C16]
+#   lzrprf run|incognito --open "X Y W H" /path/to/program [args]   the window of a tab pulled out of another window, opened at that frame: the tab's address comes as one line on standard input, never as an argument, since every user of the computer can read the arguments of a process
 #   lzrprf log                                  print what the log on this computer holds
 #   lzrprf keep [nothing|hosts|all [DAYS]]      say, or choose, what is kept after a window closes
 #   lzrprf address TEXT...                      say what would be fetched if TEXT were typed into the bar
@@ -34,15 +35,15 @@
 #   [C1]  The application is started in one place only, and only inside the page container.
 #   [C2]  At every start lzrprf tries, from inside that same container, what the container must refuse, and starts nothing unless all of it was refused and the same tries worked outside.
 #   [C3]  No process is handed a byte of what was fetched, nor the connection to a site, before the system itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, curl among its fixed switches.
-#   [C4]  A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in the window, or for one of three fixed addresses of the release file after you said yes (the newest release number, a report, the installer in its one or two places), or for a picture the page laid out from such an address names, on that page's host or on a name under it (as img.example.com is for a page of example.com or www.example.com) and on no other site, at most twenty-four, each address checked as a typed one is and never inside your own network, or for a style sheet it names on that same host, at most eight, by a path lzrprf checked. There is no fourth way to a request, besides what a page kept running asks for within [C19].
+#   [C4]  A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in the window, or for one of three fixed addresses of the release file after you said yes (the newest release number, a report, the installer in its one or two places), or for a picture the page laid out from such an address names, on that page's host or on a name under it (as img.example.com is for a page of example.com or www.example.com) and on no other site, at most twenty-four, each address checked as a typed one is and never inside your own network, or for a style sheet it names on that same host, at most eight, by a path lzrprf checked. A support request you send from the cogwheel's menu, and the reading of its answer when you ask, go to the one support address the release file names and to no other place. There is no other way to a request, besides what a page kept running asks for within [C19].
 #   [C5]  Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded.
 #   [C6]  There is one place that connects to a site directly, and it connects to a numeric address that was checked and written down; the one other connection to the outside goes to the Tor client on this computer's loopback, only while Tor is on [C17].
-#   [C7]  What a site is sent is made from the address alone, with one fixed browser name, LZRBRWSR, and, only on the request of a page you visit, one fixed line of the kinds of answer it takes, Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8: the same request from every computer, byte for byte, with nothing kept from an earlier request. A page kept running adds to it only what [C19] lets it.
+#   [C7]  What a site is sent is made from the address alone, with one fixed browser name, LZRBRWSR, and, only on the request of a page you visit, one fixed line of the kinds of answer it takes, Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8: the same request from every computer, byte for byte, with nothing kept from an earlier request. A page kept running adds to it only what [C19] lets it. A support request adds only its body: your words with the release number, the picture of the window when you ticked it, and your licence code when one is kept; reading its answer adds only the key lzrprf was handed for it.
 #   [C8]  A host inside your own network is fetched only after you said yes to exactly that, once, and never for a picture.
 #   [C9]  Every line the application writes is checked before the window is given it, and what is not one of five kinds of line, or a laid page, is not drawn at all. Its title, one line of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else.
 #   [C10] The window's process has no network of its own, writes no file, starts no other program, opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under /Users or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, lzrprf asks the system about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of that container's text, its list of services among it, is not asked about, and selftest makes its own tries from the real window. Of the system's services it looks up by name only the 41 its container lists and one local name, the clipboard's.
 #   [C11] No page is fetched or shown before selftest held on this build of macOS with this file and the selftest beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks.
-#   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log, apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file .order of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (install.txt); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
+#   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log, apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file .order of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (install.txt), a licence code you entered (licence) and the reference and key of the support request you sent last (support), never its words; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #   [C13] The application opens no file for its fonts: lzrprf hands it eight fonts of the Mac, by fixed paths, in front of a page's answer and never a picture's, each a plain file and no link of at most 2 MiB that begins as a font, or with length 0; and only after the system said that the application is contained.
 #   [C14] A page is laid out at most twice: a second time only when its first run named style sheets on the page's own host, at most eight, which lzrprf fetches and hands the second run in front of the answer, after the fonts, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown, the first run's page is; there is never a third run, and a picture run is handed no style sheet.
 #   [C16] An incognito window writes nothing that outlives it. Its log, history, tabs, suggestions and everything it fetched are held in its memory or in one folder it makes for itself, readable by you alone, in your own temporary folder (TMPDIR, /private/var/folders/.../T), named lzrprf-i.<its process number>.<12 random hex digits>. Of ~/.lzrprf it reads, and never writes, the self-test's result (proven, untested, selftest.lock), the home page, the search address, whether the bookmarks bar is shown and the bookmarks. The folder is removed when the window ends, however it ends: quit, its last window closed, a signal, its process dying; and a folder left by a run whose processes are all gone is removed at the next start of any lzrprf window.
@@ -177,6 +178,11 @@ my $SHOWN;                                # the page shown, kept to lay it out a
 my @HELD;                                 # what the window said while lzrprf looked for its latest size, in order: heard before anything new
 my @LATER;                                # Tor turned on or off in the window while a question was open: heard by the loop of sub behind once the question is answered, so the window's onion never waits for an answer that was dropped
 my $TABS_MOST = 32;                       # the most tabs one window holds: the owner's order of 2026-11-20
+my ($PULLED, $PULLED_MOST) = (0, 32);     # DECLARED(the most windows one window opens from its tabs in its life, as many as it holds tabs: a window process taken over cannot have lzrprf start processes without end)
+my @CLOSED;                               # the tabs closed in this window, the newest first, for "Reopen Closed Tab": [its place, the tab] (sub closed_kept)
+my $CLOSED_MOST = 10;                     # DECLARED(the owner's order of 2026-11-21: the last ten closed tabs)
+my $CLOSED_DRAWN = 2;                     # DECLARED(the newest two closed tabs keep their page, so the reopen pressed at once shows it without a fetch; an older one is visited again, so ten closed tabs do not hold ten pages)
+my ($OPEN, $OPEN_FRAME);                  # a window of a tab pulled out of another (sub opened_with): the address it opens first, and the frame it opens at
 my $TITLE = 200;                          # the most characters of a page's title, the =title line, shown in its tab
 my $VISITED = 100;                        # the most addresses a tab's history holds, the oldest dropped first: a list nothing is fetched from, emptied by "Clear history"
 my $INSTALL_SECONDS = 1800;               # the installer of a newer release is ended after this long: the slowest install measured by hand took under two minutes
@@ -609,8 +615,9 @@ sub run {
     swept();                              # [C16] the folder of an incognito run that ended without removing it, at every start
     incognito_begun() if $INCOGNITO || ($TRY && -e "$DIR/incognito");    # "lzrprf try" only: a file "incognito" in the test's folder makes the run an incognito one, the test's folder standing for ~/.lzrprf
     $SIG{PIPE} = 'IGNORE';
+    if ($TRY && open my $pull, '<', "$DIR/open") { ($OPEN) = opened_with($pull, '--open', '0 0 400 300', $program) }    # "lzrprf try" only: a file "open" in the test's folder holds the line a pulled tab's window reads on standard input
     if ($TRY && $ANSWER ne 'ask') {       # "lzrprf try" only: no window
-        @EVENTS = ('ready', $TYPED eq '-' ? () : map { /^=(.+)/ ? $1 : "go $_" } split /,,/, $TYPED);
+        @EVENTS = ('start ' . ($OPEN // '-'), 'ready', $TYPED eq '-' ? () : map { /^=(.+)/ ? $1 : "go $_" } split /,,/, $TYPED);
         return behind();
     }
     pipe(my $window_in, my $to) && pipe(my $from, my $window_out) or die "lzrprf: cannot make a pipe: $!\n";
@@ -621,7 +628,8 @@ sub run {
     my $more = '';
     if ($TRY && open my $test, '<', kept_in() . '/window') { local $/; $more = <$test> }    # "lzrprf try" only: the test's own text after the window's, so a test can keep the window off the screen and read what it holds
     die "lzrprf: the home folder's path holds a character lzrprf does not pass on\n" if $HOME =~ /["\\\n]/;
-    become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP, $INCOGNITO ? 'incognito' : 'window', frame_kept());    # the size and place the last window was left at (sub frame_kept), so it opens there and does not jump
+    syswrite $window_out, 'start ' . ($OPEN // '-') . "\n";    # the first line behind hears, written here before the window is made, so the window can neither say it nor read it: the address a pulled tab's window opens (sub started)
+    become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP, $INCOGNITO ? 'incognito' : 'window', $OPEN_FRAME // frame_kept());    # the size and place the last window was left at (sub frame_kept), so it opens there and does not jump; a pulled tab's window opens where the tab was let go
 }
 
 # An incognito window [C16]. Its folder is made the way mkdtemp makes one: a
@@ -687,16 +695,77 @@ sub incognito_begun {
 
 sub incognito_opened {                    # "New Incognito Window": a second lzrprf, of its own, in incognito
     return idle('A new incognito window was asked for: "lzrprf try" starts none.') if $TRY;
-    my @again = ($PROGRAM, @ARGUMENTS);
-    my $child = fork // return idle('No incognito window was started: lzrprf could not start a process.');
+    return idle('No incognito window was started: lzrprf could not start a process.') unless apart(undef, '/usr/bin/perl', $SELF, 'incognito', $PROGRAM, @ARGUMENTS);
+    return idle('An incognito window is opening. It writes nothing: when it closes, it leaves nothing behind.');
+}
+
+sub apart {                               # a second lzrprf, of its own, that goes through every start check itself; true when it was started. A line given is its standard input, then closed
+    my ($line, @command) = @_;
+    my ($from, $to);
+    pipe($from, $to) or return 0 if defined $line;
+    my $child = fork // return 0;
     if (!$child) {
         POSIX::setsid();
         my $grandchild = fork // POSIX::_exit(1);
         POSIX::_exit(0) if $grandchild;   # so the window started is nobody's child here, and leaves nothing to wait for
-        become(undef, undef, undef, '/usr/bin/perl', $SELF, 'incognito', @again);
+        become($from, undef, undef, @command);
+    }
+    if ($to) {                            # one line, at most 2101 bytes, fits in the pipe at once: nothing waits on the reader
+        close $from;
+        local $SIG{PIPE} = 'IGNORE';
+        syswrite $to, "$line\n";
+        close $to;
     }
     waitpid $child, 0;
-    return idle('An incognito window is opening. It writes nothing: when it closes, it leaves nothing behind.');
+    return $? == 0;
+}
+
+# A tab pulled out of the strip and let go away from it: "tab out N X Y W H", N a tab that is
+# there and the rest the frame of its new window, in the form of a kept frame. A second lzrprf
+# is started for it as "New Incognito Window" starts one, and goes through every start check of
+# its own: it is handed the frame as an argument and the tab's address as one line on its
+# standard input, nothing else; the address is never an argument, which every user of the
+# computer can read in the list of processes for as long as the window lives. A tab of an incognito window opens an incognito
+# window. The tab then closes here; it is not one of the closed tabs to reopen, since it still
+# shows. The last tab is never pulled out: its window moves instead. One window opens at most
+# $PULLED_MOST windows this way in its life.
+sub tab_out {
+    my ($n, $frame) = @_;
+    return if $n >= @TABS || @TABS < 2;
+    my ($url) = address($TABS[$n]{url} // '');
+    my $stays = $PULLED >= $PULLED_MOST ? "The tab stays here: this window has opened $PULLED_MOST windows from its tabs, the most one window may. Open a new window for more."
+        : !$TRY && !apart($url // '', pulled_command($frame)) ? 'The tab stays here: lzrprf could not start a process for its new window.' : '';
+    if (length $stays) {
+        window('tabs ' . @TABS . " $TAB", map { "title $_ $TABS[$_]{title}" } 0 .. $#TABS);    # the strip shows the tab again
+        return idle($stays);
+    }
+    $PULLED++;
+    tabbed('close', $n, undef, 1);
+    idle('A tab pulled out opens a new window: "lzrprf try" starts none.') if $TRY;
+}
+
+sub pulled_command { my ($frame) = @_; return ('/usr/bin/perl', $SELF, $INCOGNITO ? 'incognito' : 'run', '--open', $frame, $PROGRAM, @ARGUMENTS) }    # the new window's lzrprf, started as this one was, and no address in it
+
+# "--open FRAME" before the program (sub pulled_command), the frame in the form of a kept frame,
+# and one line read from $in (standard input): an address checked as a typed one, or an empty
+# line for none, at most 2100 characters. Returns the address (undef for none), the frame and the
+# program with its arguments; anything else ends the start here.
+sub opened_with {
+    my ($in, undef, $frame, @rest) = @_;
+    my $url = '';
+    my $one;
+    while (length $url <= 2100) { (read($in, $one, 1) // 0) == 1 && $one ne "\n" or last; $url .= $one }
+    die "lzrprf: --open takes a frame \"X Y W H\", then the program, and an address lzrprf fetches or an empty line on standard input\n"
+        unless defined $frame && @rest && length $url <= 2100 && (!length $url || (address($url))[0]) && $frame =~ /\A-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4}\z/;
+    return (length $url ? (address($url))[0] : undef, $frame, @rest);
+}
+
+# The first line behind hears is lzrprf's own, written before the window was made (sub run):
+# "start ADDRESS" in the window of a pulled tab, else "start -". Then the window's first words,
+# "ready". Returns that address, '' for none, or nothing when the run did not begin so.
+sub started {
+    my ($pulled) = (hear(60) // '') =~ /^start (-|[\x20-\x7f]{1,2100})$/ or return;
+    return (hear(60) // '') eq 'ready' ? ($pulled eq '-' ? '' : $pulled) : undef;
 }
 
 sub named {                               # the program of this run, and the name it is called by in the window
@@ -718,7 +787,7 @@ sub behind {
     my $held = holds();                   # [C2] tried now too, beside the window being made: it starts nothing but its own small program, and its answer is waited on below before anything else is done
     timed('holds');
     $BEGAN = sum_of($PROGRAM);            # read before it is compared below, so the program that is compared is the one every page is held to
-    leave() unless (hear(60) // '') eq 'ready';
+    my $pulled = started() // leave();
     timed('ready');
     paired();                             # before anything else: an application and an lzrprf that were not installed together are noticed
     return closed($INCOGNITO ? "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. An incognito window does not run the self-test, because the test writes its result: open a normal window once to test this Mac." : "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e kept_in() . '/prove') || proven();    # [C11]
@@ -735,9 +804,12 @@ sub behind {
     marks_told();
     window('marksbar ' . (marks_bar() ? 'on' : 'off'), 'search ' . (engine() ? 'set' : 'none'));
     nav_told();
-    if (my $home = home()) { go($home, 'you opened your home page') }    # [C4] an address that came from the bar, kept when you made it the home page
+    if (length $pulled) { go($pulled, 'you pulled a tab out into this window') }    # [C4] checked as a typed address is, and [C5] written before its name is looked up: the address of a tab pulled out of another window, handed on a pipe
+    elsif (my $home = home()) { go($home, 'you opened your home page') }    # [C4] an address that came from the bar, kept when you made it the home page
     newer() unless $INCOGNITO;           # [C16] it would write its answer and an installer's lines. Only now, once the window is idle and its first page is drawn: a look for a newer release never stands before the first drawing
     window('checked ' . ($INCOGNITO ? 'none' : checked_kept()));    # when lzrprf last looked for a newer release, shown under Check for updates
+    licence_told();                       # whether a licence code is kept, shown under Enter licence code
+    support_told();                       # where a support request would go, and whether one is kept to read its answer
     tool_watch();                        # [C20] the jobs you switched off, looked at once as the window starts
     while (defined(my $event = hear(scalar(tool_due()), 1))) {
         if ($event =~ /^go ([\x20-\x7f]{1,2100})$/) { typed($1) }    # [C4] the one place an address comes from: the bar of lzrprf's own window; a size said while it was fetched and laid out is the size it is laid out again at
@@ -746,6 +818,8 @@ sub behind {
         elsif (viewing($event)) { relaid() }    # the window's page has a new size: the page shown is laid out again at its width, from what was kept, and nothing is fetched
         elsif ($event =~ /^tab move (0|[1-9][0-9]?) (0|[1-9][0-9]?)$/) { tab_moved($1, $2) }    # a tab dragged along the strip to another place among the tabs: the page shown stays as it is
         elsif ($event =~ /^tab (new|select|close)(?: (0|[1-9][0-9]?))?( kept)?$/) { tabbed($1, $2, $3); relaid() }    # a tab chosen in the strip: the window shows the drawing it kept of it ("kept"), or lzrprf sends the one it kept, and only a page kept at another width is laid out again; nothing is fetched, unless a new tab opens the home page
+        elsif ($event eq 'tab reopen') { tab_reopened(); relaid() }    # Cmd-Shift-T: the tab closed last, at its place, from lzrprf's memory alone
+        elsif ($event =~ /^tab out (0|[1-9][0-9]?) (-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4})$/) { tab_out($1, $2); relaid() }    # a tab pulled out of the strip: a window of its own
         elsif ($event =~ /^menu (clear-history|clear-sessions|home|bookmarks-bar)$/) { menu($1); said_noted() }
         elsif ($event =~ /^mark open (0|[1-9][0-9]{0,2})$/) { $MARKS[$1] ? go($MARKS[$1][2], 'you opened a bookmark', $1) : idle('That bookmark is no longer there.') }    # [C4] an address kept from the bar or typed into the window's own modal
         elsif ($event =~ /^mark remove (0|[1-9][0-9]{0,2})$/) { mark_removed($1); said_noted() }
@@ -761,6 +835,11 @@ sub behind {
         elsif ($event eq 'update-check') { $INCOGNITO ? idle('An incognito window looks for no newer release; a window that is not incognito does, in its cogwheel menu.') : newer(1) }
         elsif ($event =~ /^frame (full|-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4})$/) { frame_said($1) }    # the window was moved, resized or made full screen: kept for the next window
         elsif ($event eq 'incognito') { incognito_opened(); said_noted() }
+        elsif ($event =~ /^licence set ([0-9A-Za-z \-]{1,200})$/) { licence_set($1) }    # "Enter licence code": the code typed into the window's own field, checked here before anything is kept
+        elsif ($event eq 'licence remove') { licence_removed() }
+        elsif ($event =~ /^support send ([A-Za-z0-9+\/]+={0,2}) (-|[A-Za-z0-9+\/]+={0,2})$/) { support_sent($1, $2) }    # [C4] "Support request": your words and, when you ticked it, the window's picture of itself; the address is the release file's, never the window's
+        elsif ($event eq 'support read') { support_read() }    # [C4] the answer to the request kept, read from the release file's support address
+        elsif ($event eq 'support forget') { support_forgot() }
         elsif ($event =~ /^import (sources|go)$/) { $1 eq 'go' ? (import_go(), said_noted()) : import_sources() }    # [C15] "Import bookmarks..." in the window's wizard: nothing is read before a browser is chosen, nothing written before Import
         elsif ($event =~ /^import profiles (chrome|edge|brave|vivaldi|firefox|safari|file)$/) { import_profiles($1) }
         elsif ($event =~ /^import preview (chrome|edge|brave|vivaldi|firefox|safari|file) (0|[1-9][0-9]?)$/) { import_preview($1, $2) }
@@ -1521,7 +1600,7 @@ sub relaid {
 # line lzrprf tells the window all the tabs again: "tabs COUNT SELECTED" and a
 # line "title N TEXT" for each, the text checked by sub checked.
 sub tabbed {
-    my ($how, $n, $kept) = @_;
+    my ($how, $n, $kept, $pulled) = @_;
     $TABS[$TAB]{shown} = $SHOWN;
     my $opened;
     if ($how eq 'new' && !defined $n && @TABS < $TABS_MOST) { push @TABS, fresh_tab(); $TAB = $#TABS; $opened = 1; noted('you opened a new tab') }
@@ -1529,8 +1608,9 @@ sub tabbed {
     elsif ($how eq 'close' && defined $n && $n < @TABS) {
         my $live = live_of($TABS[$n]);
         live_end($live, 'its tab was closed') if $live;
-        noted('you closed a tab' . (length($TABS[$n]{url} // '') ? ": $TABS[$n]{url}" : ''));
-        splice @TABS, $n, 1;
+        noted(($pulled ? 'you pulled a tab out into a new window' : 'you closed a tab') . (length($TABS[$n]{url} // '') ? ": $TABS[$n]{url}" : ''));
+        my ($gone) = splice @TABS, $n, 1;
+        closed_kept($gone, $n) unless $pulled;
         @TABS = (fresh_tab()) unless @TABS;
         $TAB-- if $TAB > $n || $TAB > $#TABS;
     }
@@ -1538,6 +1618,35 @@ sub tabbed {
     tab_shown($how eq 'new' && !$opened ? "A window holds $TABS_MOST tabs at most: close one to open another." : undef, $how eq 'select' && $kept);
     my $home = $opened && home();
     go($home, 'you opened your home page') if $home;    # [C4] the address kept from the bar when you made it the home page
+}
+
+# A closed tab, kept for "Reopen Closed Tab" (Cmd-Shift-T) with its place: at most $CLOSED_MOST, the
+# newest first, in the memory of this process and nowhere else, so an incognito window writes
+# nothing for them either. Only the $CLOSED_DRAWN newest keep their page; an older one keeps its
+# address, title and history, and is visited again when reopened. A tab with no address is not kept.
+sub closed_kept {
+    my ($tab, $at) = @_;
+    return unless length($tab->{url} // '');
+    unshift @CLOSED, [$at, $tab];
+    splice @CLOSED, $CLOSED_MOST if @CLOSED > $CLOSED_MOST;
+    $_->[1]{shown} = undef for @CLOSED[$CLOSED_DRAWN .. $#CLOSED];
+}
+
+# "tab reopen": the tab closed last, put in again at its old place (or last, when fewer tabs stand
+# now) and chosen, with its page when lzrprf still has it, laid out again at the window's width
+# when it was kept at another (sub relaid); else its address is visited, written in the log first.
+sub tab_reopened {
+    my $one = shift @CLOSED or return idle('No closed tab to reopen in this window.');
+    if (@TABS >= $TABS_MOST) { unshift @CLOSED, $one; return idle("A window holds $TABS_MOST tabs at most: close one to reopen another.") }
+    my ($at, $tab) = @$one;
+    $TABS[$TAB]{shown} = $SHOWN;
+    $at = @TABS if $at > @TABS;
+    splice @TABS, $at, 0, $tab;
+    $TAB = $at;
+    $SHOWN = $tab->{shown};
+    noted("you reopened a closed tab $tab->{url}") if $SHOWN;    # the same line "sub go" writes for one that is visited again
+    tab_shown();
+    go($tab->{url}, 'you reopened a closed tab') unless $SHOWN;    # [C4] an address this tab went to already
 }
 
 # The lists sent for the tabs' pages are kept for the $LISTS_KEPT tabs shown last, so a tab chosen
@@ -1620,6 +1729,7 @@ sub menu {
     }
     my $count = 0;
     $count += @{ $_->{visited} } for @TABS;
+    @CLOSED = ();                          # the closed tabs hold the addresses they went to, and their pages
     @$_{qw(visited at)} = ([], -1) for @TABS;
     nav_told();
     window('history clear');               # the pages the bar suggests go with the history
@@ -3208,8 +3318,8 @@ sub fetch {
     my ($url, $where, $ask, $page) = @_;    # $page: the request of a page you visit, which carries the line Accept (sub request)
     my ($way, $roots) = ("$DIR/way.$$", $PEER ne '-' ? kept_in() . '/authority.pem' : $ROOTS);
     my $none = 'the request could not be made';
-    my $up = $ask && $ask->{method} eq 'POST' ? $ask->{body} : undef;    # [C19] the body a page's POST carries, all that is carried besides the request
-    my @asked = !$ask ? () : ($ask->{method} eq 'HEAD' ? ('--head') : (), defined $up ? ('--data-binary', '@-', '-H', 'Content-Type:' . ($ask->{type} eq '-' ? '' : " $ask->{type}"), '-H', 'Expect:') : (), defined $ask->{origin} ? ('-H', "Origin: $ask->{origin}") : ());    # [C19]
+    my $up = $ask && $ask->{method} eq 'POST' ? $ask->{body} : $ask && defined $ask->{key} ? "Authorization: Bearer $ask->{key}\n" : undef;    # [C19] the body a page's POST carries, all that is carried besides the request; or the key that reads the answer to a support request, as a line curl adds to its request, so that no list of processes shows it (sub support_read)
+    my @asked = !$ask ? () : ($ask->{method} eq 'HEAD' ? ('--head') : (), defined $ask->{key} ? ('-H', '@-') : (), $ask->{method} eq 'POST' ? ('--data-binary', '@-', '-H', 'Content-Type:' . ($ask->{type} eq '-' ? '' : " $ask->{type}"), '-H', 'Expect:') : (), defined $ask->{origin} ? ('-H', "Origin: $ask->{origin}") : ());    # [C19]
     unlink $way;
     my $listen = IO::Socket::UNIX->new(Local => $way, Listen => 1) or return (undef, $none);
     pipe(my $from_curl, my $out) or return (undef, $none);
@@ -3322,14 +3432,16 @@ sub public4 {
     return 1;
 }
 
-# The fixed addresses. Besides what you type, lzrprf fetches three things,
-# each only after you said yes in the window, each written in the log first,
-# each sent the way a typed address is: the newest release number (below),
-# a report you chose to send (above), and after "Install it" the installer,
-# from the one or two places the release file names (sub installed). An
-# address that is not on the public internet is not fetched for any.     # [C4]
+# The fixed addresses. Besides what you type, lzrprf fetches five things,
+# each only after you asked for it in the window, each written in the log
+# first, each sent the way a typed address is: the newest release number
+# (below), a report you chose to send (above), after "Install it" the
+# installer, from the one or two places the release file names (sub
+# installed), a support request you send, and the answer to it when you ask
+# to read it (sub support_sent, sub support_read). An address that is not on
+# the public internet is not fetched for any.                            # [C4]
 sub fixed {
-    my ($line, $url, $host) = @_;
+    my ($line, $url, $host, $ask) = @_;   # $ask: a support request sent, or the answer to it read (sub support_sent, sub support_read), the two that are more than a GET of the address alone
     $UNSAID = 0;
     open my $request, '>>', "$DIR/busy" or return;
     flock $request, LOCK_SH or return;
@@ -3341,11 +3453,290 @@ sub fixed {
     if (!$why) {
         record("$url -> lzrprf connects " . ($TOR_WANTED ? "through Tor, one circuit for $host" : 'to the first that answers of: ' . join(', ', map { $_->{text} } @$where)), $kept) or return;    # [C5]
         $UNSAID = 1;
-        ($got, $why, $from) = fetch($url, $where);
+        ($got, $why, $from) = fetch($url, $where, $ask);
     }
-    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;    # nothing of the answer is used, and "sub fault" says the report was tried
+    record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return;    # nothing of the answer is written, and "sub fault" says the report was tried
     $UNSAID = 0;
     return $why ? undef : $got;
+}
+
+# The support member licence. "Enter licence code" in the cogwheel's menu
+# opens a field for the code you got when you bought the application. A code
+# is 120 letters and digits: 75 bytes written in Crockford's base32, read here
+# as they are written, with case, spaces and dashes left aside, O read as 0
+# and I and L as 1. One byte says its kind (17: a support member), two the
+# month it was bought in (months since January 2026), eight are its own
+# number, and 64 are an Ed25519 signature over the words LZRBRWSR-LICENCE-1
+# and the eleven bytes before it. lzrprf checks that signature itself, with
+# the public key below and the system's perl alone (Math::BigInt and
+# Digest::SHA), and fetches nothing for it. A code that checks is kept in one
+# plain file of yours, licence, written by lzrprf alone; removing the code
+# removes the file. An incognito window offers neither this nor a support
+# request: both keep something.                                          # [C16]
+my $LICENCE_KEY = 'ed25519 none';         # the public key of the licence codes, as their maker publishes it: "ed25519 " and its 32 bytes in base64. "none" until it is made: a code is then checked here by its form, and by its signature where a support request goes
+my $CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+my @MONTHS = qw(January February March April May June July August September October November December);
+my %LICENCE_WHY = (empty => 'Type or paste your licence code first.', form => 'That is not a licence code: a code has 120 letters and digits, in groups of 5.', kind => 'That code is not a support member licence.', signature => 'That code does not check: a letter may be mistyped. Paste it as it was given to you.');
+
+sub licence_key {                         # the 32 bytes of the public key, or nothing while there is none
+    my $line = $LICENCE_KEY;
+    if ($TRY && open my $in, '<', kept_in() . '/licence-key') { $line = <$in> // ''; chomp $line }    # "lzrprf try" only: the test's own key, with codes it signed itself
+    my ($text) = $line =~ m{^ed25519 ([A-Za-z0-9+/]{43}=)$} or return;
+    my $raw = decode_base64($text);
+    return length $raw == 32 ? $raw : undef;
+}
+
+sub licence_read {                        # a code as it was typed: its 75 bytes, or nothing and why ("empty", "form", "kind")
+    my ($typed) = @_;
+    (my $code = uc($typed // '')) =~ s/[\s-]//g;
+    return (undef, 'empty') unless length $code;
+    $code =~ tr/OIL/011/;
+    return (undef, 'form') unless length $code == 120 && $code =~ /^[0-9A-HJKMNP-TV-Z]+$/;
+    my $bytes = pack 'B600', join '', map { sprintf '%05b', index $CROCKFORD, $_ } split //, $code;
+    return (undef, 'kind') unless ord $bytes == 17;
+    return $bytes;
+}
+
+sub licence_written { my ($bytes) = @_; return join '-', unpack '(A5)*', join '', map { substr $CROCKFORD, oct("0b$_"), 1 } unpack '(A5)*', unpack 'B600', $bytes }    # the 75 bytes as the seller writes them: 24 groups of 5
+sub licence_month { my ($bytes) = @_; my $month = unpack 'n', substr $bytes, 1, 2; return $MONTHS[$month % 12] . ' ' . (2026 + int($month / 12)) }
+
+sub licence_checked {                     # a code typed: (its bytes, "signed" or "form" for a code checked by its form alone while there is no key), or (nothing, why)
+    my ($typed) = @_;
+    my ($bytes, $why) = licence_read($typed);
+    return (undef, $why) unless $bytes;
+    my $key = licence_key() // return ($bytes, 'form');
+    return signed($key, 'LZRBRWSR-LICENCE-1' . substr($bytes, 0, 11), substr($bytes, 11)) ? ($bytes, 'signed') : (undef, 'signature');
+}
+
+# Ed25519 (RFC 8032, section 5.1.7): the signature (R, S) of a message holds
+# when S is below the group's order L and S times the base point equals R plus
+# h times the key, h being SHA-512 of R, the key and the message, taken modulo
+# L. Here S*B and (L-h)*A are added in one pass over the bits of both
+# numbers, and the sum must be R itself, byte for byte. Points are kept in
+# extended coordinates (X, Y, Z, T), x = X/Z, y = Y/Z, xy = T/Z.
+sub signed {
+    my ($key, $message, $signature) = @_;
+    require Math::BigInt;
+    my $two = Math::BigInt->new(2);
+    my $p = $two->copy->bpow(255)->bsub(19);
+    my $order = $two->copy->bpow(252)->badd('27742317777372353535851937790883648493');
+    my $inverse = sub { $_[0]->copy->bmodpow($p->copy->bsub(2), $p) };
+    my $d = Math::BigInt->new(-121665)->bmul($inverse->(Math::BigInt->new(121666)))->bmod($p);
+    my $number = sub { Math::BigInt->from_hex(unpack 'H*', scalar reverse $_[0]) };    # 32 bytes, the least first
+    my $sum = sub {
+        my ($u, $v) = @_;
+        my ($m, $n) = ((($u->[1] - $u->[0]) * ($v->[1] - $v->[0])) % $p, (($u->[1] + $u->[0]) * ($v->[1] + $v->[0])) % $p);
+        my ($c, $e) = ((2 * $d * $u->[3] * $v->[3]) % $p, (2 * $u->[2] * $v->[2]) % $p);
+        my ($f, $g, $h, $k) = ($n - $m, $e - $c, $e + $c, $n + $m);
+        return [($f * $g) % $p, ($h * $k) % $p, ($g * $h) % $p, ($f * $k) % $p];
+    };
+    my $point = sub {                     # 32 bytes as a point of the curve, or nothing
+        my $y = $number->($_[0]);
+        my $odd = $y->copy->brsft(255)->is_one;
+        $y->bmod($two->copy->bpow(255));
+        return if $y >= $p;
+        my $xx = (($y * $y - 1) * $inverse->(($d * $y * $y + 1) % $p)) % $p;
+        my $x = $xx->copy->bmodpow(($p + 3) / 8, $p);
+        $x = ($x * $two->copy->bmodpow(($p - 1) / 4, $p)) % $p if ($x * $x - $xx) % $p != 0;
+        return if ($x * $x - $xx) % $p != 0 || $x->is_zero && $odd;
+        $x = $p - $x if $x->is_odd != $odd;
+        return [$x, $y, Math::BigInt->new(1), ($x * $y) % $p];
+    };
+    my $base = $point->(pack 'H*', '58' . '66' x 31);
+    my $held = $point->($key) or return 0;
+    my $s = $number->(substr $signature, 32);
+    return 0 if $s >= $order;
+    my $h = $number->(Digest::SHA::sha512(substr($signature, 0, 32) . $key . $message)) % $order;
+    my @adds = (undef, $base, $held, $sum->($base, $held));
+    my ($one, $other) = map { substr $_->as_bin, 2 } $s, ($order - $h) % $order;
+    $_ = ('0' x (256 - length)) . $_ for $one, $other;
+    my $at = [Math::BigInt->new(0), Math::BigInt->new(1), Math::BigInt->new(1), Math::BigInt->new(0)];
+    for my $i (0 .. 255) {
+        $at = $sum->($at, $at);
+        my $which = substr($one, $i, 1) + 2 * substr($other, $i, 1);
+        $at = $sum->($at, $adds[$which]) if $which;
+    }
+    my $z = $inverse->($at->[2]);
+    my ($x, $y) = (($at->[0] * $z) % $p, ($at->[1] * $z) % $p);
+    $y->badd($two->copy->bpow(255)) if $x->is_odd;
+    my $hex = substr $y->as_hex, 2;
+    return scalar(reverse pack 'H*', ('0' x (64 - length $hex)) . $hex) eq substr($signature, 0, 32);
+}
+
+sub licence_kept {                        # the code kept, as written, and its bytes; nothing when none is kept
+    return if $INCOGNITO;
+    open my $in, '<', "$DIR/licence" or return;
+    my $line = <$in> // '';
+    chomp $line;
+    my ($bytes) = licence_read($line);
+    return unless $bytes;
+    return ($line, $bytes);
+}
+
+sub licence_told { my (undef, $bytes) = licence_kept(); window($INCOGNITO ? 'licence off' : $bytes ? 'licence kept ' . licence_month($bytes) : 'licence none') }
+sub licence_refused { my ($says) = @_; window("licence refused $says"); return idle($says) }
+
+sub licence_set {
+    my ($typed) = @_;
+    return licence_refused("$UNKEPT, so it keeps no licence code.") if $INCOGNITO;    # [C16]
+    busy('Checking the licence code on this Mac.');
+    my ($bytes, $how) = licence_checked($typed);
+    return licence_refused($LICENCE_WHY{$how}) unless $bytes;
+    my $month = licence_month($bytes);
+    record('you entered a support member licence code: it is kept in the file licence, and is not written here') or return licence_refused('The licence code was not kept: its line could not be written to the log.');
+    unlink "$DIR/licence.new";
+    return licence_refused('The licence code was not kept: its file could not be written.') unless put("$DIR/licence.new", O_EXCL, licence_written($bytes)) && rename("$DIR/licence.new", "$DIR/licence");
+    synced();
+    window("licence kept $month");
+    return idle("The licence code is kept: this browser is a support member's, since $month. " . ($how eq 'signed' ? 'It was checked on this Mac. A support request you send carries it, so it is answered first.' : 'Its form was checked on this Mac; its signature is checked where a support request goes, and a request you send carries it, so it is answered first.'));
+}
+
+sub licence_removed {
+    return licence_refused("$UNKEPT, so it keeps no licence code.") if $INCOGNITO;    # [C16]
+    my $had = -e "$DIR/licence";
+    unlink "$DIR/licence.new";
+    return licence_refused('The licence code could not be removed: its file is still there.') if $had && !unlink "$DIR/licence";
+    synced();
+    record('you removed the support member licence code, and its file') if $had;
+    window('licence none');
+    return idle($had ? 'The licence code was removed, and its file with it. Support requests now go without it.' : 'No licence code was kept.');
+}
+
+# A support request. "Support request" in the cogwheel's menu opens a box for
+# your words, a support question or a feature you would like. It goes to the
+# one address the application's release file names for it, the line
+# "support", and to no other: never a host the window or a page gives. It is
+# a POST of JSON, sent as every fixed request is (sub fixed): its line in the
+# log first, through the one place that connects, by curl in its container,
+# with the fixed lines of [C7] and the body. The body holds exactly: "text",
+# your words and then one line with the number of this release; "licence",
+# the code you entered, only when one is kept; and "screenshot", a PNG of the
+# window drawn by the window itself into a picture of its own, only when you
+# ticked it, which shows the page in it and the address in its bar. Nothing
+# else: no address of a page besides what that picture shows, no history, no
+# name of this computer or of you. The window lists all
+# of it before Send. The log says that a request was sent, never its words.
+# The answer names the request's reference and a key, given once; both are
+# kept in one plain file of yours, support, so that "Read the answer" can
+# read the answer later: a GET of the reference's address under the support
+# address, with the key in the line Authorization, which curl takes on its
+# input, so no list of processes shows it. A request sent later replaces the
+# one kept, and "Forget it" removes the file.                    # [C4] [C7]
+my $SUPPORT_TEXT = 4000;                  # DECLARED(the most characters the support address takes in one request, the release line counted)
+my $SUPPORT_PICTURE = 2 * 1024 * 1024;    # DECLARED(the largest PNG the support address takes)
+my $SUPPORT_MESSAGES = 100;               # DECLARED(the most messages of one request the window is shown)
+
+sub support_address {                     # the support address the release file names: (address, host), or nothing
+    return if $INCOGNITO;                 # [C16]
+    my ($line) = map { /^support (https:\/\/\S+)$/ ? $1 : () } release_lines();
+    my ($url, $host) = address($line // '');
+    return unless $url && $url eq $line && $url =~ m{^https://[^/?#]+(?:/[A-Za-z0-9_-]+)+$};    # the line as lzrprf would fetch it, and a plain path with no query: the reference is added to it
+    return ($url, $host);
+}
+
+sub support_kept { return if $INCOGNITO; open my $in, '<', "$DIR/support" or return; my $line = <$in> // ''; return $line =~ /^([A-Za-z0-9_-]{22}) ([A-Za-z0-9_-]{43})\n?\z/ ? ($1, $2) : () }    # the reference and the key of the request sent last
+sub support_told { my (undef, $host) = support_address(); my ($ticket) = support_kept(); my ($release) = beside(); window($INCOGNITO ? 'support off incognito' : $host && defined $release ? "support on $host $release" : 'support off none', 'support kept ' . ($host && $ticket ? $ticket : '-')) }
+sub support_failed { my ($says) = @_; window("support failed $says"); return idle($says) }
+
+sub support_words {                       # the words the window sent, in base64 of UTF-8: as text with no control or format character but line ends and tabs, or nothing
+    my ($text) = @_;
+    return if length $text > 4 * int((4 * $SUPPORT_TEXT + 2) / 3);    # more bytes than the most characters can take, each of four bytes
+    require Encode;
+    $text = eval { Encode::decode('UTF-8', decode_base64($text), Encode::FB_CROAK()) } // return;
+    $text =~ s/\r\n?/\n/g;
+    $text =~ s/[\x00-\x08\x0b-\x1f\x7f-\x9f\x{ad}\x{200b}-\x{200f}\x{2028}-\x{202e}\x{2060}-\x{206f}\x{feff}\x{fff9}-\x{fffb}]//g;
+    $text =~ s/^\s+|\s+$//g;
+    return $text;
+}
+
+sub support_picture {                     # a PNG as the window draws one: its signature, IHDR first and IEND last, at most $SUPPORT_PICTURE bytes; or nothing
+    my ($text) = @_;
+    return unless length $text <= 4 * int(($SUPPORT_PICTURE + 2) / 3) && length($text) % 4 == 0 && $text =~ /^[A-Za-z0-9+\/]+={0,2}$/;
+    my $png = decode_base64($text);
+    return unless length $png >= 57 && length $png <= $SUPPORT_PICTURE && substr($png, 0, 8) eq "\x89PNG\r\n\x1a\n" && substr($png, 12, 4) eq 'IHDR' && substr($png, -8, 4) eq 'IEND';
+    return $png;
+}
+
+sub support_answer {                      # what the support address answered: (status, its JSON as Perl data); nothing for an answer in no such form
+    my ($got, $method) = @_;
+    my ($status, undef, $body) = @{ live_parts($got, $method) // [] } or return;
+    require JSON::PP;
+    my $data = eval { JSON::PP->new->utf8->max_depth(8)->decode($body) };
+    return ($status, ref $data eq 'HASH' ? $data : undef);
+}
+
+sub support_problem {                     # why the support address took nothing, in plain words
+    my ($status, $data) = @_;
+    my ($first) = ref $data && ref $data->{problems} eq 'ARRAY' ? grep { defined && !ref } @{ $data->{problems} } : ();
+    return 'it does not take support requests yet' if ($status // '') eq '503';
+    return 'too many requests reached it just now; try again in an hour' if ($status // '') eq '429';
+    return 'the request is too large' if ($status // '') eq '413';
+    return 'it answered ' . ($status // 'in no form lzrprf reads') . (defined $first ? ': ' . tool_plain($first, 200) : '');
+}
+
+sub support_sent {
+    my ($words, $picture) = @_;
+    return support_failed("$UNKEPT, so it sends no support request.") if $INCOGNITO;    # [C16]
+    my ($url, $host) = support_address() or return support_failed('This application names no address for support requests, so nothing was sent.');
+    my ($release) = beside();
+    return support_failed('This application has no release number, so nothing was sent.') unless defined $release;
+    my $last = "Release $release";
+    my $text = support_words($words) // return support_failed('Your words could not be read, so nothing was sent.');
+    return support_failed('Write what the request is about first. Nothing was sent.') unless length $text;
+    return support_failed('The words are longer than ' . ($SUPPORT_TEXT - length($last) - 2) . ' characters. Nothing was sent.') if length($text) + 2 + length($last) > $SUPPORT_TEXT;
+    my $png;
+    if ($picture ne '-') { $png = support_picture($picture) // return support_failed('The picture of the window is not one lzrprf sends, so nothing was sent.') }
+    my ($code) = licence_kept();
+    require JSON::PP;
+    my $json = JSON::PP->new->ascii->allow_nonref;
+    my $body = '{"text":' . $json->encode("$text\n\n$last") . (defined $code ? ',"licence":' . $json->encode($code) : '') . (defined $png ? ',"screenshot":"' . encode_base64($png, '') . '"' : '') . '}';
+    busy("Sending your support request to $host.");
+    my $got = fixed('you sent a support request' . (defined $code ? ', with your licence code' : '') . (defined $png ? ', with a picture of the window' : '') . ": $url", $url, $host, { method => 'POST', body => $body, type => 'application/json' });
+    return support_failed($UNSAID ? 'lzrprf tried to send the request. Whether it arrived is not shown: the line that says how it ended could not be written to the log.' : 'The request could not be sent. The log says why.') unless defined $got;
+    my ($status, $data) = support_answer($got, 'POST');
+    my ($ticket, $key) = $data ? ($data->{ticket} // '', $data->{key} // '') : ('', '');
+    return support_failed('The support address did not take the request: ' . support_problem($status, $data) . '.') unless ($status // '') eq '200' && $ticket =~ /^[A-Za-z0-9_-]{22}\z/ && $key =~ /^[A-Za-z0-9_-]{43}\z/;
+    unlink "$DIR/support.new";
+    my $kept = put("$DIR/support.new", O_EXCL, "$ticket $key") && rename("$DIR/support.new", "$DIR/support");
+    synced();
+    my $licence = ($data->{licence} // '') =~ /^(none|accepted|refused)\z/ ? $1 : 'none';
+    window("support sent $ticket " . ($data->{priority} ? 'priority' : 'plain') . " $licence", 'support kept ' . ($kept ? $ticket : '-'));
+    return idle("Your support request was sent. Its reference is $ticket." . ($licence eq 'accepted' ? ' It goes with your licence code, so it is answered first.' : $licence eq 'refused' ? ' Your licence code was not taken, so it goes without priority.' : '') . ($kept ? ' Read the answer later from Support request in the cogwheel\'s menu.' : ' Its key could not be kept, so its answer cannot be read here.'));
+}
+
+sub support_read {
+    return support_failed("$UNKEPT, so it reads no support request.") if $INCOGNITO;    # [C16]
+    my ($url, $host) = support_address() or return support_failed('This application names no address for support requests.');
+    my ($ticket, $key) = support_kept() or return support_failed('No support request is kept here.');
+    require Encode;
+    busy("Reading the answer to your support request from $host.");
+    my $got = fixed("you read the answer to your support request: $url/$ticket", "$url/$ticket", $host, { method => 'GET', key => $key });
+    return support_failed('The answer could not be read. The log says why.') unless defined $got;
+    my ($status, $data) = support_answer($got, 'GET');
+    return support_failed('The support address knows no request by this reference and key now.') if ($status // '') eq '404';
+    return support_failed('The answer could not be read: ' . support_problem($status, $data) . '.') unless ($status // '') eq '200' && $data && ref $data->{messages} eq 'ARRAY';
+    my $state = ($data->{status} // '') =~ /^(open|answered|resolved|rejected)\z/ ? $1 : 'open';
+    my $shown = sub { my ($text, $most) = @_; $text = defined $text && !ref $text ? "$text" : ''; $text =~ s/[\x00-\x08\x0b-\x1f\x7f-\x9f\x{ad}\x{200b}-\x{200f}\x{2028}-\x{202e}\x{2060}-\x{206f}\x{feff}]//g; return encode_base64(Encode::encode('UTF-8', substr($text, 0, $most)), '') };    # words of the answer, shown as text and nowhere acted on
+    my @messages = grep { ref eq 'HASH' } @{ $data->{messages} };
+    splice @messages, 0, @messages - $SUPPORT_MESSAGES if @messages > $SUPPORT_MESSAGES;    # the newest are shown
+    my @lines = ("support thread $state " . $shown->($data->{reason}, 300));
+    for my $one (@messages) {
+        my $author = ($one->{author} // '') =~ /^(user|support|agent)\z/ ? $1 : next;
+        my $at = ($one->{at} // '') =~ /^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2})/ ? $1 : '-';
+        push @lines, "support message $author $at " . $shown->($one->{body}, $SUPPORT_TEXT);
+    }
+    window(@lines, 'support thread end');
+    return idle("The answer to your support request $ticket is shown: it is $state.");
+}
+
+sub support_forgot {
+    return support_failed("$UNKEPT, so it keeps no support request.") if $INCOGNITO;    # [C16]
+    my $had = -e "$DIR/support";
+    unlink "$DIR/support.new";
+    return support_failed('The support request could not be forgotten: its file is still there.') if $had && !unlink "$DIR/support";
+    synced();
+    window('support kept -');
+    return idle($had ? 'The support request is forgotten here: its reference and key were removed. Its answer can no longer be read on this Mac.' : 'No support request was kept.');
 }
 
 # What the application's maker put beside the program, in a file "release":
@@ -4523,6 +4914,7 @@ var drawings = [], DRAWINGS_MOST = 8, drawnLines = [], drawnUsed = 0, pendingTab
 var NEWLINE = null;    // a line end as bytes, made once (the "heard:" of the window's hand)
 var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
 var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
+var zooms = [], reopening = false, pulling = null;    // each tab's zoom in percent (zoomOf); a closed tab asked back, whose place the strip makes when lzrprf tells the tabs; the address a pulled tab's window opens with
 var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false, drag = null, moving = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
 var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, torIcon: false, toolIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
 var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 30, TOP = TABS_HIGH + BAR_ROW, MARGIN = 22, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
@@ -4563,6 +4955,7 @@ function pageKey(event) {
     if (!liveOn || !sheet || !free || modalOpen) return;
     var flags = event.modifierFlags, shift = (flags & SHIFT) ? ' shift' : '', named = PAGE_KEYS[event.keyCode], typed = event.characters.js;
     if (flags & (CMD | CONTROL)) return;
+    if (findOpen && event.keyCode == 53) return findClosed();    // Escape closes Find before the page is handed it
     if (named) return say('page key ' + named + shift);
     if (/^[\x21-\x7e]$/.test(typed)) return say('page key ' + typed + shift);
     if (!liveFocus) return;
@@ -4601,6 +4994,8 @@ function heard(line) {
     else if (word == 'title') { var gap = rest.indexOf(' '), which = +rest.slice(0, gap); if (tabs[which]) tabs[which].title = rest.slice(gap + 1); tabsView.needsDisplay = true; }
     else if (word == 'install') installTold(rest);
     else if (word == 'checked') checkedTold(rest);
+    else if (word == 'licence') licenceTold(rest);
+    else if (word == 'support') supportTold(rest);
     else if (word == 'tor') torTold(rest);
     else if (word == 'tool') toolTold(rest);
     else if (word == 'welcome') welcomeTold(rest);
@@ -4632,6 +5027,7 @@ function heard(line) {
 // takes a press changed, so "busy" and "idle" cost the few views they change.
 function strip(parts, open, question) {
     var wasAsking = asking, wasFree = free;
+    zoomWords = null;    // lzrprf's new words stand; the zoom said a moment ago is not put back over them
     asking = question;
     free = !!open && !question;    // the tabs, the cogwheel and the bar take something only while lzrprf waits for it
     words.stringValue = $(briefNext !== null ? briefNext : parts[0] || '');
@@ -4711,6 +5107,7 @@ function place() {
     techPlaced();
     suggestPlaced();
     cogPlaced();
+    findPlaced();
     placeModal();
 }
 
@@ -4774,7 +5171,7 @@ function laid(lines, first) {
         else if (kind == 'X') {
             var parts = line.slice(1).split(','), text = parts.slice(5).join(','), high = n[2], look = face(parts[3].charCodeAt(0) - 64, high, parts[4]);
             characters += text.length;
-            next.ops.push([n[1] - high * 1.25, high * 1.75, 'X', n[0], 0, $(text), look[0], n[1] - look[1]]);    // drawn from its top: its baseline is the font's ascent below that
+            next.ops.push([n[1] - high * 1.25, high * 1.75, 'X', n[0], 0, $(text), look[0], n[1] - look[1], text]);    // drawn from its top: its baseline is the font's ascent below that; the text as it is, for Find
         } else throw 'a laid page holds a line of another kind';
     }
     var share = restoring !== null ? restoring : again && sheet && sheet.high > 0 ? Math.min(1, Math.max(0, canvas.visibleRect.origin.y / sheet.high)) : 0;    // a tab chosen again is shown where it was read in it; a page laid out again at a new width where it was read, as a share of its height; a new page from its top
@@ -4784,6 +5181,7 @@ function laid(lines, first) {
     fit();
     canvas.scrollPoint($.NSMakePoint(0, Math.round(share * sheet.high)));
     listed(lines.slice(0, first));
+    if (findOpen) findRun();
     drawn(lines.length, characters);
 }
 
@@ -4795,7 +5193,7 @@ function unlaid() {
 // The size of the page's view, in points, told to lzrprf as "view W H" when it changed: lzrprf
 // lays the page shown out again at that width (its sub relaid). Two whole numbers and nothing else.
 function view() {
-    var size = scroll.contentSize, line = 'view ' + Math.max(1, Math.round(size.width)) + ' ' + Math.max(1, Math.round(size.height));
+    var size = scroll.contentSize, z = zoomOf(selected), line = 'view ' + zoomWidth(size.width, z) + ' ' + zoomWidth(size.height, z);    // a page zoomed in is laid for a narrower page, zoomed out for a wider one
     if (line == viewing) return;
     viewing = line;
     say(line);
@@ -4815,11 +5213,140 @@ function viewNow() {
 
 function fit() {
     if (!sheet) return;
-    var room = scroll.contentSize.width, scale = room / sheet.wide;
-    if (scale > 1.1 && room <= sheet.wide * 1.5) scale = 1;    // a page laid at the nearest step of width (sub viewing) fills the window; a page far narrower is shown at its size
+    var room = scroll.contentSize.width, scale = fitScale(room, sheet.wide, zoomOf(selected));
     canvas.setFrameSize($.NSMakeSize(sheet.wide * scale, sheet.high * scale));
     canvas.setBoundsSize($.NSMakeSize(sheet.wide, sheet.high));
     canvas.needsDisplay = true;
+}
+
+// Zoom (Cmd-plus, Cmd-minus, Cmd-0), for each tab. The page is laid out for the width the zoom
+// means, the page's room divided by it, on the road every size takes ("view W H", sub relaid), and
+// drawn scaled to fill the room, so its text flows anew as in other browsers. lzrprf lays a page
+// at a step of 160 points and between 320 and 1600 wide (sub viewing), so a zoom shows as near as
+// those steps let it: at some widths 110 percent is laid as 100 is.
+var ZOOMS = [50, 67, 80, 90, 100, 110, 125, 150, 175, 200], zoomWords = null;
+function zoomOf(n) { return zooms[n] || 100; }
+function zoomNext(now, by) { var k = ZOOMS.indexOf(now); return !by || k < 0 ? 100 : ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, k + by))]; }    // the next step in or out, held at the ends; 0 is the page's own size
+function zoomWidth(points, zoom) { return Math.max(1, Math.round(points * 100 / zoom)); }    // the size a page is laid at for room of this many points
+function fitScale(room, wide, zoom) {    // how much a page laid this wide is scaled: to fill the room; a page far narrower than the room (beyond 1600) is shown at the zoom, not blown up
+    var z = zoom / 100, scale = room / wide;
+    return scale > 1.1 * z && room <= wide * 1.5 * z ? z : scale;
+}
+function zoomed(by) {
+    if (modalOpen) return;
+    var was = zoomOf(selected), now = zoomNext(was, by);
+    while (zooms.length < tabs.length) zooms.push(100);
+    zooms[selected] = now;
+    zoomSaid(now);
+    if (now != was) { fit(); view(); }
+}
+function zoomSaid(now) {    // the strip says the zoom for a moment, then what it said before
+    if (zoomWords === null) zoomWords = [words.stringValue.js, words.toolTip.js];
+    words.stringValue = $('Zoom ' + now + '%');
+    $.NSObject.cancelPreviousPerformRequestsWithTargetSelectorObject(hand, 'zoomShown:', $());
+    hand.performSelectorWithObjectAfterDelay('zoomShown:', $(), 1.5);    // DECLARED(1.5 s: read at a glance, once; a call made once, no timer left running)
+}
+function zoomShown() {
+    if (zoomWords !== null && /^Zoom \d+%$/.test(words.stringValue.js)) { words.stringValue = $(zoomWords[0]); words.toolTip = $(zoomWords[1]); }
+    zoomWords = null;
+}
+
+// Find in page (Cmd-F): a small bar at the top right of the page with its field, which match is
+// shown of how many ("3 of 17"), previous, next and close. It looks through the text of the drawing
+// shown, capitals and small letters alike, marks every match and the current one more strongly, and
+// scrolls the current one into view. A match within one run of text is found; one across two runs
+// is not. It says nothing to lzrprf, fetches nothing and writes nothing.
+var findBox = null, findField = null, findOpen = false, findHits = [], findAt = -1, FIND_WIDE = 360, FIND_HIGH = 36, FIND_MOST = 1000, FIND_ALL = null, FIND_NOW = null;    // DECLARED(1000 matches marked at most: a page of one common letter stays quick)
+function findIn(texts, needle) {    // every match of needle in the texts, none overlapping: [which text, where in it]
+    var hits = [], low = needle.toLowerCase();
+    if (!low.length) return hits;
+    texts.forEach(function (text, k) {
+        var line = String(text).toLowerCase(), at = line.indexOf(low);
+        while (at >= 0 && hits.length < FIND_MOST) { hits.push([k, at]); at = line.indexOf(low, at + low.length); }
+    });
+    return hits;
+}
+function findStep(at, count, by) { return count ? ((at < 0 ? (by > 0 ? -1 : 0) : at) + by + count) % count : -1; }    // the match after or before, round from the last to the first
+function findSaid(at, count) { return count ? (at + 1) + ' of ' + count : 'No match'; }
+function findRun() {
+    var needle = findField ? findField.stringValue.js : '';
+    findHits = [];
+    if (sheet && scroll.documentView.isEqual(canvas)) {
+        var ops = sheet.ops.filter(function (op) { return op[2] == 'X'; });
+        findIn(ops.map(function (op) { return op[8]; }), needle).forEach(function (hit) {
+            var op = ops[hit[0]], before = $(op[8].slice(0, hit[1])).sizeWithAttributes(op[6]).width, wide = $(op[8].substr(hit[1], needle.length)).sizeWithAttributes(op[6]).width;
+            findHits.push({ x: op[3] + before, y: op[0] + op[1] / 7, w: Math.max(2, wide), h: op[1] * 5 / 7 });    // the band of the letters: the op is 1.75 lines high from 1.25 above the baseline
+        });
+    } else if (pageShown && !scroll.hidden) findIn([page.string.js], needle).forEach(function (hit) { findHits.push({ range: [hit[1], needle.length] }); });
+    findAt = findHits.length ? 0 : -1;
+    findShown();
+}
+function findShown() {
+    if (findBox) findBox.needsDisplay = true;
+    if (canvas) canvas.needsDisplay = true;
+    var manager = page.layoutManager;
+    manager.removeTemporaryAttributeForCharacterRange($.NSBackgroundColorAttributeName, $.NSMakeRange(0, page.string.length));
+    findHits.forEach(function (hit, i) { if (hit.range) manager.addTemporaryAttributeValueForCharacterRange($.NSBackgroundColorAttributeName, i == findAt ? FIND_NOW : FIND_ALL, $.NSMakeRange(hit.range[0], hit.range[1])); });
+    var one = findHits[findAt];
+    if (!one) return;
+    if (one.range) page.scrollRangeToVisible($.NSMakeRange(one.range[0], one.range[1]));
+    else canvas.scrollRectToVisible($.NSMakeRect(one.x - 40, one.y - 80, one.w + 80, one.h + 160));
+}
+function findMarked(top, bottom) {    // drawn over the laid page: every match, the current one stronger
+    if (!findOpen) return;
+    findHits.forEach(function (hit, i) {
+        if (hit.range || hit.y > bottom || hit.y + hit.h < top) return;
+        (i == findAt ? FIND_NOW : FIND_ALL).setFill;
+        $.NSRectFillUsingOperation($.NSMakeRect(hit.x - 1, hit.y, hit.w + 2, hit.h), 2);
+    });
+}
+function findOpened() {
+    if (modalOpen || !findBox) return;
+    findOpen = true;
+    findBox.hidden = false;
+    findPlaced();
+    win.makeFirstResponder(findField);
+    var editor = findField.currentEditor;
+    if (editor && !editor.isNil()) editor.selectAll($());
+    findRun();
+}
+function findClosed() {
+    if (!findOpen) return;
+    findOpen = false;
+    findBox.hidden = true;
+    findHits = [];
+    findAt = -1;
+    findShown();
+    win.makeFirstResponder(win);
+}
+function findMoved(by) {
+    if (!findOpen) return findOpened();
+    if (!findHits.length) return findRun();
+    findAt = findStep(findAt, findHits.length, by);
+    findShown();
+}
+function findPlaced() {
+    if (!findBox) return;
+    var area = scroll.frame;
+    findBox.frame = $.NSMakeRect(Math.max(0, area.origin.x + area.size.width - FIND_WIDE - 18), area.origin.y + area.size.height - FIND_HIGH - 8, FIND_WIDE, FIND_HIGH);
+    findField.frame = $.NSMakeRect(14, 8, FIND_WIDE - 14 - 186, 20);
+}
+function findChevron(cx, cy, way) { var p = $.NSBezierPath.bezierPath; p.moveToPoint($.NSMakePoint(cx - 5, cy - 2.5 * way)); p.lineToPoint($.NSMakePoint(cx, cy + 2.5 * way)); p.lineToPoint($.NSMakePoint(cx + 5, cy - 2.5 * way)); return p; }
+function paintFind() {
+    var size = findBox.frame.size, mid = size.height / 2, box = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(0.5, 0.5, size.width - 1, size.height - 1), 10, 10);
+    FILL.setFill;
+    box.fill;
+    glass(box, false);
+    stroked(box, EDGE, 1);
+    var said = findField.stringValue.js ? findSaid(findAt, findHits.length) : '', look = inked(sans(12), GREY);
+    $(said).drawAtPointWithAttributes($.NSMakePoint(size.width - 98 - $(said).sizeWithAttributes(look).width, mid - 8), look);
+    [findChevron(size.width - 80, mid, 1), findChevron(size.width - 54, mid, -1), crossed(size.width - 22, mid, 4.2)].forEach(function (p, k) { stroked(p, k < 2 && !findHits.length ? GREY : ICON, 1.4); });
+}
+function findClicked(event) {    // previous, next, close: the three at the bar's right end
+    var at = pointIn(findBox, event), w = findBox.frame.size.width;
+    if (Math.abs(at.x - (w - 80)) <= 12) findMoved(-1);
+    else if (Math.abs(at.x - (w - 54)) <= 12) findMoved(1);
+    else if (Math.abs(at.x - (w - 22)) <= 12) findClosed();
 }
 
 // lzrprf's chrome, drawn by this window alone and never by a page: the frame with its glowing edge,
@@ -4835,6 +5362,7 @@ function laser() {
     function rgb(r, g, b, a) { return $.NSColor.colorWithSRGBRedGreenBlueAlpha(r / 255, g / 255, b / 255, a === undefined ? 1 : a); }
     GREEN = rgb(72, 221, 255); DIM = rgb(40, 128, 150); YELLOW = rgb(255, 196, 92); WHITE = rgb(236, 242, 246); DARK = rgb(8, 11, 14);
     TOR_BLUE = rgb(70, 150, 255);    // Tor on: its own blue, never the beam's cyan, the same in an incognito window
+    FIND_ALL = rgb(255, 214, 0, 0.38); FIND_NOW = rgb(255, 140, 0, 0.72);    // Find's marks over the page: every match, and the current one
     GREY = rgb(138, 150, 158); LINE = rgb(40, 49, 56); GLASS = rgb(72, 221, 255, 0.035); GLASS_HI = rgb(72, 221, 255, 0.08);
     ICON = rgb(206, 214, 220); EDGE = rgb(66, 76, 84); FILL = rgb(15, 19, 23); HALO = rgb(72, 221, 255, 0.55); FAINT = rgb(72, 221, 255, 0.16);
     if (INCOGNITO) {    // an incognito window glows violet, never in the beam's cyan, so it is told apart at a glance
@@ -5035,21 +5563,30 @@ function framed() {
 // The tabs.
 function tabsTold(rest) {
     var told = rest.split(' '), count = +told[0], now = +told[1], chosen = !!pendingTab && pendingTab.to !== undefined;
+    if (pulling !== null) { if (count < tabs.length) closing = pulling; pulling = null; }    // a tab pulled out is gone only when lzrprf could start its window
     if (!chosen && now != selected && selected !== closing && selected < tabs.length) keep(selected, keptNow());    // the tab leaving the screen (for a new tab, or after one closed) keeps its drawing
     if (closing !== null) {
         shares.splice(closing, 1);
         drawings.splice(closing, 1);
+        zooms.splice(closing, 1);
         if (chosen && pendingTab.to > closing) pendingTab.to--;
         closing = null;
     }
+    if (reopening && count > tabs.length) {    // the closed tab put in again at its place: what the strip keeps of the tabs after it moves along one
+        [shares, drawings, zooms].forEach(function (all) { while (all.length < tabs.length) all.push(all == zooms ? 100 : all == shares ? 0 : null); all.splice(now, 0, all == zooms ? 100 : all == shares ? 0 : null); });
+        if (chosen && pendingTab.to >= now) pendingTab.to++;
+    }
+    reopening = false;
     while (tabs.length < count) tabs.push({ title: '' });
     tabs.length = count;
     if (shares.length > count) shares.length = count;
     if (drawings.length > count) drawings.length = count;
+    if (zooms.length > count) zooms.length = count;
     perlTab = now;
     if (moving) moving = false; else if (!chosen) restoring = shares[now] || 0;    // a tab only moved along the strip: the page shown stays where it is read
     selected = chosen ? Math.min(pendingTab.to, count - 1) : now;    // a tab chosen while lzrprf was busy stays chosen: lzrprf is told of it when it is free
     redrawn();
+    view();    // the tab shown now has its own zoom: lzrprf lays its page at the width that means
 }
 
 // A tab's drawing, kept (drawings), and shown again. The drawing on the screen is kept as it is: the
@@ -5087,6 +5624,7 @@ function shownAgain(one) {
     pageShown = one.lines.length > 0;
     listing = null;
     pieces();
+    if (findOpen) findRun();
 }
 // A tab chosen in the window: the strip shows it at once, with its kept drawing, or with no page until
 // lzrprf sends one. Returns whether a kept drawing was shown, which lzrprf is told ("kept").
@@ -5103,6 +5641,7 @@ function tabChosen(n) {
     page.string = $('');
     listed([]);
     if (pageShown) { pageShown = false; pieces(); }
+    if (findOpen) findRun();
     return false;
 }
 
@@ -5123,6 +5662,7 @@ function tabSaid(line, closed, kept) {
 }
 
 function newTab() { if (!modalOpen && !asking && tabs.length < 32) { focusing = true; tabSaid('tab new'); } }
+function reopenTab() { if (takes() && tabs.length < 32) { reopening = true; shares[selected] = shareNow(); sent('tab reopen'); } }    // Cmd-Shift-T: lzrprf keeps the closed tabs, and says the tabs again
 
 // The window's own three dots at the left of the strip: close, minimise, full screen. Then the
 // tabs side by side, each at most 260 points wide, all shrinking to share the strip when there are
@@ -5177,6 +5717,16 @@ function paintTabs() {
     if (drag) { order.splice(drag.tab, 1); order.push(drag.tab); }    // the tab held is drawn last, over the others
     order.forEach(function (i) {
         var tab = tabs[i], x = tabLeft(i, wide) + 2, w = wide - 4, on = i == selected, hot = drag ? i == drag.tab && !on : i == hover.tab && !on;
+        if (drag && drag.out && i == drag.tab) {    // pulled away: drawn as the small window it becomes, a few points lower
+            var card = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(x, 2, w, high - 12), 6, 6), rule = $.NSBezierPath.bezierPath;
+            FILL.setFill;
+            card.fill;
+            stroked(card, GREEN, 1.3, GREEN, 7);
+            rule.moveToPoint($.NSMakePoint(x + 1, high - 18)); rule.lineToPoint($.NSMakePoint(x + w - 1, high - 18));
+            stroked(rule, EDGE, 1);
+            if (w >= 40) $(tab.title || 'New Tab').drawInRectWithAttributes($.NSMakeRect(x + 10, 5, w - 20, 16), inked(sans(12), WHITE, true));
+            return;
+        }
         if (on || hot) {
             var body = tabShape(x, w, high, true);
             (on ? FILL : $.NSColor.colorWithWhiteAlpha(1, 0.025)).setFill;
@@ -5224,28 +5774,43 @@ function windowHeld(event) { return event.clickCount == 2 ? win.performZoom($())
 // the tabs: it follows the pointer, the others make room, and where it is let go it stays ("tab move").
 function slotOf(from, dx, wide, count) { return Math.max(0, Math.min(count - 1, Math.round((from * wide + dx) / wide))); }    // the place among count tabs that a tab dragged dx points from place "from" is over
 function placeOf(k, from, to) { return k == from ? to : from < to && k > from && k <= to ? k - 1 : to < from && k >= to && k < from ? k + 1 : k; }    // where the tab at place k stands once the one at "from" has gone to "to"
-function tabLeft(i, wide) {    // where a tab is drawn: at its place, or, while one is dragged, the held one under the pointer and the others where they would stand
+function tabLeft(i, wide) {    // where a tab is drawn: at its place, or, while one is dragged, the held one under the pointer and the others where they would stand; pulled out, the others close up behind it
     if (!drag) return TABS_X + i * wide;
     if (i == drag.tab) return Math.max(TABS_X, Math.min(TABS_X + (tabs.length - 1) * wide, TABS_X + i * wide + drag.dx));
-    return TABS_X + placeOf(i, drag.tab, drag.slot) * wide;
+    return TABS_X + placeOf(i, drag.tab, drag.out ? tabs.length - 1 : drag.slot) * wide;
+}
+
+// A tab pulled away from the strip, more than PULL_OUT points above or below where it was pressed,
+// and let go there becomes a window of its own, where it was let go: lzrprf is told "tab out N X Y W
+// H" and starts a second lzrprf for it (sub tab_out). While it is away it is drawn as the small
+// window it will be, a few points lower, at once. The only tab of a window moves the window instead.
+var PULL_OUT = 54;    // DECLARED(54 points: past the strip's 42 from any place in it, so a tab dragged along the strip never leaves it by a tremble)
+function pulledOut(dy) { return Math.abs(dy) > PULL_OUT; }
+function pulledFrame(f, start, at, i, wide) {    // the new window: this one's size, placed so the tab is under the pointer as it was here, the first of its strip
+    return [Math.round(at.x - (start.x - f.x) + i * wide), Math.round(at.y - (start.y - f.y)), Math.round(f.w), Math.round(f.h)].join(' ');
 }
 
 function tabHeld(i) {
     var was = selected, kept = i != selected ? tabChosen(i) : null;    // chosen on the way down: the strip and the tab's kept drawing show in the frame of the press
-    var start = $.NSEvent.mouseLocation, wide = tabWide();
+    var start = $.NSEvent.mouseLocation, wide = tabWide(), f = win.frame, from = { x: f.origin.x, y: f.origin.y, w: f.size.width, h: f.size.height }, at = start, follows = false;
     for (;;) {    // until the button is let go: 6 is a drag of the left button, 2 its release
         var next = win.nextEventMatchingMaskUntilDateInModeDequeue((1 << 6) | (1 << 2), $.NSDate.distantFuture, $('NSEventTrackingRunLoopMode'), true);
         if (!next || next.isNil() || next.type == 2) break;
-        var dx = $.NSEvent.mouseLocation.x - start.x;
-        if (!drag && (Math.abs(dx) < 5 || !takes() || tabs.length < 2)) continue;    // DECLARED(5 points: a press that only trembles is a click, not a drag)
-        drag = { tab: i, dx: dx, slot: slotOf(i, dx, wide, tabs.length) };
+        at = $.NSEvent.mouseLocation;
+        var dx = at.x - start.x, dy = at.y - start.y;
+        if (follows || tabs.length < 2 && pulledOut(dy)) { follows = true; win.setFrameOrigin($.NSMakePoint(from.x + dx, from.y + dy)); continue; }    // the only tab pulled out: the window follows the pointer
+        var out = pulledOut(dy) && takes();
+        if (!drag && (Math.abs(dx) < 5 && !out || !takes() || tabs.length < 2)) continue;    // DECLARED(5 points: a press that only trembles is a click, not a drag)
+        drag = { tab: i, dx: dx, slot: out ? i : slotOf(i, dx, wide, tabs.length), out: out };
         tabsView.needsDisplay = true;
         tabsView.displayIfNeeded;
     }
-    var to = drag ? drag.slot : i;
+    var to = drag ? drag.slot : i, away = !!drag && drag.out;
     drag = null;
     tabsView.needsDisplay = true;
+    if (follows) { if (kept !== null) tabSaid('tab select ' + i, undefined, kept); return frameSaid(); }
     if (!takes()) { if (kept !== null) tabSaid('tab select ' + i, undefined, kept); return; }    // lzrprf is busy: the tab chosen is said when it is free
+    if (away) { pulling = i; return tabSaid('tab out ' + i + ' ' + pulledFrame(from, start, at, i, wide)); }    // let go away from the strip: a window of its own; the strip lets it go once lzrprf says the tabs without it
     var told = was;    // the tab lzrprf has chosen
     if (to != i) {    // the strip shows the new order at once; lzrprf moves the tab and tells the tabs again
         var one = tabs.splice(i, 1)[0];
@@ -5381,7 +5946,9 @@ function cogItems() {
         ['Clear browsing history', '⇧⌘⌫', false, clearing, '', 'bin'],
         ['Make current page the home page', '', false, function () { if (takes()) sent('menu home'); }, '', 'house'],
         ['Show the log', '', listing == 'log', function () { logPressed(); }, '', 'page'],
-        ['Check for updates', checkedWords(), false, INCOGNITO ? function () { words.stringValue = $(UNKEPT_TIP); } : function () { if (takes()) say('update-check'); }, INCOGNITO ? UNKEPT_TIP : '', 'turn']];
+        ['Check for updates', checkedWords(), false, INCOGNITO ? function () { words.stringValue = $(UNKEPT_TIP); } : function () { if (takes()) say('update-check'); }, INCOGNITO ? UNKEPT_TIP : '', 'turn'],
+        [licenceMonth ? 'Support member licence' : 'Enter licence code...', licenceMonth ? 'since ' + licenceMonth : '', modalOpen && modalKind == 'licence', INCOGNITO ? function () { words.stringValue = $(SUPPORT_TIP); } : licenceOpened, INCOGNITO ? SUPPORT_TIP : '', 'key'],
+        ['Support request...', supportTicket != '-' ? 'answer kept' : '', modalOpen && modalKind == 'support', supportWhy() ? function () { words.stringValue = $(supportWhy()); } : supportOpened, supportWhy(), 'bubble']];
 }
 
 // When lzrprf last looked for a newer release ("checked EPOCH RESULT", "checked never", or "checked none" without a
@@ -5409,6 +5976,8 @@ function cogIcon(name, cx, cy, colour, on) {
     else if (name == 'house') { p.moveToPoint(P(-7, 0)); p.lineToPoint(P(0, 6.5)); p.lineToPoint(P(7, 0)); p.moveToPoint(P(-5, 1.5)); p.lineToPoint(P(-5, -6.5)); p.lineToPoint(P(5, -6.5)); p.lineToPoint(P(5, 1.5)); }
     else if (name == 'page') { p.moveToPoint(P(-5, 7)); p.lineToPoint(P(2, 7)); p.lineToPoint(P(5, 4)); p.lineToPoint(P(5, -7)); p.lineToPoint(P(-5, -7)); p.closePath; line(-2.5, 2, 2.5, 2); line(-2.5, -1, 2.5, -1); line(-2.5, -4, 1, -4); }
     else if (name == 'turn') { p.appendBezierPathWithArcWithCenterRadiusStartAngleEndAngleClockwise(P(0, 0), 6, 60, 330, false); line(6 * Math.cos(-30 * Math.PI / 180), 6 * Math.sin(-30 * Math.PI / 180), 6 * Math.cos(-30 * Math.PI / 180) + 2.6, -3 + 3.4); line(6 * Math.cos(-30 * Math.PI / 180), 6 * Math.sin(-30 * Math.PI / 180), 6 * Math.cos(-30 * Math.PI / 180) - 3.4, -3 + 0.6); }
+    else if (name == 'key') { oval(-7, -1, 7, 7); line(0, 2.5, 7, 2.5); line(4, 2.5, 4, -0.5); line(6.5, 2.5, 6.5, 0); }
+    else if (name == 'bubble') { box(-7, -3, 14, 10, 3); p.moveToPoint(P(-3, -3)); p.lineToPoint(P(-5, -7)); p.lineToPoint(P(0, -3)); }
     stroked(p, colour, 1.3, on ? GREEN : null, on ? 7 : 0);
 }
 
@@ -5487,6 +6056,157 @@ function sessionsWarned() {
     modal('Clear history and sessions?', 'This will require logging in again on all pages. lzrprf sends no cookie to any site, so no site keeps a login through it today: what is cleared is the history and every page lzrprf keeps for a tab. Proceed?',
         [['Cancel', closeModal], ['Proceed', function () { closeModal(); drawings = []; sent('menu clear-sessions'); }]], 'small');
 }
+
+// The support member licence: "Enter licence code" opens one field, and the code typed goes to lzrprf ("licence set
+// CODE"), which checks it and keeps it, or says why not ("licence kept MONTH", "licence refused WORDS"). With a code
+// kept, the item says since when the browser is a support member's, and the panel can remove it ("licence remove").
+// An incognito window offers neither this nor a support request: both keep something.
+var licenceField, supportScroll, supportText, supportTick, supportPreview;    // the views of the two panels, made with the window
+var licenceMonth = '', licenceWaiting = false, SUPPORT_TIP = 'An incognito window writes nothing, so it keeps no licence code and sends no support request.';
+function licenceTold(rest) {
+    var at = rest.indexOf(' '), word = at < 0 ? rest : rest.slice(0, at), more = at < 0 ? '' : rest.slice(at + 1);
+    if (word == 'kept') licenceMonth = more;
+    else if (word == 'none' || word == 'off') licenceMonth = '';
+    var open = modalOpen && modalKind == 'licence';
+    if (word == 'refused' && open) { licenceWaiting = false; panelSub.stringValue = $(more); panelSub.textColor = YELLOW; buttons(licenceChoices()); }
+    else if ((word == 'kept' || word == 'none') && open) { licenceWaiting = false; licenceShown(word == 'kept' ? 'The code is kept. ' : 'The code was removed. '); }
+    if (cogOpen) cogPlaced();
+}
+function licenceChoices() {
+    if (licenceMonth) return [['Close', closeModal], ['Remove code', licenceRemoved]];
+    return [['Cancel', closeModal], ['Check and keep', licenceChecked]];
+}
+function licenceShown(before) {
+    modal('Enter licence code', licenceMonth ? (before || '') + 'This browser is a support member\'s, since ' + licenceMonth + '. Your support requests carry the code, so they are answered first. The code is kept in ~/.lzrprf/licence; Remove code removes it and the file.'
+        : (before || '') + 'Enter the support member licence code you got when you bought the browser. It is checked on this Mac, and kept in ~/.lzrprf/licence. Your support requests then carry it, so they are answered first.', licenceChoices(), 'licence');
+    licenceField.hidden = !!licenceMonth;
+    licenceField.stringValue = $('');
+    if (!licenceMonth) win.makeFirstResponder(licenceField);
+}
+function licenceOpened() { if (takes()) licenceShown(''); }
+function licenceChecked() {
+    if (licenceWaiting) return;
+    var typed = licenceField.stringValue.js.replace(/\s+/g, ' ').trim();
+    if (!typed) { panelSub.stringValue = $('Type or paste your licence code first.'); panelSub.textColor = YELLOW; return; }
+    if (!/^[0-9A-Za-z \-]{1,200}$/.test(typed)) { panelSub.stringValue = $('That is not a licence code: a code has 120 letters and digits, in groups of 5.'); panelSub.textColor = YELLOW; return; }
+    licenceWaiting = true;
+    panelSub.stringValue = $('Checking the code on this Mac.');
+    panelSub.textColor = WHITE;
+    buttons([['Cancel', closeModal]]);
+    say('licence set ' + typed);
+}
+function licenceRemoved() { if (licenceWaiting) return; licenceWaiting = true; buttons([['Close', closeModal]]); say('licence remove'); }
+
+// A support request: a box for your words, which says before Send exactly what is sent and where, and a box to tick
+// for a picture of this window, off at first. The picture is the window's own drawing of itself, made into a
+// picture here when the panel opens (windowPicture), never a capture of the screen, and it is shown small under the
+// box while it is ticked. Send hands lzrprf the words and, when ticked, the picture, in base64 ("support send WORDS
+// PICTURE|-"); lzrprf sends them to the one address the application names and says what came back ("support sent
+// TICKET priority|plain none|accepted|refused", "support failed WORDS"). The reference and its key stay with lzrprf;
+// "Read the answer" asks it to read the answer ("support read"), which comes as lines "support thread", "support
+// message" and "support thread end".
+var supportHost = '', supportRelease = '', supportOff = 'none', supportTicket = '-', supportWaiting = false, supportShot = null, supportThread = null, SUPPORT_PICTURE_MOST = 2 * 1024 * 1024, SUPPORT_TEXT_MOST = 4000;    // DECLARED(lzrprf $SUPPORT_PICTURE and $SUPPORT_TEXT)
+function supportWhy() { return INCOGNITO || supportOff == 'incognito' ? SUPPORT_TIP : supportOff ? 'This application names no address for support requests.' : ''; }
+function supportTold(rest) {
+    var parts = rest.split(' '), open = modalOpen && modalKind == 'support';
+    if (parts[0] == 'on') { supportHost = parts[1] || ''; supportRelease = parts[2] || ''; supportOff = ''; }
+    else if (parts[0] == 'off') supportOff = parts[1] || 'none';
+    else if (parts[0] == 'kept') supportTicket = /^[A-Za-z0-9_-]{22}$/.test(parts[1]) ? parts[1] : '-';
+    else if (parts[0] == 'failed') supportWaiting = false;
+    if (parts[0] == 'failed' && open) { supportWritten(); panelSub.stringValue = $(rest.slice(7)); panelSub.textColor = YELLOW; }
+    else if (parts[0] == 'failed' && modalOpen && modalKind == 'big') { panelSub.stringValue = $(rest.slice(7)); panelSub.textColor = YELLOW; }
+    else if (parts[0] == 'sent' && open) { supportWaiting = false; supportDone(parts[1], parts[2] == 'priority', parts[3]); }
+    else if (parts[0] == 'thread' && parts[1] == 'end') { if (supportThread) supportRead(supportThread); supportThread = null; }
+    else if (parts[0] == 'thread') supportThread = { status: parts[1], reason: decoded(parts[2] || ''), messages: [] };
+    else if (parts[0] == 'message' && supportThread) supportThread.messages.push({ author: parts[1], at: parts[2], body: decoded(parts[3] || '') });
+    if (cogOpen) cogPlaced();
+}
+function decoded(text) {    // base64 of UTF-8, as text
+    var data = $.NSData.alloc.initWithBase64EncodedStringOptions($(text), 0);
+    if (!data || data.isNil()) return '';
+    var said = $.NSString.alloc.initWithDataEncoding(data, 4);
+    return said && !said.isNil() ? said.js : '';
+}
+function supportAbout() {
+    return 'Write what went wrong, or what you would like the browser to do. ' + (licenceMonth ? 'It is sent to ' + supportHost + ' with your licence code, which ties it to your purchase: remove the code first to send without it. This is all that is sent:\n' : 'It is sent anonymously to ' + supportHost + ', and this is all that is sent:\n')
+        + '• your words\n• one line with the release number: Release ' + supportRelease + '\n'
+        + (licenceMonth ? '• your licence code, so it is answered first\n' : '')
+        + '• the picture of this window, only when you tick it below. It shows the page in the window and the address in its bar.\n'
+        + 'No address of a page besides what that picture shows, no history, no name of this Mac or of you. That host sees your internet address, as every site does.';
+}
+function windowPicture() {    // the window's own drawing of itself, at one pixel a point, made smaller until its PNG is one lzrprf sends; null when none is
+    var r = root.bounds, big = root.bitmapImageRepForCachingDisplayInRect(r);
+    if (!big || big.isNil()) return null;
+    root.cacheDisplayInRectToBitmapImageRep(r, big);
+    for (var scale = 1; scale >= 0.25; scale /= 2) {
+        var w = Math.max(1, Math.round(r.size.width * scale)), h = Math.max(1, Math.round(r.size.height * scale));
+        var rep = $.NSBitmapImageRep.alloc.initWithBitmapDataPlanesPixelsWidePixelsHighBitsPerSampleSamplesPerPixelHasAlphaIsPlanarColorSpaceNameBytesPerRowBitsPerPixel(null, w, h, 8, 4, true, false, $('NSDeviceRGBColorSpace'), 0, 0);
+        if (!rep || rep.isNil()) return null;
+        $.NSGraphicsContext.saveGraphicsState;
+        $.NSGraphicsContext.currentContext = $.NSGraphicsContext.graphicsContextWithBitmapImageRep(rep);
+        big.drawInRect($.NSMakeRect(0, 0, w, h));
+        $.NSGraphicsContext.restoreGraphicsState;
+        var png = rep.representationUsingTypeProperties(4, $({}));    // 4: PNG
+        if (png && !png.isNil() && png.length > 0 && png.length <= SUPPORT_PICTURE_MOST) return png;
+    }
+    return null;
+}
+function supportOpened() {
+    if (!takes()) return;
+    supportShot = windowPicture();    // before the panel is over the window: the picture holds the window and not the panel
+    supportText.string = $('');
+    supportTick.state = 0;
+    supportWritten();
+    win.makeFirstResponder(supportText);
+}
+function supportWritten() {    // the panel with the box: Cancel, Read the answer when a request is kept, Send
+    var choices = [['Cancel', closeModal]];
+    if (supportTicket != '-') choices.push(['Read the answer', supportAsked]);
+    choices.push(['Send', supportSent]);
+    modal('Support or feature request', supportAbout(), choices, 'support');
+    supportTick.enabled = !!supportShot;
+    supportTick.title = $(supportShot ? 'Attach a picture of this window. It shows the page in it and the address in its bar.' : 'No picture of this window could be made.');
+    supportTicked();
+}
+function supportTicked() {    // the picture is shown only while it is ticked, so what would leave is seen before Send
+    var on = supportTick.state == 1 && !!supportShot;
+    supportPreview.image = on ? $.NSImage.alloc.initWithData(supportShot) : $();
+    supportPreview.hidden = !on || !(modalOpen && modalKind == 'support');
+}
+function supportWords() { return supportText.string.js.replace(/\r\n?/g, '\n').replace(/^\s+|\s+$/g, ''); }
+function supportSent() {
+    if (supportWaiting) return;
+    var text = supportWords(), most = SUPPORT_TEXT_MOST - ('\n\nRelease ' + supportRelease).length;
+    if (!text) { panelSub.stringValue = $('Write what the request is about first.'); panelSub.textColor = YELLOW; return; }
+    if (Array.from(text).length > most) { panelSub.stringValue = $('Your words are longer than ' + most + ' characters. Make them shorter.'); panelSub.textColor = YELLOW; return; }
+    var picture = supportTick.state == 1 && supportShot ? supportShot.base64EncodedStringWithOptions(0).js : '-';
+    supportWaiting = true;
+    panelSub.stringValue = $('Sending to ' + supportHost + '.');
+    panelSub.textColor = WHITE;
+    buttons([['Cancel', closeModal]]);
+    say('support send ' + $(text).dataUsingEncoding(4).base64EncodedStringWithOptions(0).js + ' ' + picture);
+}
+function supportDone(ticket, priority, licence) {
+    supportShot = null;
+    modal('Support or feature request', 'Sent. Its reference is ' + ticket + '.' + (licence == 'accepted' ? ' It went with your licence code, so it is answered first.' : licence == 'refused' ? ' Your licence code was not taken, so it goes without priority.' : '')
+        + '\nTo read the answer later, open Support request from the cogwheel and press Read the answer. lzrprf keeps the reference and its key in ~/.lzrprf/support, and asks ' + supportHost + ' for the answer only when you press it.',
+        [['Close', closeModal], ['Read the answer', supportAsked]], 'support');
+    supportScroll.hidden = true; supportTick.hidden = true; supportPreview.hidden = true;
+}
+function supportAsked() {
+    if (supportWaiting) return;
+    supportWaiting = true;
+    modal('Your support request', 'Asking ' + supportHost + ' for the answer.', [['Close', function () { supportWaiting = false; closeModal(); }]], 'big');
+    say('support read');
+}
+function supportRead(thread) {
+    supportWaiting = false;
+    var says = { open: 'It waits for an answer.', answered: 'It is answered.', resolved: 'It is resolved.', rejected: 'It was closed without a change.' }[thread.status] || '';
+    modal('Your support request', 'Reference ' + supportTicket + '. ' + says + (thread.reason ? ' ' + thread.reason : ''), [['Forget it', supportForgotten], ['Write again', function () { closeModal(); supportOpened(); }], ['Close', closeModal]], 'big');
+    panelText.string = $(thread.messages.map(function (one) { return (one.author == 'user' ? 'You' : 'Support') + (one.at != '-' ? ', ' + one.at.replace('T', ' ') + ' UTC' : '') + '\n' + one.body; }).join('\n\n'));
+    panelText.textColor = WHITE;
+}
+function supportForgotten() { closeModal(); say('support forget'); }
 
 // Bookmarks, as lzrprf read them from their folder and told them: "marks begin", "mark F FOLDER",
 // "mark B N FOLDER<tab>NAME<tab>ADDRESS", "marks end".
@@ -6652,6 +7372,10 @@ function modal(title, about, choices, kind) {
     panelScroll.hidden = kind != 'big';
     form.hidden = kind != 'form';
     engineField.hidden = kind != 'engine';
+    licenceField.hidden = kind != 'licence';
+    supportScroll.hidden = kind != 'support';
+    supportTick.hidden = kind != 'support';
+    supportPreview.hidden = true;
     wizardView.hidden = kind != 'wizard';
     pathField.hidden = true;
     veil.hidden = false;
@@ -6764,13 +7488,17 @@ function flightEnded() {
 function placeModal() {
     if (!veil) return;
     var all = root.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
-    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', tor = modalKind == 'tor', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : tor ? 640 : modalKind == 'tool' ? TOOL_WIDE : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' ? 330 : tor ? 320 : modalKind == 'tool' ? Math.min(TOOL_HIGH, high - 48) : 230;
+    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', tor = modalKind == 'tor', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : tor ? 640 : modalKind == 'tool' ? TOOL_WIDE : modalKind == 'support' ? 640 : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' || modalKind == 'licence' ? 330 : modalKind == 'support' ? Math.min(620, high - 48) : tor ? 320 : modalKind == 'tool' ? Math.min(TOOL_HIGH, high - 48) : 230;
     veil.frame = $.NSMakeRect(0, 0, wide, high);
     panel.frame = $.NSMakeRect(Math.round((wide - w) / 2) - M, Math.round((high - h) / 2) - M, w + 2 * M, h + 2 * M);
     panel.needsDisplay = true;
     panelTitle.frame = $.NSMakeRect(M + 26, M + h - 52, w - 52, 28);
-    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : wizard ? $.NSMakeRect(M + 26, M + h - 108, w - 52, 52) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : modalKind == 'engine' ? $.NSMakeRect(M + 26, M + 112, w - 52, h - 172) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
+    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : wizard ? $.NSMakeRect(M + 26, M + h - 108, w - 52, 52) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : modalKind == 'engine' || modalKind == 'licence' ? $.NSMakeRect(M + 26, M + 112, w - 52, h - 172) : modalKind == 'support' ? $.NSMakeRect(M + 26, M + h - 196, w - 52, 136) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
     engineField.frame = $.NSMakeRect(M + 26, M + 68, w - 52, 26);
+    licenceField.frame = $.NSMakeRect(M + 26, M + 68, w - 52, 26);
+    supportScroll.frame = $.NSMakeRect(M + 26, M + 210, w - 52, Math.max(60, h - 196 - 8 - 210));    // the box for the words, between what is sent and the picture
+    supportTick.frame = $.NSMakeRect(M + 26, M + 62, w - 52, 22);
+    supportPreview.frame = $.NSMakeRect(M + 26, M + 90, Math.min(200, w - 52), 112);
     var withPath = !pathField.hidden;
     pathField.frame = $.NSMakeRect(M + 26, M + 66, w - 52, 26);
     var more = 0;    // what the wizard says in yellow may be numbered steps, one a line: it takes the room it needs from the list under it
@@ -6991,6 +7719,7 @@ function paint(dirty) {
             op[5].setFill;
             $.NSRectFillUsingOperation(box, 2);    // over what is under it, so a colour that is partly clear shows the page through it
         });
+        findMarked(top, bottom);
     } catch (fault) {
         sheet = null;
         hand.performSelectorWithObjectAfterDelay('unlaid:', $(), 0);    // the view is not taken away while it draws
@@ -7044,6 +7773,7 @@ function draw(lines) {
     page.textStorage.setAttributedString(all);
     page.scrollRangeToVisible($.NSMakeRange(0, 0));
     listed(of);
+    if (findOpen) findRun();
     drawn(lines.length, text.length);
 }
 
@@ -7193,6 +7923,11 @@ ObjC.registerSubclass({ name: 'LzrprfWizard', superclass: 'NSView', methods: {
     'mouseExited:': { implementation: function (event) { hovered('wiz', null); } }
 } });
 
+ObjC.registerSubclass({ name: 'LzrprfFind', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { try { paintFind(); } catch (e) { } } },    // a bar that cannot be drawn is left undrawn: it never ends the window
+    'mouseDown:': { implementation: function (event) { findClicked(event); } }
+} });
+
 ObjC.registerSubclass({ name: 'LzrprfSecure', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paintSecure(); } },
     'mouseDown:': { implementation: function (event) { } }
@@ -7281,13 +8016,27 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'torLanded:': { types: ['void', ['id']], implementation: function (timer) { torLanded(); } },
     'importing:': { types: ['void', ['id']], implementation: function (sender) { if (!INCOGNITO) importOpened(); } },
     'incognito:': { types: ['void', ['id']], implementation: function (sender) { say('incognito'); } },    // lzrprf starts a second lzrprf, in incognito: this process starts nothing
-    'controlTextDidChange:': { types: ['void', ['id']], implementation: function (note) { if (note.object.isEqual(bar)) suggestUpdate(); } },
-    'control:textView:doCommandBySelector:': { types: ['bool', ['id', 'id', 'SEL']], implementation: function (control, view, command) {    // up, down, Escape and Return in the bar, for its suggestions
+    'controlTextDidChange:': { types: ['void', ['id']], implementation: function (note) { if (note.object.isEqual(bar)) suggestUpdate(); else if (findField && note.object.isEqual(findField)) findRun(); } },
+    'control:textView:doCommandBySelector:': { types: ['bool', ['id', 'id', 'SEL']], implementation: function (control, view, command) {    // up, down, Escape and Return in the bar, for its suggestions; Return, Shift-Return and Escape in Find's field
+        var name = typeof command == 'string' ? command : $.NSStringFromSelector(command).js;
+        if (findField && control.isEqual(findField)) {
+            if (name == 'insertNewline:') { findMoved(app.currentEvent.modifierFlags & SHIFT ? -1 : 1); return true; }
+            if (name == 'cancelOperation:') { findClosed(); return true; }
+            return false;
+        }
         if (!control.isEqual(bar)) return false;
-        return suggestKey(typeof command == 'string' ? command : $.NSStringFromSelector(command).js);
+        return suggestKey(name);
     } },
     'newTab:': { types: ['void', ['id']], implementation: function (sender) { newTab(); } },
     'closeTab:': { types: ['void', ['id']], implementation: function (sender) { tabSaid('tab close ' + selected, selected); } },
+    'reopenTab:': { types: ['void', ['id']], implementation: function (sender) { reopenTab(); } },
+    'finding:': { types: ['void', ['id']], implementation: function (sender) { findOpened(); } },
+    'findNext:': { types: ['void', ['id']], implementation: function (sender) { findMoved(1); } },
+    'findPrevious:': { types: ['void', ['id']], implementation: function (sender) { findMoved(-1); } },
+    'zoomIn:': { types: ['void', ['id']], implementation: function (sender) { zoomed(1); } },
+    'zoomOut:': { types: ['void', ['id']], implementation: function (sender) { zoomed(-1); } },
+    'zoomReset:': { types: ['void', ['id']], implementation: function (sender) { zoomed(0); } },
+    'zoomShown:': { types: ['void', ['id']], implementation: function (sender) { zoomShown(); } },
     'clearing:': { types: ['void', ['id']], implementation: function (sender) { clearing(); } },
     'homing:': { types: ['void', ['id']], implementation: function (sender) { if (takes()) sent('menu home'); } },
     'back:': { types: ['void', ['id']], implementation: function (sender) { navPressed(0); } },
@@ -7307,6 +8056,7 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     'controlTextDidBeginEditing:': { types: ['void', ['id']], implementation: function (note) { belt.needsDisplay = true; } },
     'controlTextDidEndEditing:': { types: ['void', ['id']], implementation: function (note) { if (note.object.isEqual(bar)) suggestHidden(); belt.needsDisplay = true; } },
     'modalPress:': { types: ['void', ['id']], implementation: function (sender) { var act = modalActions[sender.tag]; if (modalOpen && act) act(); } },
+    'supportTicked:': { types: ['void', ['id']], implementation: function (sender) { supportTicked(); } },
     'bar:': { types: ['void', ['id']], implementation: function (sender) { if (bar.enabled) win.makeFirstResponder(bar); } },
     'applicationShouldTerminateAfterLastWindowClosed:': { types: ['bool', ['id']], implementation: function (sender) { return true; } },
     // What lzrprf wrote, as it comes. Only the new bytes are looked at for a line end, and only the whole
@@ -7369,7 +8119,8 @@ function button(title, action) {
     return one;
 }
 
-// The menus, with Chrome's keys for what LZRBRWSR has (Chrome for Mac's own list): Cmd-L,
+// The menus, with Chrome's keys for what LZRBRWSR has (Chrome for Mac's own list): Cmd-F, Cmd-G and
+// Shift-Cmd-G, Cmd-plus, Cmd-minus and Cmd-0, Cmd-Shift-T, Cmd-L,
 // Cmd-[ and Cmd-], Cmd-R, Cmd-T, Cmd-W, Cmd-D, Cmd-Shift-B, Cmd-Option-B, Cmd-Shift-Delete,
 // Cmd-Comma, Cmd-1 to Cmd-8, Cmd-9, Ctrl-Tab, Ctrl-Shift-Tab, Cmd-Option-Right and Left,
 // Cmd-Shift-A. Each does only what its button does, and only when the chrome takes a press.
@@ -7378,10 +8129,12 @@ function menus() {
     var main = $.NSMenu.alloc.initWithTitle($(''));
     var tabKeys = [1, 2, 3, 4, 5, 6, 7, 8].map(function (n) { return ['Tab ' + n, 'tabNumber:', String(n), true, CMD, n - 1]; }).concat([['Last Tab', 'tabNumber:', '9', true, CMD, -1]]);
     [[NAME, [['New Incognito Window', 'incognito:', 'N', true], ['Settings...', 'settings:', ',', true], ['Quit ' + NAME, 'terminate:', 'q', false]]],
-     ['Edit', [['Undo', 'undo:', 'z', false], ['Redo', 'redo:', 'Z', false], ['Cut', 'cut:', 'x', false], ['Copy', 'copy:', 'c', false], ['Paste', 'paste:', 'v', false], ['Select All', 'selectAll:', 'a', false]]],
+     ['Edit', [['Undo', 'undo:', 'z', false], ['Redo', 'redo:', 'Z', false], ['Cut', 'cut:', 'x', false], ['Copy', 'copy:', 'c', false], ['Paste', 'paste:', 'v', false], ['Select All', 'selectAll:', 'a', false],
+        ['Find...', 'finding:', 'f', true], ['Find Next', 'findNext:', 'g', true], ['Find Previous', 'findPrevious:', 'g', true, CMD | SHIFT]]],
+     ['View', [['Zoom In', 'zoomIn:', '+', true], ['Zoom In', 'zoomIn:', '=', true, CMD, 0, true], ['Zoom Out', 'zoomOut:', '-', true], ['Actual Size', 'zoomReset:', '0', true]]],
      ['Go', [['Address', 'bar:', 'l', true], ['Back', 'back:', '[', true], ['Forward', 'forward:', ']', true], ['Reload', 'reload:', 'r', true], ['Clear Browsing History...', 'clearing:', String.fromCharCode(8), true, CMD | SHIFT], ['Log', 'log:', '', true]]],
      ['Bookmarks', [['Bookmark This Tab...', 'markThis:', 'd', true], ['Show Bookmarks Bar', 'marksBar:', 'b', true, CMD | SHIFT], ['Bookmark Manager', 'bookmarks:', 'b', true, CMD | OPTION], ['Import Bookmarks...', 'importing:', '', true]]],
-     ['Tab', [['New Tab', 'newTab:', 't', true], ['Close Tab', 'closeTab:', 'w', true], ['Show All Tabs', 'tabsPage:', 'a', true, CMD | SHIFT],
+     ['Tab', [['New Tab', 'newTab:', 't', true], ['Close Tab', 'closeTab:', 'w', true], ['Reopen Closed Tab', 'reopenTab:', 't', true, CMD | SHIFT], ['Show All Tabs', 'tabsPage:', 'a', true, CMD | SHIFT],
         ['Select Next Tab', 'nextTab:', String.fromCharCode(0xF703), true, CMD | OPTION], ['Select Previous Tab', 'previousTab:', String.fromCharCode(0xF702), true, CMD | OPTION],
         ['Next Tab', 'nextTab:', '\t', true, CONTROL], ['Previous Tab', 'previousTab:', '\t', true, CONTROL | SHIFT]].concat(tabKeys)]].forEach(function (one) {
         var item = $.NSMenuItem.alloc.init, menu = $.NSMenu.alloc.initWithTitle($(one[0]));
@@ -7390,6 +8143,7 @@ function menus() {
             if (entry[3]) made.target = hand;
             if (entry[4]) made.keyEquivalentModifierMask = entry[4];
             if (entry.length > 5) made.tag = entry[5];
+            if (entry[6]) { made.hidden = true; try { made.allowsKeyEquivalentWhenHidden = true; } catch (e) { } }    // Cmd-= zooms in too, as on keyboards where + needs Shift, without a second line in the menu
             if (INCOGNITO && (entry[1] == 'markThis:' || entry[1] == 'importing:')) { menu.autoenablesItems = false; made.enabled = false; made.toolTip = $(UNKEPT_TIP); }    // [C16]
         });
         item.submenu = menu;
@@ -7521,6 +8275,21 @@ function run(argv) {
     scroll.backgroundColor = page.backgroundColor;
     scroll.documentView = page;
     root.addSubview(scroll);
+    findBox = $.LzrprfFind.alloc.initWithFrame($.NSMakeRect(0, 0, FIND_WIDE, FIND_HIGH));    // Find's bar, over the page's top right corner
+    findBox.hidden = true;
+    findField = $.NSTextField.alloc.initWithFrame($.NSMakeRect(14, 8, 160, 20));
+    findField.placeholderAttributedString = styled('Find in page', inked(sans(13), GREY));
+    findField.font = sans(13);
+    findField.textColor = WHITE;
+    findField.bordered = false;
+    findField.bezeled = false;
+    findField.drawsBackground = false;
+    findField.focusRingType = 1;
+    findField.delegate = hand;
+    findField.cell.usesSingleLineMode = true;
+    findField.cell.scrollable = true;
+    findBox.addSubview(findField);
+    root.addSubview(findBox);
     under = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));    // in the modal of what the page is made of (techToggled)
     under.hasVerticalScroller = true;
     under.borderType = 0;
@@ -7611,6 +8380,41 @@ function run(argv) {
     engineField.placeholderString = $('https://search.example.com/search?q=%s');
     engineField.hidden = true;
     panel.addSubview(engineField);
+    licenceField = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 400, 26));    // Enter licence code: its one field
+    licenceField.font = sans(13);
+    licenceField.cell.usesSingleLineMode = true;
+    licenceField.cell.scrollable = true;
+    licenceField.placeholderString = $('XXXXX-XXXXX-XXXXX-...');
+    licenceField.hidden = true;
+    panel.addSubview(licenceField);
+    supportScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 580, 200));    // Support request: the box for your words
+    supportScroll.hasVerticalScroller = true;
+    supportScroll.borderType = 1;
+    supportText = unchecked($.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 580, 200)));
+    supportText.editable = true;
+    supportText.richText = false;
+    supportText.font = sans(13);
+    supportText.textColor = WHITE;
+    supportText.insertionPointColor = WHITE;
+    supportText.backgroundColor = DARK;
+    supportText.textContainerInset = $.NSMakeSize(6, 6);
+    supportText.autoresizingMask = 2;
+    supportScroll.documentView = supportText;
+    supportScroll.hidden = true;
+    panel.addSubview(supportScroll);
+    supportTick = $.NSButton.alloc.initWithFrame($.NSMakeRect(0, 0, 580, 22));    // the picture of the window, off until ticked
+    supportTick.setButtonType(3);    // a box to tick
+    supportTick.font = sans(12.5);
+    supportTick.state = 0;
+    supportTick.target = hand;
+    supportTick.action = 'supportTicked:';
+    supportTick.hidden = true;
+    panel.addSubview(supportTick);
+    supportPreview = $.NSImageView.alloc.initWithFrame($.NSMakeRect(0, 0, 200, 112));    // that picture, small, while it is ticked
+    supportPreview.imageScaling = 3;    // made smaller or larger to fit, its shape kept
+    supportPreview.imageFrameStyle = 0;
+    supportPreview.hidden = true;
+    panel.addSubview(supportPreview);
     wizardView = $.LzrprfWizard.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 260));
     wizardView.hidden = true;
     panel.addSubview(wizardView);
@@ -7663,6 +8467,7 @@ END
 }
 
 my $command = shift // '';
+if ($command =~ /^(?:run|incognito)\z/ && ($ARGV[0] // '') eq '--open') { ($OPEN, $OPEN_FRAME, @ARGV) = opened_with(\*STDIN, @ARGV); open STDIN, '<', '/dev/null' }
 die "lzrprf: this macOS has no /usr/bin/sandbox-exec. lzrprf contains with that command and with nothing else, so nothing was started.\n" if $command =~ /^(?:run|try|incognito)\z/ && !-x '/usr/bin/sandbox-exec';
 if ($command eq 'run') { run(@ARGV) }
 elsif ($command eq 'incognito') { $INCOGNITO = 1; run(@ARGV ? @ARGV : '/Applications/LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin') }    # [C16] with no program named: the installed application's
@@ -7694,4 +8499,4 @@ elsif ($command eq 'behind' && @ARGV > 6 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ 
     behind();
 }
 elsif ($command eq 'lookup' && @ARGV == 1 && $ARGV[0] =~ /^$NAME$/) { lookup(@ARGV) }    # started for one address that was typed, not by hand
-else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf incognito [/path/to/program [arguments]]\n       lzrprf log\n       lzrprf keep [nothing|hosts|all [DAYS]]\n       lzrprf address TEXT...\n       lzrprf request [--other] TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }
+else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf incognito [/path/to/program [arguments]]\n       lzrprf run|incognito --open \"X Y W H\" /path/to/program [arguments] (one line on standard input: the address, or none)\n       lzrprf log\n       lzrprf keep [nothing|hosts|all [DAYS]]\n       lzrprf address TEXT...\n       lzrprf request [--other] TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }

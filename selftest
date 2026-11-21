@@ -158,6 +158,19 @@ sub answer_for {                          # what the test site answers on its ht
     my $head = $moving ? "HTTP/1.1 $moving->[1]\r\nLocation: $moving->[2]\r\n" : "HTTP/1.1 200 OK\r\n";
     return $head . "Content-Type: text/html\r\nSet-Cookie: kept=never\r\nContent-Length: " . length($body) . "\r\nConnection: close\r\n\r\n$body";
 }
+my ($support_ticket, $support_key) = ('Tk0aB1cD2eF3gH4iJ5kL6m', 'Ky0aB1cD2eF3gH4iJ5kL6mN7oP8qR9sT0uV1wX2yZ3_');    # the reference and the key the test site's support address hands out
+sub support_door {                        # what the test site answers at its support address, in the shape of the support door's answers: a new request, the answer read with its key, a refusal
+    my ($got) = @_;
+    my ($method, $path) = $got =~ m{^(GET|POST) (\S+)};
+    my $json = sub { my ($status, $body) = @_; return "HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: " . length($body) . "\r\nConnection: close\r\n\r\n$body" };
+    return $json->('429 Too Many Requests', '{"ok":false,"problems":["Too many support messages reached us just now. Please try again in an hour."]}') if $path eq '/support-busy';
+    if ($method eq 'POST' && $path eq '/support') {
+        my $with = $got =~ /"licence":/ ? 1 : 0;
+        return $json->('200 OK', qq({"ok":true,"ticket":"$support_ticket","key":"$support_key","status":"open","priority":) . ($with ? 'true' : 'false') . ',"licence":"' . ($with ? 'accepted' : 'none') . '"}');
+    }
+    return $json->('200 OK', qq({"ok":true,"ticket":"$support_ticket","status":"answered","reason":null,"priority":false,"messages":[{"author":"user","body":"words","at":"2026-11-21T10:00:00.000Z","screenshot":false},{"author":"support","body":"Fixed in the next release.\\nThank you, k\\u00e4ytt\\u00e4j\\u00e4.","at":"2026-11-21T11:30:00.000Z","screenshot":false}]})) if $method eq 'GET' && $path eq "/support/$support_ticket" && $got =~ /\r\nAuthorization: Bearer \Q$support_key\E\r\n/;
+    return $json->('404 Not Found', '{"ok":false,"problems":["No ticket with this id and key."]}');
+}
 sub logged {                              # lzrprf's log on the disk holds "connects to" for this address once more than it holds how such a request ended: the request now arriving is written down and has not ended
     my ($path, $host) = @_;
     for my $log (glob "$base.*/log") {
@@ -207,6 +220,11 @@ if (!$site) {
             }
             while ($got !~ /\r\n\r\n/ && length $got < 65536) { $client->sysread($got, 65536, length $got) or last }
             my ($path) = $got =~ m{^GET (\S+)};
+            ($path) = $got =~ m{^POST (/support\S*)} unless defined $path;    # a support request, whose body is read to its end before it is answered
+            if (defined $path && $got =~ m{^POST } && $got =~ /\r\nContent-Length: (\d{1,8})\r\n/i) {
+                my $whole = index($got, "\r\n\r\n") + 4 + $1;
+                while (length $got < $whole && length $got < 8 * 1024 * 1024) { $client->sysread($got, 65536, length $got) or last }
+            }
             $path //= '';
             my ($host) = $got =~ m{\r\nHost: ([a-z.]+)\r\n};
             seen($kind, $got, $hello, logged($path, $host // 'site.test'));
@@ -215,7 +233,7 @@ if (!$site) {
             exit 0 if $path =~ m{^/sheet/fail};    # and one that is never answered: the connection closes on it
             chmod 0400, "$base.logend/log" if $path eq '/logend';    # the log loses its permission between the line "connects to" and the line of how it ended
             rename "$base.$1app/other", "$base.$1app/Test.app/Contents/MacOS/app" if $path =~ m{^/out/shown\?(swapped|lostswap|lostlook)2$};    # the program of that run's application becomes another file while its window is open, between its first page and its second
-            $client->print(answer_for($path));
+            $client->print($path =~ m{^/support} ? support_door($got) : answer_for($path));
             $client->close;
             exit 0;
         }
@@ -746,6 +764,31 @@ function paintedOff(w, h, paint) {          // a painting function drawn into a 
     var blank = packed(false), drawn = packed(true);
     return drawn[0] + '/' + (drawn[1].isEqualToData(blank[1]) ? 'dark' : 'lit');
 }
+function findTried() {                       // Find in the page shown: a word of its own text looked for, its marks and its bar drawn into pictures of the test's own; nothing is said to lzrprf
+    var caught = [], sayAll = say, out = [];
+    say = function (line) { caught.push(line); };
+    try {
+        var texts = sheet ? sheet.ops.filter(function (op) { return op[2] == 'X'; }).map(function (op) { return op[8]; }) : [page.string.js], word = (texts.join(' ').match(/[A-Za-z]{3,}/) || ['zzz'])[0];
+        findOpened();
+        findField.stringValue = $(word.toUpperCase());
+        findRun();
+        var count = findHits.length, first = findSaid(findAt, count);
+        findMoved(-1);
+        var last = findAt == count - 1;
+        findMoved(1);
+        var size = sheet ? [Math.min(600, sheet.wide), Math.min(400, sheet.high)] : [10, 10];
+        var marked = sheet ? paintedOff(size[0], size[1], function () { paint($.NSMakeRect(0, 0, size[0], size[1])); }) : 'text';
+        out.push('open=' + findOpen + ' shown=' + !findBox.hidden + ' typed=' + win.firstResponder.isEqual(findField.currentEditor) + ' found=' + (count > 0) + ' first=' + (first == '1 of ' + count) + ' wrapped=' + last + ' back=' + (findAt == 0) + ' bar=' + paintedOff(FIND_WIDE, FIND_HIGH, paintFind) + ' marks=' + marked);
+        findField.stringValue = $('qqqqqq');
+        findRun();
+        out.push('none=' + findHits.length + ':' + findSaid(findAt, findHits.length));
+        findClosed();
+        out.push('closed=' + !findOpen + ':' + findBox.hidden + ':' + findHits.length);
+    } catch (e) { out.push('threw ' + plain(e).slice(0, 120)); }
+    say = sayAll;
+    out.push('said=' + caught.length);
+    return out.join(' ; ');
+}
 function toolButtonOf(act) { for (var k = 0; k < modalActions.length; k++) if (modalActions[k] == act) return panelButtons[k]; return null; }
 function toolRowPressed(i) {                 // a press on a row of the tool's list, as a real mouse-down event at its middle
     var one = toolLaid().items.filter(function (it) { return it.row && it.row.i == i; })[0];
@@ -791,6 +834,80 @@ function toolTried() {                       // the application's tool told by l
     toolBack = 0; toolIcon.toolTip = $('');
     if (modalOpen) closeModal();
     if (flight) flightEnded();
+    return out.join(' ; ');
+}
+function cogItem(title) { return cogItems().filter(function (item) { return item[0] == title; })[0]; }
+function licenceTried() {                    // the licence panel told by lines as lzrprf writes them; what the window says is caught here and never reaches lzrprf
+    var caught = [], sayAll = say, out = [];
+    say = function (line) { caught.push(line); };
+    try {
+        heard('licence none');
+        cogItem('Enter licence code...')[3]();
+        out.push('open=' + (modalOpen && modalKind == 'licence') + ' field=' + !licenceField.hidden);
+        licenceField.stringValue = $(''); licenceChecked();
+        out.push('empty=' + plain(panelSub.stringValue.js) + ' said=' + caught.length);
+        licenceField.stringValue = $('code; rm'); licenceChecked();
+        out.push('wrong=' + plain(panelSub.stringValue.js) + ' said=' + caught.length);
+        licenceField.stringValue = $('  abcde   fghij '); licenceChecked();
+        out.push('sent=' + caught.join(','));
+        heard('licence refused The code is not a support member licence: its signature does not check.');
+        out.push('refused=' + plain(panelSub.stringValue.js) + ' field=' + !licenceField.hidden);
+        heard('licence kept November 2026');
+        out.push('kept=' + plain(panelSub.stringValue.js).slice(0, 60) + ' field=' + !licenceField.hidden + ' item=' + cogItem('Support member licence')[1]);
+        licenceRemoved();
+        out.push('remove=' + caught.slice(1).join(','));
+        heard('licence none');
+        out.push('none item=' + !!cogItem('Enter licence code...') + ' field=' + !licenceField.hidden);
+        closeModal();
+        INCOGNITO = true;
+        var grey = cogItem('Enter licence code...');
+        grey[3]();
+        out.push('incognito tip=' + (grey[4] == SUPPORT_TIP) + ' modal=' + modalOpen + ' said=' + caught.length);
+    } catch (e) { out.push('fault ' + plain(e).slice(0, 120)); }
+    INCOGNITO = false;
+    say = sayAll;
+    if (modalOpen) closeModal();
+    heard('licence none');
+    return out.join(' ; ');
+}
+function supportTried() {                    // the support panel told by lines as lzrprf writes them, with the window's own picture of itself; what it says is caught here
+    var caught = [], sayAll = say, out = [];
+    say = function (line) { caught.push(line); };
+    try {
+        heard('licence none'); heard('support on site.test 3'); heard('support kept -');
+        cogItem('Support request...')[3]();
+        var about = panelSub.stringValue.js;
+        out.push('open=' + (modalOpen && modalKind == 'support') + ' box=' + !supportScroll.hidden + ' tick=' + supportTick.state + ' preview=' + !supportPreview.hidden + ' shot=' + (supportShot ? 'png ' + (supportShot.base64EncodedStringWithOptions(0).js.slice(0, 11) == 'iVBORw0KGgo') : 'none'));
+        out.push('about=' + /site\.test/.test(about) + /Release 3/.test(about) + /anonymously/.test(about) + /shows the page/.test(about) + /No address of a page/.test(about) + /licence/.test(about));
+        supportSent();
+        out.push('empty=' + plain(panelSub.stringValue.js) + ' said=' + caught.length);
+        supportText.string = $('Hello\nworld');
+        supportSent();
+        out.push('sent=' + caught.join(','));
+        heard('support failed The request could not be sent. The log says why.');
+        out.push('failed=' + plain(panelSub.stringValue.js) + ' box=' + !supportScroll.hidden + ' waiting=' + supportWaiting);
+        supportTick.state = 1; supportTicked();
+        out.push('ticked preview=' + !supportPreview.hidden);
+        supportSent();
+        var last = caught[caught.length - 1] || '', parts = last.split(' ');
+        out.push('picture=' + parts.length + ' ' + parts[2] + ' ' + (parts[3] || '').slice(0, 11));
+        heard('support sent Tk0aB1cD2eF3gH4iJ5kL6m priority accepted'); heard('support kept Tk0aB1cD2eF3gH4iJ5kL6m');
+        out.push('done=' + /Tk0aB1cD2eF3gH4iJ5kL6m/.test(panelSub.stringValue.js) + ' box=' + !supportScroll.hidden + ' preview=' + !supportPreview.hidden + ' item=' + cogItem('Support request...')[1]);
+        closeModal();
+        heard('licence kept November 2026');
+        cogItem('Support request...')[3]();
+        out.push('licence=' + (/with your licence code, which ties it to your purchase/.test(panelSub.stringValue.js) && /your licence code, so it is answered first/.test(panelSub.stringValue.js) && !/anonymously/.test(panelSub.stringValue.js)) + ' tick=' + supportTick.state);
+        closeModal();
+        heard('support off incognito');
+        var grey = cogItem('Support request...');
+        grey[3]();
+        out.push('incognito tip=' + (grey[4] == SUPPORT_TIP) + ' modal=' + modalOpen);
+        out.push('said=' + caught.length + ' icons=' + paintedOff(24, 24, function () { cogIcon('key', 12, 12, WHITE, false); }) + '/' + paintedOff(24, 24, function () { cogIcon('bubble', 12, 12, WHITE, false); }));
+    } catch (e) { out.push('fault ' + plain(e).slice(0, 120)); }
+    say = sayAll;
+    if (modalOpen) closeModal();
+    supportWaiting = false;
+    heard('licence none'); heard('support off none'); heard('support kept -');
     return out.join(' ; ');
 }
 function logFilled(lines) {                  // the log page as lzrprf tells it, with this many lines
@@ -862,7 +979,7 @@ function told(word, rest) {
     else if (step == 1 && word == 'ask') { step = 2; say('test asked ' + first.title.js + '|' + second.title.js + '|bar=' + bar.enabled + '|' + plain(words.stringValue.js).slice(0, 60)); second.performClick(null); }
     else if (step == 2 && word == 'idle') { step = 3; say('test page title=' + win.title.js + ' visible=' + win.visible + ' drawn=' + pictures + ' links=' + links() + ' editable=' + page.editable + ' menu=' + page.menuForEvent(null).numberOfItems + ' bar=' + bar.stringValue.js + ' strip=' + plain(words.stringValue.js) + ' words=' + plain(words.toolTip.js) + ' text=' + plain(page.string.js)); say('test made ' + plain(made.string.js)); say('test hover ' + hovers()); say('test secure ' + (secureLines ? secureLines.length + ' ' + secureLines.filter(function (one) { return one.charAt(0) == '#'; }).join('|') : 'none')); say('test nav ' + navState.join(' ')); say('test suggest ' + suggested('site.t').map(function (one) { return one.kind + ' ' + one.url; }).join('|') + ' none=' + suggested('nowhere-at-all').length); techs.performClick(null); say('test tech open=' + techOpen + ' shown=' + (!veil.hidden && modalKind == 'tech' && !under.hidden && panel.frame.size.width > 700) + ' list=' + under.superview.isEqual(panel) + ' tips=' + logs.toolTip.js + '|' + techs.toolTip.js + ' flies=' + (flightAllowed() ? !!flight && flight.opening && flight.from.w == techs.frame.size.width : 'still')); techs.performClick(null); say('test techclosed ' + techOpen + ' back=' + (flightAllowed() ? !!flight && !flight.opening && flight.to.x == techs.frame.origin.x && !veil.hidden : 'still')); logs.performClick(null); }
     else if (step == 3 && word == 'ask') { step = 5; say('test log a question came: ' + first.title.js + '|' + second.title.js); app.terminate(null); }    // with nothing kept and no log, the Log button has no question
-    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.toolTip.js).slice(0, 600) + '|' + listing + ' strip=' + plain(words.stringValue.js) + '|' + plain(logRows.map(function (row) { return row.heading || row.what; }).join('|')).slice(0, 2000)); say('test logmade ' + plain(made.string.js)); logs.performClick(null); say('test logshut ' + listing + ' page=' + !scroll.hidden); say('test toolpanel ' + toolTried()); say('test logpaths ' + logTried()); say('test importsteps ' + importStepsTried()); say('test flight ' + flightTried()); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE, SETTINGS)); more(); }
+    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.toolTip.js).slice(0, 600) + '|' + listing + ' strip=' + plain(words.stringValue.js) + '|' + plain(logRows.map(function (row) { return row.heading || row.what; }).join('|')).slice(0, 2000)); say('test logmade ' + plain(made.string.js)); logs.performClick(null); say('test logshut ' + listing + ' page=' + !scroll.hidden); say('test find ' + findTried()); say('test toolpanel ' + toolTried()); say('test licencepanel ' + licenceTried()); say('test supportpanel ' + supportTried()); say('test logpaths ' + logTried()); say('test importsteps ' + importStepsTried()); say('test flight ' + flightTried()); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE, SETTINGS)); more(); }
     else if (step == 6 && word == 'idle') { step = 7; say('test idlehome ' + idleCost(2)); bar.stringValue = $(GO2); bar.performClick(null); }
     else if (step == 7 && word == 'ask') second.performClick(null);
     else if (step == 7 && word == 'busy' && /^Fetching (?!picture|style)/.test(rest) && !modalOpen && !asking) { step = 8; tabSaid('tab select 0'); drawnBefore = pictures; say('test pressed selected=' + selected + ' pending=' + (pendingTab ? pendingTab.line : 'none') + ' text=' + plain(page.string.js).slice(0, 40)); }
@@ -1016,6 +1133,12 @@ my %about = (
     home => q{A page made the home page opens in a new tab},
     tabmove => q{A tab dragged along the strip moves among the tabs, and its page stays},
     tabslots => q{The window's own tab drag, run with no window},
+    tabout => q{A tab pulled out of the strip closes here, its window asked for},
+    taboutmost => q{A tab is made and pulled out 33 times: the 33rd stays},
+    pulledin => q{The window of a pulled tab opens the address handed to it on a pipe},
+    reopen => q{Closed tabs reopen at their place, the newest first},
+    reopenstrip => q{The window's own strip makes the place of a reopened tab, run with no window},
+    findzoom => q{The window's own Find and zoom, run with no window},
     heardreader => q{The window's reader of what lzrprf writes, run with no window},
     homestart => q{A kept home page opens when the window starts},
     homebad => q{A home page that is no https address opens nothing},
@@ -1078,6 +1201,18 @@ my %about = (
     shaders => q{The window container can reach the shader compiler},
     noshaders => q{Without the compiler listed, no shader is compiled},
     heavy => q{The heaviest allowed pages are drawn in under 30 seconds},
+    licencegood => q{A good licence code, typed loosely, is checked and kept},
+    licencebad => q{A code of another key and a wrong code are refused},
+    licenceremove => q{Removing the licence code removes its file},
+    licencenokey => q{With no public key, a code's form is checked and it is kept},
+    support => q{A support request carries the words and release, and its answer is read},
+    supportfull => q{With a licence and the picture ticked, both go with the request},
+    supportnone => q{An application that names no support address sends nothing},
+    supportquery => q{A support address with a query is not used},
+    supporthost => q{The support request goes only where the release file says},
+    supportincog => q{An incognito window keeps no licence and sends no request},
+    supportbusy => q{A support address that refuses says why in plain words},
+    supportlost => q{An answer read with a key it does not know says so},
 );
 sub run_of {
     my ($name, %how) = @_;
@@ -1385,20 +1520,49 @@ run_of('redirectmark', typed => '=mark open 0', answer => '23', fetches => ['/re
 run_of('tabs', typed => "$t/tabs/one,,=tab new,,$t/tabs/two,,=tab select 0,,=tab close 1,,=tab select 5,,=tab close 0", fetches => ['/tabs/one', '/tabs/two']);    # two tabs; choosing the first again fetches nothing; a tab that is not there; closing the last
 run_of('tabmove', typed => "$t/tabmove/one,,=tab new,,$t/tabmove/two,,=tab move 1 0,,=tab move 0 5,,=tab move 1 1,,=tab select 1", fetches => ['/tabmove/one', '/tabmove/two']);    # two tabs; the second moved before the first; a place that is not there, and its own place; then the other tab chosen
 my $slots_js = join("\n", 'function run(argv) {',
-    q{var TABS_X = 84, drag = null, moving = false, tabs, selected, shares, said, pointer, moves;},
-    q{var $ = function () { return 0; }; $.NSEvent = {}; Object.defineProperty($.NSEvent, 'mouseLocation', { get: function () { return { x: pointer }; } }); $.NSDate = { distantFuture: 0 };},
-    q{var win = { nextEventMatchingMaskUntilDateInModeDequeue: function () { var next = moves.shift(); if (next !== undefined) pointer = next; return { type: next === undefined ? 2 : 6, isNil: function () { return false; } }; } };},
+    q{var TABS_X = 84, drag = null, moving = false, pulling = null, tabs, selected, shares, said, pointer, pointerY = 0, moves, origins = [], framed = 0;},
+    q{var $ = function () { return 0; }; $.NSEvent = {}; Object.defineProperty($.NSEvent, 'mouseLocation', { get: function () { return { x: pointer, y: pointerY }; } }); $.NSDate = { distantFuture: 0 }; $.NSMakePoint = function (x, y) { return { x: x, y: y }; };},
+    q{var win = { frame: { origin: { x: 100, y: 200 }, size: { width: 1000, height: 700 } }, setFrameOrigin: function (p) { origins.push(p.x + ',' + p.y); }, nextEventMatchingMaskUntilDateInModeDequeue: function () { var next = moves.shift(); if (typeof next == 'number') pointer = next; else if (next !== undefined) { pointer = next[0]; pointerY = next[1]; } return { type: next === undefined ? 2 : 6, isNil: function () { return false; } }; } };},
+    q{function frameSaid() { framed++; }},
     q{var tabsView = { needsDisplay: false, displayIfNeeded: 0 }, can = true;},
     q{var drawings = [], modalOpen = false, asking = false; function tabChosen(n) { selected = n; return false; }},
     q{function tabWide() { return 100; } function takes() { return can; } function sent(line) { said.push(line); } function tabSaid(line) { said.push(line); } function shareNow() { return 0.5; }},
-    ($text_of_lzrprf =~ /^(function (?:slotOf|placeOf)\(.*)$/mg), ($text_of_lzrprf =~ /^(function tabLeft\(i, wide\) \{.*?^\}\n)/ms), ($text_of_lzrprf =~ /^(function tabHeld\(i\) \{.*?^\}\n)/ms),
+    ($text_of_lzrprf =~ /^(function (?:slotOf|placeOf|pulledOut)\(.*)$/mg), ($text_of_lzrprf =~ /^(var PULL_OUT = \d+;)/m), ($text_of_lzrprf =~ /^(function pulledFrame\(.*?^\}\n)/ms), ($text_of_lzrprf =~ /^(function tabLeft\(i, wide\) \{.*?^\}\n)/ms), ($text_of_lzrprf =~ /^(function tabHeld\(i\) \{.*?^\}\n)/ms),
     q{function tried(i, at, now, along) { tabs = [{ title: 'a' }, { title: 'b' }, { title: 'c' }]; selected = now; shares = []; said = []; pointer = 0; moves = along; tabHeld(i); return said.join(',') + ' ' + selected + ' ' + tabs.map(function (one) { return one.title; }).join('') + ' ' + moving; }},
     q{var slots = [slotOf(0, 130, 100, 3), slotOf(2, -1000, 100, 3), slotOf(1, 40, 100, 3), slotOf(0, 9999, 100, 3)].join(' ') + ' / ' + [0, 1, 2, 3].map(function (k) { return placeOf(k, 0, 2); }).join(' ') + ' / ' + [0, 1, 2, 3].map(function (k) { return placeOf(k, 3, 1); }).join(' ');},
     q{var held = [tried(0, 0, 0, [3]), tried(1, 0, 0, []), tried(0, 0, 0, [60, 130]), (moving = false, tried(2, 0, 0, [-300])), (moving = false, can = false, tried(0, 0, 0, [130]))].join(' | ');},
+    q{function pulled(i, along, count) { tabs = count == 1 ? [{ title: 'a' }] : [{ title: 'a' }, { title: 'b' }, { title: 'c' }]; selected = 0; shares = []; said = []; pointer = 0; pointerY = 0; moves = along; origins = []; framed = 0; pulling = null; tabHeld(i); return said.join(',') + ' ' + selected + ' pulling=' + pulling + ' origins=' + origins.join(' ') + ' framed=' + framed; }},
+    q{can = true; var pulls = [pulled(1, [[0, -54]]), pulled(1, [[0, -55]]), pulled(2, [[30, 60]]), (can = false, pulled(1, [[0, -80]])), (can = true, pulled(0, [[10, -80], [20, -10]], 1)), pulled(0, [[3, 0]], 1)].join(' | ');},
     q{can = true; tabs = [{}, {}, {}]; drag = { tab: 0, dx: 130, slot: 1 };},
-    q{return slots + "\n" + held + "\n" + [tabLeft(0, 100), tabLeft(1, 100), tabLeft(2, 100)].join(' ');},
+    q{var lefts = [tabLeft(0, 100), tabLeft(1, 100), tabLeft(2, 100)].join(' '); drag = { tab: 0, dx: 30, slot: 0, out: true };},
+    q{return slots + "\n" + held + "\n" + lefts + "\n" + pulls + "\n" + [tabLeft(0, 100), tabLeft(1, 100), tabLeft(2, 100)].join(' ');},
     '}');
 run_of('tabslots', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', $slots_js]);    # the window's own two functions, read from lzrprf and run with no window
+run_of('tabout', typed => "$t/tabout/one,,=tab new,,$t/tabout/two,,=tab out 0 10 20 900 700,,=tab out 0 1 2 900 700,,=tab out 5 1 2 900 700,,=tab out 0 1 2 0 700", fetches => ['/tabout/one', '/tabout/two']);    # two tabs, the first pulled out; then the last tab, a tab that is not there and a frame of no size: nothing
+run_of('taboutmost', typed => join(',,', ('=tab new', '=tab out 0 1 2 900 700') x 33));    # a tab made and pulled out, 33 times over: one more than one window may
+run_of('pulledin', prepare => sub { put_file("$_[0]/open", "$t/pulledin/one\n") }, fetches => ['/pulledin/one']);    # the line a pulled tab's window reads on its standard input, from a file of the test (sub run)
+run_of('reopen', typed => "$t/reopen/one,,=tab new,,$t/reopen/two,,=tab new,,$t/reopen/three,,=tab new,,=tab close 0,,=tab close 0,,=tab close 0,,=tab reopen,,=tab reopen,,=tab reopen,,=tab reopen", fetches => ['/reopen/one', '/reopen/two', '/reopen/three', '/reopen/one']);    # three pages and an empty tab; the pages closed; reopened newest first, the third visited again; then none is left
+my $strip_js = join("\n", 'function run(argv) {',    # the strip's own "tabsTold", read from lzrprf: a reopened tab, a pulled tab gone, a pulled tab that stayed
+    q{var tabs, selected, shares, drawings, zooms, closing = null, pulling = null, reopening = false, pendingTab = null, perlTab = 0, moving = false, restoring = null, viewed = 0;},
+    q{function keep() { } function keptNow() { return {}; } function redrawn() { } function view() { viewed++; }},
+    ($text_of_lzrprf =~ /^(function tabsTold\(rest\) \{.*?^\}\n)/ms),
+    q{function told(count, now, set, line) { tabs = []; for (var k = 0; k < count; k++) tabs.push({ title: '' }); selected = now; drawings = ['A', 'B', 'C'].slice(0, count); shares = [0.1, 0.2, 0.3].slice(0, count); zooms = [110, 150, 175].slice(0, count); set(); tabsTold(line); return drawings.map(String).join(',') + ' ' + shares.join(',') + ' ' + zooms.join(',') + ' ' + selected + ' ' + reopening + ' ' + pulling + ' ' + tabs.length; }},
+    q{return [told(2, 1, function () { reopening = true; }, '3 0'), told(2, 1, function () { reopening = true; }, '3 2'), told(3, 1, function () { pulling = 1; }, '2 0'), told(3, 1, function () { pulling = 1; }, '3 0')].join(' | ') + ' viewed=' + viewed;},
+    '}');
+run_of('reopenstrip', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', $strip_js]);
+my $find_js = join("\n", 'function run(argv) {',    # Find's and zoom's own functions, read from lzrprf; view() with the page's room standing in
+    q{var zooms = [], selected = 0, viewing = '', said = [], scroll = { contentSize: { width: 960, height: 640 } }; function say(line) { said.push(line); }},
+    ($text_of_lzrprf =~ /^(var (?:findBox|ZOOMS) = .*)$/mg), ($text_of_lzrprf =~ /^(function (?:zoomOf|zoomNext|zoomWidth|findStep|findSaid)\(.*)$/mg),
+    ($text_of_lzrprf =~ /^(function (?:fitScale|findIn|view)\(.*?^\}\n)/msg),
+    q{var hits = findIn(['Apple pie and APPLE', 'no', 'pineapple', 'aaaa'], 'apple'), twos = findIn(['aaaa'], 'aa'), none = findIn(['abc'], ''), many = findIn([new Array(3001).join('e')], 'E');},
+    q{var found = hits.map(function (h) { return h.join(':'); }).join(' ') + ' aa=' + twos.length + ' empty=' + none.length + ' bound=' + many.length;},
+    q{var steps = [findStep(-1, 3, 1), findStep(-1, 3, -1), findStep(2, 3, 1), findStep(0, 3, -1), findStep(1, 3, 1), findStep(0, 0, 1)].join(' ') + ' ' + findSaid(2, 17) + '|' + findSaid(-1, 0);},
+    q{var up = [], at = 100; for (var k = 0; k < 7; k++) { at = zoomNext(at, 1); up.push(at); } var down = []; at = 100; for (k = 0; k < 6; k++) { at = zoomNext(at, -1); down.push(at); }},
+    q{var widths = [zoomWidth(1000, 125), zoomWidth(1000, 50), zoomWidth(960, 100), zoomWidth(0.2, 100)].join(' ') + ' ' + [fitScale(1000, 800, 125), fitScale(2000, 1600, 100), fitScale(1000, 960, 100).toFixed(3), fitScale(3000, 1600, 100).toFixed(3)].join(' ');},
+    q{view(); zooms[0] = 150; view(); view(); zooms[0] = 50; view(); selected = 1; view();},
+    q{return found + "\n" + steps + "\n" + up.join(' ') + ' / ' + down.join(' ') + ' / ' + zoomNext(175, 0) + ' ' + zoomNext(33, 1) + ' ' + zoomOf(7) + "\n" + widths + "\n" + said.join(',');},
+    '}');
+run_of('findzoom', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', $find_js]);
 my ($heard_impl) = $text_of_lzrprf =~ /^    'heard:': \{ types: \['void', \['id'\]\], implementation: (function \(note\) \{\n.*?\n    \}) \}\n/ms;
 my $heard_js = join("\n", 'ObjC.import("Foundation");',    # the reader of the window's hand, read from lzrprf: its pipe, its "heard" and the bridge's decoding stand in here, and every decoding is counted
     q{var decoded = [], spy = (function (real) { var f = function (x) { return real(x); }; f.NSMakeRange = function (a, b) { return real.NSMakeRange(a, b); }; f.NSMutableData = real.NSMutableData; f.NSString = { alloc: { initWithDataEncoding: function (data, code) { decoded.push(data.length + '/' + code); return real.NSString.alloc.initWithDataEncoding(data, code); } } }; return f; })($);},
@@ -1443,6 +1607,31 @@ run_of('incognito', typed => join(',,', "$t/incognito/one", "$t/incognito/two", 
     fetches => ['/incognito/one', '/incognito/two', '/incognito/mark'], prepare => sub { $incognito_folder->($_[0]); $sums_before{incognito} = tree_sums($_[0]) });
 run_of('incognitokilled', crash => 1, typed => "$t/out/nap?incognitokilled", fetches => ['/out/nap?incognitokilled'], prepare => $incognito_folder);
 run_of('incognitoswept', after => 'incognitokilled', typed => "$t/incognito/swept", fetches => ['/incognito/swept']);
+# The support member licence and the support request. The codes below were made with the code that makes
+# them for the shop, under two keys of the test's own: the first is the key these runs check against, the
+# second signed a code of the same form that must not pass. The picture is the smallest PNG the support
+# address takes. The test site answers its support address as that address does (sub support_door).
+my $licence_key = 'ed25519 0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc=';
+my $licence_good = '2400N-VW4Q6-8D1W2-K4EV9-T1VF4-7041B-DET5J-AH292-3HA1D-TDE17-Q5N9F-YB0P4-VDXP5-CGJPJ-7NJHV-FGC78-P0RA1-Z2AGJ-TWQ63-NW2VN-2MDB9-K0JV9-FB59G-ZVN0C';
+my $licence_other = '2400N-VW4Q6-8D1W2-K4F06-Q0QQZ-VKYC4-RNMPH-JRJQ2-MB0WR-DQ0GR-3W3AH-QF3K2-XTXJV-7W0AD-HYGAW-2DG6Q-172AM-7YRQQ-AQ8TX-QBZWX-MCN7Q-DN4JX-Y3FYY-XDPRE';
+my $support_png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+my $support_words = "The tab bar froze after a click.\nK\x{e4}ytt\x{e4}j\x{e4} here.";
+my $support_typed = encode_base64(do { my $bytes = $support_words; utf8::encode($bytes); $bytes }, '');
+my $with_key = sub { put_file("$_[0]/licence-key", "$licence_key\n") };
+my $with_licence = sub { $with_key->($_[0]); put_file("$_[0]/licence", "$licence_good\n") };
+run_of('licencegood', app => bundle('licencegood', 'release 3'), typed => '=licence set ' . lc($licence_good =~ s/-/ /gr), prepare => $with_key);
+run_of('licencebad', app => bundle('licencebad', 'release 3'), typed => "=licence set $licence_other,,=licence set hello", prepare => $with_key);
+run_of('licenceremove', app => bundle('licenceremove', 'release 3'), typed => '=licence remove', prepare => $with_licence);
+run_of('licencenokey', app => bundle('licencenokey', 'release 3'), typed => "=licence set $licence_good");
+run_of('support', app => bundle('support', 'release 3', "support $t/support"), typed => "=support send $support_typed -,,=support read");
+run_of('supportfull', app => bundle('supportfull', 'release 3', "support $t/support"), typed => "=support send $support_typed $support_png", prepare => $with_licence);
+run_of('supportnone', app => bundle('supportnone', 'release 3'), typed => "=support send $support_typed -,,=support read");
+run_of('supportquery', app => bundle('supportquery', 'release 3', "support $t/support?to=elsewhere"), typed => "=support send $support_typed -");
+run_of('supporthost', app => bundle('supporthost', 'release 3', 'support https://img.site.test/support'), typed => "=support send $support_typed - https://site.test/support,,=support send $support_typed -");
+run_of('supportincog', app => bundle('supportincog', 'release 3', "support $t/support"), typed => "=licence set $licence_good,,=licence remove,,=support send $support_typed -,,=support read,,=support forget",
+    prepare => sub { $with_licence->($_[0]); put_file("$_[0]/support", "$support_ticket $support_key\n"); put_file("$_[0]/incognito", ''); $sums_before{supportincog} = tree_sums($_[0]) });
+run_of('supportbusy', app => bundle('supportbusy', 'release 3', "support $t/support-busy"), typed => "=support send $support_typed -");
+run_of('supportlost', app => bundle('supportlost', 'release 3', "support $t/support"), typed => '=support read', prepare => sub { put_file("$_[0]/support", "$support_ticket " . ('x' x 43) . "\n") });
 sub put_file { my ($file, $bytes) = @_; my ($dir) = $file =~ m{\A(.*)/}; system('/bin/mkdir', '-p', $dir) == 0 or die "selftest: cannot make $dir\n"; open my $out, '>:raw', $file or die "selftest: cannot write $file: $!\n"; print $out $bytes; close $out }
 sub lz4 {                                 # an LZ4 block of these bytes, made the plain way: each next 4 bytes looked for earlier, a match taken as far as it goes; and how many matches it holds
     my ($in) = @_;
@@ -1906,7 +2095,7 @@ my @sheets_fetched = grep { $_->{kind} eq 'trusted' && $_->{bytes} =~ m{^\S+ /sh
 check(!@sheets_passed && !@sheets_fetched, 'a page with a line =sheets broken in any one way is not drawn at all, is laid out once, and nothing of it is fetched: a path that does not begin with /, nine paths, a character no path may hold, a second such line, a line =sheets after the line =statement or before the line =pictures', @sheets_passed || @sheets_fetched ? "passed: @sheets_passed; " . scalar(@sheets_fetched) . ' fetched' : scalar(@sheets_unfit) . ' pages, none drawn');
 # 4. What a site is sent.                                [C4] [C5] [C6] [C7]
 print "\n4. What a site is sent: by the test site's own record.\n";
-my @https = grep { $_->{kind} eq 'trusted' && length $_->{bytes} } @seen;
+my @https = grep { $_->{kind} eq 'trusted' && length $_->{bytes} && $_->{bytes} !~ m{^(?:POST /support|GET /support/)} } @seen;    # a support request and the reading of its answer are checked on their own, below
 my @paths = map { $_->{bytes} =~ /^GET (\S+) / ? $1 : '?' } @https;
 check(join("\n", sort @paths) eq join("\n", sort @expected), 'the site was asked for what was typed, a bookmark or home page that was opened, a redirect that was followed, and the fixed addresses after a yes (the newest release, a report, the installer): each as often as it was asked for, and nothing else', scalar(@paths) . ' requests' . (join("\n", sort @paths) eq join("\n", sort @expected) ? '' : ': ' . join(' ', map { my $p = $_; (grep({ $_ eq $p } @paths) == grep({ $_ eq $p } @expected)) ? () : $p } sort keys %{ { map { $_ => 1 } @paths, @expected } })));
 my @other = grep { my $bytes = $_->{bytes}; !grep { $bytes eq $_ } requests_of($bytes) } @https;
@@ -1965,8 +2154,39 @@ my @after_move = defined $moved_at ? @move_told[$moved_at + 1 .. $#move_told] : 
 my ($next_tabs) = grep { $after_move[$_][0] eq 'tabs' } 0 .. $#after_move;
 my @with_move = defined $next_tabs ? @after_move[0 .. $next_tabs - 1] : ();
 check("@{[ words('tabmove', 'tabs') ]}" eq '2 1 2 0 2 1' && defined $next_tabs && !grep({ $_->[0] =~ /^(?:page|relaid|address|busy)$/ } @with_move) && (words('tabmove', 'address'))[-1] eq "$t/tabmove/one" && asked('/tabmove/one') == 1 && asked('/tabmove/two') == 1 && (grep { /^you typed / } log_of('tabmove')) == 2
-    && out('tabslots') =~ m{^1 0 1 2 / 2 0 1 3 / 0 2 3 1\n 0 abc false \| tab select 1 1 abc false \| tab move 0 1 1 bac true \| tab move 2 0,tab select 0 0 cab true \|  0 abc false\n214 84 284$}m,
+    && out('tabslots') =~ m{^1 0 1 2 / 2 0 1 3 / 0 2 3 1\n 0 abc false \| tab select 1 1 abc false \| tab move 0 1 1 bac true \| tab move 2 0,tab select 0 0 cab true \|  0 abc false\n214 84 284\n}m,
     'a tab moved along the strip: the second tab moved before the first stays the selected one, the page shown is neither cleared nor laid out again, a place that is not there and its own place change nothing, and the other tab, chosen then, is the first page (nothing is fetched again, the log gets no line); in the window, read from lzrprf and run with no window: a press that only trembles is a click and chooses the tab, a drag sends the move and then chooses the dragged tab when it was not the chosen one, a window that takes no press sends nothing, and the tab held is drawn under the pointer while the ones it passes stand aside', join(' ', words('tabmove', 'tabs')) . ' | ' . (out('tabslots') =~ s/\s+$//r =~ s/\n/ ; /gr));
+my $pulls_seen = (split /\n/, out('tabslots'))[3] // '';
+my $pulled_left = (split /\n/, out('tabslots'))[4] // '';
+check($pulls_seen eq 'tab select 1 1 pulling=null origins= framed=0 | tab out 1 200 145 1000 700 1 pulling=1 origins= framed=0 | tab out 2 330 260 1000 700 2 pulling=2 origins= framed=0 | tab select 1 1 pulling=null origins= framed=0 |  0 pulling=null origins=110,120 120,190 framed=1 |  0 pulling=null origins= framed=0' && $pulled_left eq '114 84 184',
+    'a tab pulled out of the strip, in the window, read from lzrprf and run with no window: 54 points below where it was pressed it is still a click, 55 below or 60 above it is pulled out, and let go there it says "tab out N X Y W H" with this window\'s size, placed so the tab stays under the pointer as the first of its new strip; a window that takes no press says only the tab chosen; the only tab moves its window with the pointer and says nothing but the new place; while pulled out the others close up behind it', "$pulls_seen ; $pulled_left");
+my @out_told = told('tabout');
+check("@{[ words('tabout', 'tabs') ]}" eq '2 1 1 0' && (words('tabout', 'address'))[-1] eq "$t/tabout/two" && (grep { $_ eq 'A tab pulled out opens a new window: "lzrprf try" starts none.' } words('tabout', 'idle')) == 1 && asked('/tabout/one') == 1 && asked('/tabout/two') == 1 && !grep({ $_->[0] eq 'tabs' && $_->[1] !~ /^(?:2 1|1 0)$/ } @out_told),
+    'a tab pulled out: lzrprf closes it here and the other tab shows ("lzrprf try" starts no second window and says so); the last tab, a tab that is not there and a frame of no size change nothing', join(' ', words('tabout', 'tabs')));
+my @most_idle = words('taboutmost', 'idle');
+check((grep { $_ eq 'A tab pulled out opens a new window: "lzrprf try" starts none.' } @most_idle) == 32 && (grep { /^The tab stays here: this window has opened 32 windows from its tabs, the most one window may\./ } @most_idle) == 1 && (words('taboutmost', 'tabs'))[-1] eq '2 1',
+    'one window opens at most 32 windows from its tabs in its life, so a window process taken over cannot have lzrprf start processes without end: the 33rd tab pulled out stays in its strip, and lzrprf says why', scalar(@most_idle) . ' idle lines, tabs ' . ((words('taboutmost', 'tabs'))[-1] // 'none'));
+my $pulled_words = pulled_words();
+check($pulled_words eq 'run --open 10 20 900 700 /app x | incognito --open 1 2 30 40 /app | https://site.test/b,5 6 700 500,/app,y | -,5 6 700 500,/app | -,5 6 700 500,/app | died died died died | none https://site.test/c refused refused refused',
+    'the window of a pulled tab: lzrprf starts a second lzrprf as it was started itself, in incognito from an incognito window, with only the frame as an argument ("--open FRAME" before the program); it reads one line on its standard input and no more, an address it fetches or nothing, and ends on anything else; behind hears that address from lzrprf as its first line ("start"), never from the window: "sub pulled_command", "sub opened_with" and "sub started", read from lzrprf and run here', $pulled_words);
+my $pulled_argv = pulled_argv();
+check($pulled_argv eq 'perl in=the address argv=7 holding it=0 | perl in=the address argv=7 holding it=0 | perl argv=11 holding it=0 | sandbox-exec argv=13 holding it=0' && $text_of_lzrprf !~ /argv\[3\]/,
+    'the address of a pulled tab is in no command line, which every user of the computer can read in the list of processes: lzrprf hands it to the second lzrprf on its standard input, and that one to behind on the pipe it reads, while no argument of the second lzrprf, of behind or of the window holds it, and the window reads no address from its arguments ("sub tab_out", "sub pulled_command" and the two lines of "sub run" that start processes, read from lzrprf and run here with an address)', $pulled_argv);
+my @pulled_log = log_of('pulledin');
+my ($pulled_at) = grep { $pulled_log[$_] eq "you pulled a tab out into this window $t/pulledin/one" } 0 .. $#pulled_log;
+my ($looked_at) = grep { index($pulled_log[$_], "$t/pulledin/one -> lzrprf connects") == 0 } 0 .. $#pulled_log;
+check(defined $pulled_at && defined $looked_at && $pulled_at < $looked_at && !grep({ /^you (?:typed|opened your home page)/ } @pulled_log) && asked('/pulledin/one') == 1 && (words('pulledin', 'address'))[0] eq "$t/pulledin/one",
+    'the window of a pulled tab opens the address handed to it, checked as a typed one is [C4], and its log says so: "you pulled a tab out into this window", written before the name is looked up [C5], and not "you typed"', join(' | ', @pulled_log[0 .. ($#pulled_log < 3 ? $#pulled_log : 3)]));
+my $reopen_said = join(' ', words('reopen', 'tabs'));
+check($reopen_said eq '2 1 3 2 4 3 3 2 2 1 1 0 2 0 3 0 4 0' && asked('/reopen/one') == 2 && asked('/reopen/two') == 1 && asked('/reopen/three') == 1 && (grep { $_ eq "you reopened a closed tab $t/reopen/one" } log_of('reopen')) == 1 && (grep { $_ eq 'No closed tab to reopen in this window.' } words('reopen', 'idle')) == 1,
+    'Reopen Closed Tab: the tab closed last comes back first, at its old place, chosen; the two closed last are shown from what lzrprf kept and fetch nothing, the third is visited again, written in the log first; with none left it says so', $reopen_said);
+my $closed_order = closed_order();
+check($closed_order eq '10: 12@11+ 11@10+ 10@9 9@8 8@7 7@6 6@5 5@4 4@3 3@2 empty=10',
+    'the closed tabs are held newest first, ten at most, and only the two newest keep their page; a tab with no address is not held: "sub closed_kept", read from lzrprf and run here', $closed_order);
+check((out('reopenstrip') =~ s/\s+$//r) eq 'null,A,B 0,0.1,0.2 100,110,150 0 false null 3 | A,B,null 0.1,0.2,0 110,150,100 2 false null 3 | A,C 0.1,0.3 110,175 0 false null 2 | A,B,C 0.1,0.2,0.3 110,150,175 0 false null 3 viewed=4',
+    'the strip, read from lzrprf and run with no window: a reopened tab gets its own place, the tabs after it keeping their drawings, where they were read and their zoom; a pulled tab is let go once lzrprf says the tabs without it, and stays when lzrprf could not start its window; the tab shown then says its zoom\'s width', out('reopenstrip') =~ s/\s+$//r =~ s/\n/ ; /gr || err('reopenstrip') =~ s/\s+/ /gr);
+check((out('findzoom') =~ s/\s+$//r) eq "0:0 0:14 2:4 aa=2 empty=0 bound=1000\n0 2 0 2 2 -1 3 of 17|No match\n110 125 150 175 200 200 200 / 90 80 67 50 50 50 / 100 100 100\n800 2000 960 1 1.25 1 1.042 1.875\nview 960 640,view 640 427,view 1920 1280,view 960 640",
+    'Find and zoom, read from lzrprf and run with no window: Find finds every match, capitals and small letters alike, none overlapping, a thousand at most, nothing for an empty field, and steps round from the last to the first and back, saying "3 of 17"; zoom steps 50 67 80 90 100 110 125 150 175 200, held at the ends, 0 back to 100; the page is laid for the room divided by the zoom ("view W H", the road a new size takes) and scaled to fill the room, and each tab has its own', out('findzoom') =~ s/\s+$//r =~ s/\n/ ; /gr || err('findzoom') =~ s/\s+/ /gr);
 check(slurp("$base.home/home") eq "$t/home/page\n" && (grep { $_ eq "The home page is set: $t/home/page. A new tab and the next window open it." } words('home', 'idle')) == 1 && asked('/home/page') == 2 && (grep { $_ eq "you opened your home page $t/home/page" } log_of('home')) == 1,
     'the cogwheel\'s "Make current page the home page" keeps the address of the tab in one plain file, home, and a new tab opens it, written in the log first like a typed address', slurp("$base.home/home") =~ s/\n/ /r || 'no file');
 check(asked('/home/start') == 1 && (grep { $_ eq "you opened your home page $t/home/start" } log_of('homestart')) == 1 && !grep({ /home page/ } log_of('homebad'), log_of('homelink')) && !asked('/home/link') && !asked('/home/bad'),
@@ -2020,7 +2240,7 @@ check(!grep({ $_->{bytes} =~ m{^GET /import/} } @seen) && !grep({ /import/ } map
 my @history = words('suggest', 'history');
 check(@history == 4 && $history[0] =~ /^add \Q$t\E\/suggest\/one\t/ && $history[1] =~ /^add \Q$t\E\/suggest\/two\t/ && $history[2] =~ /^add \Q$t\E\/suggest\/one\t/ && $history[3] eq 'clear',
     'each page shown is told to the window for the bar\'s suggestions, in its memory only, and "Clear browsing history" clears them too: nothing of them is written by lzrprf', join(' | ', map { s/\t.*//r } @history));
-check($text_of_lzrprf =~ /^    bar\.cell\.allowsUndo = true;/m && $text_of_lzrprf =~ /\['Edit', \[\['Undo', 'undo:', 'z', false\], \['Redo', 'redo:', 'Z', false\], \['Cut', 'cut:', 'x', false\], \['Copy', 'copy:', 'c', false\], \['Paste', 'paste:', 'v', false\], \['Select All', 'selectAll:', 'a', false\]\]\]/,
+check($text_of_lzrprf =~ /^    bar\.cell\.allowsUndo = true;/m && $text_of_lzrprf =~ /\['Edit', \[\['Undo', 'undo:', 'z', false\], \['Redo', 'redo:', 'Z', false\], \['Cut', 'cut:', 'x', false\], \['Copy', 'copy:', 'c', false\], \['Paste', 'paste:', 'v', false\], \['Select All', 'selectAll:', 'a', false\],\s+\['Find\.\.\.', 'finding:', 'f', true\]/,
     'the bar undoes and redoes typing step by step: Cmd-Z and Cmd-Shift-Z in an Edit menu of the window, which also cuts, copies, pastes and selects all (read in the window\'s text)', 'read, not tried');
 check(($handed{"$t/pieces"} // '') =~ m{\r\n\r\n4\r\nthe \r\n16\r\npage of the test site\n\r\n0\r\n\r\n$}, 'the application is handed the answer as the site sent it', 'compared the bytes');
 check(visit('answers', "$t/large")->{said} eq 'Nothing is shown: the answer is larger than lzrprf takes.' && !exists $handed{"$t/large"}, 'an answer larger than lzrprf takes is not handed on', visit('answers', "$t/large")->{said});
@@ -2029,6 +2249,65 @@ check(@unfetched == 1 && words('typed', 'idle') == @refused + 1 && !-s "$base.ty
 my @echo_seen = grep { $_->{kind} eq 'echo' } @seen;
 check(@echo_seen == 3 && grep({ $_->{bytes} eq 'hello' } @echo_seen) == 1 && grep({ $_->{bytes} eq '' } @echo_seen) == 2, 'the listener the hostile application was told about heard from it twice outside every container, once through lzrprf\'s hands, and never from inside a container', scalar(@echo_seen) . ' connections');
 
+# The support member licence and a support request, by the test site's own record and the run folders.
+my $mode_of = sub { my @is = stat $_[0]; return @is ? sprintf('%04o', $is[2] & 07777) : 'none' };
+my $no_words = sub { my ($name) = @_; my $all = slurp("$base.$name/log"); return $all !~ /froze|ytt|\Q$support_key\E|VW4Q6|vw4q6/ };    # the log holds neither the words sent, nor the key of the answer, nor any part of the licence code
+my $licence_lines = sub { grep { /licence/ } log_of($_[0]) };
+check(join('|', words('licencegood', 'licence')) eq 'none|kept November 2026' && slurp("$base.licencegood/licence") eq "$licence_good\n" && $mode_of->("$base.licencegood/licence") eq '0600' && !-e "$base.licencegood/licence.new"
+    && last_said('licencegood') =~ /^The licence code is kept: this browser is a support member's, since November 2026\. It was checked on this Mac\./
+    && join('|', $licence_lines->('licencegood')) eq 'you entered a support member licence code: it is kept in the file licence, and is not written here' && $no_words->('licencegood') && !grep({ /connects/ } log_of('licencegood')),
+    'a good licence code typed in small letters with spaces is checked on this Mac against the public key, fetches nothing, and is kept as written in the file licence with the rights of the other small files; the window says since when; the log says a code was entered and holds none of it', join(' | ', words('licencegood', 'licence'), last_said('licencegood'), $mode_of->("$base.licencegood/licence")));
+my @bad_said = words('licencebad', 'licence');
+check(@bad_said == 3 && $bad_said[0] eq 'none' && $bad_said[1] =~ /^refused \S/ && $bad_said[2] =~ /^refused \S/ && $bad_said[1] ne $bad_said[2] && !-e "$base.licencebad/licence" && !$licence_lines->('licencebad'),
+    'a code signed by another key and a code in the wrong form are refused, each with its own plain line, and nothing is kept or written to the log', join(' | ', @bad_said));
+check(join('|', words('licenceremove', 'licence')) eq 'kept November 2026|none' && !-e "$base.licenceremove/licence" && join('|', $licence_lines->('licenceremove')) eq 'you removed the support member licence code, and its file' && last_said('licenceremove') =~ /^The licence code was removed, and its file with it\./,
+    'a kept code is shown at the start, and removing it removes its file; the log says so', join(' | ', words('licenceremove', 'licence'), last_said('licenceremove')));
+check(join('|', words('licencenokey', 'licence')) eq 'none|kept November 2026' && slurp("$base.licencenokey/licence") eq "$licence_good\n" && last_said('licencenokey') =~ /Its form was checked on this Mac; its signature is checked where a support request goes/,
+    'while lzrprf holds no public key, a code of the right form is kept and the window says its signature is checked where the request goes', last_said('licencenokey'));
+my @support_seen = grep { $_->{kind} eq 'trusted' && $_->{bytes} =~ m{^(?:POST /support|GET /support/)} } @seen;
+my $parts = sub { my ($head, $body) = split /\r\n\r\n/, $_[0]{bytes}, 2; my @lines = split /\r\n/, $head; return ([sort @lines], $body // '') };
+my $host_of = sub { $_[0]{bytes} =~ /\r\nHost: ([^\r]+)\r\n/ ? $1 : '' };
+my @posts = grep { $_->{bytes} =~ m{^POST } } @support_seen;
+my @gets = grep { $_->{bytes} =~ m{^GET } } @support_seen;
+my ($plain) = grep { $_->{bytes} =~ m{^POST /support } && $host_of->($_) eq 'site.test' && $_->{bytes} !~ /"licence"/ } @posts;
+my ($full_post) = grep { $_->{bytes} =~ /"licence"/ } @posts;
+my @elsewhere = grep { $host_of->($_) eq 'img.site.test' } @posts;
+my $text_json = '"The tab bar froze after a click.\nK\u00e4ytt\u00e4j\u00e4 here.\n\nRelease 3"';
+my $plain_body = qq({"text":$text_json});
+my $full_body = qq({"text":$text_json,"licence":"$licence_good","screenshot":"$support_png"});
+my $posted = sub { my ($body, $host) = @_; return join("\n", sort 'POST /support HTTP/1.1', "Host: $host", 'User-Agent: LZRBRWSR', 'Accept-Encoding: identity', 'Connection: close', 'Content-Type: application/json', 'Content-Length: ' . length $body) };
+my ($plain_head, $plain_got) = $plain ? $parts->($plain) : ([], '');
+check($plain && join("\n", @$plain_head) eq $posted->($plain_body, 'site.test') && $plain_got eq $plain_body && $plain->{logged},
+    'a support request is one POST to the address the release file names, with the fixed browser lines, and a body of one field: your words with the release number under them; no picture unless it is ticked, no licence unless one is kept, no address of a page, no name of the computer, no number made for it; and its line was in the log before it arrived',
+    $plain ? join(' / ', @$plain_head) . ' / ' . $plain_got : 'no such request');
+my ($full_head, $full_got) = $full_post ? $parts->($full_post) : ([], '');
+check($full_post && join("\n", @$full_head) eq $posted->($full_body, 'site.test') && $full_got eq $full_body && $full_post->{logged} && join('|', grep { /^sent / } words('supportfull', 'support')) eq "sent $support_ticket priority accepted"
+    && join('|', grep { /support request/ } log_of('supportfull')) eq "you sent a support request, with your licence code, with a picture of the window: $t/support" && $no_words->('supportfull'),
+    'with a kept licence code and the picture ticked, the body carries the code and the picture as well and nothing more; the request goes with priority, and the log says what went with it but not the words', $full_post ? length($full_got) . ' bytes of body; ' . join(' | ', words('supportfull', 'support')) : 'no such request');
+my ($read) = grep { $_->{bytes} =~ m{^GET /support/\Q$support_ticket\E } && $_->{bytes} =~ /Bearer \Q$support_key\E/ } @gets;
+my ($read_head, $read_body) = $read ? $parts->($read) : ([], '');
+my $b64 = sub { my $bytes = $_[0]; utf8::encode($bytes); return encode_base64($bytes, '') };
+my $thread = join '|', grep { /^(?:thread|message) / } words('support', 'support');
+my $thread_wanted = join '|', 'thread answered', 'message user 2026-11-21T10:00 ' . $b64->('words'), 'message support 2026-11-21T11:30 ' . $b64->("Fixed in the next release.\nThank you, k\x{e4}ytt\x{e4}j\x{e4}."), 'thread end';
+check($read && join("\n", @$read_head) eq join("\n", sort "GET /support/$support_ticket HTTP/1.1", 'Host: site.test', 'User-Agent: LZRBRWSR', 'Accept-Encoding: identity', 'Connection: close', "Authorization: Bearer $support_key") && $read_body eq '' && $read->{logged}
+    && join('|', grep { !/^(?:thread|message) / } words('support', 'support')) eq "on site.test 3|kept -|sent $support_ticket plain none|kept $support_ticket" && ($thread =~ s/^thread answered \|/thread answered|/r) eq $thread_wanted
+    && slurp("$base.support/support") eq "$support_ticket $support_key\n" && $mode_of->("$base.support/support") eq '0600'
+    && join('|', grep { /support request/ } log_of('support')) eq "you sent a support request: $t/support|you read the answer to your support request: $t/support/$support_ticket" && $no_words->('support'),
+    'the window is told the reference, and its key is kept in the file support; the answer is read later by GET of the reference with the key as the one more line, and is handed to the window as text in base64; the log says a request was sent and its answer read, never the words', join(' | ', words('support', 'support')));
+check(@elsewhere == 1 && $elsewhere[0]{bytes} =~ m{^POST /support HTTP/1\.1\r\n} && (grep { /^sent / } words('supporthost', 'support')) == 1 && @posts == 4 && @gets == 2,
+    'the address comes from the release file alone: a line from the window that names another place is not taken, and the one request goes to the host the release file names; all runs together sent four requests and read two answers, none from the incognito window', scalar(@posts) . ' requests, ' . scalar(@gets) . ' reads, ' . scalar(@elsewhere) . ' to img.site.test');
+for my $name ('supportnone', 'supportquery') {
+    check((words($name, 'support'))[0] eq 'off none' && (grep { /^failed This application names no address for support requests/ } words($name, 'support')) >= 1 && !(grep { /^sent / } words($name, 'support')) && !-e "$base.$name/support" && !grep({ /support request/ } log_of($name)),
+        $name eq 'supportnone' ? 'an application whose release file names no support address offers no support request, and sends nothing when asked' : 'a support address with a query in it is not one lzrprf sends to: nothing is sent', join(' | ', words($name, 'support')));
+}
+my @incog_support = words('supportincog', 'support');
+check(join('|', map { s/ .*//r } words('supportincog', 'licence')) eq 'off|refused|refused' && $incog_support[0] eq 'off incognito' && (grep { /^failed / } @incog_support) == 3 && !(grep { /^(?:sent|thread|message) / } @incog_support)
+    && defined $sums_before{supportincog} && tree_sums("$base.supportincog") eq $sums_before{supportincog},
+    'an incognito window offers neither the licence nor a support request: it changes no file, keeps nothing, sends nothing and reads nothing', join(' | ', words('supportincog', 'licence'), @incog_support));
+check(join('|', grep { /^failed / } words('supportbusy', 'support')) eq 'failed The support address did not take the request: too many requests reached it just now; try again in an hour.' && !-e "$base.supportbusy/support",
+    'a support address that refuses the request is said in plain words, and nothing is kept', join(' | ', words('supportbusy', 'support')));
+check(join('|', grep { /^failed / } words('supportlost', 'support')) eq 'failed The support address knows no request by this reference and key now.' && (grep { $_->{bytes} =~ /Bearer x{43}\r\n/ } @gets) == 1,
+    'an answer asked for with a key the support address does not know is said plainly', join(' | ', words('supportlost', 'support')));
 # 5. The log.                                                [C5] [C12]
 print "\n5. The log.\n";
 my @page_log = log_of('page');
@@ -2367,8 +2646,14 @@ for my $idle ('idlehome', 'idlepage') {    # the window left alone two seconds, 
         "an idle window costs close to nothing ($idle): once half a second has passed since lzrprf last said anything, the whole process and the window's own thread each spend under 3 in 100 of the time that passes, measured with the system's clocks in quarters of two seconds (the first quarter is shown and not judged: the window finishes what the last message began there); no timer is set and nothing is laid out, repainted or stepped meanwhile", $at{$idle} // 'nothing came: the window stopped before');
 }
 check(($at{torunseen} // '') =~ /^timer=false seen=false motion=(?:true|false)$/, 'the onion of Tor connecting breathes only while the window is seen: with the window not seen its timer of 30 frames a second is not started (it ran on, drawing for nobody, for as long as Tor said connecting)', $at{torunseen} // 'nothing came');
+check(($at{find} // '') =~ /^open=true shown=true typed=true found=true first=true wrapped=true back=true bar=none\/lit marks=(?:none\/lit|text) ; none=0:No match ; closed=true:true:0 ; said=0$/,
+    'Find in the page of the real window kept off the screen: Cmd-F\'s bar opens with the field to type in, a word of the page typed in capitals is found in its small letters, the first match is "1 of N", previous from the first goes round to the last and next back to the first; the bar and the page with its marks paint into pictures of the test\'s own with nothing thrown; a word not there finds nothing and says so; closing takes the marks away; nothing is said to lzrprf', $at{find} // 'nothing came: the window stopped before');
 check(($at{toolpanel} // '') eq 'open=tool open modal=true 0act-1none-2act-3undo- act=false undo=false confirm=none ; 0act+1none-2act-3undo- act=true undo=false confirm=none ; 0act+1none-2act+3undo- act=true undo=false confirm=none ; 0act-1none-2act+3undo- act=true undo=false confirm=none ; 0act-1none-2act-3undo- act=false undo=false confirm=none ; seen=true paint=none/lit icon=none/lit ; asked=true said=1 0act+1none-2act+3undo- act=none undo=none confirm=Switch off 2:true paint=none/lit ; back 0act+1none-2act-3undo- act=none undo=none confirm=Switch off 1:true ; sent=tool act 0 busy=true 0act+1none-2act-3undo- act=false undo=false confirm=none ; again 0act-1none-2act-3undo- act=false undo=false confirm=none busy=false ; none tool=true modal=false paint=none/dark ; back=2 tip=2 launchd jobs you switched off were switched on again by something else, and switched off again icon=none/lit ; said=2',
     'the application\'s tool in the window, told by lines as lzrprf writes them and pressed by real mouse events, with what it says caught and kept from lzrprf: a row before "tool begin" and a busy line before any list change nothing; the list holds its rows; a tick on a row that can be switched off lets the button that switches off take a press, a row lzrprf can change nothing in takes no tick, and taking off the last tick takes the press away again; that button only asks, showing the ticked rows, and the words "tool act" are said only after the second press, naming exactly the rows ticked then; while lzrprf works no button but Close takes a press; a new list comes unticked; "tool none" closes the panel and "tool back" colours the icon and says why; the list, the question and the icon each paint to their end into a picture of the test\'s own, with nothing thrown', $at{toolpanel} // 'nothing came: the window stopped before');
+check(($at{licencepanel} // '') eq q{open=true field=true ; empty=Type or paste your licence code first. said=0 ; wrong=That is not a licence code: a code has 120 letters and digits, in groups of 5. said=0 ; sent=licence set abcde fghij ; refused=The code is not a support member licence: its signature does not check. field=true ; kept=The code is kept. This browser is a support member's, since  field=false item=since November 2026 ; remove=licence remove ; none item=true field=true ; incognito tip=true modal=false said=2},
+    'the licence panel in the window, told by lines as lzrprf writes them: "Enter licence code" opens it with its one field; an empty field or one with other signs is answered in the panel and nothing is said; a code is said as "licence set" with its spaces made single; a refusal is shown plainly; a kept code shows since when and hides the field; Remove code says "licence remove"; in an incognito window the item only says why it is not offered', $at{licencepanel} // 'nothing came: the window stopped before');
+check(($at{supportpanel} // '') eq q{open=true box=true tick=0 preview=false shot=png true ; about=truetruetruetruetruefalse ; empty=Write what the request is about first. said=0 ; sent=support send SGVsbG8Kd29ybGQ= - ; failed=The request could not be sent. The log says why. box=true waiting=false ; ticked preview=true ; picture=4 SGVsbG8Kd29ybGQ= iVBORw0KGgo ; done=true box=false preview=false item=answer kept ; licence=true tick=0 ; incognito tip=true modal=false ; said=2 icons=none/lit/none/lit},
+    'the support panel in the window: it opens with the box, the picture unticked and no preview, and the window\'s own picture of itself made as a PNG; before Send it says where the request goes, that it is anonymous, the release number, that the picture shows the page, and that no address of a page goes; with no words nothing is said; Send says "support send" with the words in base64 and "-" for no picture, and only after the tick the preview is shown and the picture goes; a failure keeps the words; a sent request shows its reference; a kept licence is named in the list; in an incognito window the item only says why; the two new icons of the menu paint, with nothing thrown', $at{supportpanel} // 'nothing came: the window stopped before');
 check(($at{logpaths} // '') eq '-1:true:none/lit:1:true 0:true:none/lit:2:true 3:true:none/lit:4:true 600:true:none/lit:601:true pill=log>null:page=true:closing=false:said= arrow=log>null:page=true:closing=false:said= cog=log>null:page=true:closing=false:said= pill?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1 arrow?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1 cog?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1',
     'the log page paints to its end into a picture of the test\'s own with nothing thrown, empty, with a part and no line, short, and 600 lines long; its Close pill (pressed by a real mouse event), the back arrow and the line of the cogwheel\'s menu each close it and show the page again, saying nothing to lzrprf; with a question of lzrprf open, each answers it with the first button, which changes nothing, and the next question about the log is answered the same way and not shown', $at{logpaths} // 'nothing came: the window stopped before');
 my $steps_shown = $import_steps =~ s/\t/|/gr;
@@ -2402,8 +2687,8 @@ my @opens = grep { m{/usr/bin/open} } split /\n/, $text_of_lzrprf;
 check(@opens == 1 && $opens[0] eq "            become(undef, undef, undef, '/usr/bin/open', '-n', \$app);", 'lzrprf names "open" on one line, which opens the application it ran from and nothing else (Close and restart after a done install)', scalar(@opens) . ' lines');
 check(join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these fifteen: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
 my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted';
-check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '5 1 3 1 3 4 1' && $text_of_lzrprf =~ /^        \(\$got, \$why, \$from\) = fetch\(\$url, \$where, \{ method => \$method, /m && $text_of_lzrprf =~ /^sub live_fetched \{/m && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        window\("page \$TAB", \@\{ \(pictured\(\$lines, \$paths, \$host, \$where, \$kept, \{\}\)\)\[0\] \}, '\.'\);    # nothing is fetched/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^            \(\$shown\) = pictured\(\$checked, \$live->\{paths\}, \$live->\{host\}, undef, undef, \$live->\{pictures\}\);/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ typed\(\$1\) \}}m && $text_of_lzrprf =~ m{^sub typed \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ m{^sub navigated \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    \@WAY = \(\);\n    \$WENT = now\(\);  +# [^\n]*\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n    return newer_looked\(/m && $text_of_lzrprf =~ /^    return newer_looked\(.*, 1\) if \$asked;\n/m && $text_of_lzrprf =~ /^sub newer_looked \{\n(?:    .*\n){3}    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
-    'a request has five roads and no sixth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures of its page, on its host or another, and its style sheets on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; and "live_fetched", for an address a page kept running asked for [C19]; "fetch" is called from those five and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
+check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '5 1 5 1 3 4 1' && $text_of_lzrprf =~ /^    my \$got = fixed\('you sent a support request' /m && $text_of_lzrprf =~ /^    my \$got = fixed\("you read the answer to your support request: /m && $text_of_lzrprf =~ /^        \(\$got, \$why, \$from\) = fetch\(\$url, \$where, \{ method => \$method, /m && $text_of_lzrprf =~ /^sub live_fetched \{/m && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        window\("page \$TAB", \@\{ \(pictured\(\$lines, \$paths, \$host, \$where, \$kept, \{\}\)\)\[0\] \}, '\.'\);    # nothing is fetched/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^            \(\$shown\) = pictured\(\$checked, \$live->\{paths\}, \$live->\{host\}, undef, undef, \$live->\{pictures\}\);/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ typed\(\$1\) \}}m && $text_of_lzrprf =~ m{^sub typed \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ m{^sub navigated \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    \@WAY = \(\);\n    \$WENT = now\(\);  +# [^\n]*\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n    return newer_looked\(/m && $text_of_lzrprf =~ /^    return newer_looked\(.*, 1\) if \$asked;\n/m && $text_of_lzrprf =~ /^sub newer_looked \{\n(?:    .*\n){3}    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
+    'a request has five roads and no sixth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures of its page, on its host or another, and its style sheets on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; "fixed" twice more, from the cogwheel\'s menu, for a support request you send and for the reading of its answer, both to the one support address of the release file; and "live_fetched", for an address a page kept running asked for [C19]; "fetch" is called from those five and "reach" from "fetch" alone', join(' ', map { "$_:$calls{$_}" } sort keys %calls));
 my ($window_js) = $text_of_lzrprf =~ /^sub window_text \{\n    return <<'END';\n(.*?)^END$/ms;
 my %functions; $functions{$_}++ for ($window_js // '') =~ /^function (\w+)\(/mg;
 my @twice = grep { $functions{$_} > 1 } sort keys %functions;
@@ -2609,6 +2894,54 @@ sub unmark {                              # the mark of this copy is taken out o
 }
 
 sub plain_mark { $_[0] =~ s/, untested: [^\n]*//r }    # a line of the file of marks without the checks that could not be tried: the mark of its copy
+
+sub pulled_words {                        # "sub pulled_command", "sub opened_with", "sub started" and "sub address" of lzrprf, taken out and run here
+    my ($command) = $text_of_lzrprf =~ /^(sub pulled_command \{.*)$/m;
+    my @rest = map { my ($one) = $text_of_lzrprf =~ /^(sub $_ \{.*?^\}\n)/ms; $one } qw(opened_with started address);
+    my ($name) = $text_of_lzrprf =~ /^(my \$NAME = .*)$/m;
+    return 'not found in lzrprf' if grep { !defined } $command, $name, @rest;
+    my $got = eval "package Pulled; no warnings; our (\$SELF, \$INCOGNITO, \$PROGRAM, \@ARGUMENTS, \@script) = ('lzrprf');\n$name\n$command\n" . join("\n", @rest) . "\nsub hear { shift \@script }\n" . q{
+        my @words = map { $INCOGNITO = $_->[0]; ($PROGRAM, @ARGUMENTS) = @{ $_->[2] }; my @c = pulled_command(@{ $_->[1] }); join ' ', @c[2 .. $#c] } [0, ['10 20 900 700'], ['/app', 'x']], [1, ['1 2 30 40'], ['/app']];
+        my $in = sub { my $bytes = shift; open my $h, '<', \$bytes; $h };
+        my @opened = map { my ($bytes, @more) = @$_; join(',', map { $_ // '-' } opened_with($in->($bytes), '--open', '5 6 700 500', '/app', @more)) } ["site.test/b\nmore\n", 'y'], ["\n"], [''];
+        my @died = map { my ($bytes, @one) = @$_; eval { opened_with($in->($bytes), '--open', @one); 1 } ? 'took' : 'died' } ["http://site.test/b\n", '5 6 700 500', '/app'], ["\n", '5 6 0 500', '/app'], ["\n", '5 6 700 500'], ['https://site.test/' . ('a' x 2100) . "\n", '5 6 700 500', '/app'];
+        my @start = map { @script = @$_; my $one = started(); !defined $one ? 'refused' : length $one ? $one : 'none' } ['start -', 'ready'], ['start https://site.test/c', 'ready'], ['ready'], ['go https://site.test/c', 'ready'], ['start https://site.test/c', 'view 1 2'];
+        join(' | ', @words, @opened, "@died", "@start");
+    };
+    return $got // "failed: $@";
+}
+sub pulled_argv {                         # every command line lzrprf builds for a pulled tab's window, run here with its address in hand: "sub tab_out" and "sub pulled_command", and the two lines of "sub run" that start behind and the window, with the real "sub window_text"; how many arguments hold the address
+    my @subs = map { my ($one) = $text_of_lzrprf =~ /^(sub $_ \{.*?^\}\n)/ms; $one } qw(tab_out);
+    my ($command) = $text_of_lzrprf =~ /^(sub pulled_command \{.*)$/m;
+    my ($text) = $text_of_lzrprf =~ /^(sub window_text \{.*?^END\n\}\n)/ms;
+    my ($run) = $text_of_lzrprf =~ /^(sub run \{.*?^\}\n)/ms;
+    my @lines = ($run // '') =~ /^(\s+become\(.*\n)/mg;
+    return 'not found in lzrprf' if grep({ !defined } @subs, $command, $text) || @lines != 2;
+    my $got = eval "package Argv; no warnings; our (\$SELF, \$INCOGNITO, \$PROGRAM, \@ARGUMENTS, \@TABS, \$TAB, \$TRY, \$OPEN, \$OPEN_FRAME, \$APP, \$HOME, \$WINDOW_CONTAINER, \$SCRIPT, \$DIR, \$PEER, \$ANSWER, \$BASE, \@made, \$PULLED, \$PULLED_MOST) = ('lzrprf');\n(\$PULLED, \$PULLED_MOST) = (0, 32);\n"
+        . "sub address { (\$_[0]) } sub idle {} sub window {} sub tabbed {} sub frame_kept { '1 2 300 400' } sub apart { push \@made, ['apart', \@_]; 1 } sub become { push \@made, ['become', 'nothing', \@_[3 .. \$#_]] }\n"
+        . join("\n", @subs, $command, $text) . q{
+        my $secret = 'https://site.test/secret/page';
+        @TABS = ({ url => $secret }, { url => 'https://site.test/other' });
+        ($TRY, $TAB, $PROGRAM, @ARGUMENTS) = (0, 0, '/app', 'x');
+        for my $mode (0, 1) { $INCOGNITO = $mode; tab_out(0, '10 20 900 700') }
+        ($OPEN, $OPEN_FRAME, $APP, $HOME, $SCRIPT, $DIR, $INCOGNITO) = ($secret, '10 20 900 700', 'App', '/Users/someone', '/usr/bin/osascript', '/tmp/x', 0);
+        my ($from, $to, $window_in, $window_out, $more, $behind, $window, $program, @arguments) = (undef, undef, undef, undef, '', 0, 1, '/app', 'x');
+        eval join('', } . join(', ', map { "q\x01$_\x01" } @lines) . q{) . '1' or return "failed: $@";
+        join(' | ', map { my ($how, $in, @argv) = @$_; ($argv[0] =~ s{.*/}{}r) . ($how eq 'apart' ? ' in=' . ($in eq $secret ? 'the address' : $in) : '') . ' argv=' . @argv . ' holding it=' . grep({ index($_, 'site.test') >= 0 } @argv) } @made);
+    };
+    return $got // "failed: $@";
+}
+
+sub closed_order {                        # "sub closed_kept" of lzrprf, taken out and run here: twelve tabs closed, then one with no address
+    my ($text) = $text_of_lzrprf =~ /^(sub closed_kept \{.*?^\}\n)/ms;
+    defined $text or return 'not found in lzrprf';
+    return eval "package Closed; no warnings; our \@CLOSED; our (\$CLOSED_MOST, \$CLOSED_DRAWN) = (10, 2); $text " . q{
+        closed_kept({ url => "https://site.test/$_", shown => {} }, $_ - 1) for 1 .. 12;
+        my $before = @CLOSED;
+        closed_kept({ url => '', shown => {} }, 0);
+        scalar(@CLOSED) . ': ' . join(' ', map { ($_->[1]{url} =~ m{(\d+)$})[0] . '@' . $_->[0] . ($_->[1]{shown} ? '+' : '') } @CLOSED) . " empty=$before";
+    } // "failed: $@";
+}
 
 sub later_heard {                         # "sub asked" and "sub hear" of lzrprf, taken out and run here: Tor turned on and off while a question is open, then the loop of sub behind hearing again
     my ($asked) = $text_of_lzrprf =~ /^(sub asked \{.*?^\}\n)/ms;

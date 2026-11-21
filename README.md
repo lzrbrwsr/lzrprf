@@ -272,15 +272,15 @@ One visit, in order (`sub visit`):
 | `[C1]` | The application is started in one place only, and only inside the page container. | `sub laid_out`, through `sub contain` | Reads the text: the program is started on one line. A copy that starts it uncontained is stopped by `[C3]`. |
 | `[C2]` | At every start lzrprf tries, inside that same container, what the container must refuse. Nothing starts unless all of it was refused and the same tries worked outside. | `sub holds` | A copy whose container refuses nothing: nothing is started. |
 | `[C3]` | No process is handed a byte of what was fetched, nor the connection to a site, before macOS itself says that this process is contained. Before that, of what you asked for each knows the address alone: the application in one variable, `curl` among its fixed switches. | `sub inside`, asked in `sub laid_out` and `sub fetch` | Copies without `[C1]` and `[C2]`: the system says "not contained", and the answer, or the connection, is withheld. |
-| `[C4]` | A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in lzrprf's modal (once a visit, to the same address with `www.` put in front of its host or taken off, without a question, written in the log first); for a picture the page laid out from such an address names, on that page's host or on a name under it (as `img.example.com` is for a page of `example.com` or `www.example.com`; `sub under`) and on no other site, at most twenty-four, each address checked as a typed one is and never inside your own network (`sub pictured`); for a style sheet it names on that same host, at most eight (`sub sheeted`); or for one of three fixed addresses of the release file after you said yes: a report, after you pressed "Send" for it, the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`), and the installer, in its one or two places, after "Install it" (`sub installed`). A page kept running with its tab is the one other way to a request, within `[C19]`. | `sub behind`, `sub go`, `sub fixed` | The test site's own record: each address as often as it was asked for, and nothing else, with tabs, the home page, bookmarks, redirects and the installer among the runs. Reads the text: a request has four roads and no fifth. |
+| `[C4]` | A request is made only for an address that came from the window's bar or was typed into its own bookmark modal, at once or kept as the home page or a bookmark, or that a page redirected to and you then said yes to in lzrprf's modal (once a visit, to the same address with `www.` put in front of its host or taken off, without a question, written in the log first); for a picture the page laid out from such an address names, on that page's host or on a name under it (as `img.example.com` is for a page of `example.com` or `www.example.com`; `sub under`) and on no other site, at most twenty-four, each address checked as a typed one is and never inside your own network (`sub pictured`); for a style sheet it names on that same host, at most eight (`sub sheeted`); or for one of three fixed addresses of the release file after you said yes: a report, after you pressed "Send" for it, the look for a newer release at each start after a yes you gave once for exactly that address, kept in `~/.lzrprf/look` until you delete it (`sub newer`), and the installer, in its one or two places, after "Install it" (`sub installed`). A support request you send from the cogwheel's menu, and the reading of its answer when you press "Read the answer", go to the one support address the release file names in its line `support https://...`, and to no other place: never a host the window or a page names. That line counts only as lzrprf would fetch it as a typed address, with a plain path and no query, since the request's reference is put after it to read the answer (`sub support_address`); an incognito window sends neither (`sub support_sent`, `sub support_read`). A page kept running with its tab is the one other way to a request, within `[C19]`. | `sub behind`, `sub go`, `sub fixed`, `sub support_address`, `sub support_sent`, `sub support_read` | The test site's own record: each address as often as it was asked for, and nothing else, with tabs, a tab reopened, the window of a tab pulled out, the home page, bookmarks, redirects and the installer among the runs; a support request and the reading of its answer are counted apart. Runs `support`, `supporthost`, `supportquery`, `supportnone` and `supportincog`: a line from the window that names another place is not taken, and the one request goes to the host the release file names; a support address with a query, or none at all, sends nothing; all runs together send four requests and read two answers, none from the incognito window. Reads the text: a request has five roads and no sixth, and `sub fixed` is called five times, twice for the support request and its answer. |
 | `[C5]` | Nothing is looked up or fetched before its line is in the log: in the memory of the process behind the window, and on the disk too when you chose to keep a log. No answer is shown whose line could not be recorded. | `sub visit`, `sub fixed`, `sub record` | A kept log that cannot be written: nothing is fetched. For every request the site received in a run that keeps a log, full or hosts only, the line was on the disk first. In a run that keeps nothing, the Log button shows the lines afterwards; that each was in memory before its request is read in `sub record`, not probed: no test looks into that memory while a request is open. That the lookup comes after the line is read in `sub visit`, not probed: the test's site is on this computer. |
 | `[C6]` | One place connects to a site directly, and it connects to a numeric address that was checked and written down. The one other connection to the outside goes to the Tor client on this computer's loopback, only while Tor is on `[C17]`. | `sub reach`, `sub tor_reach` | Reads the text: three `connect` lines, this one, the one to the Tor client on the loopback, and a try against lzrprf's own listener on this computer. A listener the hostile application knows hears from it only through lzrprf's hands. |
-| `[C7]` | What a site is sent is made from the address alone, with one fixed browser name, `User-Agent: LZRBRWSR`, and, only on the request of a page you visit, one fixed line of the kinds of answer it takes, `Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8`: the same request from every computer, byte for byte, nothing kept from an earlier request. A page kept running adds to it only what `[C19]` lets it. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch` | Compares `lzrprf request` with the bytes the test site received, and finds `User-Agent: LZRBRWSR` exactly once in every request and no other header than the five fixed lines, and the line `Accept` on the request of a page you visit (typed, a redirect said yes to, the home page, a bookmark) and on no other (a picture, a style sheet, the release file, what a page kept running asks for). The site sets a cookie; it never comes back. |
+| `[C7]` | What a site is sent is made from the address alone, with one fixed browser name, `User-Agent: LZRBRWSR`, and, only on the request of a page you visit, one fixed line of the kinds of answer it takes, `Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8`: the same request from every computer, byte for byte, nothing kept from an earlier request. A page kept running adds to it only what `[C19]` lets it. A support request adds only its body, as JSON with its `Content-Type` and `Content-Length`: your words with the release number under them, the picture of the window when you ticked it, and your licence code when one is kept. Reading its answer adds only the key the support address handed out for that request, in a line `Authorization` that `curl` reads on its input, so that no list of processes shows it. The request is what goes inside the encryption (HTTP); how TLS, TCP and IP are spoken around it is the system's `curl` and network, and can differ from one computer to another. | `sub request`, `sub fetch`, `sub support_sent`, `sub support_read` | Compares `lzrprf request` with the bytes the test site received, and finds `User-Agent: LZRBRWSR` exactly once in every request and no other header than the five fixed lines, and the line `Accept` on the request of a page you visit (typed, a redirect said yes to, the home page, a bookmark) and on no other (a picture, a style sheet, the release file, what a page kept running asks for). The site sets a cookie; it never comes back. Run `support`: the request is the five fixed lines with the type and the length of its body, and the body is one field, the words with `Release 3` under them; with a code kept and the picture ticked (`supportfull`) it holds the code and the picture too, and nothing more; the answer is read by a GET with the five lines and `Authorization` as the one more. |
 | `[C8]` | A host inside your own network is fetched only after your yes to exactly that, once, and never for a picture: then nothing is asked. | `sub own_network`, `sub pictured` | A no: nothing is fetched, and the no is in the log. A picture on a host that leads inside your own network: not fetched, nothing asked, and the log says why. |
 | `[C9]` | Every line the application writes is checked, and a list with anything but the five kinds of line (from release 22 on, or the lines of a laid page, laid at the width its `=view` frame asked for), or with more than the window is given to set, is not drawn at all. The page's title, a line `=title` right after `=page` of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else. A laid page may also hold tiles: `K<n>,<x>,<y>,<w>,<h>` gives tile n (0 to 31, each once) at a corner of the grid of 256, exactly as wide and high as the page leaves there (256 at most), with one line `n<base64>` for each row: red, green and blue, a byte each and no alpha, since a tile is opaque, so a row is exactly 4 characters of base64 a pixel with no `=`, and its length and its alphabet are its whole check (from release 31 on; a picture keeps its rows `m` with how opaque), and `J<n>,<x>,<y>` places a tile given above again where it is cut the same; at most 32 tiles and 1024 places, outside the 262144 pixels of the pictures, which is why a list may hold 12 MB. | `sub checked`, `sub laid` | Hostile lists (a script, lzrprf's own words to the window, too large, a block that holds too much, not text, a thing the page is said to be made of in a wrong form or place): none is drawn. The fullest list of such things that is allowed is passed on, and the real window's pane is read. The most lines, the most boxes and a block that is exactly full are passed on; a row of hanging characters and a word with no white space come out changed at the 31st and after the 1000th; the heaviest pages the limits allow are drawn by the real window and timed. Laid pages broken in eleven ways (out of the page, a number in a second form, too narrow, too many rectangles, mixed with a flowing page either way, a row of a picture missing or too long, not base64 or base64 in a second form, too many pixels), and tiles broken in twenty-three ways (wider or narrower than their cut, a row 4 characters too long or too short or missing, a row `m` as a picture's, a row with `=` or `==` at its end or with `-` or `_` in it, a row `n` under a picture or under no tile, numbered 32, 01 or twice, placed before they are given, off the grid or out of the page, placed where they are cut otherwise, 33 tiles or 1025 places): none is drawn. A laid page that is fit, tiles too, is passed on as it is, and in its text a control character is replaced, not refused. |
 | `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. Of the system's services it looks up by name only the 41 its container lists and one local name, the clipboard's (from release 19 on; before that all but one). The question about a system service names none: it says that the container refuses by default, not which names its list lets through. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. From the real window it asks for six system services by name: the clipboard, which the container lists, is answered, and the five it does not list are refused; a copy without that refusal is answered as a program outside every container is, and a copy whose list is one name wider is caught by the same try. |
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
-| `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"), apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file `.order` of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (`install.txt`); a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. |
+| `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"), apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file `.order` of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (`install.txt`), a support member licence code you entered (`licence`), and the reference and key of the support request you sent last (`support`), never its words; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log`, `sub licence_set`, `sub licence_removed`, `sub support_sent`, `sub support_forgot` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. Runs `licencegood`, `licenceremove` and `support`: `licence` holds the code as written and `support` the reference and the key, each readable by you alone (0600), and removing the code removes its file; a refused code (`licencebad`) and a refused request (`supportbusy`) keep nothing; no log holds the words sent, the key or any part of the code. |
 | `[C13]` | The application opens no file for its fonts. lzrprf hands a page run, and never a picture run, eight fonts of the Mac by fixed paths in `/System/Library/Fonts/Supplemental` (Arial and Courier New, each plain, bold, italic and both), as one frame in front of the answer: `=fonts` and the eight lengths on one line, then their bytes. A face goes with length 0 unless it is a plain file and no link, of at most 2 MiB, that begins as a TrueType font; a pipe put in its place is not waited for. They are read once in a window, and the keeper hands them over after the same word of the system as the answer `[C3]`. A site cannot put a frame in front of lzrprf's: what it sends comes after it. | `sub faces`, `sub contained` | The application takes the frame off its input and says the length and SHA-256 of each face: they are the eight files as `selftest` reads them itself. A picture run gets no frame. A site whose answer holds a frame of its own: it arrives after the real one, byte for byte. A copy that reads its fonts from a folder of the test: a link to a font, a file one byte over 2 MiB, a pipe and a file that does not begin as a font each go with length 0, while a font of exactly 2 MiB is handed over whole; the same copy without O_NOFOLLOW hands over the font behind the link, and the test notices. |
 | `[C14]` | A page is laid out at most twice. The first run of a page is given the empty frame `=sheets` after the fonts, and may name up to eight style sheets on the page's own host in a line `=sheets`, checked as the paths of pictures are `[C9]`. lzrprf fetches them `[C4]` `[C5]` and runs the page a second time, with `=sheets`, the length of each and their answers byte for byte in front of the page's answer, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown: the first run's page is, and the bar says the sheets were not used. There is never a third run, and a picture run is given no style sheet. | `sub checked`, `sub sheeted`, `sub visit`, `sub contained` | The application says on each run the length and SHA-256 of each sheet it took off its input: none on the first run, the test site's answers on the second. A sheet whose body begins `=sheets 4` arrives inside its own length. A sheet over 1 MiB, a fetch that failed and a sheet not begun within the clock each go with length 0, the last neither logged nor asked for. Each sheet has two lines in the log and one request, of its own address; no other host is asked. Lines `=sheets` broken in six ways are refused with nothing fetched. A second run that names sheets again, or is not a page: the first run's page, two runs. A page that names none: one run. A picture run gets no frame. A copy that shows a second run naming sheets again shows it (`lostsheets`). |
 | `[C15]` | Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: `Local State` and each profile's `Bookmarks` of Chrome, Edge, Brave and Vivaldi, Firefox's `profiles.ini` and newest `bookmarkbackups/*.jsonlz4`, Safari's `Bookmarks.plist`, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import `[C12]`. | `sub import_read`, `sub import_profiles_of`, `sub import_files`, `sub import_path`, `sub import_preview`, `sub import_plan`, `sub import_go`, `sub lz4_block`, `sub plist_binary` | Fixture files of each format under the run's own folder, which a try takes for the home folder: Chrome's JSON with two profiles named in Local State, a Firefox backup whose LZ4 block holds matches, a binary plist made by `plutil`, an HTML export. Each is imported in its order, the bar into the bookmarks bar after what it held, the rest into "Imported from" and the browser's name, numbered past a folder of that name. Plain http and `javascript:` are skipped and a fifth folder deep is left out, each counted. A link to a bookmarks file is neither offered nor read; a typed path outside the home folder, or climbing out of it, is refused. Nothing imported is fetched or logged. |
@@ -347,20 +347,23 @@ Nothing that is installed starts it that way.
 
 A request of lzrprf's to a site goes only through `sub fetch`: it is the one way for an address
 you typed, a bookmark or the home page you opened, a redirect you said yes to, the look for a
-newer release, a report and the installer after "Install it". Other things touch a socket, and none of
-them connects to a site: the try at each start against a listener lzrprf opened on this
-computer (`sub holds`), the system's name lookup (`sub lookup`, below), `curl`'s
+newer release, a report and the installer after "Install it", a support request you sent and
+the reading of its answer, and what a page kept running asks for. Other things touch a socket,
+and none of them connects to a site: the try at each start against a listener lzrprf opened
+on this computer (`sub holds`), the system's name lookup (`sub lookup`, below), `curl`'s
 connection to lzrprf's own socket file, the question to the system's routing table
 (`/sbin/route` in `sub route`), and `selftest`, which `sub proven` starts after your yes:
 it opens listeners on this computer and tries 192.0.2.1, an address no host answers. Outside
 lzrprf, the `curl` of the installer you start by hand fetches too ("The installer"). `fetch` is
-called from four places, and `selftest` reads `lzrprf` and counts them:
+called from five places, and `selftest` reads `lzrprf` and counts them:
 
 - `sub visit`, called from `sub go` alone, for an address that came from the window `[C4]`: a
   line `go TEXT`, which the window writes when Return is pressed in the bar and at no other
   time; a line `mark open N`, a bookmark you made; the home page you set, at the window's start
-  and in a new tab; or the address a redirect named, after your yes in lzrprf's own modal (see
-  "Tabs, the home page, bookmarks, redirects"). The application cannot write any of these: it
+  and in a new tab; a closed tab you reopened, at the address it went to before; the address
+  of a tab you pulled out of another window, which lzrprf itself hands the new window's lzrprf
+  on its standard input; or the address a redirect named, after your yes in lzrprf's own modal
+  (see "Tabs, the home page, bookmarks, redirects"). The application cannot write any of these: it
   has no pipe to that side, and nothing it writes is passed on as words to lzrprf.
 - `sub pictured`, called from `sub visit` after the page was laid out, and from `sub relaid`
   (the page laid out again at a new width, also in a tab chosen again) with the pictures it
@@ -417,7 +420,13 @@ called from four places, and `selftest` reads `lzrprf` and counts them:
   (`sub fault`), and the installer after "Install it" (`sub installed`), from both places when
   the release names two. For the
   newest release number the yes is given once and kept with its address in `~/.lzrprf/look`:
-  the look is then made at each start, without a new yes, until you delete that file.
+  the look is then made at each start, without a new yes, until you delete that file. From
+  release 61 on it runs twice more, for the one support address the release file names, each
+  only after a press in the cogwheel's menu: a support request you sent (`sub support_sent`)
+  and the reading of its answer after "Read the answer" (`sub support_read`). See "Tabs, the
+  home page, bookmarks, search, the lock, redirects".
+- `sub live_fetched`, from release 54 on, for an address a page kept running with its tab
+  asked for, within `[C19]`.
 
 Before any of them, the line is in the log `[C5]`. The connection is made by lzrprf, to a numeric
 address it wrote down `[C6]`. `curl` has no network of its own: it gets one socket file, so it
@@ -709,6 +718,51 @@ the window alone, and nothing in it comes from a page.
   only a page kept at another width is laid out again (`sub relaid`): nothing is fetched and
   nothing is written in the log. At most 32 tabs; closing the last leaves one empty tab. Cmd-T opens a tab, Cmd-W closes
   one. A tab's title is the page's `=title` line, checked `[C9]`.
+- **Reopening a closed tab.** Cmd-Shift-T, or "Reopen Closed Tab" in the Tab menu, brings back
+  the tab closed last in this window, at its old place (or last, when fewer tabs stand now),
+  and chooses it. The window says only `tab reopen` (`sub tab_reopened`). lzrprf holds the last
+  ten closed tabs, the newest first, in the memory of its process and nowhere else, so an
+  incognito window writes nothing for them either (`sub closed_kept`). The two closed last keep
+  their page and come back with nothing fetched; an older one keeps its address, its title and
+  the addresses it went to, and its address is visited again, written in the log first `[C4]`
+  `[C5]`. A tab with no address is not held, and "Clear browsing history" forgets them all.
+- **A tab pulled out.** A tab dragged more than 54 points above or below where it was pressed
+  leaves the strip and is drawn as the small window it becomes. Let go there, it opens as a
+  window of its own, of this window's size, placed so the tab stays under the pointer: the
+  window says `tab out N X Y W H`, and lzrprf starts a second lzrprf as it was started itself,
+  `perl lzrprf run --open "X Y W H" /path/to/program` (`incognito` from an incognito window),
+  which goes through every start check of its own (`sub tab_out`, `sub pulled_command`). The
+  tab's address goes to it as one line on its standard input, never as an argument: every user
+  of this computer can read the arguments of a process in the list of processes for as long as
+  it runs, which would break what an incognito window promises. The new lzrprf checks that line
+  as a typed address (`sub opened_with`) and writes it, as `start ADDRESS`, into the pipe its
+  process behind the window reads, before the window is made, so the window neither says it
+  nor reads it (`sub started`). Its first page is that address, written in the log first as
+  `you pulled a tab out into this window` `[C4]` `[C5]`; only the address goes, so the page is
+  fetched again and the tab's history stays behind. The tab then closes in the first window,
+  with the line `you pulled a tab out into a new window`, and is not one of the closed tabs to
+  reopen. When no process could be started, the tab stays. One window opens at most 32
+  windows from its tabs in its life, as many as it holds tabs, so a window process that was
+  taken over cannot have lzrprf start processes without end: the 33rd tab pulled out stays,
+  and lzrprf says why (run `taboutmost`). The only tab of a window moves the window instead.
+- **Zoom.** Cmd-plus (or Cmd-=), Cmd-minus and Cmd-0, in the View menu, zoom the page of the
+  tab shown in steps of 50, 67, 80, 90, 100, 110, 125, 150, 175 and 200 percent, held at the
+  ends; Cmd-0 goes back to 100. Each tab has its own zoom, held in the window's memory and not
+  kept. The page is laid out again for the width the zoom means, the page's room divided by
+  it, on the road every new size of the window takes (`view W H`, `sub viewing`,
+  `sub relaid`): nothing is fetched and nothing is written in the log. lzrprf lays a page only
+  at widths in steps of 160 points, between 320 and 1600, so a site cannot read the window's
+  exact size, and the window draws the laid page scaled to fill its room. So a step can be laid
+  out as its neighbour is: at some widths 110 percent is laid as 100 is, and only drawn larger.
+  The bottom bar says the zoom (`Zoom 110%`) for a moment.
+- **Find in page.** Cmd-F opens a small bar over the top right corner of the page, with its
+  field, which match of how many is shown (`3 of 17`), previous, next and close. It looks
+  through the text of the page shown, capitals and small letters alike, marks every match (at
+  most 1000) and the current one more strongly, and scrolls to it. Return or Cmd-G goes to the
+  next, Shift-Return or Cmd-Shift-G to the one before, round from the last to the first; Escape
+  closes it. A match inside one piece of text as the page laid it out is found; one that runs
+  across two pieces is not. It is the window's alone: it says nothing to lzrprf, fetches
+  nothing and writes nothing.
 - **The home page.** The cogwheel's "Make current page the home page" keeps the address of the
   tab in one plain file of yours, `~/.lzrprf/home`, one line (`sub menu`, `sub home`). A new
   tab and each new window open it, as if it had been typed: its line is in the log first `[C4]`
@@ -808,11 +862,53 @@ the window alone, and nothing in it comes from a page.
   typed address, written in the log first as `you searched with` `[C4]`.
 - **The cogwheel's menu.** A panel of the window's own glass, opened under the cogwheel inside the
   window, each item with the keys that do it too; a press outside it closes it and reaches nothing.
+- **The support member licence.** The cogwheel's "Enter licence code..." opens one field for
+  the code you got when you bought the browser: 120 letters and digits, in 24 groups of 5.
+  lzrprf reads it with case, spaces and dashes left aside, O read as 0 and I and L as 1, as 75
+  bytes in Crockford's base32: one byte its kind (17, a support member), two the month it was
+  bought in, eight its own number, and 64 an Ed25519 signature over the words
+  `LZRBRWSR-LICENCE-1` and the eleven bytes before it (`sub licence_read`). lzrprf checks that
+  signature on this Mac in plain perl, with the system's `Math::BigInt` and `Digest::SHA`, and
+  fetches nothing for it (`sub licence_checked`, `sub signed`). In this release lzrprf holds no
+  public key yet (`$LICENCE_KEY` is `ed25519 none`), so a code is checked here by its form, and
+  by its signature where a support request goes; the window says which. A code that checks is
+  kept in one plain file of yours, `~/.lzrprf/licence`, readable by you alone, and the log says
+  that a code was entered and holds none of it (`sub licence_set`). With a code kept, the item
+  says since when the browser is a support member's, and its panel removes the code and its
+  file (`sub licence_removed`). A support request you send then carries the code, so it is
+  answered first.
+- **A support or feature request.** The cogwheel's "Support request..." opens a box for your
+  words: what went wrong, or what you would like the browser to do. Before Send the panel says
+  where it goes and all that goes: your words; one line with the release number; your licence
+  code, only when one is kept (the panel then says that the code ties the request to your
+  purchase, and that removing the code first sends it without; with no code it says that the
+  request is sent anonymously); and a picture of this window, only when you tick it, shown
+  small while it is ticked. The picture is the window's own drawing of itself, made when the
+  panel opens, never a capture of the screen, and it shows what the window shows: the page in
+  it, and the address in its bar too. Nothing else goes: no address of a page besides what the
+  picture shows, no history, no name of this Mac or of you; the host sees your internet
+  address, as every site does. The request is one POST of JSON to the one
+  address the application's release file names in a line `support https://...`, and to no
+  other `[C4]` `[C7]`. It goes as every fixed request goes: its line in the log first, through
+  the one place that connects, or through Tor while Tor is on (`sub support_sent`,
+  `sub fixed`). The log says that a request was sent and what went with it, never its words.
+  The answer names the request's reference and a key, which are kept in one plain file of
+  yours, `~/.lzrprf/support`. "Read the answer" asks for the replies only when you press it: a
+  GET of the reference under the support address, with the key in a line `Authorization` that
+  `curl` reads on its input, so no list of processes shows it (`sub support_read`). The replies
+  are shown as text and nothing in them is acted on. A request sent later replaces the one
+  kept, and "Forget it" removes the file (`sub support_forgot`). The release file of this
+  release names no support address yet, so the item is switched off and says why.
+- **In an incognito window** neither the licence nor a support request is offered: both keep
+  something `[C16]`. The two items only say why, and lzrprf refuses their lines from such a
+  window. A tab pulled out of an incognito window opens an incognito window.
 - **Keys.** Chrome's keys for what LZRBRWSR has: Cmd-L, Cmd-[, Cmd-], Cmd-R, Cmd-T, Cmd-W, Cmd-D
   (bookmark the page), Cmd-Shift-B (the bookmarks bar), Cmd-Option-B (the bookmarks page),
   Cmd-Shift-Delete (clear history), Cmd-Comma (the cogwheel's menu), Cmd-1 to Cmd-8 and Cmd-9
   (a tab, the last tab), Ctrl-Tab and Ctrl-Shift-Tab, Cmd-Option-Right and Left (the next and the
-  previous tab), Cmd-Shift-A (the tabs page). Each does what its button does, and only then.
+  previous tab), Cmd-Shift-A (the tabs page), Cmd-Shift-T (reopen a closed tab), Cmd-F, Cmd-G
+  and Cmd-Shift-G (find in the page), Cmd-plus, Cmd-minus and Cmd-0 (zoom). Each does what its
+  button does, and only then.
 - **The bookmarks page.** The cogwheel's "Bookmarks", the home screen's button and Cmd-Option-B
   list every bookmark by folder; the back arrow returns to the page.
 - **The lock.** Pointing at the lock in the bar, or pressing it to keep it open, shows what
@@ -903,7 +999,12 @@ The limits, said plainly:
   made the home page), the folder `bookmarks` (one file a bookmark, a name and an address, and a file `.order` in each folder),
   `marksbar` (whether the bookmarks bar is shown), and after "Install it" the folder
   `install.NUMBER` with the installer it fetched and `install.txt`, every line an installer
-  printed, appended. It also holds files lzrprf needs to work, none with an address you typed:
+  printed, appended, `licence` (the support member licence code you entered, as it was given
+  to you, until you remove it) and `support` (the reference and the key of the support request
+  you sent last, so its answer can be read, and never its words, until "Forget it" or the next
+  request). An incognito window writes and reads neither, and offers neither. The closed tabs
+  to reopen and each tab's zoom are held in memory only. It also holds files lzrprf needs to
+  work, none with an address you typed:
   `keep` (what is kept), `look` (your answer about newer releases), `welcomed` (the number of
   the last release whose welcome you closed, and nothing else), `proven` (the mark of
   `[C11]`), `untested` (your yes to starting without the checks a test could not try, as the
@@ -949,7 +1050,12 @@ because the test writes its result, and says to open a normal window once instea
 home page opens); `search` (searches go where you chose); `marksbar` (the bar as you keep it);
 `bookmarks` (your bookmarks open). Everything else of a normal window is not read, and nothing
 is written there: the star, the bookmark modal, the import wizard and "make this the home page"
-are refused with "An incognito window writes nothing", shown greyed out with that tooltip.
+are refused with "An incognito window writes nothing", shown greyed out with that tooltip. The
+cogwheel's "Enter licence code..." and "Support request..." only say that an incognito window
+keeps no licence code and sends no support request; lzrprf refuses their lines from it too
+(`sub licence_set`, `sub support_sent`, `sub support_read`), and `licence` and `support` are
+not read. Its closed tabs to reopen are held in memory, as in every window. A tab pulled out of
+it opens an incognito window, whose address goes on a pipe and never in the list of processes.
 
 Every way out removes the folder. The process behind the window removes it in `sub leave`
 whether the window was quit, its last window closed, Command-Q pressed or the window's process
@@ -997,6 +1103,7 @@ choice by choice.
 | the home page and bookmarks | an address kept on the disk, opened at each start, in each new tab, or with a click | the cogwheel's menu and the star's modal (`sub menu`, `sub mark_saved`) | keep an address it said, as if from the bar or the modal, and open it. Each opening is a line before it is fetched `[C5]` |
 | following a redirect | Proceed: a new request to the address the site named | lzrprf's modal over the window (`sub visit`, `sub asked`) | press Proceed while the question is open. The new address gets every check of a typed one, and a line before it is fetched |
 | a report after a failure | "Send": the maker's server sees your internet address and three values | the window, when a page was not shown (`sub fault`) | say that a page it was handed could not be drawn, once for each page (`sub behind`), and press "Send" to the question that follows: the three values, written in the log first |
+| a support request | "Send": the support address the release file names sees your internet address, your words, the release number, your licence code when one is kept, and the picture of the window when you ticked it | the cogwheel's "Support request..." (`sub support_sent`, `sub support_read`) | say "support send" with words of its own and a picture it drew, and ask for the answer kept. Each goes only to the address of the release file, as a line of the log first `[C5]`; besides what the window's process holds itself, it carries nothing of yours but the licence code when one is kept |
 
 Only the first row can be closed entirely, and it is: nothing in the window keeps more. In the
 other rows the window is where you answer, so a taken-over window process could answer too.
@@ -1064,17 +1171,18 @@ asked again at the next start. To take a yes back, delete `~/.lzrprf/look`: you 
   installer"), so a variable cannot point this road elsewhere.
 
 Where the addresses come from: a plain file, `release`, beside the application
-(`LZRBRWSR.app/Contents/Resources/release`), read by `sub beside` and `sub paired`. It may
-hold seven kinds of line and nothing else counts: `release` (a number), `newest` (where the
-number is published), `installer` and `same` (the two places of the installer), `report` (see
-the next section), `lzrprf` (the SHA-256 of the lzrprf the release installs; an lzrprf of
-release 12 or later compares it with itself at every start, and from release 15 an app whose
-`release` file has no such line does not start either) and `file` (a name and the SHA-256
-of a file in the folder of the program; the installer writes two, for the launcher and for
-the program; an lzrprf of release 16 or later compares each with the file that is there at
-every start, from release 17 on stops at a file beside the program that no line names and
-reads the program again before every page, and the installer compares each line with what it
-unpacked before it puts anything in place).
+(`LZRBRWSR.app/Contents/Resources/release`), read by `sub beside` and `sub paired`. It may hold
+nine kinds of line and nothing else counts: `release` (a number), `new` (what is new in the
+release, shown in its welcome), `newest` (where the number is published), `installer` and
+`same` (the two places of the installer), `report` (see the next section), `support` (the one
+address of support requests, from release 61 on), `lzrprf` (the SHA-256 of the lzrprf the
+release installs; an lzrprf of release 12 or later compares it with itself at every start, and
+from release 15 an app whose `release` file has no such line does not start either) and `file`
+(a name and the SHA-256 of a file in the folder of the program; the installer writes two, for
+the launcher and for the program; an lzrprf of release 16 or later compares each with the file
+that is there at every start, from release 17 on stops at a file beside the program that no
+line names and reads the program again before every page, and the installer compares each line
+with what it unpacked before it puts anything in place).
 Each address must pass `sub address`, the same check as an address you type. lzrprf hands each
 installer address to `curl` as one argument and to no shell, so a character that would end a
 quote is a character like any other; `selftest` tries exactly that. A `same` line that is there
@@ -1082,8 +1190,8 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 60
-    new Pages show sooner, drawn at once with their pictures following; rounded corners, boxes around words in a line and the text a style sheet adds are drawn; the window asks no spelling check
+    release 61
+    new Pull a tab out of the window to make it a window of its own; reopen a closed tab (Cmd-Shift-T), find in the page (Cmd-F), zoom (Cmd plus, minus, 0); enter a support member licence code
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -1091,7 +1199,7 @@ here:
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin 27cfd19ca9c8343a885f57adb831834da9d13d0f024b6e9af5db52f950e1f714
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-    lzrprf 6b4a8901c40aa4ca54b4fdb94f1466f40b2aef2d56cfbb248fa0fa724b8c7ba0
+    lzrprf 3542e7982ae1e1751289336adbace265c7b12847d5463874a4d0c00034eb9e69
 
 ## When a page cannot be shown
 
@@ -1167,8 +1275,11 @@ narrows down who could have sent a report. The question shows the build before y
   on the disk (`/.vol/...`). What it could still do:
   - say to lzrprf what the window says (`sub hear`): "go ADDRESS" as if you had typed it, a
     press of either button of the question that is open ("Send", "Yes, look", "Install it",
-    "Clear the log" and the buttons that keep less among them), or a request for the
-    log. Each of these that fetches is in the log before it has an effect outside your Mac,
+    "Clear the log" and the buttons that keep less among them), a request for the
+    log, a support request of its own words to the one support address of the release file
+    (with your licence code when one is kept), or a tab pulled out, which starts a second
+    lzrprf for the address that tab shows. Each of these that fetches is in the log before
+    it has an effect outside your Mac,
     and "Install it" runs the installer of the published release, the same from both places,
     in lzrprf's own modal. A
     press cannot make lzrprf keep more: the buttons that change what is kept only keep less
@@ -1360,6 +1471,7 @@ narrows down who could have sent a report. The question shows the build before y
 
     perl lzrprf run /path/to/program     open the window, with the program contained behind it
     perl lzrprf incognito [/path/to/program]  the same in an incognito window, which leaves nothing behind when it closes [C16]
+    perl lzrprf run|incognito --open "X Y W H" /path/to/program   the window of a tab pulled out of another, at that frame: lzrprf starts it itself, with the tab's address as one line on standard input, never as an argument
     perl lzrprf log                      what the log on this computer holds, and what is kept
     perl lzrprf keep                     what is kept after a window closes, in words
     perl lzrprf keep MODE [DAYS]         choose it: nothing, hosts or all; DAYS 0 keeps until you clear it. The one place where more is chosen
