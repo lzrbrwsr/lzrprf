@@ -1082,16 +1082,16 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 59
-    new LZRDFNDR finds the background programs that report on you and switches off the ones you tick, the bar says the status and the milliseconds, the log is a page of its own, and a tab changes at once
+    release 60
+    new Pages show sooner, drawn at once with their pictures following; rounded corners, boxes around words in a line and the text a style sheet adds are drawn; the window asks no spelling check
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
     report https://origin.lzrbrwsr.com/report
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
-    file lzrbrwsr-bin 98c933c8c1cb9cd684c8f191a26dd7a7d5685e9bf6ea5a7dab69a21755a7b29d
+    file lzrbrwsr-bin 27cfd19ca9c8343a885f57adb831834da9d13d0f024b6e9af5db52f950e1f714
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-    lzrprf e368b447d044b8f5eb0ca7c1182e360e3aef66f9d875426ae1d28dbdea94f465
+    lzrprf 6b4a8901c40aa4ca54b4fdb94f1466f40b2aef2d56cfbb248fa0fa724b8c7ba0
 
 ## When a page cannot be shown
 

@@ -197,6 +197,8 @@ my $HALF;                                 # the line of a change reached the log
 my (@SESSION, $UNMARKED, $MARKED, $UNEXPIRED);    # this window's lines, in the memory of the process behind it and nowhere else; whether a log could not be marked for Time Machine; whether this process marked it; whether the days you chose still wait for another window's request to end
 
 sub now { Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) }    # a clock nobody can set: seconds since the computer started
+my $TIMED = 0;                            # "lzrprf try" only, with a file "times" in the test's folder: each step of a start and a visit is said with the time it was reached, for the audit (scripts/audit.mjs) to show where the time goes
+sub timed { printf STDERR "test time %s %.1f\n", $_[0], Time::HiRes::time() * 1000 if $TIMED; return }    # the step and the time of day in milliseconds, on the clock the audit reads too
 
 # What the operating system allows inside the page container and the fetch
 # container. Every line is an allowance; what is not listed is refused: every
@@ -423,6 +425,37 @@ sub said {
     return ($text, ended($child, $whole ? 2 : 0) == 0 && $whole);
 }
 
+# What several programs printed, each within the same seconds, all of them
+# started at once and read side by side: one answer each, in the order asked.
+sub said_all {
+    my ($seconds, @commands) = @_;
+    my (@from, @child);
+    for my $at (0 .. $#commands) {
+        pipe(my $from, my $to) or next;
+        my $child = fork // next;
+        if (!$child) {
+            close $_ for $from, grep { defined } @from;
+            become(undef, $to, undef, @{ $commands[$at] });
+        }
+        close $to;
+        ($from[$at], $child[$at]) = ($from, $child);
+    }
+    my @text = map { '' } @commands;
+    my $until = now() + $seconds;
+    while ((my $left = $until - now()) > 0 && grep { defined } @from) {
+        my $ready = '';
+        vec($ready, fileno $_, 1) = 1 for grep { defined } @from;
+        select($ready, undef, undef, $left > 1 ? 1 : $left) > 0 or next;
+        for my $at (grep { defined $from[$_] && vec($ready, fileno $from[$_], 1) } 0 .. $#from) {
+            my $got = sysread($from[$at], $text[$at], 65536, length $text[$at]);
+            next if !defined $got && $!{EINTR};
+            undef $from[$at] if !$got || length $text[$at] > 1024 * 1024;
+        }
+    }
+    ended($_, 0) for grep { defined } @child;
+    return @text;
+}
+
 sub ended {                               # waits this long for a process to end, then ends it; returns how it ended
     my ($pid, $patience) = @_;
     my $until = now() + $patience;
@@ -514,6 +547,17 @@ function run() {
 END
 my ($witness, $to_witness, $from_witness, $witness_of) = (undef, undef, undef, 0);
 
+sub witnessed {                           # the one that answers is running, started now when it was not: true when it is
+    return 1 if $witness;
+    pipe(my $asked, $to_witness) && pipe($from_witness, my $told) or return 0;
+    $witness = fork // return 0;
+    become($asked, $told, undef, $SCRIPT, '-l', 'JavaScript', '-e', $WITNESS) unless $witness;
+    $witness_of = $$;
+    close $_ for $asked, $told;
+    $to_witness->autoflush(1);
+    return 1;
+}
+
 sub inside {                              # true when the system says that this process is contained; it is asked for two seconds, and then the answer is no
     my ($pid, $window) = @_;
     my $contained = $window ? qr/^\Q$pid\E 1 1 1 1 1 1 1 1\n\z/ : qr/^\Q$pid\E 1 1 1 1 [01] [01] [01] [01]\n\z/;    # the page and fetch containers refuse everything; what the last four say of them is not what holds them
@@ -525,14 +569,7 @@ sub inside {                              # true when the system says that this 
         undef $witness;
         return 0;
     };
-    if (!$witness) {
-        pipe(my $asked, $to_witness) && pipe($from_witness, my $told) or return 0;
-        $witness = fork // return 0;
-        become($asked, $told, undef, $SCRIPT, '-l', 'JavaScript', '-e', $WITNESS) unless $witness;
-        $witness_of = $$;
-        close $_ for $asked, $told;
-        $to_witness->autoflush(1);
-    }
+    witnessed() or return 0;
     my $until = now() + 2;
     open my $turn, '<', $SELF or return 0;    # one question at a time: the runs that fetch a page's pictures side by side ask the same one, and each must read the answer to its own question, not another's
     while (now() < $until) {
@@ -555,6 +592,8 @@ sub inside {                              # true when the system says that this 
 sub run {
     my ($program, @arguments) = @_;
     seal();
+    $TIMED = $TRY && -e "$DIR/times";
+    timed('perl');
     $program = abs_path($program // '') // '';
     die "lzrprf: no such program\n" unless -f $program && -x _;
     named($program, @arguments);
@@ -674,16 +713,24 @@ sub behind {
         put("$DIR/behind", O_EXCL, $$);    # its number, for a test that kills it outright, as a crash would
         $SIG{$_} = sub { leave() } for qw(INT TERM HUP QUIT);
     }
-    leave() unless (hear(60) // '') eq 'ready';
+    timed('behind');
+    witnessed();                          # the one that answers whether a process is contained is started now, while the window is still being made, so it is ready when the window is asked about [C10]
+    my $held = holds();                   # [C2] tried now too, beside the window being made: it starts nothing but its own small program, and its answer is waited on below before anything else is done
+    timed('holds');
     $BEGAN = sum_of($PROGRAM);            # read before it is compared below, so the program that is compared is the one every page is held to
+    leave() unless (hear(60) // '') eq 'ready';
+    timed('ready');
     paired();                             # before anything else: an application and an lzrprf that were not installed together are noticed
     return closed($INCOGNITO ? "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. An incognito window does not run the self-test, because the test writes its result: open a normal window once to test this Mac." : "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e kept_in() . '/prove') || proven();    # [C11]
-    return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless holds();    # [C2]
+    timed('proven');
+    return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless $held;    # [C2] the tries made at the start of this sub
     return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
+    timed('window-inside');
     $UNEXPIRED = !expire_log();           # [C12] the days you chose, at the start of a window; when a request of another window is open just then, it is tried again before each request of this window and each press of Log, until it is done
     welcome() unless $INCOGNITO;          # once after each install or update: what is new, and what $APP does and does not do for you; an incognito window writes nothing, so it shows none
     window('incognito') if $INCOGNITO;
     idle(($INCOGNITO ? "$APP is contained, in an incognito window: its log, history and tabs are held in its memory and one folder of its own, removed when it closes. Nothing is written to ~/.lzrprf." : "$APP is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. " . kept_words(keeping()) . ((keeping())[0] eq 'nothing' && -s "$DIR/log" ? ' A log written earlier is still on this computer: the Log button offers to clear it.' : '')), $INCOGNITO ? 'Contained, incognito' : 'Contained');
+    timed('idle-sent');
     said_noted();                         # the first line of this window's log: that it is contained, and what is kept
     marks_told();
     window('marksbar ' . (marks_bar() ? 'on' : 'off'), 'search ' . (engine() ? 'set' : 'none'));
@@ -821,8 +868,10 @@ sub visit {
     flock $request, LOCK_SH or return idle($UNWRITTEN);    # from "you typed" until its last line is written, a request keeps the log from being cleared under it
     my ($kept) = keeping();                 # read once: no line of one request is kept at more than this, whatever is chosen while it runs; when less is chosen meanwhile, its later lines are kept at that (sub record)
     record(($how // 'you typed') . " $url", $kept) or return idle($UNWRITTEN);  # [C5] before the name is even looked up
+    timed('logged');
     busy($TOR_WANTED ? "Asking Tor for $host." : "Looking up $host.");
     my ($where, $why) = $TOR_WANTED ? tor_where($host) : find($host);    # with Tor on, nothing is looked up on this computer: Tor's exit looks up the name
+    timed('found');
     $why = own_network($host, $where, $kept) if $where && grep { $_->{own} } @$where;    # [C8]
     my ($got, $from, $tried, $certs);
     if (!$why) {
@@ -831,6 +880,7 @@ sub visit {
         $tried = 1;
         ($got, $why, $from, $certs) = fetch($url, $where, undef, 1);    # the request of a page: the one that carries Accept
     }
+    timed('fetched');
     record("$url " . ($why ? "failed: $why" : 'answered: ' . length($got) . " bytes from $from"), $kept) or return idle($tried ? $UNENDED : $UNWRITTEN);    # an answer whose line could not be recorded is not shown, and the window says the fetch was tried
     close $request;
     return idle("Nothing is shown: $why.") if $why;
@@ -856,6 +906,7 @@ sub visit {
         return idle("Nothing is shown: $url redirects " . (defined $to ? "to $to " : '') . "($status), and lzrprf did not go there." . (length $why ? " $why" : ''));
     }
     busy("$APP lays the page out, in its container.");
+    timed('lay');
     my ($lines, $hosts, $paths, $said, $named, $live) = laid_out($url, $got, "=sheets\n", 1);    # [C14] a first run is told that no style sheet came with the answer; $live: the run, when the application keeps its page running (sub contained)
     return fault($hosts) unless $lines;
     my $styled = '';                        # what the bar says of the page's style sheets
@@ -876,10 +927,19 @@ sub visit {
             $styled = "$APP did not use the $n " . ($one ? 'style sheet' : 'style sheets') . " the page names on $host itself: the page is shown as it was laid out first. ";
         }
     }
+    timed('laid');
     my $title = $TITLED;                    # the title the run that is shown wrote
+    my $first = grep { /^I\d/ } @$lines;    # the page draws pictures: it is shown at once with a grey box in the place of each, and drawn again with them once they came
+    if ($first) {
+        window("page $TAB", @{ (pictured($lines, $paths, $host, $where, $kept, {}))[0] }, '.');    # nothing is fetched for this one: no picture is decoded yet
+        $DRAWN = 1;
+        timed('list');
+    }
     my ($shown, $fetched, $wanted, $decoded) = pictured($lines, $paths, $host, $where, $kept);
+    window("page $TAB", '.') if !$shown && $first;    # a line of a picture could not be written: the page drawn at once is taken away again, as nothing of this answer would have been shown before
     return live_dropped($live, $UNWRITTEN) unless $shown;
-    window("page $TAB", @$shown, '.');    # the tab a list is for is named, so a list that arrives once another tab was chosen in the window goes to that tab's kept drawing
+    timed($first ? 'pictured' : 'list');
+    window(($first ? 'relaid' : 'page') . " $TAB", @$shown, '.');    # the tab a list is for is named, so a list that arrives once another tab was chosen in the window goes to that tab's kept drawing; the second drawing keeps the place the page is read at
     $DRAWN = 1;
     $SHOWN = { url => $url, got => $got, frame => $with_sheets, two => $two, host => $host, pictures => $decoded, wide => $LAID_WIDE, list => $shown, used => ++$LIST_USED };    # list: what was sent, sent again from here when the tab is chosen again (sub tab_shown)
     lists_bounded();
@@ -983,6 +1043,7 @@ sub contained {
         POSIX::_exit(0);                  # the keeper never returns; were it ever to, it ends here and does not go on as a second lzrprf
     }
     close $_ for $answer_in, $held, grep { defined } $input;
+    timed('page-forked');
     fcntl($relay, POSIX::F_SETFL(), O_NONBLOCK) if $relay;    # lzrprf never waits in a write to a page: a line it cannot write at once ends the page (sub live_input)
     if (!inside($page)) {                 # [C3] the system did not say so: the answer stays here; the application was told the address and nothing else
         kill 'STOP', $page;               # held still before anything else: the keeper's end closes the application's input, and an application the system does not call contained is not to go on at that while it waits to be ended
@@ -993,6 +1054,7 @@ sub contained {
         waitpid $page, 0 unless $gone;
         return (undef, $gone ? 'ended' : 'uncontained');    # only a process still running, of which the system does not say that it is contained, is the container's fault
     }
+    timed('page-inside');
     if ((syswrite($hold, 'g') // 0) != 1) {    # the keeper cannot be told that the system said so: nothing is handed over
         kill 'KILL', $feeder, $page;
         waitpid $_, 0 for $feeder, $page;
@@ -2484,7 +2546,12 @@ sub fault {
 }
 
 # Where a host is. The name is looked up outside every container, after the
-# address is in the log, by a fresh copy of this file that is given ten seconds.
+# address is in the log, by the system's perl running the few lines of
+# $LOOKUP (the same as sub lookup, without the rest of this file to read
+# first), given ten seconds. Not by a fork of this process: the system's
+# libraries refuse a lookup in a copy that was not started afresh. The way to
+# each address it gave is then asked of the system for all of them at once.
+my $LOOKUP = 'use Socket qw(SOCK_STREAM NI_NUMERICHOST NI_NUMERICSERV getaddrinfo getnameinfo); my ($failed, @all) = getaddrinfo($ARGV[0], 443, { socktype => SOCK_STREAM }); print map { (getnameinfo($_->{addr}, NI_NUMERICHOST | NI_NUMERICSERV))[1] . "\n" } $failed ? () : @all;';
 # Returns the addresses the name leads to, each with whether it is "own":
 # not on the public internet, or reached by a route of its own. At most eight
 # are returned: the first eight this computer has a way to. An address it has
@@ -2498,14 +2565,22 @@ sub find {
         $public = grep { chomp; $_ eq $host } <$names> if open $names, '<', kept_in() . '/public';    # the names the test's file "public" lists are taken for hosts on the public internet, to try what is fetched there
         return [{ family => AF_INET, addr => pack_sockaddr_in($port, inet_aton($to)), text => $to, own => !$public && !public($to) }];
     }
-    my ($found) = said($FIND_SECONDS, '/usr/bin/perl', $SELF, 'lookup', $host);
-    my (@where, %had, $looked);
+    my ($found) = said($FIND_SECONDS, '/usr/bin/perl', '-e', $LOOKUP, $host);
+    timed('looked-up');
+    my (@where, %had, @numbers, $looked);
     for my $text (grep { /^[0-9A-Fa-f:.]+(?:%[A-Za-z0-9]+)?$/ && !$had{$_}++ } split /\n/, $found) {
-        last if @where >= $FOUND || ++$looked > $LOOKED;
+        last if ++$looked > $LOOKED;
         my ($failed, $one) = getaddrinfo($text, 443, { socktype => SOCK_STREAM, flags => AI_NUMERICHOST });    # a number is turned into a number: nothing is looked up
-        next if $failed || !$one;
-        my $route = route($one->{family}, $text) or next;    # this computer has no way there at all
-        push @where, { %$one, text => $text, own => $route eq 'own' || !public($text) };
+        push @numbers, { %$one, text => $text } unless $failed || !$one;
+    }
+    my @families = do { my %once; grep { !$once{$_}++ } map { $_->{family} } @numbers };
+    my @says = said_all(5, (map { route_asked($_->{family}, $_->{text}) } @numbers), map { route_asked($_, 'default') } @families);    # the way to each address and the default way, asked of the system all at once
+    my %usual = map { $families[$_] => $says[@numbers + $_] } 0 .. $#families;
+    for my $at (0 .. $#numbers) {
+        last if @where >= $FOUND;
+        my $one = $numbers[$at];
+        my $route = route_of($one->{family}, $one->{text}, $says[$at], $usual{ $one->{family} }) or next;    # this computer has no way there at all
+        push @where, { %$one, text => $one->{text}, own => $route eq 'own' || !public($one->{text}) };
     }
     return (undef, %had ? 'this computer has no way to that host' : 'no such host') unless @where;
     return \@where;
@@ -2517,15 +2592,20 @@ sub find {
 # itself), nothing when there is no way. The address being in a public range
 # does not make it public for you: a route can lead it into a network of
 # your own, and then you are asked.
+sub route_asked { my ($family, $text) = @_; return ['/sbin/route', '-n', 'get', ($family == AF_INET6 ? '-inet6' : ()), $text =~ s/%.*//r] }    # the question to the system about the way to one address
 sub route {
     my ($family, $text) = @_;
-    my ($says) = said(5, '/sbin/route', '-n', 'get', ($family == AF_INET6 ? '-inet6' : ()), $text =~ s/%.*//r);
+    my ($says) = said(5, @{ route_asked($family, $text) });
+    return route_of($family, $text, $says);
+}
+sub route_of {                            # the answer, from what the system said of the way to the address and, when it was asked already, of the default way
+    my ($family, $text, $says, $usual) = @_;
     my ($to) = $says =~ /^\s*destination: (\S+)/m or return;
     return 'internet' if $to eq 'default' || $says =~ /^\s*mask: default\s*$/m;    # the default route: a mask of no bits at all. For IPv6 the system writes its destination as "::" and not as "default", and only the mask says so
     if ($says =~ /^\s*flags: <[^>]*\bWASCLONED\b/m && $text ne 'default') {
         # macOS keeps a route of its own for every address it spoke to a moment ago, a copy of the route
         # that led there. It is the internet's when it leaves by the same door as the default route.
-        my ($usual) = said(5, '/sbin/route', '-n', 'get', ($family == AF_INET6 ? '-inet6' : ()), 'default');
+        ($usual) = said(5, @{ route_asked($family, 'default') }) unless defined $usual;
         my @door = map { my $all = $_; join ' ', map { $all =~ /^\s*$_: (\S+)/m ? $1 : '?' } 'gateway', 'interface' } $says, $usual // '';
         return 'internet' if $door[0] eq $door[1] && $door[0] !~ /\?/ && ($usual // '') =~ /^\s*(?:destination|mask): default\s*$/m;    # the mask again: over IPv6 the default route's destination reads "::"
     }
@@ -3164,9 +3244,12 @@ sub fetch {
         select($read, $write, undef, 1) > 0 or next;
         if (!@links && vec($read, fileno $listen, 1)) {
             my $in = $listen->accept or last;
+            timed('curl-came');
             if (!inside($curl)) { $loose = 1; last }    # [C3] the system did not say that curl is contained: no connection is made for it
+            timed('curl-inside');
             (my $site, $peer) = reach($where, $until);
             if (!$site) { $unreached = 1; last }
+            timed('connected');
             $in->blocking(0);
             @links = ([$in, $site, '', 1, 0, $SENT_BYTES + length($up // '')], [$site, $in, '', 1, 0, $WIRE_BYTES]);    # [C19] a page's POST may carry its body more
             next;
@@ -4838,8 +4921,26 @@ function takes() { return free && !modalOpen; }    // whether the chrome takes a
 // The frame: the window is clear outside its rounded corners, and this draws, at its very edge,
 // the glass every view stands on and its rounded edge as a thin cyan beam. The beam's glow falls
 // inward: the window ends at the beam, so nothing is drawn, or reserved, outside what you see.
-function paintFrame() {
-    var out = win.contentView.bounds, r = root.frame, edge = MARGIN ? $.NSInsetRect(out, 0.75, 0.75) : $.NSMakeRect(r.origin.x - 0.5, r.origin.y - 0.5, r.size.width + 1, r.size.height + 1);    // DECLARED(0.75: half the beam's faint 1.5-point width, so the whole line is inside the window)
+// Its glow is the costliest drawing of the window, and every view drawn again over the frame had
+// it drawn whole behind it: so it is drawn once for each size of the window, into pixels at the
+// window's own scale, and only the part that is needed is copied from there (P17: speed bought
+// with memory). A new size, scale or margin draws it anew.
+var frameKept = null, frameKeptFor = '';
+function paintFrame(dirty) {
+    var out = win.contentView.bounds, at = [out.size.width, out.size.height, win.backingScaleFactor, MARGIN, root.frame.origin.x, root.frame.size.width].join(' ');
+    if (at != frameKeptFor) {
+        var rep = frameView.bitmapImageRepForCachingDisplayInRect(out), was = $.NSGraphicsContext.currentContext;
+        $.NSGraphicsContext.setCurrentContext($.NSGraphicsContext.graphicsContextWithBitmapImageRep(rep));
+        try { framePainted(out); } finally { $.NSGraphicsContext.currentContext.flushGraphics; $.NSGraphicsContext.setCurrentContext(was); }
+        frameKept = $.NSImage.alloc.initWithSize(out.size);
+        frameKept.addRepresentation(rep);
+        frameKeptFor = at;
+    }
+    frameKept.drawInRectFromRectOperationFraction(dirty, dirty, 1, 1);    // 1: copied as it is, the clear margin with it
+}
+
+function framePainted(out) {
+    var r = root.frame, edge = MARGIN ? $.NSInsetRect(out, 0.75, 0.75) : $.NSMakeRect(r.origin.x - 0.5, r.origin.y - 0.5, r.size.width + 1, r.size.height + 1);    // DECLARED(0.75: half the beam's faint 1.5-point width, so the whole line is inside the window)
     var path = $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius(edge, MARGIN ? RADIUS : 0, MARGIN ? RADIUS : 0);
     (MARGIN ? $.NSColor.colorWithSRGBRedGreenBlueAlpha(0, 0, 0, 0.012) : $.NSColor.clearColor).setFill;    // the margin is all but clear: a point with nothing drawn passes the mouse to the window under it, so its sides could not be held to resize. DECLARED(3 of 255, the least the screen keeps for certain, never seen)
     $.NSRectFillUsingOperation(out, 1);
@@ -7003,7 +7104,7 @@ ObjC.registerSubclass({ name: 'LzrprfLaid', superclass: 'NSView', methods: {
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfFrame', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintFrame(); } },
+    'drawRect:': { implementation: function (dirty) { paintFrame(dirty); } },
     'mouseDown:': { implementation: function (event) { frameClicked(event); } },
     'resetCursorRects': { implementation: function () { frameCursors(); } }
 } });
@@ -7150,6 +7251,7 @@ ObjC.registerSubclass({ name: 'LzrprfPanel', superclass: 'NSView', methods: {
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
+    'windowWillReturnFieldEditor:toObject:': { types: ['id', ['id', 'id']], implementation: function (sender, client) { return typingView(); } },    // every text field of the window is typed into through this one, which asks no language service
     'windowDidResize:': { types: ['void', ['id']], implementation: function (note) { place(); resting(); frameSaid(); } },
     'windowDidMove:': { types: ['void', ['id']], implementation: function (note) { frameSaid(); } },
     'framed:': { types: ['void', ['id']], implementation: function (sender) { framed(); } },
@@ -7231,6 +7333,30 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
         }
     } }
 } });
+
+// Every text view of the window, and the one every text field is typed into, is kept away from the
+// system's language services: no spelling or grammar checking, no correction, no text replacement,
+// no completion, no quotes or dashes made smart, no links or data found. The window's container lets
+// it look up none of those services (the list of its container), so a view that asked would only
+// be refused, after a wait, with an error in the log. Selftest holds that each is made through here.
+function unchecked(view) {
+    view.continuousSpellCheckingEnabled = false;
+    view.grammarCheckingEnabled = false;
+    view.automaticSpellingCorrectionEnabled = false;
+    view.automaticTextReplacementEnabled = false;
+    view.automaticQuoteSubstitutionEnabled = false;
+    view.automaticDashSubstitutionEnabled = false;
+    view.automaticTextCompletionEnabled = false;
+    view.automaticLinkDetectionEnabled = false;
+    view.automaticDataDetectionEnabled = false;
+    return view;
+}
+
+var fieldEditor = null;    // the text view every text field of the window is typed into, made once
+function typingView() {
+    if (!fieldEditor) { fieldEditor = unchecked($.NSTextView.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 20))); fieldEditor.fieldEditor = true; }
+    return fieldEditor;
+}
 
 function button(title, action) {
     var one = $.NSButton.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 30));
@@ -7383,7 +7509,7 @@ function run(argv) {
     scroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 640));
     scroll.hasVerticalScroller = true;
     scroll.autoresizingMask = 2 | 16;
-    page = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 640));
+    page = unchecked($.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 640)));
     page.editable = false;
     page.richText = false;
     page.automaticLinkDetectionEnabled = false;
@@ -7399,7 +7525,7 @@ function run(argv) {
     under.hasVerticalScroller = true;
     under.borderType = 0;
     under.drawsBackground = false;
-    made = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190));
+    made = unchecked($.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 190)));
     made.editable = false;
     made.richText = false;
     made.automaticLinkDetectionEnabled = false;
@@ -7431,7 +7557,7 @@ function run(argv) {
     secureScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 520, 260));
     secureScroll.hasVerticalScroller = true;
     secureScroll.drawsBackground = false;
-    secureText = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 520, 260));
+    secureText = unchecked($.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 520, 260)));
     secureText.editable = false;
     secureText.richText = false;
     secureText.drawsBackground = false;
@@ -7510,7 +7636,7 @@ function run(argv) {
     panelScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
     panelScroll.hasVerticalScroller = true;
     panelScroll.borderType = 0;
-    panelText = $.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300));
+    panelText = unchecked($.LzrprfPage.alloc.initWithFrame($.NSMakeRect(0, 0, 600, 300)));
     panelText.editable = false;
     panelText.richText = false;
     panelText.automaticLinkDetectionEnabled = false;
@@ -7561,6 +7687,7 @@ elsif ($command eq 'behind' && @ARGV > 6 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ 
     ($TRY, $DIR, $PEER, $ANSWER, $RUN, $BASE) = splice @ARGV, 0, 6;
     ($INCOGNITO, $BASE) = $BASE eq '-' ? (0, undef) : (1, $BASE);
     named(@ARGV);
+    $TIMED = $TRY && -e kept_in() . '/times';
     open $FROM, '<&=', 0 or exit 1;
     $SIG{PIPE} = 'IGNORE';
     $| = 1;
