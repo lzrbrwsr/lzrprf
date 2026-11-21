@@ -1311,8 +1311,8 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 65
-    new Fix: an install from inside the window goes on to its end even when the window goes away, and the self-test no longer fails an install on a busy computer
+    release 66
+    new Fix: on a busy computer lzrprf no longer refuses a page that is in its container, which made the install's self-test fail; it waits up to ten seconds for the system's answer
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -1320,7 +1320,7 @@ here:
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin cca34c0a7dda919c1c38f3d92e003797923e0e8f01a32aead56b0949ae0a90ea
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-    lzrprf 08d1ab920d73ca4afed579d24bf3628e17e8dc05b699ea0993e5762c71c6cdf8
+    lzrprf 2048a91794fdce96bc3652be6e81bd62d93eafb46eb7d00405b756d6529ae5dd
 
 ## When a page cannot be shown
 

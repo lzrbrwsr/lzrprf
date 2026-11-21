@@ -574,7 +574,7 @@ sub witnessed {                           # the one that answers is running, sta
     return 1;
 }
 
-sub inside {                              # true when the system says that this process is contained; it is asked for two seconds, and then the answer is no
+sub inside {                              # true when the system says that this process is contained; it is asked for ten seconds from its first question, and then the answer is no
     my ($pid, $window) = @_;
     my $contained = $window ? qr/^\Q$pid\E 1 1 1 1 1 1 1 1\n\z/ : qr/^\Q$pid\E 1 1 1 1 [01] [01] [01] [01]\n\z/;    # the page and fetch containers refuse everything; what the last four say of them is not what holds them
     my $lost = sub {                      # the one that answers did not answer: it is ended, so that no late answer of its is ever read as the answer to a later question
@@ -586,14 +586,14 @@ sub inside {                              # true when the system says that this 
         return 0;
     };
     witnessed() or return 0;
-    my $until = now() + 2;
+    my $until;                            # ten seconds from the first question, never counting the wait for the turn: on a busy computer, pages asked about side by side spent two seconds in that wait alone and a contained page was refused (seen 2026-11-21 in two installs)
     open my $turn, '<', $SELF or return 0;    # one question at a time: the runs that fetch a page's pictures side by side ask the same one, and each must read the answer to its own question, not another's
-    while (now() < $until) {
-        flock $turn, LOCK_EX or return 0;
+    while (!defined $until || now() < $until) {
+        flock $turn, LOCK_EX or return 0; $until //= now() + 10;
         print $to_witness "$pid\n" or return $lost->();
         my $ready = '';
         vec($ready, fileno $from_witness, 1) = 1;
-        select($ready, undef, undef, $until - now() + 0.5) > 0 or return $lost->();
+        select($ready, undef, undef, ($until - now() > 2 ? $until - now() : 2) + 0.5) > 0 or return $lost->();    # an answer always has two seconds, also when a later turn came after the ten
         my $says = readline($from_witness) // return $lost->();
         flock $turn, LOCK_UN;
         return 1 if $says =~ $contained;
