@@ -1196,6 +1196,14 @@ my %about = (
     reopenstrip => q{The window's own strip makes the place of a reopened tab, run with no window},
     findzoom => q{The window's own Find and zoom, run with no window},
     heardreader => q{The window's reader of what lzrprf writes, run with no window},
+    installflush => q{Each line an installer prints is in install.txt while it still runs},
+    installsignal => q{Told to stop while an installer runs, lzrprf says so, and the installer goes on},
+    installgroup => q{The installer runs in a session of its own, apart from lzrprf's group},
+    installgone => q{The window keeps the install modal open when lzrprf behind it is gone, run with no window},
+    installfetchtold => q{Told to stop while it fetches an installer, lzrprf says so, and nothing runs},
+    installendtold => q{Told to stop while it waits for an installer to end, lzrprf still records the install's end},
+    forklookup => q{A copy made by fork of a process with two threads looks up a name by a fresh perl, not in itself},
+    drawguard => q{A view whose painting throws goes on, said once, and silent once lzrprf is gone},
     homestart => q{A kept home page opens when the window starts},
     homebad => q{A home page that is no https address opens nothing},
     homelink => q{A home page file that is a link is not followed},
@@ -1297,6 +1305,7 @@ sub run_of {
     my @program = ($how{app} // '/usr/bin/perl', '-e', $hostile, hostile_args($folder, $how{part} // 'page'));
     $run{$name} = { folder => $folder, ends => $how{ends}, crash => $how{crash}, after => $how{after}, limit => $how{limit}, command => $how{command} // ['/usr/bin/perl', $how{lzrprf} // $lzrprf, 'try', $folder,
         '127.0.0.1:' . $port{ $how{peer} // 'trusted' }, $how{typed} // '-', $how{answer} // 'allow', @program] };
+    return if $how{late};                 # a run started by itself after the others (sub ran_alone): not in their order, and what it fetches is not counted with theirs
     push @order, $name;
     push @expected, @{ $how{fetches} // [] };
 }
@@ -1641,7 +1650,8 @@ my $heard_js = join("\n", 'ObjC.import("Foundation");',    # the reader of the w
     'function run(argv) {',
     q{var real = spy, $ = spy, NEWLINE = null, held = real.NSMutableData.data, chunks = [], armed = 0, handled = [], ended = 0, many = '', marks = [];},
     q{var from = {}; Object.defineProperty(from, 'availableData', { get: function () { return chunks.shift(); } }); Object.defineProperty(from, 'waitForDataInBackgroundAndNotify', { get: function () { armed++; return 0; } });},
-    q{var app = { terminate: function () { ended++; } }, win = 0;},
+    q{var app = { terminate: function () { ended++; } }, win = 0, modalOpen = false, modalKind = 'small';},
+    ($text_of_lzrprf =~ /^(var installState = .*?^\};\n)/ms), ($text_of_lzrprf =~ /^(function behindGone\(\) \{.*?^\}\n)/ms),
     q{function heard(line) { handled.push(line); if (line == 'boom') throw new Error('a line whose handling fails'); }},
     'var reader = ' . ($heard_impl // 'null') . ';',
     q{for (var i = 0; i < 300; i++) many += 'l' + i + '\n';},
@@ -1649,6 +1659,76 @@ my $heard_js = join("\n", 'ObjC.import("Foundation");',    # the reader of the w
     q{return 'armed=' + armed + ' ended=' + ended + ' handled=' + handled.length + ' ' + handled.slice(0, 4).join(',') + ',' + handled[303] + ',' + String(handled[handled.length - 1]).replace(/[^\x20-\x7e]/g, '?') + ' decoded=' + marks.join(' ');},
     '}');
 run_of('heardreader', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', $heard_js]);    # chunks of lines: one split in two, one with a line whose handling throws, one of 300 lines, one in Latin-1, then the end of the pipe
+# "sub installed" of lzrprf, taken out with what it calls to run an installer and run here as lzrprf behind the window
+# would run it, with a stand-in installer: the fetch gives the installer's text, the window is standard output, and
+# leaving waits for the installer to write "outlived" (at most five seconds) before this process ends.
+my $installing = join("\n", 'use POSIX (); use Fcntl qw(:DEFAULT); use Digest::SHA; use Time::HiRes; use IO::Handle;',
+    q{my ($folder, $body) = @ARGV; $| = 1; $SIG{PIPE} = 'IGNORE';},
+    q{our ($TRY, $INSTALL_TRIES, $INSTALL_WAIT, $INSTALL_SECONDS, $INSTALL_LINE, $UNWRITTEN, $APP, $HOME) = (0, 1, 0, 20, 2000, 'unwritten', 'Test', $folder); my $INSTALL_LOG;},
+    ($text_of_lzrprf =~ /^(my %INK = .*?;)/m), ($text_of_lzrprf =~ /^(my \@INSTALL_STOPS = .*?;)/m), ($text_of_lzrprf =~ /^(my \$FRESH = \$\$;)/m),
+    q{sub shared { $folder } sub window { print "$_\n" for @_ } sub now { Time::HiRes::time() } sub line { $_[0] } sub body_of { $_[0] } sub restarted { print "restarted\n" }},
+    q{sub fixed { if (($ARGV[2] // '') eq 'fetch') { kill 'TERM', $$; Time::HiRes::sleep(0.2) } $body }},
+    q{sub record { open my $out, '>>', "$folder/log" or return 0; print {$out} "$_[0]\n"; close $out; 1 }},
+    q{sub leave { for (1 .. 100) { last if -e "$folder/outlived"; Time::HiRes::sleep(0.05) } print "left\n"; exit 0 }},
+    map({ my $name = $_; $text_of_lzrprf =~ /^(sub $name \{.*?^\}\n)/ms } qw(installed install_run install_drained install_line install_end become seal ended)),
+    q{sub kept { } $SIG{USR1} = \&kept; print 'behind-group ' . getpgrp() . "\n";},
+    q{installed(7, 'https://site.test/install.sh');},
+    q{print 'handlers ' . (($SIG{USR1} // '') eq \&kept ? 'kept' : 'lost') . ' ' . ($SIG{TERM} // 'none') . ' ' . ($SIG{XFSZ} // 'none') . "\n";});
+run_of('installflush', command => ['/usr/bin/perl', '-e', $installing, "$base.installflush", "echo line-one-of-the-installer\nsleep 0.5\n/usr/bin/grep -c line-one-of-the-installer ../install.txt > ../seen\necho line-two-of-the-installer\n"]);    # the installer looks into install.txt while it still runs
+run_of('installsignal', command => ['/usr/bin/perl', '-e', $installing, "$base.installsignal", "set -eu\necho before-the-signal\nkill -TERM \$PPID\nsleep 1\necho after-the-signal\necho on > ../outlived\n"]);    # the installer, which ends at a line it cannot write as the real one does, tells lzrprf behind it to stop, then goes on
+run_of('installendtold', command => ['/usr/bin/perl', '-e', $installing, "$base.installendtold", "exec >/dev/null 2>&1\nsleep 0.5\nkill -TERM \$PPID\nsleep 0.5\necho on > ../outlived\n"]);    # the installer closes what it prints, so lzrprf waits for its end, then tells lzrprf to stop inside that wait, then ends well
+run_of('installfetchtold', command => ['/usr/bin/perl', '-e', $installing, "$base.installfetchtold", "echo on > ../ran\n", 'fetch']);    # lzrprf behind the window is told to stop while it fetches the installer
+run_of('installgroup', command => ['/usr/bin/perl', '-e', $installing, "$base.installgroup", "echo \"group \$\$ \$(/bin/ps -o pgid= -p \$\$)\"\n"]);    # the installer says its number and its process group
+my $gone_js = join("\n", 'function run(argv) {',    # "behindGone" and "installTold" of the window, read from lzrprf; the modal and its parts stand in here
+    q{var modalOpen = false, modalKind = 'small', ended = 0, lines = [], labels = [], acts = [], YELLOW = 'yellow', WHITE = 'white', win = 0, panelTitle = {}, panelSub = {};},
+    q{var $ = function (x) { return x; }, app = { terminate: function () { ended++; } };},
+    q{function modal(title, about, choices, kind) { installState = ''; modalOpen = true; modalKind = kind; panelTitle.stringValue = title; buttons(choices); }},
+    q{function buttons(choices) { labels = choices.map(function (c) { return c[0]; }); acts = choices.map(function (c) { return c[1]; }); } function installLine(text, ink) { lines.push(ink + ' ' + text); } function closeModal() { modalOpen = false; } function say(line) { }},
+    ($text_of_lzrprf =~ /^(var installState = .*?^\};\n)/ms), ($text_of_lzrprf =~ /^(function behindGone\(\) \{.*?^\}\n)/ms), ($text_of_lzrprf =~ /^(function installTold\(rest\) \{.*?^\}\n)/ms),
+    q{function kept() { return 'ended=' + ended + ' title=' + panelTitle.stringValue + ' labels=' + labels.join(',') + ' line=' + lines[lines.length - 1]; }},
+    q{installTold('begin'); installTold('runs'); installTold('line - one'); installTold('end failed x'); installTold('told TERM'); behindGone(); var a = kept() + ' quiet=' + behindEnded; acts[0](); a += ' pressed=' + ended;},
+    q{modalOpen = false; behindGone(); var b = 'ended=' + ended;},
+    q{modal('Welcome', '', [], 'big'); behindGone(); var c = 'ended=' + ended;},
+    q{installTold('begin'); installTold('runs'); installTold('end done y'); behindGone(); var d = 'ended=' + ended;},
+    q{installTold('begin'); installTold('runs'); installTold('end failed x'); behindGone(); var e = 'ended=' + ended;},
+    q{installTold('begin'); installTold('runs'); behindGone(); var f = kept();},
+    q{installTold('begin'); behindGone(); var g = kept();},
+    q{installTold('begin'); installTold('runs'); installTold('end failed x'); installTold('told TERM undrained'); behindGone(); var h = kept();},
+    q{return [a, b, c, d, e, f, g, h].join(' | ');},
+    '}');
+run_of('installgone', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', $gone_js]);    # lzrprf told to stop while the installer runs, no modal, the welcome's big modal, an install done (as after Close and restart), an install failed, lzrprf gone without a word while the installer runs and while it is fetched
+# The lookups of lzrprf as a copy made by fork reaches them, run here: the parent first takes two threads as lzrprf
+# behind the window does (the account and two file tests), then a copy of it, never started afresh as the picture runs
+# and the keeper are, looks up "localhost" and a name that is nowhere through $LOOKUP in a fresh perl (sub find's
+# road), turns a number into an address (sub numbered), and asks sub lookup, which in a copy looks up nothing.
+my $forking = join("\n", 'use strict; use warnings; use POSIX (); use Fcntl qw(:DEFAULT); use Time::HiRes;',
+    ($text_of_lzrprf =~ /^(use Socket qw\(.*?\);)/m), ($text_of_lzrprf =~ /^(my \$FRESH = \$\$;)/m), ($text_of_lzrprf =~ /^(my \$LOOKUP = .*?;';)/m),
+    q{sub now { Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) } $| = 1;},
+    map({ my $name = $_; $text_of_lzrprf =~ /^(sub $name \{.*?^\}\n)/ms } qw(said become seal ended numbered lookup)),
+    q{sub caught { open my $h, '>', \my $text; my $was = select $h; lookup($_[0]); select $was; close $h; return join(',', sort split /\n/, $text // '') || '-' }},
+    q{my @me = getpwuid $<; my $x = -x '/usr/bin/sandbox-exec'; my $w = -w '/Applications';},
+    q{my ($threads) = said(5, '/bin/ps', '-M', '-p', $$); print 'parent threads=' . (($threads =~ tr/\n//) - 1) . ' lookup=' . caught('localhost') . "\n";},
+    q{pipe(my $from, my $to) or die; my $copy = fork // die;},
+    q{if (!$copy) { close $from; my ($here, $clean) = said(10, '/usr/bin/perl', '-e', $LOOKUP, 'localhost'); my ($none, $quiet) = said(10, '/usr/bin/perl', '-e', $LOOKUP, 'nothing.lzrprf.invalid'); my $one = numbered('127.0.0.1');
+    print {$to} 'copy fresh=' . ($$ == $FRESH ? 1 : 0) . ' said=' . (join(',', sort split /\n/, $here) || '-') . ' clean=' . ($clean ? 1 : 0) . ' invalid=' . ($none eq '' ? 'none' : $none) . ' clean=' . ($quiet ? 1 : 0) . ' numbered=' . ($one ? $one->{family} : '-') . ' lookup=' . caught('localhost') . "\n"; close $to; POSIX::_exit(0); }},
+    q{close $to; my $told = do { local $/; <$from> } // ''; waitpid $copy, 0; print $told, "status=$?\n";});
+run_of('forklookup', command => ['/usr/bin/perl', '-e', $forking]);
+# "viewDrawn" and "say" of the window, read from lzrprf, around a view of the test's own whose painting turns off
+# smoothing, fills red and then throws: the view is drawn into pictures of the test's own three times and once as PDF,
+# through AppKit's own drawRect: road, and its fault is said into a real pipe and read back. Then the reading end is
+# closed, as when lzrprf is gone (behindGone sets behindEnded), and a second view's fault writes nothing: a write
+# into that pipe would end osascript by the signal PIPE (exit 141, measured), which no catch can stop.
+my $guard_js = join("\n", 'ObjC.import("AppKit");', 'function run(argv) {',
+    q{var pipe = $.NSPipe.pipe, to = pipe.fileHandleForWriting, painted = 0, smooth = [], behindEnded = false;},
+    ($text_of_lzrprf =~ /^(function say\(line\) \{.*)$/m), ($text_of_lzrprf =~ /^(var undrawnSaid = .*)$/m), ($text_of_lzrprf =~ /^(function viewDrawn\(view, paintIt\) \{.*?^\}\n)/ms),
+    q{ObjC.registerSubclass({ name: 'LzrprfTestUndrawn', superclass: 'NSView', methods: { 'drawRect:': { implementation: function (dirty) { viewDrawn('test', function () { painted++; $.NSGraphicsContext.currentContext.shouldAntialias = false; $.NSColor.redColor.setFill; $.NSRectFill(dirty); null.nothing; }); smooth.push($.NSGraphicsContext.currentContext.shouldAntialias); } } } });},
+    q{var view = $.LzrprfTestUndrawn.alloc.initWithFrame($.NSMakeRect(0, 0, 40, 20)), seen = [];},
+    q{for (var i = 0; i < 3; i++) { var rep = view.bitmapImageRepForCachingDisplayInRect(view.bounds); view.cacheDisplayInRectToBitmapImageRep(view.bounds, rep); seen.push(rep.colorAtXY(5, 5).redComponent > 0.9 ? 'red' : 'none'); }},
+    q{var pdf = view.dataWithPDFInsideRect(view.bounds), read = $.NSString.alloc.initWithDataEncoding(pipe.fileHandleForReading.availableData, 4).js;},
+    q{pipe.fileHandleForReading.closeFile; behindEnded = true; viewDrawn('other', function () { throw 'x'; });},
+    q{return 'painted=' + painted + ' drawn=' + seen.join(',') + ' smooth=' + smooth.join(',') + ' pdf=' + (pdf.length > 0 ? 1 : 0) + ' read=' + read.replace(/\n/g, '|') + ' after=quiet';},
+    '}');
+run_of('drawguard', command => ['/usr/bin/osascript', '-l', 'JavaScript', '-e', $guard_js]);
 run_of('home', typed => "$t/home/page,,=menu home,,=tab new", fetches => ['/home/page', '/home/page']);    # the page made the home page, then a new tab opens it
 run_of('homestart', fetches => ['/home/start'], prepare => sub { open my $out, '>', "$_[0]/home"; print $out "$t/home/start\n" });    # a home page kept from before: the window opens it at its start
 run_of('homebad', prepare => sub { open my $out, '>', "$_[0]/home"; print $out "http://site.test/home/bad\n" });    # a home page that is no address lzrprf fetches: nothing is opened
@@ -2153,8 +2233,72 @@ print "\n3. What the application writes to the window: it is checked before the 
 my $shown = visit('page', "$t/selftest?q=1");
 check($shown->{page} && "@{ $shown->{page} }" eq "@good", 'a list of the five kinds of line is passed on as it is, the five things the page is said to be made of first, one of them with a name of one character that is itself a mark', $shown->{page} ? scalar(@{ $shown->{page} }) . ' lines' : 'no page');
 check($shown->{said} eq 'site.test answered 162 bytes. The page names 2 other hosts (other.test, third.test). lzrprf asked none of them.' =~ s/162/length answer_for('')/er, 'the other hosts a page names are said in lzrprf\'s strip, and none of them is asked', $shown->{said});
-my @passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @unfit;
-check(!@passed, 'a list with anything else in it is not drawn at all: an unknown line, a line of lzrprf\'s own talk with the window ("ask", "quit", "address", "."), a line that would choose what is kept, a line of what the window says to lzrprf ("go", "log", a press of a button), a script, a box too large, a box whose size is written in the digits of another script, too many boxes, too many lines, a block that holds more than 20,000 (in text, in line breaks, in boxes and text, or before the first block begins), a thing the page is said to be made of that comes after the page began, is of no kind, stands out of the order of the kinds or of the names, stands twice, is one of more than 120, has a name or a version too long, a second tab, a character that is not plain, a space in front or no name, no mark of whether the application supports it or another mark than the two, a space at the end of a name or at either end of a version, a tab with no version, a host that is not a name, bytes that are no text', @passed ? "passed: @passed" : scalar(@unfit) . ' lists, none drawn');
+# A broken page lzrprf must refuse, judged in one run. Drawn, or not refused at all, it failed. Refused as "not a page"
+# (lzrprf's own words, its %FAULT, read from it) it held. Refused for a reason of the computer's load (a container
+# that did not start or that the system did not confirm in time, an application that ended first or did not finish
+# in time), it was still not drawn, but whether lzrprf's check would have refused it is not shown: that page is
+# UNTESTED, named with the words said, and the check goes on. Every page not as expected is named with its words.
+my %fault_words = map { /^\s*(\w+) => '([^']*)',?$/ ? ($1 => $2) : () } split /\n/, ($text_of_lzrprf =~ /^my %FAULT = \((.*?)^\);/ms)[0] // '';
+my @load_faults = map { $fault_words{$_} // "no fault $_ in lzrprf" } qw(unstarted uncontained ended late);
+my $again_count = 0;
+sub unfit_one {                           # one page in one run: held (refused as "not a page"), failed, or load, and the words said
+    my ($run, $more, $name) = @_;
+    my $one = visit($run, "$t/out/$name");
+    my $said = $one->{said} eq '' ? 'nothing was said after its address' : $one->{said};
+    my $load = grep { index($one->{said}, "perl did not show this page: $_.") == 0 } @load_faults;
+    return ('failed', "drawn: $said") if $one->{page};
+    return ('failed', "not refused as not a page: $said") unless $load || $one->{said} eq "perl did not show this page: $fault_words{unfit}.";
+    my $other = $more ? $more->($run, $name, $load) : '';
+    return ('failed', "$other; $said") if $other;
+    return ($load ? 'load' : 'held', $said);
+}
+sub ran_alone {                           # one run of lzrprf by itself, after the others: started as they were, given its limit, its output kept as theirs
+    my ($name) = @_;
+    my $pid = fork // return;
+    if (!$pid) {
+        open STDIN, '<', '/dev/null';
+        open STDOUT, '|-', '/bin/sh', '-c', 'exec /bin/cat > "$0"', "$site_folder/$name.out" or POSIX::_exit(126);
+        open STDERR, '|-', '/bin/sh', '-c', 'exec /bin/cat > "$0"', "$site_folder/$name.err" or POSIX::_exit(126);
+        { no warnings; exec { $run{$name}{command}[0] } @{ $run{$name}{command} }; }
+        POSIX::_exit(127);
+    }
+    my $until = Time::HiRes::time() + ($run{$name}{limit} // 90);
+    while (waitpid($pid, POSIX::WNOHANG()) == 0) {
+        if (Time::HiRes::time() > $until) { kill 'KILL', $pid; waitpid $pid, 0; last }
+        select undef, undef, undef, 0.05;
+    }
+    select undef, undef, undef, 0.3;      # the site and the output pipes write their last lines
+}
+sub unfit_judged {                        # [failed], [untested], each "page (what was said)", and how many were refused as "not a page"; a page refused for the load is visited once more, by itself, in a run of its own
+    my ($run, $more, @names) = @_;
+    my (@failed, @untested, $held);
+    for my $name (@names) {
+        my ($verdict, $words) = unfit_one($run, $more, $name);
+        if ($verdict eq 'load') {
+            my $again = 'again' . ++$again_count;
+            $about{$again} = "The page $name once more by itself: it was refused for the load before";
+            run_of($again, typed => "$t/out/$name", late => 1);
+            ran_alone($again);
+            my ($second, $then) = unfit_one($again, $more, $name);
+            ($verdict, $words) = ($second, "$words; once more by itself: $then");
+        }
+        push @failed, "$name ($words)" if $verdict eq 'failed';
+        push @untested, "$name ($words)" if $verdict eq 'load';
+        $held++ if $verdict eq 'held';
+    }
+    return (\@failed, \@untested, $held // 0);
+}
+sub unfit_check {                         # one group: failed when a page failed; held only when at least one page was refused as "not a page"; refused for the load alone, every page twice, the group is UNTESTED
+    my ($did, $held, $what, $saw) = @_;
+    return check(0, $what, $saw) unless $did;
+    return untested($what, 'every page of it was refused for the load of this computer, each twice, and none was drawn') unless $held;
+    check(1, $what, $saw);
+}
+sub unfit_untested { my ($what, $untested) = @_; untested("$what: lzrprf's check refused it", 'refused for the load of this computer instead, twice, and not drawn: ' . join('; ', @$untested)) if @$untested }
+my ($passed, $passed_load, $passed_held) = unfit_judged('output', undef, @unfit);
+my @passed = @$passed;
+unfit_check(!@passed, $passed_held, 'a list with anything else in it is not drawn at all: an unknown line, a line of lzrprf\'s own talk with the window ("ask", "quit", "address", "."), a line that would choose what is kept, a line of what the window says to lzrprf ("go", "log", a press of a button), a script, a box too large, a box whose size is written in the digits of another script, too many boxes, too many lines, a block that holds more than 20,000 (in text, in line breaks, in boxes and text, or before the first block begins), a thing the page is said to be made of that comes after the page began, is of no kind, stands out of the order of the kinds or of the names, stands twice, is one of more than 120, has a name or a version too long, a second tab, a character that is not plain, a space in front or no name, no mark of whether the application supports it or another mark than the two, a space at the end of a name or at either end of a version, a tab with no version, a host that is not a name, bytes that are no text', @passed ? 'passed: ' . join('; ', @passed) : scalar(@unfit) . ' lists, none drawn');
+unfit_untested('a list with anything else in it', $passed_load);
 my $big = visit('output', "$t/out/big");
 check(!$big->{page} && $big->{said} eq 'perl did not show this page: it wrote more than lzrprf takes.', 'more than lzrprf takes is not drawn', $big->{said});
 my $marked = visit('output', "$t/out/control");
@@ -2184,8 +2328,10 @@ check($laid->{page} && "@{ $laid->{page} }" eq "@laid_good", 'a laid page is pas
 my @tiled_good = ('L960x1', 'R0,0,960,1,ffffffff', 'K0,0,0,256,1', 'n' . encode_base64("\x80" x 768, ''), 'X10,1,6,@,333333,a', 'J0,256,0', 'K1,768,0,192,1', 'n' . encode_base64("\x80" x 576, ''), 'J1,768,0');
 my $tiled = visit('output', "$t/out/tiledgood");
 check($tiled->{page} && "@{ $tiled->{page} }" eq "@tiled_good", 'tiles of a laid page are passed on as they are: a tile given once with its rows of red, green and blue, placed again at another corner of the grid where it is cut the same, and a tile cut by the edge of the page, among rectangles and text', $tiled->{page} ? scalar(@{ $tiled->{page} }) . ' lines' : $tiled->{said});
-my @laid_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @laid_unfit;
-check(!@laid_passed, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels, a line =pictures with a path that does not begin with / or with 25 paths, a picture by an address with a port, a number for a host or plain http, a place I for a picture the line does not name, a tile wider than its cut, with a row 4 characters too long or too short or missing, a row that begins m as a picture\'s does, at a picture\'s length or at a tile\'s, a row with = or == at its end, with - or _ in it, numbered 32, 01 or twice, placed before it is given, off the grid of 256 or out of the page, narrower than its cut, placed where it is cut otherwise, 33 tiles or 1025 places, and a row of a tile under a picture or under no tile at all', @laid_passed ? "passed: @laid_passed" : scalar(@laid_unfit) . ' pages, none drawn');
+my ($laid_failed, $laid_load, $laid_held) = unfit_judged('output', undef, @laid_unfit);
+my @laid_passed = @$laid_failed;
+unfit_check(!@laid_passed, $laid_held, 'a laid page broken in any one way is not drawn at all: a rectangle that reaches out of the page, a number with a 0 in front, a page narrower than 320, one rectangle more than 20,000, a laid page with a paragraph in it and a flowing page with a rectangle in it, a picture with a row missing or a row too long, a row that is not base64 or is base64 in a second form, a picture of more than 262,144 pixels, a line =pictures with a path that does not begin with / or with 25 paths, a picture by an address with a port, a number for a host or plain http, a place I for a picture the line does not name, a tile wider than its cut, with a row 4 characters too long or too short or missing, a row that begins m as a picture\'s does, at a picture\'s length or at a tile\'s, a row with = or == at its end, with - or _ in it, numbered 32, 01 or twice, placed before it is given, off the grid of 256 or out of the page, narrower than its cut, placed where it is cut otherwise, 33 tiles or 1025 places, and a row of a tile under a picture or under no tile at all', @laid_passed ? 'passed: ' . join('; ', @laid_passed) : scalar(@laid_unfit) . ' pages, none drawn');
+unfit_untested('a laid page broken in one way', $laid_load);
 my $laid_clean = "X10,40,16,\@,333333,a\x{fffd}[2Jb\x{fffd}c\x{fffd}d" . "\x{301}" x 30 . "\x{fffd}e";
 utf8::encode($laid_clean);
 my $laid_marked = visit('output', "$t/out/laidcontrol");
@@ -2212,8 +2358,10 @@ my $stated = visit('output', "$t/out/stated");
 check($stated->{page} && "@{ $stated->{page} }" eq "Ud+HTML\t5 L960x400 G0,0,5,5" && $stated->{said} =~ /^site\.test answered \d+ bytes\. The page names no other host\. Not supported yet: Grid, inline scripts, and 1 more\.$/, 'a line =statement is the application\'s own words for why the page is in compatibility-statement mode: they are shown as plain text at the end of lzrprf\'s strip, and are no line of the page', $stated->{page} ? scalar(@{ $stated->{page} }) . " lines; $stated->{said}" : $stated->{said});
 my $stated_full = visit('output', "$t/out/statedfull");
 check($stated_full->{page} && "@{ $stated_full->{page} }" eq 'Pp0 T@x' && $stated_full->{said} =~ / The page names no other host\. ~{199}x$/, 'the longest statement there may be, 200 plain characters, is shown whole', $stated_full->{page} ? length($stated_full->{said}) . ' characters said' : $stated_full->{said});
-my @stated_passed = grep { my $one = visit('output', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' } @stated_unfit;
-check(!@stated_passed, 'a page with a line =statement broken in any one way is not drawn at all, and nothing of it is said: a control code in it, a character that is not plain ASCII, 201 characters, a second such line, no words, a line =statement before the line =pictures', @stated_passed ? "passed: @stated_passed" : scalar(@stated_unfit) . ' pages, none drawn');
+my ($stated_failed, $stated_load, $stated_held) = unfit_judged('output', undef, @stated_unfit);
+my @stated_passed = @$stated_failed;
+unfit_check(!@stated_passed, $stated_held, 'a page with a line =statement broken in any one way is not drawn at all, and nothing of it is said: a control code in it, a character that is not plain ASCII, 201 characters, a second such line, no words, a line =statement before the line =pictures', @stated_passed ? 'passed: ' . join('; ', @stated_passed) : scalar(@stated_unfit) . ' pages, none drawn');
+unfit_untested('a page with a line =statement broken in one way', $stated_load);
 # The style sheets a page names. Its first run is given the frame "=sheets" with no sheet in it and names   [C14]
 # some on its own host; lzrprf fetches them and starts the run once more with the site's answers in front
 # of the page's. On each run the application said the length and SHA-256 of each sheet it took off its input.
@@ -2242,9 +2390,11 @@ my $lost_sheets = visit('lostsheets', "$t/out/sheetslost");
 check($lost_sheets->{page} && "@{ $lost_sheets->{page} }" eq 'Pp0 T@the second run' && sheets_of('lostsheets', "$t/out/sheetslost") == 2, 'a copy of lzrprf that shows a second run which names style sheets again: its page is shown, so the check above would notice, and still no third run is started', $lost_sheets->{page} ? "@{ $lost_sheets->{page} }" : $lost_sheets->{said});
 my $unsheeted = visit('sheets', "$t/out/sheetsnone");
 check($unsheeted->{page} && "@{ $unsheeted->{page} }" eq 'Pp0 T@the first run' && sheets_of('sheets', "$t/out/sheetsnone") == 1 && $unsheeted->{said} !~ /style sheet/, 'a page that names no style sheet is laid out once, and the bar says nothing of style sheets', $unsheeted->{page} ? "@{ $unsheeted->{page} }" : $unsheeted->{said});
-my @sheets_passed = grep { my $one = visit('sheets', "$t/out/$_"); $one->{page} || $one->{said} ne 'perl did not show this page: what it wrote is not a page.' || sheets_of('sheets', "$t/out/$_") != 1 } @sheets_unfit;
+my ($sheets_failed, $sheets_load, $sheets_held) = unfit_judged('sheets', sub { my ($run, $name, $load) = @_; my $runs = sheets_of($run, "$t/out/$name"); return $runs > 1 || (!$load && $runs != 1) ? "laid out $runs times" : '' }, @sheets_unfit);    # refused for the load, the application may not have run at all, but never twice
+my @sheets_passed = @$sheets_failed;
 my @sheets_fetched = grep { $_->{kind} eq 'trusted' && $_->{bytes} =~ m{^\S+ /sheet/\S*\?(?:slash|many|char|twice|after|first)} } @seen;
-check(!@sheets_passed && !@sheets_fetched, 'a page with a line =sheets broken in any one way is not drawn at all, is laid out once, and nothing of it is fetched: a path that does not begin with /, nine paths, a character no path may hold, a second such line, a line =sheets after the line =statement or before the line =pictures', @sheets_passed || @sheets_fetched ? "passed: @sheets_passed; " . scalar(@sheets_fetched) . ' fetched' : scalar(@sheets_unfit) . ' pages, none drawn');
+unfit_check(!@sheets_passed && !@sheets_fetched, $sheets_held, 'a page with a line =sheets broken in any one way is not drawn at all, is laid out once, and nothing of it is fetched: a path that does not begin with /, nine paths, a character no path may hold, a second such line, a line =sheets after the line =statement or before the line =pictures', @sheets_passed || @sheets_fetched ? 'passed: ' . join('; ', @sheets_passed) . '; ' . scalar(@sheets_fetched) . ' fetched' : scalar(@sheets_unfit) . ' pages, none drawn');
+unfit_untested('a page with a line =sheets broken in one way', $sheets_load);
 # 4. What a site is sent.                                [C4] [C5] [C6] [C7]
 print "\n4. What a site is sent: by the test site's own record.\n";
 my @https = grep { $_->{kind} eq 'trusted' && length $_->{bytes} && $_->{bytes} !~ m{^(?:POST /support|GET /support/)} } @seen;    # a support request and the reading of its answer are checked on their own, below
@@ -2690,7 +2840,7 @@ check(@asks == 2 && @upyes_file == 1 && slurp($upyes_file[0]) eq $installer_body
     '"Install it" is the yes: lzrprf fetches the installer itself, through "fixed" and "fetch", its line in the log before the connection like every request, and writes it into a file of its own folder that only you can read', @upyes_file ? $upyes_file[0] : 'no file written');
 check(defined $sum_line && (grep { $_ eq "Its SHA-256: $installer_sum" } @upyes_said) == 1 && (grep { $_ eq "sum $installer_sum" } words('upyes', 'install')) == 1 && (grep { $_ eq "It is in this file, to read: $upyes_file[0]" } @upyes_said) == 1 && index(slurp("$base.upyes/install.txt"), "Its SHA-256: $installer_sum") >= 0,
     'before the installer runs, its SHA-256 and the file it is in are shown in the window and written in the log and in install.txt', defined $sum_line ? $upyes_log[$sum_line] : 'no line');
-check(install_ended('upyes') eq 'failed lzrprf try: the installer was written and is not run.' && (grep { $_ eq 'The installer comes from one place.' } @upyes_said) == 1 && $text_of_lzrprf =~ /^    record\("the installer of release \$there has SHA-256 \$sum, and runs now in auto: \$file"\) or return install_end\(0, \$UNWRITTEN\);    # \[C5\]\n    return install_end\(0, 'lzrprf try: the installer was written and is not run\.'\) if \$TRY;\n(?:.*\n){1,8}?.*become\(undef, \$to, \$to, '\/usr\/bin\/env', '-i', 'PATH=\/usr\/bin:\/bin:\/usr\/sbin:\/sbin', "HOME=\$HOME", 'TERM=dumb', '\/bin\/sh', 'install\.sh', 'auto'\);\n/m && $text_of_lzrprf !~ /\|\s*(?:\/bin\/)?sh\b/,
+check(install_ended('upyes') eq 'failed lzrprf try: the installer was written and is not run.' && (grep { $_ eq 'The installer comes from one place.' } @upyes_said) == 1 && $text_of_lzrprf =~ /^    record\("the installer of release \$there has SHA-256 \$sum, and runs now in auto: \$file"\) or return install_end\(0, \$UNWRITTEN\);    # \[C5\]\n    return install_end\(0, 'lzrprf try: the installer was written and is not run\.'\) if \$TRY;\n(?:.*\n){1,12}?.*become\(undef, \$to, \$to, '\/usr\/bin\/env', '-i', 'PATH=\/usr\/bin:\/bin:\/usr\/sbin:\/sbin', "HOME=\$HOME", 'TERM=dumb', '\/bin\/sh', 'install\.sh', 'auto'\);\n/m && $text_of_lzrprf !~ /\|\s*(?:\/bin\/)?sh\b/,
     'it runs only after that line is written, as a file: "/bin/sh install.sh auto" in its own folder, with env -i, the system\'s PATH, your home folder and TERM=dumb, so it asks nothing; nothing is piped into a shell, and a try of lzrprf writes it and runs nothing (read in "sub installed", and tried)', install_ended('upyes') || 'it did not end');
 my @uptwo_file = installer_files('uptwo');
 check(asked('/second/install.sh') == 1 && @uptwo_file == 1 && slurp($uptwo_file[0]) eq $installer_body && (grep { $_ eq 'The installer was fetched from two places, and both hold the same file.' } install_said('uptwo')) == 1 && (grep { $_ eq "you chose to install release 7: lzrprf fetches the installer: $t/second/install.sh" } log_of('uptwo')) == 1,
@@ -2922,6 +3072,60 @@ check(($at{flight} // '') eq 'steps=1 flight=true timer=false', 'a step of a pan
 my $many_bytes = length(join '', map { "l$_\n" } 0 .. 299) - 1;
 check(out('heardreader') =~ /^armed=4 ended=1 handled=305 one,two,boom,three,l299,caf\? decoded=3\/4 14\/4 $many_bytes\/4 4\/4\+4\/5 -$/m,
     'the window\'s reader of what lzrprf writes, read from lzrprf and run with no window: a line in two pieces is heard whole once its end comes; a line whose handling throws is passed over and the line after it is heard; a chunk of 300 lines is decoded once, its bytes each once, not again for each line; a line that is no UTF-8 is read as Latin-1; it waits for the next bytes after each chunk, and the end of the pipe ends the window', out('heardreader') =~ s/\s+$//r || err('heardreader') =~ s/\s+/ /gr);
+my @flush_out = split /\n/, out('installflush');
+check(slurp("$base.installflush/seen") eq "1\n" && index(slurp("$base.installflush/install.txt"), "line-two-of-the-installer\n") >= 0 && (grep { $_ eq 'install end done The installer says it is done. Close Test, or close it and start the new release at once.' } @flush_out) == 1 && (grep { $_ eq 'handlers kept none none' } @flush_out) == 1 && (grep { $_ eq 'install runs' } @flush_out) == 1
+    && $text_of_lzrprf =~ /^    sysopen\(\$INSTALL_LOG, "\$\{\\ shared\(\)\}\/install\.txt", .*\n    \$INSTALL_LOG->autoflush\(1\) if \$INSTALL_LOG;/m,
+    'each line an installer prints reaches install.txt as it comes, not when the install ends: the installer, still running, finds its first line there; the window is told when the installer starts; the handlers lzrprf set for the install, the stop signals and XFSZ, are given back after ("sub installed" of lzrprf, run here with a stand-in installer)', 'seen=' . (slurp("$base.installflush/seen") =~ s/\s+$//r || 'nothing') . ' ' . join(' | ', grep { /^(?:install end|handlers)/ } @flush_out));
+my $told_words = 'lzrprf behind this window was told to stop by the signal TERM, and stops here. The installer goes on by itself, and each line it prints goes on into install.txt.';
+my @told_out = split /\n/, out('installsignal');
+my $told_file = slurp("$base.installsignal/install.txt");
+check((grep { $_ eq "install end failed $told_words" } @told_out) == 1 && (grep { $_ eq "install line - $told_words" } @told_out) == 1 && (grep { $_ eq 'install told TERM' } @told_out) == 1 && $told_out[-1] eq 'left'
+    && index($told_file, "before-the-signal\n") >= 0 && index($told_file, "$told_words\n") >= 0 && index($told_file, "after-the-signal\n") >= 0 && -e "$base.installsignal/outlived"
+    && index(slurp("$base.installsignal/log"), "lzrprf behind this window was told to stop by the signal TERM while the installer of release 7 ran: it stops, and the installer goes on by itself, its lines into install.txt\n") >= 0,
+    'lzrprf behind the window, told to stop by a signal while the installer runs, does not end without a word: the signal is said in the modal, in install.txt and in the log, the window is told so, lzrprf stops, and the installer, which ends at the first line it cannot write (set -eu, as the real one), goes on by itself and finishes, its lines read on into install.txt by a process of its own ("sub installed" of lzrprf, run here; the stand-in installer sends TERM to lzrprf)',
+    join(' | ', grep { /^(?:install end|install told|left)/ } @told_out) . (-e "$base.installsignal/outlived" ? ' | outlived' : ' | the installer did not outlive') . (index($told_file, 'after-the-signal') >= 0 ? ', its line after the signal in install.txt' : ', no line after the signal in install.txt'));
+my $fetch_words = 'lzrprf behind this window was told to stop by the signal TERM before the installer ran, and stops here. Nothing was changed.';
+my @fetch_out = split /\n/, out('installfetchtold');
+check((grep { $_ eq "install end failed $fetch_words" } @fetch_out) == 1 && !grep({ /^install (?:runs|told)/ } @fetch_out) && $fetch_out[-1] eq 'left' && !-e "$base.installfetchtold/ran"
+    && index(slurp("$base.installfetchtold/install.txt"), "$fetch_words\n") >= 0 && index(slurp("$base.installfetchtold/log"), "lzrprf behind this window was told to stop by the signal TERM before the installer of release 7 ran: nothing was changed\n") >= 0,
+    'lzrprf behind the window, told to stop by a signal while it fetches the installer, says so in the modal, install.txt and the log, and runs nothing; the window is not told that an installer runs, so it does not say one goes on ("sub installed" of lzrprf, run here; the fetch sends TERM to lzrprf)',
+    join(' | ', grep { /^(?:install end|install runs|install told|left)/ } @fetch_out) . (-e "$base.installfetchtold/ran" ? ' | the installer ran' : ''));
+my @end_out = split /\n/, out('installendtold');
+check((grep { /^install end done The installer says it is done\./ } @end_out) == 1 && !grep({ /^install told|^restarted$/ } @end_out) && $end_out[-1] eq 'left'
+    && index(slurp("$base.installendtold/install.txt"), 'The installer says it is done.') >= 0 && index(slurp("$base.installendtold/log"), "lzrprf behind this window was told to stop by the signal TERM after the installer of release 7 had ended\n") >= 0,
+    'lzrprf behind the window, told to stop by a signal while it waits up to 5 seconds for the installer to end, first records that end in the window and install.txt, then takes the signal as one after it: the log says so, the window is not told that an installer goes on, and nothing restarts ("sub installed" of lzrprf, run here; the installer sends TERM to lzrprf once it has closed what it prints)',
+    join(' | ', grep { /^(?:install end|install runs|install told|restarted|left)/ } @end_out) || err('installendtold') =~ s/\s+/ /gr);
+my ($group_behind) = out('installgroup') =~ /^behind-group (\d+)$/m;
+my ($group_pid, $group_of) = out('installgroup') =~ /^install line - group (\d+) +(\d+)$/m;
+check(defined $group_behind && defined $group_pid && $group_pid == $group_of && $group_of != $group_behind && $text_of_lzrprf =~ /^        close \$from;\n        POSIX::setsid\(\);.*\n        chdir \$folder or POSIX::_exit\(127\);\n        become\(undef, \$to, \$to, /m,
+    'the installer runs in a session of its own: its process group is its own number, not the group of lzrprf behind the window, so a signal to either group does not reach the other ("sub installed" of lzrprf, run here)', 'behind ' . ($group_behind // '?') . ', installer ' . ($group_pid // '?') . ' in group ' . ($group_of // '?'));
+my $gone_title = 'title=lzrprf behind this window ended labels=Close line=y lzrprf behind this window ended';
+check(out('installgone') eq "ended=0 $gone_title. The installer goes on by itself, and each line it prints goes on into ~/.lzrprf/install.txt. quiet=true pressed=1 | ended=2 | ended=3 | ended=4 | ended=5 | ended=5 $gone_title while the installer ran. Nothing reads what it prints now, so it may stop at its next line; what it printed so far is in ~/.lzrprf/install.txt. | ended=5 $gone_title before the installer ran. Nothing was changed. | ended=5 $gone_title while the installer ran. Nothing reads what it prints now, so it may stop at its next line; what it printed so far is in ~/.lzrprf/install.txt.\n"
+    && $text_of_lzrprf =~ /^        if \(data\.length == 0\) \{ behindGone\(\); return; \}/m && $text_of_lzrprf =~ /^function modal\(title, about, choices, kind\) \{\n    welcoming = false;\n    installState = '';/m
+    && $text_of_lzrprf =~ /^function say\(line\) \{ if \(!behindEnded\) to\.writeData\(/m,
+    'the end of lzrprf behind the window ends the window, except while the installer\'s modal is open and its install has not ended: then the modal says that lzrprf ended and what is true of the installer by what lzrprf said last (told to stop: it goes on and its lines go on into install.txt; gone without a word while it runs, or told to stop when no process could be started to read its lines: it may stop at its next line; gone before it ran: nothing was changed), with one button, Close, which ends the window, and nothing more is said to lzrprf; after the install ended, done (as after Close and restart, whose restart waits for the window) or failed, the window goes, and so do the welcome\'s modal of the same size and a closed modal ("behindGone" and "installTold" of the window, read from lzrprf and run with no window)', out('installgone') =~ s/\s+$//r || err('installgone') =~ s/\s+/ /gr);
+my ($numbered_sub) = $text_of_lzrprf =~ /^(sub numbered \{.*?^\}\n)/ms;
+my ($lookup_sub) = $text_of_lzrprf =~ /^(sub lookup \{.*?^\}\n)/ms;
+my ($lookup_line) = $text_of_lzrprf =~ /^(my \$LOOKUP = .*)$/m;
+my @resolvers = map { scalar(() = ($_ // '') =~ /\bgetaddrinfo\(/g) } $text_of_lzrprf, $lookup_line, $numbered_sub, $lookup_sub;
+my @inet_aton = $text_of_lzrprf =~ /\binet_aton\(([^)]*)\)/g;
+check($resolvers[0] == 3 && $resolvers[1] == 1 && $resolvers[2] == 1 && $resolvers[3] == 1 && ($numbered_sub // '') =~ /flags => AI_NUMERICHOST/ && ($lookup_sub // '') =~ /\A[^\n]*\n    return unless \$\$ == \$FRESH;/
+    && $text_of_lzrprf =~ /^my \$FRESH = \$\$;/m && $text_of_lzrprf =~ /^    my \(\$found\) = said\(\$FIND_SECONDS, '\/usr\/bin\/perl', '-e', \$LOOKUP, \$host\);/m
+    && $text_of_lzrprf !~ /\bgethostby|\bPeerAddr\b|\bPeerHost\b|IO::Socket::IP|Net::DNS/ && !grep({ $_ !~ /\A(?:'127\.0\.0\.1'|\$to|\$net)\z/ } @inet_aton),
+    'no copy of lzrprf made by fork looks a name up in itself, where the system\'s libraries end a copy of a process with two threads (+[NSString initialize] ... when fork() was called): a name is looked up only by $LOOKUP in a fresh perl (sub find) or by "lzrprf lookup", whose sub lookup looks up nothing in a process it did not start as; every other getaddrinfo is sub numbered with AI_NUMERICHOST; no gethostbyname, no socket that is handed a name, inet_aton only of the loopback\'s number, the test\'s listener and the table of networks',
+    "getaddrinfo calls @resolvers[0..3] (all, \$LOOKUP, numbered, lookup), inet_aton of " . join(' ', @inet_aton));
+my ($fork_threads) = out('forklookup') =~ /\Aparent threads=(\d+) /;
+if (($fork_threads // 0) == 1) { untested('a copy made by fork of a process with two threads looks a name up through a fresh perl', 'the parent took no second thread on this Mac, so the copy it made is not the one the system ends: ' . (out('forklookup') . err('forklookup')) =~ s/\s+/ /gr) }
+else { check(out('forklookup') =~ /\Aparent threads=([2-9]|[1-9][0-9]+) lookup=127\.0\.0\.1(,::1)?\ncopy fresh=0 said=127\.0\.0\.1(,::1)? clean=1 invalid=none clean=1 numbered=2 lookup=-\nstatus=0\n\z/,
+    'a copy made by fork of a process with two threads, as the picture runs and the keeper are, looks up "localhost" and a name that is nowhere through $LOOKUP in a fresh perl and is not ended by the system, turns a number into an address, and gets nothing from sub lookup, which looks up a name only in a process started afresh (lzrprf\'s own subs, run here)',
+    out('forklookup') . err('forklookup')) }
+my @draw_rects = $text_of_lzrprf =~ /^\s*'drawRect:': (.*)$/mg;
+my @draw_named = map { /\A\{ implementation: function \(dirty\) \{ viewDrawn\('([a-z]{1,20})', function \(\) \{ .* \}\); \} \},?(?:\s+\/\/.*)?\z/ ? $1 : () } @draw_rects;
+my %draw_once; $draw_once{$_}++ for @draw_named;
+check(@draw_rects >= 25 && @draw_named == @draw_rects && keys(%draw_once) == @draw_named && out('drawguard') eq "painted=4 drawn=red,red,red smooth=true,true,true,true pdf=1 read=undrawn test TypeError: null is not an object (evaluating 'null.nothing')| after=quiet\n"
+    && $text_of_lzrprf =~ /^            if \(\$line =~ \/\^undrawn \(\[a-z\]\{1,20\}\) \(\[\\x20-\\x7e\]\{0,200\}\)\$\/\) \{ record\(.*\); next \}/m && $text_of_lzrprf =~ /^function behindGone\(\) \{\n    behindEnded = true;/m,
+    'every drawRect: of the window goes through viewDrawn, each view by a name of its own: what a painting function throws is caught there and never leaves through AppKit, which ends the window (+[NSApplication _crashOnException:] from _NSViewDrawRect); what the view painted before its fault stays and the graphics state it changed is given back, it is drawn again next time, its first fault alone is said to lzrprf behind the window, which keeps it in the log wherever it listens (sub hear), and once lzrprf is gone nothing is written into its pipe, where a write would end the window by the signal PIPE (viewDrawn and say of lzrprf around a view of the test\'s own, drawn with no window into a real pipe)',
+    scalar(@draw_named) . ' of ' . scalar(@draw_rects) . ' drawRect: through viewDrawn; ' . out('drawguard') . err('drawguard'));
 my $later_heard = later_heard();
 check($later_heard eq 'press=2 kept=tor on,tor off seen=tor on,view 900 700,tor off next=tor on,tor off left=0', 'Tor turned on and then off in the window while a question is open is kept, in its order, and heard by the loop of sub behind right after the answer, the first thing it hears; the question takes the answer that names it: "sub asked" and "sub hear", read from lzrprf and run here', $later_heard);
 check(($at{pressed} // '') =~ /^selected=0 pending=tab select 0 kept text=A page by the hostile/ && ($at{kept} // '') =~ /^selected=0 tabs=2 drawn=0 pending=true kept1=true text=A page by the hostile/ && asked('/window?q=2') == 1,

@@ -197,6 +197,7 @@ my $INSTALL_SECONDS = 1800;               # the installer of a newer release is 
 my $INSTALL_TRIES = 12;                 # how often the installer is fetched from both places while the two differ: a release being published reaches one place minutes before the other
 my $INSTALL_WAIT = 30;                   # the seconds between those tries: twelve cover the five minutes one place may keep its old copy
 my $INSTALL_LINE = 2000;                  # the most characters of one line the installer printed that the window is given; a longer one is given in parts
+my @INSTALL_STOPS = qw(TERM HUP INT QUIT USR1 USR2 XCPU);    # the signals that would end lzrprf behind the window without a word: from "install begin" to the end of an install, each is said in install.txt, the window and the log, and lzrprf stops; an installer that runs goes on, its lines read on into install.txt (sub installed, sub install_drained)
 sub fresh_tab { return { url => '', title => '', visited => [], at => -1, shown => undef, says => undef, secure => undef } }    # a tab: the address in its bar, its page's title, the addresses it went to and where in them it stands (back and forward), its page shown as $SHOWN keeps it, lzrprf's last words in it, what lzrprf saw of the connection its page came over
 my @TABS = (fresh_tab());                 # the window's tabs, in the order the window shows them; the page of the selected one is the only one shown, and it is $SHOWN while it is selected
 my $TAB = 0;                              # which tab is selected
@@ -208,6 +209,7 @@ my @MARKS;                                # the bookmarks as last told to the wi
 my $TITLED = '';                          # the title of the page the last checked run wrote, '' for none (sub checked)
 my %MORE = (nothing => 0, hosts => 1, all => 2);    # what is kept, from less to more
 my $HALF;                                 # the line of a change reached the log, and the system did not say that it is on the disk
+my $FRESH = $$;                           # the number of the process the system started afresh for this file; a copy made by fork has another one. A guard, which changed nothing that ran when it came: sub lookup is only reached by "lzrprf lookup", a fresh process, and sub numbered does what find did before. It keeps a later change from looking a name up in a copy, where the system's libraries end a copy of a process with more than one thread the moment a lookup loads them (+[NSString initialize] ... when fork() was called: an uncommitted change crashed so on 2026-11-21 05:01 to 05:04); and the stop signals of an install end a copy at once (sub installed)
 my (@SESSION, $UNMARKED, $MARKED, $UNEXPIRED);    # this window's lines, in the memory of the process behind it and nowhere else; whether a log could not be marked for Time Machine; whether this process marked it; whether the days you chose still wait for another window's request to end
 
 sub now { Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) }    # a clock nobody can set: seconds since the computer started
@@ -2924,6 +2926,17 @@ sub fault {
 # libraries refuse a lookup in a copy that was not started afresh. The way to
 # each address it gave is then asked of the system for all of them at once.
 my $LOOKUP = 'use Socket qw(SOCK_STREAM NI_NUMERICHOST NI_NUMERICSERV getaddrinfo getnameinfo); my ($failed, @all) = getaddrinfo($ARGV[0], 443, { socktype => SOCK_STREAM }); print map { (getnameinfo($_->{addr}, NI_NUMERICHOST | NI_NUMERICSERV))[1] . "\n" } $failed ? () : @all;';
+# An address written as a number, as the system's own: its family and the
+# address to connect to, or nothing for text that is not a number. Never a
+# lookup (AI_NUMERICHOST), so it is safe in a copy made by fork too. The same
+# call find made before, given one place: this and sub lookup are the only
+# places in this file that call getaddrinfo, and a name is looked up only by
+# $LOOKUP in a fresh perl or by "lzrprf lookup", as before.
+sub numbered {
+    my ($failed, $one) = getaddrinfo($_[0], 443, { socktype => SOCK_STREAM, flags => AI_NUMERICHOST });
+    return $failed || !$one ? undef : $one;
+}
+
 # Returns the addresses the name leads to, each with whether it is "own":
 # not on the public internet, or reached by a route of its own. At most eight
 # are returned: the first eight this computer has a way to. An address it has
@@ -2942,8 +2955,8 @@ sub find {
     my (@where, %had, @numbers, $looked);
     for my $text (grep { /^[0-9A-Fa-f:.]+(?:%[A-Za-z0-9]+)?$/ && !$had{$_}++ } split /\n/, $found) {
         last if ++$looked > $LOOKED;
-        my ($failed, $one) = getaddrinfo($text, 443, { socktype => SOCK_STREAM, flags => AI_NUMERICHOST });    # a number is turned into a number: nothing is looked up
-        push @numbers, { %$one, text => $text } unless $failed || !$one;
+        my $one = numbered($text) or next;
+        push @numbers, { %$one, text => $text };
     }
     my @families = do { my %once; grep { !$once{$_}++ } map { $_->{family} } @numbers };
     my @says = said_all(5, (map { route_asked($_->{family}, $_->{text}) } @numbers), map { route_asked($_, 'default') } @families);    # the way to each address and the default way, asked of the system all at once
@@ -4154,12 +4167,48 @@ sub welcome {
 # it says done or failed. After done, lzrprf takes nothing more in this
 # window: the application was replaced, and is started again. lzrprf itself
 # replaces nothing: whatever is replaced is replaced by that installer.
+# The installer runs in a session of its own, so a signal meant for lzrprf's
+# group does not reach it, nor one of its own reach lzrprf. From "install
+# begin" to the end, a signal that would end lzrprf without a word
+# (@INSTALL_STOPS) is said in install.txt, the modal and the log, and lzrprf
+# stops there. An installer that runs then goes on, and a process of its own
+# reads its lines on into install.txt (sub install_drained); each line
+# reaches install.txt as it comes. The window is told when the installer
+# starts and when lzrprf stops while it runs, and when lzrprf is gone before
+# the install ended it keeps the modal open and says what is true of the
+# installer. A file grown past the size the system allows fails its write
+# and ends nothing (signal XFSZ).
 my %INK = (31 => 'r', 32 => 'g', 33 => 'y', 34 => 'b', 35 => 'm', 36 => 'c', 37 => 'w', 91 => 'r', 92 => 'g', 93 => 'y', 94 => 'b', 95 => 'm', 96 => 'c', 97 => 'w');    # the colours of a terminal, as one letter each
 my $INSTALL_LOG;                          # install.txt in the state folder (sub shared) while an installer runs
 sub installed {
     my ($there, $installer, $same) = @_;
+    my %run = (phase => 'fetch', held => '');    # phase: fetch until the installer is started, run while it runs, after once it ended
+    local $SIG{XFSZ} = 'IGNORE';          # install.txt grown past the size the system allows: that write fails, and nothing ends lzrprf
+    local @SIG{@INSTALL_STOPS} = (sub { POSIX::_exit(1) unless $$ == $FRESH; die "lzrprf told $_[0]\n" }) x @INSTALL_STOPS;    # from "install begin" to the end, the restart included; a copy made by fork that has not yet become its program ends at once, never going on as lzrprf
+    my $told = eval { install_run(\%run, $there, $installer, $same); '' } // ($@ =~ /\Alzrprf told ([A-Z0-9]+)\n\z/ ? $1 : die $@);
+    return unless length $told;
+    if ($run{phase} eq 'fetch') {         # no installer was started: nothing was changed
+        record("lzrprf behind this window was told to stop by the signal $told before the installer of release $there ran: nothing was changed");
+        install_end(0, "lzrprf behind this window was told to stop by the signal $told before the installer ran, and stops here. Nothing was changed.") if $INSTALL_LOG;
+    } elsif ($run{phase} eq 'run') {      # the installer runs, in its own session: its lines go on into install.txt by a process of its own, and it goes on by itself
+        install_line($run{held}) if length $run{held};
+        $run{held} = '';
+        my $drained = install_drained($run{from}, $run{until});
+        close $run{from};
+        record("lzrprf behind this window was told to stop by the signal $told while the installer of release $there ran: it stops, and the installer goes on by itself" . ($drained ? ', its lines into install.txt' : ', and no process could be started to read its lines'));
+        install_end(0, "lzrprf behind this window was told to stop by the signal $told, and stops here. The installer goes on by itself" . ($drained ? ', and each line it prints goes on into install.txt.' : '. No process could be started to read what it prints, so it may stop at its next line.'));
+        print STDOUT "install told $told" . ($drained ? '' : ' undrained') . "\n";    # the window keeps its modal open when lzrprf is gone: undrained, with the words of an installer nothing reads
+    } else {                              # the installer had ended, and how was said: only that lzrprf stops
+        record("lzrprf behind this window was told to stop by the signal $told after the installer of release $there had ended");
+    }
+    leave();
+}
+
+sub install_run {
+    my ($run, $there, $installer, $same) = @_;
     window('install begin');
     sysopen($INSTALL_LOG, "${\ shared()}/install.txt", O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600) or undef $INSTALL_LOG;
+    $INSTALL_LOG->autoflush(1) if $INSTALL_LOG;    # each line reaches install.txt as it comes: a run that ends without its own end still leaves every line it was given
     my @is = $INSTALL_LOG ? stat $INSTALL_LOG : ();
     undef $INSTALL_LOG unless @is && -f _ && $is[3] == 1 && $is[4] == $<;
     return install_end(0, "${\ shared()}/install.txt could not be written, so nothing was fetched.") unless $INSTALL_LOG;
@@ -4197,14 +4246,77 @@ sub installed {
     return install_end(0, 'lzrprf try: the installer was written and is not run.') if $TRY;
     install_line('It runs now by itself: no question is shown, and each line it prints is shown here.');
     pipe(my $from, my $to) or return install_end(0, 'The installer could not be started. Nothing was changed.');
-    my $child = fork // return install_end(0, 'The installer could not be started. Nothing was changed.');
-    if (!$child) {
+    my $stops = POSIX::SigSet->new(map { POSIX->can("SIG$_")->() } @INSTALL_STOPS);
+    POSIX::sigprocmask(POSIX::SIG_BLOCK(), $stops);    # held from the fork until the phase says it: a signal in between is taken once it does
+    my $child = fork;
+    if (defined $child && !$child) {
+        POSIX::sigprocmask(POSIX::SIG_UNBLOCK(), $stops);    # the installer starts with no signal held
         close $from;
+        POSIX::setsid();                  # a session of its own: a signal to the group of lzrprf behind this window does not reach the installer, and the installer's own group signals do not reach lzrprf
         chdir $folder or POSIX::_exit(127);
         become(undef, $to, $to, '/usr/bin/env', '-i', 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', "HOME=$HOME", 'TERM=dumb', '/bin/sh', 'install.sh', 'auto');
     }
+    @$run{qw(phase from until)} = ('run', $from, now() + $INSTALL_SECONDS) if defined $child;
+    print STDOUT "install runs\n" if defined $child;    # the installer was started: from here on the window knows it may go on without lzrprf
+    POSIX::sigprocmask(POSIX::SIG_UNBLOCK(), $stops);
+    defined $child or return install_end(0, 'The installer could not be started. Nothing was changed.');
     close $to;
-    my ($held, $until) = ('', now() + $INSTALL_SECONDS);
+    my ($how, $piped, $late);
+    {
+        local $SIG{PIPE} = sub {          # the window stopped reading: the installer's lines still go on into install.txt, said once
+            return if $piped++;
+            print {$INSTALL_LOG} "lzrprf behind this window could no longer write to the window (signal PIPE): the installer's lines go on into this file.\n" if $INSTALL_LOG;
+            record('the window stopped reading while the installer ran (signal PIPE): its lines go on into install.txt');
+        };
+        while ((my $left = $run->{until} - now()) > 0) {
+            my $ready = '';
+            vec($ready, fileno $from, 1) = 1;
+            select($ready, undef, undef, $left > 1 ? 1 : $left) > 0 or next;
+            my $got = sysread($from, $run->{held}, 65536, length $run->{held});
+            next if !defined $got && $!{EINTR};
+            last unless $got;
+            install_line($1) while $run->{held} =~ s/\A([^\n]*)\n//;
+            install_line(substr($run->{held}, 0, $INSTALL_LINE, '')) while length $run->{held} > 4 * $INSTALL_LINE;    # a line with no end yet is given in parts once it is this long
+        }
+        POSIX::sigprocmask(POSIX::SIG_BLOCK(), $stops);    # the end of the installer is taken whole: a signal now is taken as one after it
+        install_line($run->{held}) if length $run->{held};
+        $run->{held} = '';
+        $late = now() >= $run->{until};
+        $how = ended($child, 5);
+        close $from;
+        $run->{phase} = 'after';
+    }
+    if ($late) { install_end(0, "The installer was ended after $INSTALL_SECONDS seconds. What it printed is above.") }
+    elsif ($how != 0) { install_end(0, 'The installer ended with an error (' . ($how >> 8) . '). What it printed is above.') }
+    else { install_end(1, "The installer says it is done. Close $APP, or close it and start the new release at once.") }
+    POSIX::sigprocmask(POSIX::SIG_UNBLOCK(), $stops);    # held until the end is in the window and in install.txt: a signal in the end's wait is taken here, after it
+    restarted() if !$late && $how == 0;
+}
+
+# The installer's lines once lzrprf behind the window stops while it runs: a
+# process of its own, in a session of its own and deaf to the signals that
+# stop lzrprf, reads them on into install.txt until the installer ends or its
+# time is over. So the installer, which takes no signal PIPE, is never left
+# writing into a pipe nobody reads, where its next line would fail and end it.
+# It holds nothing of the window's and nothing else of lzrprf's: the window
+# sees lzrprf gone, and the lock lzrprf holds while it lives is let go.
+sub install_drained {
+    my ($from, $until) = @_;
+    my $stops = POSIX::SigSet->new(map { POSIX->can("SIG$_")->() } @INSTALL_STOPS);
+    POSIX::sigprocmask(POSIX::SIG_BLOCK(), $stops);    # held from here: lzrprf behind the window only ends after this, and the reader takes none until it is deaf to them
+    my $drainer = fork // return 0;
+    return 1 if $drainer;
+    $SIG{$_} = 'IGNORE' for @INSTALL_STOPS, 'PIPE', 'XFSZ';
+    POSIX::setsid();
+    POSIX::sigprocmask(POSIX::SIG_UNBLOCK(), $stops);
+    my $nowhere = POSIX::open('/dev/null', O_RDWR) // POSIX::_exit(1);
+    POSIX::dup2($nowhere, $_) // POSIX::_exit(1) for 0 .. 2;
+    my %kept = map { $_ => 1 } fileno($from), $INSTALL_LOG ? fileno($INSTALL_LOG) : ();
+    opendir(my $open, '/dev/fd') or POSIX::_exit(1);
+    my @numbers = grep { /^\d+$/ && $_ > 2 && !$kept{$_} } readdir $open;
+    closedir $open;
+    POSIX::close($_) for @numbers;
+    my $held = '';
     while ((my $left = $until - now()) > 0) {
         my $ready = '';
         vec($ready, fileno $from, 1) = 1;
@@ -4213,15 +4325,10 @@ sub installed {
         next if !defined $got && $!{EINTR};
         last unless $got;
         install_line($1) while $held =~ s/\A([^\n]*)\n//;
-        install_line(substr($held, 0, $INSTALL_LINE, '')) while length $held > 4 * $INSTALL_LINE;    # a line with no end yet is given in parts once it is this long
+        install_line(substr($held, 0, $INSTALL_LINE, '')) while length $held > 4 * $INSTALL_LINE;
     }
     install_line($held) if length $held;
-    my $late = now() >= $until;
-    my $how = ended($child, 5);
-    return install_end(0, "The installer was ended after $INSTALL_SECONDS seconds. What it printed is above.") if $late;
-    return install_end(0, 'The installer ended with an error (' . ($how >> 8) . '). What it printed is above.') unless $how == 0;
-    install_end(1, "The installer says it is done. Close $APP, or close it and start the new release at once.");
-    restarted();
+    POSIX::_exit(0);
 }
 
 # After an install that is done lzrprf takes nothing more in this window, which
@@ -4375,6 +4482,7 @@ sub hear {                                # the next thing the window says; noth
             my $line = substr($FROM_HELD, 0, $end + 1, '');
             chomp $line;
             print STDERR "$line\n" if $TRY && $line =~ /^(?:test|fault) /;    # "lzrprf try" only: what a test's own text in the window reports
+            if ($line =~ /^undrawn ([a-z]{1,20}) ([\x20-\x7e]{0,200})$/) { record("the window could not finish drawing its $1 view this once, and goes on: $2"); next }    # said by function viewDrawn in the window, the first fault of each view once: kept in the log wherever lzrprf listens, in the loop of sub behind, in a question or after an install
             return $line;
         }
         my ($ready, $wait) = ('', defined $until ? $until - now() : undef);
@@ -5157,6 +5265,7 @@ sub testing {
 }
 
 sub lookup {                              # every address a name leads to, as numbers, one on a line
+    return unless $$ == $FRESH;           # only in a process started afresh ("lzrprf lookup NAME"): a copy made by fork looks up nothing here, and is given no address
     my ($failed, @all) = getaddrinfo($_[0], 443, { socktype => SOCK_STREAM });
     print map { (getnameinfo($_->{addr}, NI_NUMERICHOST | NI_NUMERICSERV))[1] . "\n" } $failed ? () : @all;
 }
@@ -5207,7 +5316,7 @@ function pointIn(view, event) { return view.convertPointFromView(event.locationI
 
 var root, homeView, listScroll, listView, secureBox, secureScroll, secureText, engineField, listing = null, logParts = null, logRows = [], logNote = '', logLaid = null, logClosing = false, briefNext = null, pageShown = false, navState = [0, 0, 0], searchSet = false, searchNext = null, secureLines = null, securePinned = false;    // the frame every view stands in, the home page, the list page, the lock's panel; which list is open; whether a page is drawn; what back, forward and reload would do; whether a search engine is chosen and what follows its choice; the lock's lines
 
-function say(line) { to.writeData($(line + '\n').dataUsingEncoding(4)); }
+function say(line) { if (!behindEnded) to.writeData($(line + '\n').dataUsingEncoding(4)); }    // once lzrprf is gone a write to its pipe would end the window (signal PIPE: osascript has no handler for it), so nothing is written
 
 // A page kept running with its tab (lzrprf's "live on"): a click in it is told to lzrprf as "page click X Y", in
 // CSS pixels of the laid page, which are the laid view's own bounds after lzrprf's scrolling; it then has the
@@ -7745,6 +7854,7 @@ function torBeamDrawn(view) {
 
 function modal(title, about, choices, kind) {
     welcoming = false;
+    installState = '';    // set again by installTold when this modal is the installer's
     cogHidden();
     modalOpen = true;
     modalKind = kind;
@@ -7958,12 +8068,14 @@ function redirectTold(rest) {
 var INKS = { r: [1, 0.36, 0.36], g: [0, 1, 0.255], y: [1, 0.93, 0.25], b: [0.45, 0.65, 1], m: [1, 0.45, 1], c: [0.35, 1, 1], w: [1, 1, 1], '-': [0.78, 0.92, 0.8] };
 function installTold(rest) {
     var gap = rest.indexOf(' '), word = gap < 0 ? rest : rest.slice(0, gap), more = gap < 0 ? '' : rest.slice(gap + 1);
-    if (word == 'begin') modal('Installing a newer release', 'The installer runs here by itself and asks nothing. This cannot be closed until it ends.', [], 'big');
+    if (word == 'begin') { modal('Installing a newer release', 'The installer runs here by itself and asks nothing. This cannot be closed until it ends.', [], 'big'); installState = 'fetch'; }
     else if (!modalOpen || modalKind != 'big') return;
+    else if (word == 'runs' || word == 'told') installState = word == 'told' && more.slice(-10) == ' undrained' ? 'runs' : word;    // the installer was started; lzrprf stops while it runs, and a process of its own reads its lines on, or none could be started (undrained)
     else if (word == 'sum') panelSub.stringValue = $('The installer runs here by itself and asks nothing. Its SHA-256: ' + more);
     else if (word == 'line') installLine(more.slice(2), more.charAt(0));
     else if (word == 'end') {
         var done = more.slice(0, 5) == 'done ';
+        installState = 'ended';
         panelTitle.stringValue = $(done ? 'The install is done' : 'The install failed');
         panelTitle.textColor = done ? WHITE : YELLOW;
         panelSub.stringValue = $(done ? 'The new release is in place. Close LZRBRWSR, or close it and start the new release now.' : 'Nothing more runs. What the installer printed is below, and kept in ~/.lzrprf/install.txt.');
@@ -7988,6 +8100,24 @@ function welcomeTold(rest) {
         store.appendAttributedString(one);
     }
     else if (word == 'end') { panelText.scrollRangeToVisible($.NSMakeRange(0, 0)); buttons([['Got it', function () { closeModal(); say('welcomed'); }]]); }
+}
+// lzrprf behind this window is gone: the end of its pipe. From here on nothing is said to it (sub say). The window
+// goes with it, except while the installer's modal is open and its install has not ended: then the modal says what is
+// true of the installer, by what lzrprf said last, and keeps one button, Close, which ends the window. After the
+// install's end the window goes too, as after "Close and restart", whose restart waits for the window to be gone.
+var installState = '', behindEnded = false, BEHIND_GONE = {
+    fetch: 'lzrprf behind this window ended before the installer ran. Nothing was changed.',
+    runs: 'lzrprf behind this window ended while the installer ran. Nothing reads what it prints now, so it may stop at its next line; what it printed so far is in ~/.lzrprf/install.txt.',
+    told: 'lzrprf behind this window ended. The installer goes on by itself, and each line it prints goes on into ~/.lzrprf/install.txt.'
+};
+function behindGone() {
+    behindEnded = true;
+    if (!(modalOpen && modalKind == 'big' && BEHIND_GONE[installState])) { app.terminate(win); return; }
+    panelTitle.stringValue = $('lzrprf behind this window ended');
+    panelTitle.textColor = YELLOW;
+    panelSub.stringValue = $(BEHIND_GONE[installState]);
+    installLine(BEHIND_GONE[installState], 'y');
+    buttons([['Close', function () { app.terminate(win); }]]);
 }
 var welcomeInk = null, welcoming = false, CYAN_INK = $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.35, 1, 1, 1);
 
@@ -8204,6 +8334,24 @@ function listed(lines) {
     techPlaced();
 }
 
+// Every view's drawRect: goes through here. What a painting function throws
+// inside drawRect: would leave through AppKit, which ends the whole window
+// (+[NSApplication _crashOnException:] from _NSViewDrawRect: the window of
+// 2026-11-21 05:14 ended 0.6 s after it opened, on its first drawing). Here
+// it is caught: what the view painted before the fault stays, the rest of it
+// is not drawn this once, and the graphics state it changed is given back.
+// The first fault of each view is said to lzrprf behind the window, which
+// keeps it in the log.
+var undrawnSaid = {};
+function viewDrawn(view, paintIt) {
+    $.NSGraphicsContext.saveGraphicsState;
+    try { paintIt(); } catch (fault) {
+        if (undrawnSaid[view]) return;
+        undrawnSaid[view] = true;
+        try { say('undrawn ' + view + ' ' + String(fault).replace(/[^\x20-\x7e]/g, '?').slice(0, 200)); } catch (lost) { }
+    } finally { $.NSGraphicsContext.restoreGraphicsState; }
+}
+
 ObjC.registerSubclass({ name: 'LzrprfPage', superclass: 'NSTextView', methods: {
     // The page's own menu: Copy, and nothing that looks anything up or opens anything.
     'menuForEvent:': { types: ['id', ['id']], implementation: function (event) {
@@ -8216,40 +8364,40 @@ ObjC.registerSubclass({ name: 'LzrprfPage', superclass: 'NSTextView', methods: {
 ObjC.registerSubclass({ name: 'LzrprfLaid', superclass: 'NSView', methods: {
     // A laid page is measured from its top, as the application laid it out. It has no menu of its own.
     'isFlipped': { implementation: function () { return true; } },
-    'drawRect:': { implementation: function (dirty) { paint(dirty); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('laid', function () { paint(dirty); }); } },
     'acceptsFirstResponder': { implementation: function () { return liveOn; } },    // the keyboard only for a page kept running
     'mouseDown:': { implementation: function (event) { pageClicked(event); } },
     'keyDown:': { implementation: function (event) { pageKey(event); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfFrame', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintFrame(dirty); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('frame', function () { paintFrame(dirty); }); } },
     'mouseDown:': { implementation: function (event) { frameClicked(event); } },
     'resetCursorRects': { implementation: function () { frameCursors(); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfHome', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintHome(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('home', function () { paintHome(); }); } },
     'mouseDown:': { implementation: function (event) { homeClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('home', event); } },
     'mouseExited:': { implementation: function (event) { hovered('home', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfShot', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { try { paintShot(); } catch (e) { } } },    // a frame that cannot be drawn is skipped: it never ends the window
+    'drawRect:': { implementation: function (dirty) { viewDrawn('shot', function () { paintShot(); }); } },
     'hitTest:': { implementation: function (point) { return $(); } }    // no press is its own: every one goes to what lies under it
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfList', superclass: 'NSView', methods: {
     'isFlipped': { implementation: function () { return true; } },
-    'drawRect:': { implementation: function (dirty) { paintList(dirty); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('list', function () { paintList(dirty); }); } },
     'mouseDown:': { implementation: function (event) { listClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('list', event); } },
     'mouseExited:': { implementation: function (event) { hovered('list', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfCogMenu', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintCogMenu(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('cogmenu', function () { paintCogMenu(); }); } },
     'mouseDown:': { implementation: function (event) { cogMenuClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('cogmenu', event); } },
     'mouseExited:': { implementation: function (event) { hovered('cogmenu', null); } }
@@ -8263,42 +8411,42 @@ ObjC.registerSubclass({ name: 'LzrprfCatch', superclass: 'NSView', methods: {
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfLogIcon', superclass: 'NSButton', methods: {
-    'drawRect:': { implementation: function (dirty) { paintIcon(logs, logGlyph, hover.logIcon, logs.enabled, false); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('logicon', function () { paintIcon(logs, logGlyph, hover.logIcon, logs.enabled, false); }); } },
     'mouseEntered:': { implementation: function (event) { hovered('logIcon', event); } },
     'mouseExited:': { implementation: function (event) { hovered('logIcon', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfTechIcon', superclass: 'NSButton', methods: {
-    'drawRect:': { implementation: function (dirty) { paintIcon(techs, techGlyph, hover.techIcon, !modalOpen, techOpen); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('techicon', function () { paintIcon(techs, techGlyph, hover.techIcon, !modalOpen, techOpen); }); } },
     'mouseEntered:': { implementation: function (event) { hovered('techIcon', event); } },
     'mouseExited:': { implementation: function (event) { hovered('techIcon', null); } }
 } });
 
 
 ObjC.registerSubclass({ name: 'LzrprfTorIcon', superclass: 'NSButton', methods: {
-    'drawRect:': { implementation: function (dirty) { torIconDrawn(torIcon); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('toricon', function () { torIconDrawn(torIcon); }); } },
     'mouseEntered:': { implementation: function (event) { hovered('torIcon', event); } },
     'mouseExited:': { implementation: function (event) { hovered('torIcon', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfToolIcon', superclass: 'NSButton', methods: {
-    'drawRect:': { implementation: function (dirty) { toolIconDrawn(toolIcon); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('toolicon', function () { toolIconDrawn(toolIcon); }); } },
     'mouseEntered:': { implementation: function (event) { hovered('toolIcon', event); } },
     'mouseExited:': { implementation: function (event) { hovered('toolIcon', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfTool', superclass: 'NSView', methods: {
     'isFlipped': { implementation: function () { return true; } },
-    'drawRect:': { implementation: function (dirty) { try { paintTool(); } catch (e) { } } },    // a list that cannot be drawn is left undrawn: it never ends the window
+    'drawRect:': { implementation: function (dirty) { viewDrawn('tool', function () { paintTool(); }); } },
     'mouseDown:': { implementation: function (event) { toolClicked(event); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfTorBeam', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { try { torBeamDrawn(torView); } catch (e) { } } }    // a frame that cannot be drawn is skipped: it never ends the window
+    'drawRect:': { implementation: function (dirty) { viewDrawn('torbeam', function () { torBeamDrawn(torView); }); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfSuggest', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintSuggest(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('suggest', function () { paintSuggest(); }); } },
     'mouseDown:': { implementation: function (event) { suggestClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('suggest', event); } },
     'mouseExited:': { implementation: function (event) { hovered('suggest', null); } }
@@ -8306,78 +8454,78 @@ ObjC.registerSubclass({ name: 'LzrprfSuggest', superclass: 'NSView', methods: {
 
 ObjC.registerSubclass({ name: 'LzrprfWizard', superclass: 'NSView', methods: {
     'isFlipped': { implementation: function () { return true; } },
-    'drawRect:': { implementation: function (dirty) { paintWizard(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('wizard', function () { paintWizard(); }); } },
     'mouseDown:': { implementation: function (event) { wizClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('wiz', event); } },
     'mouseExited:': { implementation: function (event) { hovered('wiz', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfFind', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { try { paintFind(); } catch (e) { } } },    // a bar that cannot be drawn is left undrawn: it never ends the window
+    'drawRect:': { implementation: function (dirty) { viewDrawn('find', function () { paintFind(); }); } },
     'mouseDown:': { implementation: function (event) { findClicked(event); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfSecure', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintSecure(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('secure', function () { paintSecure(); }); } },
     'mouseDown:': { implementation: function (event) { } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfTabs', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintTabs(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('tabs', function () { paintTabs(); }); } },
     'mouseDown:': { implementation: function (event) { tabClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('tabs', event); } },
     'mouseExited:': { implementation: function (event) { hovered('tabs', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfBelt', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintBelt(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('belt', function () { paintBelt(); }); } },
     'mouseDown:': { implementation: function (event) { beltClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('belt', event); } },
     'mouseExited:': { implementation: function (event) { hovered('belt', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfCog', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintCog(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('cog', function () { paintCog(); }); } },
     'mouseDown:': { implementation: function (event) { cogClicked(); } },
     'mouseEntered:': { implementation: function (event) { hovered('cog', event); } },
     'mouseExited:': { implementation: function (event) { hovered('cog', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfFaces', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintFaces(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('faces', function () { paintFaces(); }); } },
     'mouseDown:': { implementation: function (event) { facesClicked(); } },
     'mouseEntered:': { implementation: function (event) { hovered('faces', event); } },
     'mouseExited:': { implementation: function (event) { hovered('faces', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfStar', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintStar(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('star', function () { paintStar(); }); } },
     'mouseDown:': { implementation: function (event) { starClicked(); } },
     'mouseEntered:': { implementation: function (event) { hovered('star', event); } },
     'mouseExited:': { implementation: function (event) { hovered('star', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfMarks', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintMarks(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('marks', function () { paintMarks(); }); } },
     'mouseDown:': { implementation: function (event) { marksClicked(event); } },
     'mouseMoved:': { implementation: function (event) { hovered('marks', event); } },
     'mouseExited:': { implementation: function (event) { hovered('marks', null); } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfBack', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintBack(); } }
+    'drawRect:': { implementation: function (dirty) { viewDrawn('back', function () { paintBack(); }); } }
 } });
 
 // The veil under the modal takes every click and scroll, so nothing under it is reached.
 ObjC.registerSubclass({ name: 'LzrprfVeil', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { $.NSColor.colorWithWhiteAlpha(0, 0.62).setFill; $.NSRectFillUsingOperation(dirty, 2); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('veil', function () { $.NSColor.colorWithWhiteAlpha(0, 0.62).setFill; $.NSRectFillUsingOperation(dirty, 2); }); } },
     'mouseDown:': { implementation: function (event) { } },
     'rightMouseDown:': { implementation: function (event) { } },
     'scrollWheel:': { implementation: function (event) { } }
 } });
 
 ObjC.registerSubclass({ name: 'LzrprfPanel', superclass: 'NSView', methods: {
-    'drawRect:': { implementation: function (dirty) { paintPanel(); } },
+    'drawRect:': { implementation: function (dirty) { viewDrawn('panel', function () { paintPanel(); }); } },
     'mouseDown:': { implementation: function (event) { } }
 } });
 
@@ -8461,7 +8609,7 @@ ObjC.registerSubclass({ name: 'LzrprfHand', superclass: 'NSObject', methods: {
     // neither keeps the lines after it from being heard, and the window is always told of the next bytes.
     'heard:': { types: ['void', ['id']], implementation: function (note) {
         var data = from.availableData;
-        if (data.length == 0) { app.terminate(win); return; }    // lzrprf is gone: so is its window
+        if (data.length == 0) { behindGone(); return; }    // lzrprf is gone: so is its window, unless the installer's modal is open
         try {
             if (!NEWLINE) NEWLINE = $('\n').dataUsingEncoding(4);
             var start = +held.length;    // a length and a place in bytes come from the bridge as text: each is made a number before it is added to
@@ -8890,8 +9038,8 @@ elsif ($command eq 'address' && @ARGV) { print "$_\t", (address($_))[0] // 'not 
 elsif ($command eq 'request' && @ARGV) { my $other = $ARGV[0] eq '--other' && shift @ARGV; print request((address($_))[0] // '', !$other) for @ARGV }
 elsif ($command eq 'public' && @ARGV) {
     for my $number (@ARGV) {
-        my ($failed, $one) = getaddrinfo($number, 443, { socktype => SOCK_STREAM, flags => AI_NUMERICHOST });
-        my $route = $failed || !$one ? '' : route($one->{family}, $number) // 'none';
+        my $one = numbered($number);
+        my $route = !$one ? '' : route($one->{family}, $number) // 'none';
         print "$number\t", public($number) ? 'on the public internet' : 'not public: this computer or a network of your own',
             "\t", { internet => 'sent the way the internet at large is', own => 'sent by a route of its own', none => 'no way there from this computer', '' => 'not a numeric address' }->{$route}, "\n";
     }
