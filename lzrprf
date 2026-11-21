@@ -5,9 +5,11 @@
 #
 #   lzrprf run /path/to/program [arguments]     open the window, with the program contained behind it
 #   lzrprf incognito [/path/to/program [args]]  the same in an incognito window, which leaves nothing behind when it closes [C16]
+#   lzrprf run|incognito --profile ID /path/to/program [args]     the window of a profile other than the first, named by the id lzrprf made for it (12 hex digits), never by its name; it may stand before --open
+#   lzrprf profiles                             print each profile's id and its name; --profile takes any id but "first", the profile used without it
 #   lzrprf run|incognito --open "X Y W H" /path/to/program [args]   the window of a tab pulled out of another window, opened at that frame: the tab's address comes as one line on standard input, never as an argument, since every user of the computer can read the arguments of a process
-#   lzrprf log                                  print what the log on this computer holds
-#   lzrprf keep [nothing|hosts|all [DAYS]]      say, or choose, what is kept after a window closes
+#   lzrprf log [--profile ID]                   print what the log on this computer holds: the first profile's, or that profile's
+#   lzrprf keep [--profile ID] [nothing|hosts|all [DAYS]]   say, or choose, what is kept after a window closes: of the first profile, or of that one
 #   lzrprf address TEXT...                      say what would be fetched if TEXT were typed into the bar
 #   lzrprf request [--other] TEXT...            print the exact bytes a site is sent for TEXT: as a page you visit, or with --other as a picture, a style sheet or the release file
 #   lzrprf public NUMBER...                     say whether a numeric address is on the public internet, and how this computer would send to it
@@ -46,7 +48,7 @@
 #   [C12] Nothing of what you fetched stays on the disk unless you chose a kept log, apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file .order of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (install.txt), a licence code you entered (licence) and the reference and key of the support request you sent last (support), never its words; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so.
 #   [C13] The application opens no file for its fonts: lzrprf hands it eight fonts of the Mac, by fixed paths, in front of a page's answer and never a picture's, each a plain file and no link of at most 2 MiB that begins as a font, or with length 0; and only after the system said that the application is contained.
 #   [C14] A page is laid out at most twice: a second time only when its first run named style sheets on the page's own host, at most eight, which lzrprf fetches and hands the second run in front of the answer, after the fonts, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown, the first run's page is; there is never a third run, and a picture run is handed no style sheet.
-#   [C16] An incognito window writes nothing that outlives it. Its log, history, tabs, suggestions and everything it fetched are held in its memory or in one folder it makes for itself, readable by you alone, in your own temporary folder (TMPDIR, /private/var/folders/.../T), named lzrprf-i.<its process number>.<12 random hex digits>. Of ~/.lzrprf it reads, and never writes, the self-test's result (proven, untested, selftest.lock), the home page, the search address, whether the bookmarks bar is shown and the bookmarks. The folder is removed when the window ends, however it ends: quit, its last window closed, a signal, its process dying; and a folder left by a run whose processes are all gone is removed at the next start of any lzrprf window.
+#   [C16] An incognito window writes nothing that outlives it. Its log, history, tabs, suggestions and everything it fetched are held in its memory or in one folder it makes for itself, readable by you alone, in your own temporary folder (TMPDIR, /private/var/folders/.../T), named lzrprf-i.<its process number>.<12 random hex digits>. Of ~/.lzrprf it reads, and never writes, the self-test's result (proven, untested, selftest.lock), the home page, the search address, whether the bookmarks bar is shown and the bookmarks; opened from the window of a profile other than the first, it reads these four of that profile's folder instead, by the id on its command line. The folder is removed when the window ends, however it ends: quit, its last window closed, a signal, its process dying; and a folder left by a run whose processes are all gone is removed at the next start of any lzrprf window.
 #   [C17] Tor is off until you turn it on in the window, and while it is off no Tor client runs. Turned on, lzrprf starts the client that stands beside the program, named by its SHA-256 in the release file, in a container of its own (its own folder and the network, nothing of yours), and every address is then fetched through it, the site's host its SOCKS user so each site has its own circuit; nothing is looked up or fetched directly, also while it connects or when it does not. Turned off, the client is ended.
 #   [C15] Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: Local State and each profile's Bookmarks of Chrome, Edge, Brave and Vivaldi, Firefox's profiles.ini and newest bookmarkbackups/*.jsonlz4, Safari's Bookmarks.plist, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import [C12].
 #   [C18] A page kept running with its tab is handed three kinds of line and nothing else: a click, a key, and text typed while it says a field of it has the focus, each checked in the window and here; what it writes back is checked as a first list is, an address it asks for is a visit like a typed one, and it ends with its tab, at most three at once.
@@ -84,7 +86,11 @@ my ($INCOGNITO, $BASE) = (0, undef);     # an incognito window [C16]: $DIR is th
 my $UNKEPT = 'An incognito window writes nothing';    # the start of every refusal to keep something in one
 my ($HELD_ENGINE, $HELD_BAR);             # in an incognito window, a search address or a bookmarks bar chosen in it: in its memory only
 my ($TOR_WANTED, $TOR) = (0, undef);      # $TOR: {pid, guard (lzrprf's end of the pipe), port} while the client runs
-sub kept_in { $INCOGNITO ? $BASE : $DIR }    # where settings are read from: ~/.lzrprf (or a test's folder), also in an incognito window
+sub kept_in { $INCOGNITO ? $BASE : $DIR }    # where settings are read from: ~/.lzrprf (or a test's folder), or a profile's own folder in a profile's window, and the same in an incognito window opened from it
+my $ROOT = $DIR;                         # the state folder itself, ~/.lzrprf (or a test's folder): the folder of the first profile, and of what belongs to the installation and to no profile (sub profile_entered)
+my $PROFILE;                              # the profile of this window, by its id (12 hex digits lzrprf made); undef for the first profile, whose folder is the state folder as it always was
+my $GONE = 'No new window was started: the profile this window was opened from has been removed since. Open one from a window of another profile.';    # said instead of starting a window that would end at its first check, in an incognito window whose profile was removed while it was open
+sub shared { $INCOGNITO ? $DIR : $ROOT }  # where what belongs to the installation is written: the state folder, or in an incognito window its own folder, removed when it ends [C16], as before there were profiles
 my $CURL = '/usr/bin/curl';               # the system's own; it does the https, lzrprf holds no code for it
 # What curl offers a site to encrypt with, fixed here rather than left to the system's library: left to it,
 # curl offers 49 ciphers, among them old ones each release of the library changes, so the first message of
@@ -178,7 +184,9 @@ my $SHOWN;                                # the page shown, kept to lay it out a
 my @HELD;                                 # what the window said while lzrprf looked for its latest size, in order: heard before anything new
 my @LATER;                                # Tor turned on or off in the window while a question was open: heard by the loop of sub behind once the question is answered, so the window's onion never waits for an answer that was dropped
 my $TABS_MOST = 32;                       # the most tabs one window holds: the owner's order of 2026-11-20
-my ($PULLED, $PULLED_MOST) = (0, 32);     # DECLARED(the most windows one window opens from its tabs in its life, as many as it holds tabs: a window process taken over cannot have lzrprf start processes without end)
+my ($PULLED, $PULLED_MOST) = (0, 32);     # DECLARED(the most windows one window opens from its tabs and its profiles together in its life, as many as it holds tabs: a window process taken over cannot have lzrprf start processes without end)
+my $PROFILES_MOST = 16;                   # DECLARED(the most profiles, the first among them: one for each person or each part of a life who shares this Mac, with room; each is a folder and each window of one a process, so a window taken over cannot fill the disk with them)
+my $PROFILE_NAME = 32;                    # DECLARED(the most characters of a profile's name: it is shown in one row of the Profiles list, beside the icon; a longer one is refused, never cut)
 my @CLOSED;                               # the tabs closed in this window, the newest first, for "Reopen Closed Tab": [its place, the tab] (sub closed_kept)
 my $CLOSED_MOST = 10;                     # DECLARED(the owner's order of 2026-11-21: the last ten closed tabs)
 my $CLOSED_DRAWN = 2;                     # DECLARED(the newest two closed tabs keep their page, so the reopen pressed at once shows it without a fetch; an older one is visited again, so ten closed tabs do not hold ten pages)
@@ -598,7 +606,8 @@ sub inside {                              # true when the system says that this 
 sub run {
     my ($program, @arguments) = @_;
     seal();
-    $TIMED = $TRY && -e "$DIR/times";
+    $ROOT = $DIR;
+    $TIMED = $TRY && -e "$ROOT/times";
     timed('perl');
     $program = abs_path($program // '') // '';
     die "lzrprf: no such program\n" unless -f $program && -x _;
@@ -607,15 +616,14 @@ sub run {
     my @folder = lstat $DIR;
     die "lzrprf: $DIR is not a folder of yours\n" unless @folder && -d _ && $folder[4] == $<;
     chmod 0700, $DIR;
-    for my $old (bsd_glob("$DIR/way.*"), bsd_glob("$DIR/tries.*")) {    # left by runs that have ended
-        next if $old =~ /\.(\d+)$/ && kill 0, $1;
-        unlink bsd_glob("$old/*"), $old;
-        rmdir $old;
-    }
+    runs_swept($DIR);
     swept();                              # [C16] the folder of an incognito run that ended without removing it, at every start
-    incognito_begun() if $INCOGNITO || ($TRY && -e "$DIR/incognito");    # "lzrprf try" only: a file "incognito" in the test's folder makes the run an incognito one, the test's folder standing for ~/.lzrprf
+    $INCOGNITO ||= $TRY && -e "$ROOT/incognito";    # "lzrprf try" only: a file "incognito" in the test's folder makes the run an incognito one, the test's folder standing for ~/.lzrprf
+    if ($TRY && open my $named, '<', "$ROOT/profile") { $PROFILE = <$named> // ''; chomp $PROFILE }    # "lzrprf try" only: a file "profile" in the test's folder holds the id the run opens, as --profile does
+    profile_entered() if defined $PROFILE;    # a profile's window: its own folder from here on, and the state folder for what belongs to the installation
+    incognito_begun() if $INCOGNITO;      # opened from a profile's window, its settings are read from that profile's folder alone
     $SIG{PIPE} = 'IGNORE';
-    if ($TRY && open my $pull, '<', "$DIR/open") { ($OPEN) = opened_with($pull, '--open', '0 0 400 300', $program) }    # "lzrprf try" only: a file "open" in the test's folder holds the line a pulled tab's window reads on standard input
+    if ($TRY && open my $pull, '<', "$ROOT/open") { ($OPEN) = opened_with($pull, '--open', '0 0 400 300', $program) }    # "lzrprf try" only: a file "open" in the test's folder holds the line a pulled tab's window reads on standard input
     if ($TRY && $ANSWER ne 'ask') {       # "lzrprf try" only: no window
         @EVENTS = ('start ' . ($OPEN // '-'), 'ready', $TYPED eq '-' ? () : map { /^=(.+)/ ? $1 : "go $_" } split /,,/, $TYPED);
         return behind();
@@ -623,13 +631,22 @@ sub run {
     pipe(my $window_in, my $to) && pipe(my $from, my $window_out) or die "lzrprf: cannot make a pipe: $!\n";
     my $window = $$;
     my $behind = fork // die "lzrprf: cannot fork: $!\n";
-    become($from, $to, $TRY ? \*STDOUT : undef, '/usr/bin/perl', $SELF, 'behind', $TRY, $DIR, $PEER, $ANSWER, $window, $BASE // '-', $program, @arguments) unless $behind;    # descriptor 0 is what the window says, descriptor 1 what it is told
+    become($from, $to, $TRY ? \*STDOUT : undef, '/usr/bin/perl', $SELF, 'behind', $TRY, defined $PROFILE && !$INCOGNITO ? $ROOT : $DIR, $PEER, $ANSWER, $window, $INCOGNITO ? $ROOT : '-', $PROFILE // '-', $program, @arguments) unless $behind;    # descriptor 0 is what the window says, descriptor 1 what it is told; a profile by its id alone, never by its name, and behind finds its folder from the state folder
     close $_ for $to, $from;
     my $more = '';
-    if ($TRY && open my $test, '<', kept_in() . '/window') { local $/; $more = <$test> }    # "lzrprf try" only: the test's own text after the window's, so a test can keep the window off the screen and read what it holds
+    if ($TRY && open my $test, '<', "$ROOT/window") { local $/; $more = <$test> }    # "lzrprf try" only: the test's own text after the window's, so a test can keep the window off the screen and read what it holds
     die "lzrprf: the home folder's path holds a character lzrprf does not pass on\n" if $HOME =~ /["\\\n]/;
     syswrite $window_out, 'start ' . ($OPEN // '-') . "\n";    # the first line behind hears, written here before the window is made, so the window can neither say it nor read it: the address a pulled tab's window opens (sub started)
     become($window_in, $window_out, $TRY ? \*STDERR : undef, '/usr/bin/sandbox-exec', '-D', "HOME=$HOME", '-p', $WINDOW_CONTAINER, $SCRIPT, '-l', 'JavaScript', '-e', window_text() . $more, $APP, $INCOGNITO ? 'incognito' : 'window', $OPEN_FRAME // frame_kept());    # the size and place the last window was left at (sub frame_kept), so it opens there and does not jump; a pulled tab's window opens where the tab was let go
+}
+
+sub runs_swept {                          # what runs that have ended left in a folder: a request's socket, the folder of the tries at the start
+    my ($folder) = @_;
+    for my $old (bsd_glob("$folder/way.*"), bsd_glob("$folder/tries.*")) {
+        next if $old =~ /\.(\d+)$/ && kill 0, $1;
+        unlink bsd_glob("$old/*"), $old;
+        rmdir $old;
+    }
 }
 
 # An incognito window [C16]. Its folder is made the way mkdtemp makes one: a
@@ -694,8 +711,9 @@ sub incognito_begun {
 }
 
 sub incognito_opened {                    # "New Incognito Window": a second lzrprf, of its own, in incognito
+    return idle($GONE) if defined $PROFILE && !profile_folder($PROFILE);    # the profile it reads was removed while this window was open: a window started now would end at its first check, so none is started and that is said
     return idle('A new incognito window was asked for: "lzrprf try" starts none.') if $TRY;
-    return idle('No incognito window was started: lzrprf could not start a process.') unless apart(undef, '/usr/bin/perl', $SELF, 'incognito', $PROGRAM, @ARGUMENTS);
+    return idle('No incognito window was started: lzrprf could not start a process.') unless apart(undef, '/usr/bin/perl', $SELF, 'incognito', defined $PROFILE ? ('--profile', $PROFILE) : (), $PROGRAM, @ARGUMENTS);    # it reads the settings of this window's profile, named by its id alone
     return idle('An incognito window is opening. It writes nothing: when it closes, it leaves nothing behind.');
 }
 
@@ -726,14 +744,16 @@ sub apart {                               # a second lzrprf, of its own, that go
 # its own: it is handed the frame as an argument and the tab's address as one line on its
 # standard input, nothing else; the address is never an argument, which every user of the
 # computer can read in the list of processes for as long as the window lives. A tab of an incognito window opens an incognito
-# window. The tab then closes here; it is not one of the closed tabs to reopen, since it still
-# shows. The last tab is never pulled out: its window moves instead. One window opens at most
-# $PULLED_MOST windows this way in its life.
+# window, and a tab of a profile's window a window of the same profile. The tab then closes here;
+# it is not one of the closed tabs to reopen, since it still shows. The last tab is never pulled
+# out: its window moves instead. One window opens at most $PULLED_MOST windows this way and from
+# the Profiles list together in its life.
 sub tab_out {
     my ($n, $frame) = @_;
     return if $n >= @TABS || @TABS < 2;
     my ($url) = address($TABS[$n]{url} // '');
-    my $stays = $PULLED >= $PULLED_MOST ? "The tab stays here: this window has opened $PULLED_MOST windows from its tabs, the most one window may. Open a new window for more."
+    my $stays = $PULLED >= $PULLED_MOST ? "The tab stays here: this window has opened $PULLED_MOST windows from its tabs and profiles, the most one window may. Open a new window for more."
+        : defined $PROFILE && !profile_folder($PROFILE) ? "The tab stays here. $GONE"
         : !$TRY && !apart($url // '', pulled_command($frame)) ? 'The tab stays here: lzrprf could not start a process for its new window.' : '';
     if (length $stays) {
         window('tabs ' . @TABS . " $TAB", map { "title $_ $TABS[$_]{title}" } 0 .. $#TABS);    # the strip shows the tab again
@@ -744,7 +764,7 @@ sub tab_out {
     idle('A tab pulled out opens a new window: "lzrprf try" starts none.') if $TRY;
 }
 
-sub pulled_command { my ($frame) = @_; return ('/usr/bin/perl', $SELF, $INCOGNITO ? 'incognito' : 'run', '--open', $frame, $PROGRAM, @ARGUMENTS) }    # the new window's lzrprf, started as this one was, and no address in it
+sub pulled_command { my ($frame) = @_; return ('/usr/bin/perl', $SELF, $INCOGNITO ? 'incognito' : 'run', defined $PROFILE ? ('--profile', $PROFILE) : (), '--open', $frame, $PROGRAM, @ARGUMENTS) }    # the new window's lzrprf, started as this one was, in this window's profile by its id, and no address in it
 
 # "--open FRAME" before the program (sub pulled_command), the frame in the form of a kept frame,
 # and one line read from $in (standard input): an address checked as a typed one, or an empty
@@ -758,6 +778,239 @@ sub opened_with {
     die "lzrprf: --open takes a frame \"X Y W H\", then the program, and an address lzrprf fetches or an empty line on standard input\n"
         unless defined $frame && @rest && length $url <= 2100 && (!length $url || (address($url))[0]) && $frame =~ /\A-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4}\z/;
     return (length $url ? (address($url))[0] : undef, $frame, @rest);
+}
+
+# Profiles. A profile is a browser of its own inside this one, for one person or one part of a
+# life: its own bookmarks and their bar, home page, search address, log and what is kept of it,
+# and Tor's folder, on the disk; its own history, closed tabs and zoom, in the memory of its
+# window's process. The first profile is the state folder itself, ~/.lzrprf, as it always was:
+# nothing is moved, and an installed browser sees no change, and gets no new file, until a second
+# profile is made or the first is renamed. Every other profile is a folder of its own,
+# ~/.lzrprf/profiles/ID, readable by you alone (mode 700), ID being 12 hex digits lzrprf drew from
+# /dev/urandom and never anything typed. A profile's name is the one plain file "name" in its
+# folder; the first profile's, once you gave it one, is the file profiles/first. What belongs to
+# the installation and to no profile stays in the state folder and is the same for every profile:
+# the self-test's result, the look for a newer release and its answer, an installer and its lines,
+# the welcome, the licence code, the support request kept, and the jobs the application's tool
+# switched off. A profile's window is a process of its own, started as a pulled tab's window is
+# (sub profile_window): the id is its one word of a profile on a command line, since every user
+# of the computer can read the list of processes, and the name never is. It holds a shared lock on
+# the file "inuse" in its folder for as long as it lives (sub profile_held), and a profile is
+# removed only while nobody holds it; a window of the first profile does the same in the state
+# folder, once there are profiles. One window at a time counts, makes, renames or removes
+# profiles, under a lock on the folder of the profiles (sub profiles_locked). An incognito window
+# opened from a profile's window reads that profile's settings, by its id on its command line,
+# and writes nothing there; it is told no profile, and lzrprf refuses every word of a profile from
+# it. A profile's name is shown in the strip and kept in the memory of the window that said it,
+# and written in no file but its own "name": no file on the disk names another profile.
+#
+# The window's words, each checked here as the words of a hostile window are: "profile list";
+# "profile open ID", a window of that profile; "profile new<TAB>NAME", a profile made and opened;
+# "profile rename<TAB>ID<TAB>NAME"; "profile remove ID", asked once and then removed. ID is
+# "first" or 12 hex digits, and only the id of a profile lzrprf finds in its folder names a folder;
+# a name is at most $PROFILE_NAME characters of plain text. lzrprf answers with "profiles begin",
+# a line "profiles one ID this|open|shut NAME" for each profile, the first one first and the others
+# by name, and "profiles end"; and with "profiles refused WORDS" when it did not do what was asked.
+my $FIRST_NAME = 'First profile';         # the first profile's name until you give it one
+my $INUSE;                                # in a profile's window, the shared lock on its file "inuse": held while the window lives
+
+sub profiles_root { "$ROOT/profiles" }
+sub profiles_folder {                     # the folder of the profiles when it is a folder of yours and no link; nothing when it is not there or is something else
+    my @is = lstat profiles_root();
+    return @is && -d _ && $is[4] == $< ? profiles_root() : undef;
+}
+
+sub profile_folder {                      # the folder of a profile lzrprf knows, by its id; nothing for any other word, so no word of the window names a folder outside
+    my ($id) = @_;
+    $id //= '';
+    return $ROOT if $id eq 'first';
+    return unless $id =~ /\A[0-9a-f]{12}\z/;
+    my $all = profiles_folder() // return;
+    my @is = lstat "$all/$id";
+    return @is && -d _ && $is[4] == $< ? "$all/$id" : undef;
+}
+
+sub profile_ids {                         # the ids of the profiles there are, the first one first
+    my $all = profiles_folder();
+    my @ids;
+    if ($all && opendir my $in, $all) { @ids = sort grep { /\A[0-9a-f]{12}\z/ && profile_folder($_) } readdir $in }
+    return ('first', @ids);
+}
+
+sub profile_fit {                         # a name as it was typed: its bytes as they are kept, or nothing and why in plain words
+    my ($typed) = @_;
+    my $name = $typed // '';
+    return (undef, 'A profile name is plain text, and that was not.') unless utf8::decode($name);
+    return (undef, 'A profile name holds no control or format character.') if $name =~ /[\p{C}\p{Zl}\p{Zp}]/;
+    $name =~ s/\s+/ /g;
+    $name =~ s/\A | \z//g;
+    return (undef, 'Type a name for the profile first.') unless length $name;
+    return (undef, "A profile name is at most $PROFILE_NAME characters. That one has " . length($name) . '.') if length $name > $PROFILE_NAME;
+    utf8::encode($name);
+    return ($name);
+}
+
+sub profile_name {                        # a profile's name, as kept; one that is not there, or not a name lzrprf takes, reads as a name made from its id
+    my ($id) = @_;
+    my ($all, $bytes) = (profiles_folder(), '');
+    if ($all && sysopen my $in, $id eq 'first' ? "$all/first" : "$all/$id/name", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) { sysread $in, $bytes, 400 if -f $in }    # a plain file and no link; a pipe put in its place is not waited for
+    my ($name) = profile_fit($bytes =~ s/\n.*//sr);
+    return $name // ($id eq 'first' ? $FIRST_NAME : "Profile $id");
+}
+
+sub profile_open {                        # true while a window of the profile in this folder is open: that window holds the lock on its file "inuse"
+    my ($folder) = @_;
+    sysopen(my $lock, "$folder/inuse", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 0;
+    return !flock $lock, LOCK_EX | LOCK_NB;    # the lock, taken now, ends with the handle
+}
+
+sub profiles_told {                       # the list, for the Profiles icon: nothing in an incognito window
+    return if $INCOGNITO;
+    first_held();                         # the list names the profiles, so from here on this window is listed as open in the others too
+    my ($first, @others) = profile_ids();
+    my %name = map { $_ => profile_name($_) } $first, @others;
+    @others = sort { lc $name{$a} cmp lc $name{$b} || $a cmp $b } @others;
+    window('profiles begin', (map { "profiles one $_ " . (($PROFILE // 'first') eq $_ ? 'this' : profile_open(profile_folder($_)) ? 'open' : 'shut') . " $name{$_}" } $first, @others), 'profiles end');
+}
+
+sub profiles_refused { my ($says) = @_; window("profiles refused $says"); return idle($says) }
+
+sub profiles_locked {                     # one window at a time counts, makes, renames or removes profiles: an exclusive lock on the folder of the profiles, held while the handle lives
+    my $all = profiles_folder() // return;
+    sysopen(my $lock, $all, O_RDONLY | O_NOFOLLOW) or return;
+    flock($lock, LOCK_EX) or return;      # each holder only reads names and makes, renames or removes one folder, so the wait is short
+    return $lock;
+}
+
+sub profiles_swept {                      # what a removal that failed part way left: only names of exactly the form ".removed.ID.PID", of a process that is gone; a link is removed itself, never followed. Under profiles_locked
+    my $all = profiles_folder() // return;
+    opendir(my $in, $all) or return;
+    for my $left (grep { /\A\.removed\.[0-9a-f]{12}\.(\d+)\z/ && ($1 == $$ || !kill 0, $1) } readdir $in) {
+        my @is = lstat "$all/$left";
+        if (-l _) { unlink "$all/$left" }
+        elsif (@is && -d _ && $is[4] == $<) { remove_tree("$all/$left", { safe => 0 }) }
+    }
+}
+
+sub profile_taken {                       # a profile name another profile has already, capitals aside; nothing when none has
+    my ($name, $but) = @_;
+    return scalar grep { $_ ne ($but // '') && lc profile_name($_) eq lc $name } profile_ids();
+}
+
+sub profile_entered {                     # a profile's window, at its start: the profile named is one lzrprf knows, and its folder is this window's folder from here on; anything else ends the start here
+    my $folder = ($PROFILE // '') =~ /\A[0-9a-f]{12}\z/ ? profile_folder($PROFILE) : undef;
+    die "lzrprf: there is no such profile: it may have been removed. Open another from the Profiles icon of a window.\n" unless $folder;
+    $DIR = $folder;
+    return if $INCOGNITO;                 # an incognito window reads that folder and changes nothing in it [C16]
+    chmod 0700, $folder;
+    runs_swept($DIR);
+}
+
+sub profile_held {                        # behind a profile's window: the shared lock on its file "inuse", taken for as long as this process lives; false when the profile was removed meanwhile
+    return 1 if $INCOGNITO;               # it writes nothing there, so it holds no lock there either: it does not count as an open window of the profile
+    return 1 if !defined $PROFILE && !profiles_folder();    # the first profile takes the lock only once there are profiles, so an installation with one gets no new file
+    sysopen($INUSE, "$DIR/inuse", O_RDWR | O_CREAT | O_NOFOLLOW, 0600) or return 0;
+    flock $INUSE, LOCK_SH or return 0;    # waits while a removal holds it
+    return (stat $INUSE)[3] && -f _;      # its name is still there: the profile was not removed while the lock was waited for
+}
+
+sub first_held { profile_held() unless defined $PROFILE || $INUSE || $INCOGNITO }    # the first profile's window, once it knows there are profiles: its lock, taken once. A window opened before the folder of the profiles was made takes it here, when its list is told or a profile word reaches it
+
+sub profile_command { my ($id) = @_; return ('/usr/bin/perl', $SELF, 'run', $id eq 'first' ? () : ('--profile', $id), $PROGRAM, @ARGUMENTS) }    # a profile's window: its id, and nothing typed
+
+sub profile_window {                      # a new window of a profile lzrprf knows, by its id alone, started as a pulled tab's window is, with no address
+    my ($id) = @_;
+    return profiles_refused('An incognito window has no profile, and opens none.') if $INCOGNITO;
+    first_held();
+    profile_folder($id) or return profiles_refused('That is not a profile lzrprf knows. No window was opened.');
+    return profiles_refused("No window was opened: this window has opened $PULLED_MOST windows from its tabs and profiles, the most one window may. Open it from another window.") if $PULLED >= $PULLED_MOST;
+    return profiles_refused('No window was opened: lzrprf could not start a process for it.') unless $TRY || apart(undef, profile_command($id));
+    $PULLED++;
+    return idle($TRY ? 'A profile\'s window was asked for: "lzrprf try" starts none.' : 'The profile ' . profile_name($id) . ' opens in a new window.');
+}
+
+sub profile_new {                         # "profile new<TAB>NAME": a profile made, with a folder of its own, and opened in a new window
+    my ($typed) = @_;
+    return profiles_refused("$UNKEPT, so it makes no profile.") if $INCOGNITO;
+    my ($name, $why) = profile_fit($typed);
+    return profiles_refused($why) unless defined $name;
+    my $most = "There are $PROFILES_MOST profiles, the most there may be. Remove one to make another.";
+    my $taken = "There is a profile called $name already. Choose another name.";
+    return profiles_refused($most) if (() = profile_ids()) >= $PROFILES_MOST;    # said before anything is made: a refused name makes no folder of profiles
+    return profiles_refused($taken) if profile_taken($name);
+    mkdir profiles_root(), 0700 unless -e profiles_root() || -l profiles_root();
+    my $all = profiles_folder() // return profiles_refused('No profile was made: ' . profiles_root() . ' is not a folder of yours.');
+    chmod 0700, $all;
+    my $lock = profiles_locked() // return profiles_refused('No profile was made: the folder of the profiles could not be locked.');
+    profiles_swept();
+    return profiles_refused($most) if (() = profile_ids()) >= $PROFILES_MOST;    # counted again under the lock: another window may have made one meanwhile
+    return profiles_refused($taken) if profile_taken($name);
+    first_held();    # the first profile's window takes its lock now that there are profiles, so it is listed as open
+    my $id;
+    for (1 .. 8) {
+        open my $random, '<:raw', '/dev/urandom' or last;
+        read($random, my $bytes, 6) == 6 or last;
+        my $try = unpack 'H*', $bytes;
+        if (mkdir "$all/$try", 0700) { $id = $try; last }
+    }
+    return profiles_refused('No profile was made: its folder could not be made.') unless defined $id;
+    unless (put("$all/$id/name", O_EXCL, $name)) { remove_tree("$all/$id", { safe => 0 }); return profiles_refused('No profile was made: its name could not be written.') }
+    synced($all);
+    undef $lock;
+    noted('you made a profile');          # in this window's memory alone. A profile's name is shown in this window's strip and kept in its memory (the lines its Log button shows), never written to any file but its own "name" and never shown to a page: no file on the disk names another profile
+    profiles_told();
+    return profile_window($id);
+}
+
+sub profile_renamed {                     # "profile rename<TAB>ID<TAB>NAME"
+    my ($id, $typed) = @_;
+    return profiles_refused("$UNKEPT, so it renames no profile.") if $INCOGNITO;
+    profile_folder($id) or return profiles_refused('That is not a profile lzrprf knows. Nothing was renamed.');
+    my ($name, $why) = profile_fit($typed);
+    return profiles_refused($why) unless defined $name;
+    my $taken = "There is a profile called $name already. Choose another name.";
+    return profiles_refused($taken) if profile_taken($name, $id);
+    mkdir profiles_root(), 0700 unless -e profiles_root() || -l profiles_root();    # the first profile's name is the one thing of it kept there
+    my $all = profiles_folder() // return profiles_refused('Nothing was renamed: ' . profiles_root() . ' is not a folder of yours.');
+    my $lock = profiles_locked() // return profiles_refused('Nothing was renamed: the folder of the profiles could not be locked.');
+    return profiles_refused($taken) if profile_taken($name, $id);    # again under the lock
+    profile_folder($id) or return profiles_refused('That is not a profile lzrprf knows. Nothing was renamed.');
+    my $was = profile_name($id);
+    first_held();
+    my $file = $id eq 'first' ? "$all/first" : "$all/$id/name";
+    unlink "$file.new";
+    return profiles_refused('Nothing was renamed: the name could not be written.') unless put("$file.new", O_EXCL, $name) && rename("$file.new", $file);
+    synced($id eq 'first' ? $all : "$all/$id");
+    undef $lock;
+    noted('you renamed a profile');       # the names, old and new, in this window's strip and memory alone (sub profile_new)
+    profiles_told();
+    return idle("The profile $was is now called $name.");
+}
+
+sub profile_removed {                     # "profile remove ID": asked once, then the profile's folder and nothing else is deleted
+    my ($id) = @_;
+    return profiles_refused("$UNKEPT, so it removes no profile.") if $INCOGNITO;
+    first_held();
+    return profiles_refused('The first profile is never removed: its folder is the state folder itself, which also holds what belongs to the whole installation.') if $id eq 'first';
+    my $folder = profile_folder($id) // return profiles_refused('That is not a profile lzrprf knows. Nothing was removed.');
+    my $name = profile_name($id);
+    return profiles_refused("The profile $name is this window's own. Remove it from a window of another profile, once this one is closed.") if ($PROFILE // '') eq $id;
+    my $open = "The profile $name has a window open. Close its windows first, then remove it.";
+    return profiles_refused($open) if profile_open($folder);
+    return idle("The profile $name was not removed.") unless ask("Remove the profile $name? Its bookmarks, history, log, home page, search address and all that is kept for it are deleted from this Mac. This cannot be undone.", 'Cancel', 'Remove') == 2;
+    my $all = profiles_locked() // return profiles_refused("The profile $name was not removed: the folder of the profiles could not be locked. Nothing was deleted.");
+    $folder = profile_folder($id) // return profiles_refused('That is not a profile lzrprf knows. Nothing was removed.');    # looked at again under the lock: the question can stand open for minutes
+    my $lock;                             # held while it is removed: no window of it starts meanwhile
+    sysopen($lock, "$folder/inuse", O_RDWR | O_CREAT | O_NOFOLLOW, 0600) && flock($lock, LOCK_EX | LOCK_NB) or return profiles_refused($open);
+    my $gone = profiles_root() . "/.removed.$id.$$";    # out of the list in one step; a name no profile can have
+    return profiles_refused("The profile $name was not removed: its folder could not be moved aside. Nothing was deleted.") unless rename $folder, $gone;
+    remove_tree($gone, { safe => 0 });    # a link inside is removed, never followed
+    profiles_swept();                     # and what an earlier removal could not finish
+    synced(profiles_root());
+    undef $all;
+    noted('you removed a profile');
+    profiles_told();
+    return idle(-e $gone ? "The profile $name was taken off the list, but part of its folder could not be deleted: $gone" : "The profile $name was removed, and its folder with it.");
 }
 
 # The first line behind hears is lzrprf's own, written before the window was made (sub run):
@@ -789,8 +1042,9 @@ sub behind {
     $BEGAN = sum_of($PROGRAM);            # read before it is compared below, so the program that is compared is the one every page is held to
     my $pulled = started() // leave();
     timed('ready');
+    return closed('That profile is no longer there: it was removed as this window started. Open another from the Profiles icon of a window.') unless profile_held();    # held from here until the window ends
     paired();                             # before anything else: an application and an lzrprf that were not installed together are noticed
-    return closed($INCOGNITO ? "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. An incognito window does not run the self-test, because the test writes its result: open a normal window once to test this Mac." : "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $DIR/selftest.txt") unless ($TRY && !-e kept_in() . '/prove') || proven();    # [C11]
+    return closed($INCOGNITO ? "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. An incognito window does not run the self-test, because the test writes its result: open a normal window once to test this Mac." : "lzrprf was not tested on this Mac as it is now, or did not hold, so $APP shows no page. What the test found: $ROOT/selftest.txt") unless ($TRY && !-e "$ROOT/prove") || proven();    # [C11]
     timed('proven');
     return closed("The container did not hold on this Mac a moment ago, so $APP was not started. Run selftest, which is beside lzrprf, to see what was not refused.") unless $held;    # [C2] the tries made at the start of this sub
     return closed("The system did not say that this window is in its container, so $APP shows no page. Run selftest, which is beside lzrprf, to see what was not refused.") unless !$RUN || inside($RUN, 1);    # [C10] the window is a process too, and the system is asked about it by its number
@@ -802,6 +1056,7 @@ sub behind {
     timed('idle-sent');
     said_noted();                         # the first line of this window's log: that it is contained, and what is kept
     marks_told();
+    profiles_told();                      # the Profiles icon's list: told none in an incognito window
     window('marksbar ' . (marks_bar() ? 'on' : 'off'), 'search ' . (engine() ? 'set' : 'none'));
     nav_told();
     if (length $pulled) { go($pulled, 'you pulled a tab out into this window') }    # [C4] checked as a typed address is, and [C5] written before its name is looked up: the address of a tab pulled out of another window, handed on a pipe
@@ -835,6 +1090,13 @@ sub behind {
         elsif ($event eq 'update-check') { $INCOGNITO ? idle('An incognito window looks for no newer release; a window that is not incognito does, in its cogwheel menu.') : newer(1) }
         elsif ($event =~ /^frame (full|-?[0-9]{1,5} -?[0-9]{1,5} [1-9][0-9]{1,4} [1-9][0-9]{1,4})$/) { frame_said($1) }    # the window was moved, resized or made full screen: kept for the next window
         elsif ($event eq 'incognito') { incognito_opened(); said_noted() }
+        elsif ($INCOGNITO && $event =~ /^profiles? /) { profiles_refused('An incognito window has no profile, and opens, makes or changes none.') }
+        elsif ($event eq 'profile list') { profiles_told() }    # the Profiles icon was pressed: which profile has a window open is looked at now
+        elsif ($event =~ /^profile open (first|[0-9a-f]{12})$/) { profile_window($1); said_noted() }    # a profile chosen in the list: a new window of it, by its id
+        elsif ($event =~ /^profile new\t([^\t]{0,400})$/) { profile_new($1); said_noted() }    # "New profile": the name typed into the window's own field, checked here
+        elsif ($event =~ /^profile rename\t(first|[0-9a-f]{12})\t([^\t]{0,400})$/) { profile_renamed($1, $2); said_noted() }
+        elsif ($event =~ /^profile remove (first|[0-9a-f]{12})$/) { profile_removed($1); said_noted() }
+        elsif ($event =~ /^profiles? /) { profiles_refused('That is not a profile lzrprf knows, or not a word it takes. Nothing was changed.') }    # a path, a dot, a slash, an id of another length or form: no folder is named
         elsif ($event =~ /^licence set ([0-9A-Za-z \-]{1,200})$/) { licence_set($1) }    # "Enter licence code": the code typed into the window's own field, checked here before anything is kept
         elsif ($event eq 'licence remove') { licence_removed() }
         elsif ($event =~ /^support send ([A-Za-z0-9+\/]+={0,2}) (-|[A-Za-z0-9+\/]+={0,2})$/) { support_sent($1, $2) }    # [C4] "Support request": your words and, when you ticked it, the window's picture of itself; the address is the release file's, never the window's
@@ -2079,7 +2341,7 @@ sub frame_said {
 }
 
 sub checked_kept {                       # the last look for a newer release, as checked keeps it, or "never"
-    sysopen(my $in, kept_in() . '/checked', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 'never';
+    sysopen(my $in, "$ROOT/checked", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or return 'never';
     my @is = stat $in;
     return 'never' unless -f _ && $is[4] == $<;
     defined sysread($in, my $text, 64) or return 'never';
@@ -2089,8 +2351,8 @@ sub checked_kept {                       # the last look for a newer release, as
 sub checked_said {
     my ($result, $asked) = @_;
     if ($result ne 'none' && !$INCOGNITO) {
-        unlink "$DIR/checked.new";
-        put("$DIR/checked.new", O_EXCL, time . " $result") && rename("$DIR/checked.new", "$DIR/checked");
+        unlink "${\ shared()}/checked.new";
+        put("${\ shared()}/checked.new", O_EXCL, time . " $result") && rename("${\ shared()}/checked.new", "${\ shared()}/checked");
     }
     window('checked ' . ($result eq 'none' ? 'none' : $INCOGNITO ? time . " $result" : checked_kept()));
     return 1;
@@ -2187,7 +2449,7 @@ my $IMPORT_SEEN = 0;                      # how many bookmarks and folders the f
 my %IMPORT_BLOCKED;                       # the browsers whose files macOS kept lzrprf from reading (its privacy protection of another app's data): shown as such, never as not found
 my $IMPORT_PROBE = 32;                    # DECLARED(Chrome names its profiles Default and Profile 1, 2, ...: when its Local State cannot be read, this many are looked for by name)
 
-sub import_home { $TRY ? "$DIR/home" : $HOME }    # "lzrprf try": the test's own folder stands for the home folder
+sub import_home { $TRY ? "$ROOT/home" : $HOME }    # "lzrprf try": the test's own folder stands for the home folder
 
 sub import_read {                         # a file's bytes, or nothing and why
     my ($file) = @_;
@@ -2672,7 +2934,7 @@ sub find {
     if ($PEER ne '-') {                   # "lzrprf try" only: every name leads to the test's listener
         my ($to, $port) = split /:/, $PEER;
         my ($public, $names) = (0);
-        $public = grep { chomp; $_ eq $host } <$names> if open $names, '<', kept_in() . '/public';    # the names the test's file "public" lists are taken for hosts on the public internet, to try what is fetched there
+        $public = grep { chomp; $_ eq $host } <$names> if open $names, '<', "$ROOT/public";    # the names the test's file "public" lists are taken for hosts on the public internet, to try what is fetched there
         return [{ family => AF_INET, addr => pack_sockaddr_in($port, inet_aton($to)), text => $to, own => !$public && !public($to) }];
     }
     my ($found) = said($FIND_SECONDS, '/usr/bin/perl', '-e', $LOOKUP, $host);
@@ -2773,7 +3035,7 @@ my $TOOL_LABEL = qr/[A-Za-z0-9][A-Za-z0-9._-]{0,199}/;    # a launchd label lzrp
 my (%TOOL, %TOOL_SIGN, %TOOL_FILE);       # the last look (its processes, jobs and rows); the signatures and the property lists read already, each by its file's time and size
 my $TOOL_LOOKED;                          # when the jobs you switched off were last looked at; nothing before the first look of a window
 
-sub tool_stand { my $stand = kept_in() . '/toolstand'; return $TRY && -d $stand ? $stand : undef }    # "lzrprf try" only: a folder whose files stand for what the system's programs say, so a test acts on no real job and no real process
+sub tool_stand { my $stand = "$ROOT/toolstand"; return $TRY && -d $stand ? $stand : undef }    # "lzrprf try" only: a folder whose files stand for what the system's programs say, so a test acts on no real job and no real process
 sub tool_asked {                          # what one of the system's programs says, and whether it ended well
     my ($name, $seconds, @command) = @_;
     my $stand = tool_stand() // return said($seconds, @command);
@@ -2862,15 +3124,15 @@ sub tool_signed {                         # who signed these programs, as codesi
     return map { $TOOL_SIGN{$_} && $TOOL_SIGN{$_}[0] eq $key{$_} ? [$_, @{$TOOL_SIGN{$_}}[1, 2]] : () } grep { defined $key{$_} } @paths;
 }
 sub tool_kept {                           # [C20] the launchd jobs you switched off here: [label, its property list or nothing, when]
-    open my $in, '<', "$DIR/quieted" or return [];
+    open my $in, '<', "${\ shared()}/quieted" or return [];
     return [map { chomp; my @one = split /\t/, $_, -1; @one == 3 && $one[0] =~ /^$TOOL_LABEL\z/ && $one[1] =~ m{^(?:/[\x20-\x7e]{1,1000})?\z} && $one[2] =~ /^[0-9TZ:-]{1,30}\z/ ? [@one] : () } <$in>];
 }
 sub tool_keep {                           # [C20] that list, written beside the old one and through to the disk, then given its name in one step
     my ($kept) = @_;
-    unlink "$DIR/quieted.new";
-    if (!@$kept) { return !-e "$DIR/quieted" || unlink "$DIR/quieted" }
-    unless (put("$DIR/quieted.new", O_EXCL, map { join "\t", @$_ } @$kept) && rename "$DIR/quieted.new", "$DIR/quieted") { unlink "$DIR/quieted.new"; return 0 }
-    synced();
+    unlink "${\ shared()}/quieted.new";
+    if (!@$kept) { return !-e "${\ shared()}/quieted" || unlink "${\ shared()}/quieted" }
+    unless (put("${\ shared()}/quieted.new", O_EXCL, map { join "\t", @$_ } @$kept) && rename "${\ shared()}/quieted.new", "${\ shared()}/quieted") { unlink "${\ shared()}/quieted.new"; return 0 }
+    synced(shared());
     return 1;
 }
 
@@ -3102,7 +3364,7 @@ sub tool_wake {                           # [C20] a job you switched off here, s
 # lights the tool's icon. Nothing else of the computer is read for this, and
 # with nothing switched off nothing is read at all.                   # [C20]
 sub tool_due {                            # the seconds until the next such look; nothing when there is nothing to look at
-    return if $INCOGNITO || !-s "$DIR/quieted";
+    return if $INCOGNITO || !-s "${\ shared()}/quieted";
     my $left = ($TOOL_LOOKED // now()) + $TOOL_WATCH - now();
     return $left > 1 ? $left : 1;
 }
@@ -3161,7 +3423,7 @@ my @TOR_STEPS = (                         # the client's own log lines, each the
     [qr/Sufficiently bootstrapped; proxy now functional/, 5, 100, 'Connected to Tor'],
 );
 sub tor_client {                        # the client, and whether it is a test's stand-in
-    if ($TRY && open my $instead, '<', kept_in() . '/torclient') { chomp(my $line = <$instead> // ''); return ($line, 1) }    # "lzrprf try" only: the test's stand-in, a perl script
+    if ($TRY && open my $instead, '<', "$ROOT/torclient") { chomp(my $line = <$instead> // ''); return ($line, 1) }    # "lzrprf try" only: the test's stand-in, a perl script
     return (dirname($PROGRAM) . '/arti', 0);
 }
 sub tor_where { return $TOR ? [{ tor => 1, host => $_[0], text => 'Tor' }] : (undef, 'Tor is on and not connected, so nothing was fetched: not through Tor, and not directly') }
@@ -3316,7 +3578,7 @@ sub request {
 # its type of three; and for another host than the page's, the page's Origin.
 sub fetch {
     my ($url, $where, $ask, $page) = @_;    # $page: the request of a page you visit, which carries the line Accept (sub request)
-    my ($way, $roots) = ("$DIR/way.$$", $PEER ne '-' ? kept_in() . '/authority.pem' : $ROOTS);
+    my ($way, $roots) = ("$DIR/way.$$", $PEER ne '-' ? "$ROOT/authority.pem" : $ROOTS);
     my $none = 'the request could not be made';
     my $up = $ask && $ask->{method} eq 'POST' ? $ask->{body} : $ask && defined $ask->{key} ? "Authorization: Bearer $ask->{key}\n" : undef;    # [C19] the body a page's POST carries, all that is carried besides the request; or the key that reads the answer to a support request, as a line curl adds to its request, so that no list of processes shows it (sub support_read)
     my @asked = !$ask ? () : ($ask->{method} eq 'HEAD' ? ('--head') : (), defined $ask->{key} ? ('-H', '@-') : (), $ask->{method} eq 'POST' ? ('--data-binary', '@-', '-H', 'Content-Type:' . ($ask->{type} eq '-' ? '' : " $ask->{type}"), '-H', 'Expect:') : (), defined $ask->{origin} ? ('-H', "Origin: $ask->{origin}") : ());    # [C19]
@@ -3332,7 +3594,7 @@ sub fetch {
             '--cacert', $roots, '--max-time', $FETCH_SECONDS, '--max-filesize', $FETCH_BYTES, '--write-out', "$WROTE%{certs}",
             '-H', "User-Agent: $BROWSER", '-H', $page ? "Accept: $PAGE_ACCEPT" : 'Accept:', '-H', 'Accept-Encoding: identity', '-H', 'Connection: close', @asked,
             '--unix-socket', $way, '--', $url);
-        if ($PEER ne '-' && open my $instead, '<', kept_in() . '/fetcher') { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to probe this container too
+        if ($PEER ne '-' && open my $instead, '<', "$ROOT/fetcher") { chomp(@curl = <$instead>) }    # "lzrprf try" only: the test's own program in curl's place, to probe this container too
         become($body_in, $out, undef, '/bin/sh', '-c', $FETCH_LIMITS, 'lzrprf', contain($FETCH, shift @curl, '-D', "WAY=$way", '-D', "ROOTS=$roots"), @curl);    # the memory limit first, then the container
     }
     close $out;
@@ -3480,7 +3742,7 @@ my %LICENCE_WHY = (empty => 'Type or paste your licence code first.', form => 'T
 
 sub licence_key {                         # the 32 bytes of the public key, or nothing while there is none
     my $line = $LICENCE_KEY;
-    if ($TRY && open my $in, '<', kept_in() . '/licence-key') { $line = <$in> // ''; chomp $line }    # "lzrprf try" only: the test's own key, with codes it signed itself
+    if ($TRY && open my $in, '<', "$ROOT/licence-key") { $line = <$in> // ''; chomp $line }    # "lzrprf try" only: the test's own key, with codes it signed itself
     my ($text) = $line =~ m{^ed25519 ([A-Za-z0-9+/]{43}=)$} or return;
     my $raw = decode_base64($text);
     return length $raw == 32 ? $raw : undef;
@@ -3565,7 +3827,7 @@ sub signed {
 
 sub licence_kept {                        # the code kept, as written, and its bytes; nothing when none is kept
     return if $INCOGNITO;
-    open my $in, '<', "$DIR/licence" or return;
+    open my $in, '<', "${\ shared()}/licence" or return;
     my $line = <$in> // '';
     chomp $line;
     my ($bytes) = licence_read($line);
@@ -3584,19 +3846,19 @@ sub licence_set {
     return licence_refused($LICENCE_WHY{$how}) unless $bytes;
     my $month = licence_month($bytes);
     record('you entered a support member licence code: it is kept in the file licence, and is not written here') or return licence_refused('The licence code was not kept: its line could not be written to the log.');
-    unlink "$DIR/licence.new";
-    return licence_refused('The licence code was not kept: its file could not be written.') unless put("$DIR/licence.new", O_EXCL, licence_written($bytes)) && rename("$DIR/licence.new", "$DIR/licence");
-    synced();
+    unlink "${\ shared()}/licence.new";
+    return licence_refused('The licence code was not kept: its file could not be written.') unless put("${\ shared()}/licence.new", O_EXCL, licence_written($bytes)) && rename("${\ shared()}/licence.new", "${\ shared()}/licence");
+    synced(shared());
     window("licence kept $month");
     return idle("The licence code is kept: this browser is a support member's, since $month. " . ($how eq 'signed' ? 'It was checked on this Mac. A support request you send carries it, so it is answered first.' : 'Its form was checked on this Mac; its signature is checked where a support request goes, and a request you send carries it, so it is answered first.'));
 }
 
 sub licence_removed {
     return licence_refused("$UNKEPT, so it keeps no licence code.") if $INCOGNITO;    # [C16]
-    my $had = -e "$DIR/licence";
-    unlink "$DIR/licence.new";
-    return licence_refused('The licence code could not be removed: its file is still there.') if $had && !unlink "$DIR/licence";
-    synced();
+    my $had = -e "${\ shared()}/licence";
+    unlink "${\ shared()}/licence.new";
+    return licence_refused('The licence code could not be removed: its file is still there.') if $had && !unlink "${\ shared()}/licence";
+    synced(shared());
     record('you removed the support member licence code, and its file') if $had;
     window('licence none');
     return idle($had ? 'The licence code was removed, and its file with it. Support requests now go without it.' : 'No licence code was kept.');
@@ -3634,7 +3896,7 @@ sub support_address {                     # the support address the release file
     return ($url, $host);
 }
 
-sub support_kept { return if $INCOGNITO; open my $in, '<', "$DIR/support" or return; my $line = <$in> // ''; return $line =~ /^([A-Za-z0-9_-]{22}) ([A-Za-z0-9_-]{43})\n?\z/ ? ($1, $2) : () }    # the reference and the key of the request sent last
+sub support_kept { return if $INCOGNITO; open my $in, '<', "${\ shared()}/support" or return; my $line = <$in> // ''; return $line =~ /^([A-Za-z0-9_-]{22}) ([A-Za-z0-9_-]{43})\n?\z/ ? ($1, $2) : () }    # the reference and the key of the request sent last
 sub support_told { my (undef, $host) = support_address(); my ($ticket) = support_kept(); my ($release) = beside(); window($INCOGNITO ? 'support off incognito' : $host && defined $release ? "support on $host $release" : 'support off none', 'support kept ' . ($host && $ticket ? $ticket : '-')) }
 sub support_failed { my ($says) = @_; window("support failed $says"); return idle($says) }
 
@@ -3696,9 +3958,9 @@ sub support_sent {
     my ($status, $data) = support_answer($got, 'POST');
     my ($ticket, $key) = $data ? ($data->{ticket} // '', $data->{key} // '') : ('', '');
     return support_failed('The support address did not take the request: ' . support_problem($status, $data) . '.') unless ($status // '') eq '200' && $ticket =~ /^[A-Za-z0-9_-]{22}\z/ && $key =~ /^[A-Za-z0-9_-]{43}\z/;
-    unlink "$DIR/support.new";
-    my $kept = put("$DIR/support.new", O_EXCL, "$ticket $key") && rename("$DIR/support.new", "$DIR/support");
-    synced();
+    unlink "${\ shared()}/support.new";
+    my $kept = put("${\ shared()}/support.new", O_EXCL, "$ticket $key") && rename("${\ shared()}/support.new", "${\ shared()}/support");
+    synced(shared());
     my $licence = ($data->{licence} // '') =~ /^(none|accepted|refused)\z/ ? $1 : 'none';
     window("support sent $ticket " . ($data->{priority} ? 'priority' : 'plain') . " $licence", 'support kept ' . ($kept ? $ticket : '-'));
     return idle("Your support request was sent. Its reference is $ticket." . ($licence eq 'accepted' ? ' It goes with your licence code, so it is answered first.' : $licence eq 'refused' ? ' Your licence code was not taken, so it goes without priority.' : '') . ($kept ? ' Read the answer later from Support request in the cogwheel\'s menu.' : ' Its key could not be kept, so its answer cannot be read here.'));
@@ -3731,10 +3993,10 @@ sub support_read {
 
 sub support_forgot {
     return support_failed("$UNKEPT, so it keeps no support request.") if $INCOGNITO;    # [C16]
-    my $had = -e "$DIR/support";
-    unlink "$DIR/support.new";
-    return support_failed('The support request could not be forgotten: its file is still there.') if $had && !unlink "$DIR/support";
-    synced();
+    my $had = -e "${\ shared()}/support";
+    unlink "${\ shared()}/support.new";
+    return support_failed('The support request could not be forgotten: its file is still there.') if $had && !unlink "${\ shared()}/support";
+    synced(shared());
     window('support kept -');
     return idle($had ? 'The support request is forgotten here: its reference and key were removed. Its answer can no longer be read on this Mac.' : 'No support request was kept.');
 }
@@ -3776,16 +4038,16 @@ sub newer {
     return $asked && checked_said('none') unless $newest && $installer;
     return newer_looked($release, $newest, $installer, $same, 1) if $asked;
     my $may = '';
-    if (open my $in, '<', "$DIR/look") { $may = <$in> // '' }
+    if (open my $in, '<', "${\ shared()}/look") { $may = <$in> // '' }
     $may = $may eq "yes $newest" ? 'yes' : $may =~ /^no\b/ ? 'no' : '';    # a yes for another address is no yes for this one; a no stays a no
     if (!$may) {
         $may = ask("May lzrprf look for a newer release of $APP at each start? It fetches one fixed address, $newest, with the same request from every computer, and writes it in the log like every other. The request does not say who you are or what you read; the host of that address sees your internet address, as every site does.", 'No', 'Yes, look') == 2 ? 'yes' : 'no';
-        unlink "$DIR/look";
+        unlink "${\ shared()}/look";
         my $kept = record($may eq 'yes' ? "you allowed lzrprf to look for a newer release at each start: $newest" : 'no newer release is looked for: the question was answered no, or not at all');    # an answer that lasts is a line first, like a change of what is kept: without its line it is not kept
         my $out;
-        $kept &&= sysopen($out, "$DIR/look", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) && print({$out} ($may eq 'yes' ? "yes $newest" : 'no')) && close($out);
+        $kept &&= sysopen($out, "${\ shared()}/look", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) && print({$out} ($may eq 'yes' ? "yes $newest" : 'no')) && close($out);
         if (!$kept) {                         # no line, or no place to keep it: the answer counts for nothing, now or later, and the question comes again at the next start
-            unlink "$DIR/look";
+            unlink "${\ shared()}/look";
             record('that answer could not be kept: no newer release is looked for now, and you are asked again at the next start');
             $may = 'no';
         }
@@ -3811,7 +4073,7 @@ sub newer_looked {
         defined $there && $there <= $release ? aside($says) : idle($says);
     }
     return unless defined $there && $there > $release;
-    return unless ask("A newer release of $APP is published: $there. You run $release. Install it fetches the installer and runs it here, in this window, with no further question: every line it prints is shown and kept in $DIR/install.txt.", 'Later', 'Install it') == 2;
+    return unless ask("A newer release of $APP is published: $there. You run $release. Install it fetches the installer and runs it here, in this window, with no further question: every line it prints is shown and kept in ${\ shared()}/install.txt.", 'Later', 'Install it') == 2;
     installed($there, $installer, $same);
 }
 
@@ -3842,9 +4104,9 @@ my @CANNOT = (
 sub welcome {
     my ($release) = beside();
     return unless defined $release;
-    return if $TRY && !-e "$DIR/welcome";
+    return if $TRY && !-e "${\ shared()}/welcome";
     my $was = '';
-    if (open my $in, '<', "$DIR/welcomed") { $was = <$in> // '' }
+    if (open my $in, '<', "${\ shared()}/welcomed") { $was = <$in> // '' }
     return if $was eq $release;
     my @new = grep { length } map { /^new (.+)$/ ? substr($1 =~ s/[\x00-\x1f\x7f]//gr, 0, 200) : () } release_lines();
     splice @new, 6;
@@ -3855,9 +4117,9 @@ sub welcome {
     my @held;
     while (defined(my $line = hear())) {
         if ($line ne 'welcomed') { push @held, $line; next }
-        unlink "$DIR/welcomed";
+        unlink "${\ shared()}/welcomed";
         my $out;
-        sysopen($out, "$DIR/welcomed", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) && print({$out} $release) && close($out);
+        sysopen($out, "${\ shared()}/welcomed", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) && print({$out} $release) && close($out);
         unshift @HELD, @held;
         return;
     }
@@ -3888,14 +4150,14 @@ sub welcome {
 # window: the application was replaced, and is started again. lzrprf itself
 # replaces nothing: whatever is replaced is replaced by that installer.
 my %INK = (31 => 'r', 32 => 'g', 33 => 'y', 34 => 'b', 35 => 'm', 36 => 'c', 37 => 'w', 91 => 'r', 92 => 'g', 93 => 'y', 94 => 'b', 95 => 'm', 96 => 'c', 97 => 'w');    # the colours of a terminal, as one letter each
-my $INSTALL_LOG;                          # $DIR/install.txt while an installer runs
+my $INSTALL_LOG;                          # install.txt in the state folder (sub shared) while an installer runs
 sub installed {
     my ($there, $installer, $same) = @_;
     window('install begin');
-    sysopen($INSTALL_LOG, "$DIR/install.txt", O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600) or undef $INSTALL_LOG;
+    sysopen($INSTALL_LOG, "${\ shared()}/install.txt", O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600) or undef $INSTALL_LOG;
     my @is = $INSTALL_LOG ? stat $INSTALL_LOG : ();
     undef $INSTALL_LOG unless @is && -f _ && $is[3] == 1 && $is[4] == $<;
-    return install_end(0, "$DIR/install.txt could not be written, so nothing was fetched.") unless $INSTALL_LOG;
+    return install_end(0, "${\ shared()}/install.txt could not be written, so nothing was fetched.") unless $INSTALL_LOG;
     print {$INSTALL_LOG} line("you chose to install release $there"), "\n";    # the time, the run, what happened: as a line of the log
     return install_end(0, 'The second place the release file names is not an address lzrprf fetches. Nothing was fetched.') if defined $same && !length $same;
     my @from = ($installer, defined $same ? $same : ());
@@ -3915,7 +4177,7 @@ sub installed {
         Time::HiRes::sleep($TRY ? 0.05 : $INSTALL_WAIT);    # "lzrprf try" waits a moment only: the tries are what is tested, not the clock
     }
     return install_end(0, "The two places hold different installers. Nothing was changed: $from[0] and $from[1].") if @copies == 2 && $copies[0] ne $copies[1];
-    my ($folder, $out) = ("$DIR/install.$$");
+    my ($folder, $out) = ("${\ shared()}/install.$$");
     mkdir $folder, 0700;
     my @folder = lstat $folder;
     my $file = "$folder/install.sh";
@@ -3978,7 +4240,12 @@ sub restarted {
             my $second = fork;
             POSIX::_exit(0) if !defined $second || $second;
             for (1 .. 80) { last unless grep { kill 0, $_ } @waits; Time::HiRes::sleep(0.25) }
-            become(undef, undef, undef, '/usr/bin/open', '-n', $app);
+            # The first profile comes back as the icon starts it: macOS opens the application, whose launcher starts the new lzrprf.
+            # Another profile cannot go that road, since the launcher passes nothing on, so this process starts it as the Profiles
+            # icon does (sub profile_command): perl, the file $SELF and the program $PROGRAM, with the profile's id alone. The
+            # installer has replaced both in place by now, and a fresh perl reads $SELF from the disk, so the new release runs,
+            # and it goes through every start check itself, the self-test's mark of the new release among them.
+            become(undef, undef, undef, defined $PROFILE ? profile_command($PROFILE) : ('/usr/bin/open', '-n', $app));
         }
         waitpid($first, 0) if $first;
         last;
@@ -4494,7 +4761,7 @@ sub log_shown {
         . ($count ? " The log on this computer holds $holds." . ($count > @lines ? ' Below are its last ' . @lines . ' lines.' : '') . " The whole of it: $DIR/log" . ($mode eq 'nothing' ? ' It was written earlier, and nothing more is added to it.' : '') : '')
         . ($UNMARKED ? ' The log could not be marked for Time Machine to leave it out of backups.' : '');
     undef $UNMARKED;                      # said once
-    my $more = $mode eq 'nothing' ? " To keep a log, type in Terminal: perl $SELF keep hosts. No button of this window makes lzrprf keep more." : '';
+    my $more = $INCOGNITO ? ' No button of this window makes lzrprf keep more.' : $mode eq 'nothing' ? " To keep a log, type in Terminal: perl $SELF keep " . (defined $PROFILE ? "--profile $PROFILE " : '') . "hosts. No button of this window makes lzrprf keep more." : '';    # an incognito window keeps nothing whatever is chosen, and is told nothing of profiles [C16]: the words to type would not be of it
     # The log page of the window, over the page shown, which stays as it is under it: these words, then this
     # window's lines, then the last of the log on this computer. "log shut" closes it again.
     window('log begin', "log note $says$more", 'log part This window', $rows->(@mine), $count ? ('log part On this computer', $rows->(@lines)) : (), 'log end');
@@ -4631,7 +4898,8 @@ sub keep_command {                        # "lzrprf keep": what is kept, in word
     mkdir $DIR, 0700;
     my @folder = lstat $DIR;
     die "lzrprf: $DIR is not a folder of yours\n" unless @folder && -d _ && $folder[4] == $<;
-    my $choices = "lzrprf keep nothing\n       lzrprf keep hosts|all [DAYS]     DAYS from 0 (until you clear it) to $KEPT_MOST, $KEPT_DAYS when it is left out\n";
+    my $one = defined $PROFILE ? "--profile $PROFILE " : '';    # the profile it was said of, so the words to type again name it too
+    my $choices = "lzrprf keep ${one}nothing\n       lzrprf keep ${one}hosts|all [DAYS]     DAYS from 0 (until you clear it) to $KEPT_MOST, $KEPT_DAYS when it is left out\n";
     my $lock = keep_lock() or die "lzrprf: $DIR/keep.lock could not be taken. Nothing was changed.\n";
     my ($was, $before) = keeping();
     my (undef, $count) = holds_log();
@@ -4721,7 +4989,7 @@ sub put {                                 # lines into a plain file of yours tha
     return close $out;
 }
 
-sub synced { if (open my $folder, '<', $DIR) { $^O eq 'darwin' ? fcntl($folder, 51, 0) : $folder->sync } }    # a change of name, through to the disk too
+sub synced { if (open my $folder, '<', $_[0] // $DIR) { $^O eq 'darwin' ? fcntl($folder, 51, 0) : $folder->sync } }    # a change of name, through to the disk too
 
 # Replacing the log: the new log, whose first line says why, is written
 # beside the old one and through to the disk, marked for Time Machine, and
@@ -4818,7 +5086,7 @@ sub sum_of { sysopen my $in, $_[0], O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return
 sub proven {
     my $mark = mark();
     my $is = sub {                        # 'plain' for the mark of now; the line, for the mark of now with the checks that could not be tried; '' for neither
-        sysopen my $in, kept_in() . '/proven', O_RDONLY | O_NONBLOCK or return '';    # a pipe put in its place is not waited for
+        sysopen my $in, "$ROOT/proven", O_RDONLY | O_NONBLOCK or return '';    # a pipe put in its place is not waited for
         return '' unless length $mark && -f $in;
         my @lines = map { scalar(<$in>) // () } 1 .. 8;
         return 'plain' if grep { $_ eq "$mark\n" } @lines;
@@ -4829,15 +5097,15 @@ sub proven {
         my ($line) = @_;
         return 1 if $line eq 'plain';
         my $yes = '';
-        if (sysopen my $in, kept_in() . '/untested', O_RDONLY | O_NOFOLLOW | O_NONBLOCK) { $yes = (-f $in ? scalar(<$in>) : undef) // '' }    # a plain file and no link; a pipe put in its place is not waited for
+        if (sysopen my $in, "$ROOT/untested", O_RDONLY | O_NOFOLLOW | O_NONBLOCK) { $yes = (-f $in ? scalar(<$in>) : undef) // '' }    # a plain file and no link; a pipe put in its place is not waited for
         return 1 if $yes eq "$line\n";
         my $text = substr($line, length "$mark, untested: ");
         if (ask("The self-test held on this Mac, but it could not try every check here: $text. What it could not try is not shown to hold on this Mac as it is now. Start $APP without it?", 'Quit', 'Start') != 2) {
             window('quit');
             leave();
         }
-        unlink "$DIR/untested";
-        if (sysopen my $out, "$DIR/untested", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out "$line\n"; close $out }    # when it cannot be kept, the question comes again at the next start
+        unlink "${\ shared()}/untested";
+        if (sysopen my $out, "${\ shared()}/untested", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out "$line\n"; close $out }    # when it cannot be kept, the question comes again at the next start
         return 1;
     };
     my $found = $is->();
@@ -4857,8 +5125,8 @@ sub proven {
     }
     busy('lzrprf is deflecting hostile tries we made ourselves, just to be sure. This takes about half a minute.');
     my ($report) = -f $test ? said(900, '/usr/bin/perl', $test) : ("there is no selftest beside $SELF\n");
-    unlink "$DIR/selftest.txt";
-    if (sysopen my $out, "$DIR/selftest.txt", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out $report }
+    unlink "${\ shared()}/selftest.txt";
+    if (sysopen my $out, "${\ shared()}/selftest.txt", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) { print $out $report }
     $found = $is->();
     return $without->($found) if length $found;    # the test held: when it could not try every check, the same question is asked before an address is taken
     my @failed = grep { /^(?:FAILED|UNTESTED|selftest:)/ } split /\n/, $report;
@@ -4871,7 +5139,7 @@ sub proven {
 # (~/.lzrprf/selftest.lock): a shared lock is not given beside it. A link, a pipe
 # or no file at all is no test running.
 sub testing {
-    sysopen my $lock, kept_in() . '/selftest.lock', O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return 0;
+    sysopen my $lock, "$ROOT/selftest.lock", O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return 0;
     return 0 unless -f $lock;
     return !flock $lock, LOCK_SH | LOCK_NB;
 }
@@ -4912,11 +5180,11 @@ var again = false, viewing = '';    // the list being drawn is the page shown la
 // tab shows at once, and the newest such press is said to lzrprf the moment it is free (pendingTab: { line, to }).
 var drawings = [], DRAWINGS_MOST = 8, drawnLines = [], drawnUsed = 0, pendingTab = null, perlTab = 0, listFor = 0;    // DECLARED(8 drawings: the tabs a person moves among, as lzrprf keeps 8 lists)
 var NEWLINE = null;    // a line end as bytes, made once (the "heard:" of the window's hand)
-var tabsView, belt, cog, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
+var tabsView, belt, cog, faces = null, star, marksView, stripBack, veil, panel, panelTitle, panelSub, panelScroll, panelText, panelButtons = [], modalActions = [], modalOpen = false, modalKind = 'small';    // lzrprf's chrome: the tab strip, the bar's row, the star, the cogwheel, the bookmarks bar, the modal over everything
 var form, nameLabel, nameField, addressLabel, addressField, folderLabelView, folderPop, newFolderField, editing = null;    // the bookmark modal's fields; the bookmark it changes, or null for a new one
 var zooms = [], reopening = false, pulling = null;    // each tab's zoom in percent (zoomOf); a closed tab asked back, whose place the strip makes when lzrprf tells the tabs; the address a pulled tab's window opens with
 var tabs = [{ title: '' }], selected = 0, shares = [], closing = null, restoring = null, free = false, focusing = false, drag = null, moving = false;    // the tabs as lzrprf last told them; where each was read, as a share of its page's height
-var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, torIcon: false, toolIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
+var marks = [], folders = [], marksOn = false, marksPlaced = [], current = '', hover = { tab: -1, cog: false, faces: false, star: false, mark: -1, dot: -1, nav: -1, lock: false, home: -1, list: -1, cogRow: -1, logIcon: false, techIcon: false, torIcon: false, toolIcon: false, suggest: -1, wiz: -1 };    // the bookmarks and their folders as lzrprf last told them; the address shown in the bar; what the pointer is over
 var TABS_HIGH = 42, BAR_ROW = 56, MARKS_ROW = 30, STRIP = 30, TOP = TABS_HIGH + BAR_ROW, MARGIN = 22, RADIUS = 16, PILL = null, GREEN, DIM, YELLOW, WHITE, DARK, GREY, LINE, GLASS, GLASS_HI, ICON, EDGE, FILL, HALO, FAINT;    // the heights of the strip of tabs, the bar's row, the bookmarks bar and lzrprf's strip, in points; the clear margin the frame's glow is drawn in, the frame's corners; the bar's pill; the laser's colours
 // Where the pointer is, in a view's own coordinates. It is converted from the window's content view, a view
 // this script keeps, and never from a nil: a nil made in the script can reach AppKit as a stray pointer and end
@@ -4995,6 +5263,7 @@ function heard(line) {
     else if (word == 'install') installTold(rest);
     else if (word == 'checked') checkedTold(rest);
     else if (word == 'licence') licenceTold(rest);
+    else if (word == 'profiles') profilesTold(rest);
     else if (word == 'support') supportTold(rest);
     else if (word == 'tor') torTold(rest);
     else if (word == 'tool') toolTold(rest);
@@ -5078,7 +5347,7 @@ function place() {
     win.invalidateCursorRectsForView(frameView);    // the sides' pointers follow the new size (frameCursors)
     TOP = TABS_HIGH + BAR_ROW + (marksOn ? MARKS_ROW : 0);
     var all = root.frame, wide = all.size.width, high = all.size.height, tall = asking ? 96 : STRIP;
-    var row = high - TABS_HIGH - BAR_ROW, pillAt = 146, pillWide = Math.max(160, wide - pillAt - 64);
+    var row = high - TABS_HIGH - BAR_ROW, pillAt = 146, pillWide = Math.max(160, wide - pillAt - 64 - (profilesOn ? 34 : 0));    // the Profiles icon, when there is one, takes 34 points from the bar
     PILL = $.NSMakeRect(pillAt, 10, pillWide, 36);    // in the bar's row
     tabsView.frame = $.NSMakeRect(0, high - TABS_HIGH, wide, TABS_HIGH);
     belt.frame = $.NSMakeRect(0, row, wide, BAR_ROW);
@@ -5086,6 +5355,7 @@ function place() {
     bar.frame = $.NSMakeRect(pillAt + 42 + inset, row + 18, pillWide - 42 - 44 - inset, 20);
     star.frame = $.NSMakeRect(pillAt + pillWide - 40, row + 13, 30, 30);
     cog.frame = $.NSMakeRect(wide - 50, row + 13, 30, 30);
+    if (faces) faces.frame = $.NSMakeRect(wide - 84, row + 13, 30, 30);
     marksView.frame = $.NSMakeRect(0, row - MARKS_ROW, wide, MARKS_ROW);
     stripBack.frame = $.NSMakeRect(0, 0, wide, tall);
     words.frame = asking ? $.NSMakeRect(20, 10, wide - 340, tall - 18) : $.NSMakeRect(20, 6, wide - 168, 17);
@@ -5443,7 +5713,7 @@ function stroked(path, colour, width, halo, blur) {    // a line, with its glow 
 function titled(item, words) { item.attributedTitle = styled(words, inked(sans(13), WHITE)); }
 
 function sent(line) { free = false; bar.enabled = false; logs.enabled = false; redrawn(); say(line); }
-function redrawn() { [tabsView, belt, cog, star, marksView, homeView, listView, cogBox, logs, techs, torIcon, torView, toolIcon, toolView, suggestBox, wizardView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
+function redrawn() { [tabsView, belt, cog, faces, star, marksView, homeView, listView, cogBox, logs, techs, torIcon, torView, toolIcon, toolView, suggestBox, wizardView].forEach(function (one) { if (one) one.needsDisplay = true; }); }
 function takes() { return free && !modalOpen; }    // whether the chrome takes a press now
 
 // The frame: the window is clear outside its rounded corners, and this draws, at its very edge,
@@ -5934,11 +6204,13 @@ function paintCog() {
 // cogwheel's, so it opens inside the window and never over its border; a window too low for it
 // has it rise over the bar, still inside. Each item has the keys that do it too, as in Chrome. A
 // press outside it closes it and reaches nothing under it, as a menu's does.
-var cogBox = null, cogCatch = null, cogOpen = false, COG_ROW = 32, COG_PAD = 8;
+var cogBox = null, cogCatch = null, cogOpen = false, cogMode = 'cog', COG_ROW = 32, COG_PAD = 8;    // cogMode: the cogwheel's menu ("cog"), or the Profiles list ("profiles"), which is drawn and pressed the same way
 // Each item: its words, its keys or what it says on the right, whether it is on now, what it does, why an incognito window
 // does not do it, and its icon: a line icon in the item's grey, and in the beam's blue with its glow while the item is on.
 function cogItems() {
+    if (cogMode == 'profiles') return profileItems();
     return [['New Incognito Window', '⇧⌘N', INCOGNITO, function () { say('incognito'); }, '', 'mask'],
+        ['Profiles...', profileOf('this') ? profileOf('this').name : '', false, INCOGNITO || !profilesOn ? function () { words.stringValue = $(PROFILE_TIP); } : function () { facesOpened(false); }, INCOGNITO || !profilesOn ? PROFILE_TIP : '', 'face'],
         ['Show bookmarks bar', '⇧⌘B', marksOn, function () { if (takes()) sent('menu bookmarks-bar'); }, '', 'bar'],
         ['Bookmarks', '⌥⌘B', listing == 'marks', function () { if (takes()) listOpened('marks'); }, '', 'ribbon'],
         ['Import bookmarks...', '', modalKind == 'wizard' && modalOpen, INCOGNITO ? function () { words.stringValue = $(UNKEPT_TIP); } : importOpened, INCOGNITO ? UNKEPT_TIP : '', 'tray'],
@@ -5977,6 +6249,9 @@ function cogIcon(name, cx, cy, colour, on) {
     else if (name == 'page') { p.moveToPoint(P(-5, 7)); p.lineToPoint(P(2, 7)); p.lineToPoint(P(5, 4)); p.lineToPoint(P(5, -7)); p.lineToPoint(P(-5, -7)); p.closePath; line(-2.5, 2, 2.5, 2); line(-2.5, -1, 2.5, -1); line(-2.5, -4, 1, -4); }
     else if (name == 'turn') { p.appendBezierPathWithArcWithCenterRadiusStartAngleEndAngleClockwise(P(0, 0), 6, 60, 330, false); line(6 * Math.cos(-30 * Math.PI / 180), 6 * Math.sin(-30 * Math.PI / 180), 6 * Math.cos(-30 * Math.PI / 180) + 2.6, -3 + 3.4); line(6 * Math.cos(-30 * Math.PI / 180), 6 * Math.sin(-30 * Math.PI / 180), 6 * Math.cos(-30 * Math.PI / 180) - 3.4, -3 + 0.6); }
     else if (name == 'key') { oval(-7, -1, 7, 7); line(0, 2.5, 7, 2.5); line(4, 2.5, 4, -0.5); line(6.5, 2.5, 6.5, 0); }
+    else if (name == 'face') { oval(-3.5, 1, 7, 7); p.moveToPoint(P(-7, -7)); p.curveToPointControlPoint1ControlPoint2(P(7, -7), P(-6, 0), P(6, 0)); }
+    else if (name == 'plus') { line(-6, 0, 6, 0); line(0, -6, 0, 6); }
+    else if (name == 'pen') { p.moveToPoint(P(-6, -6)); p.lineToPoint(P(-6, -3)); p.lineToPoint(P(4, 7)); p.lineToPoint(P(7, 4)); p.lineToPoint(P(-3, -6)); p.closePath; }
     else if (name == 'bubble') { box(-7, -3, 14, 10, 3); p.moveToPoint(P(-3, -3)); p.lineToPoint(P(-5, -7)); p.lineToPoint(P(0, -3)); }
     stroked(p, colour, 1.3, on ? GREEN : null, on ? 7 : 0);
 }
@@ -5984,6 +6259,7 @@ function cogIcon(name, cx, cy, colour, on) {
 function cogClicked() {
     if (cogOpen) return cogHidden();
     if (!takes()) return;
+    cogMode = 'cog';
     secureHidden();
     techHidden();
     suggestHidden();
@@ -5996,7 +6272,7 @@ function cogClicked() {
 
 function cogPlaced() {
     if (!cogOpen || !cogBox) return;
-    var items = cogItems(), w = 0, all = root.frame.size, at = cog.convertRectToView(cog.bounds, root);
+    var items = cogItems(), w = 0, all = root.frame.size, anchor = cogMode == 'profiles' && faces && !faces.hidden ? faces : cog, at = anchor.convertRectToView(anchor.bounds, root);    // the Profiles list opens under its own icon
     items.forEach(function (one) { w = Math.max(w, $(one[0]).sizeWithAttributes(inked(sans(13), WHITE)).width + (one[1] ? $(one[1]).sizeWithAttributes(inked(sans(12), GREY)).width + 28 : 0)); });
     w = Math.ceil(Math.max(270, w + 56));
     var h = items.length * COG_ROW + 2 * COG_PAD, x = Math.max(8, Math.min(all.width - w - 8, at.origin.x + at.size.width - w)), y = Math.max(8, at.origin.y - 6 - h);
@@ -6008,6 +6284,7 @@ function cogPlaced() {
 function cogHidden() {
     if (!cogBox || !cogOpen) return;
     cogOpen = false;
+    cogMode = 'cog';
     hover.cogRow = -1;
     cogBox.hidden = true;
     cogCatch.hidden = true;
@@ -6041,7 +6318,7 @@ function paintCogMenu() {
             $.NSGraphicsContext.saveGraphicsState; glow(GREEN, 6); DIM.setStroke; pill.stroke; $.NSGraphicsContext.restoreGraphicsState;
         }
         cogIcon(one[5], 21, mid, one[2] ? GREEN : one[4] ? GREY : hot ? WHITE : ICON, !!one[2]);    // the item that is on now glows in the beam's blue
-        $(one[0]).drawAtPointWithAttributes($.NSMakePoint(38, mid - 8.5), inked(sans(13), one[4] ? GREY : hot ? WHITE : ICON));    // an item an incognito window does not do is grey, its reason in its tooltip
+        $(one[0]).drawAtPointWithAttributes($.NSMakePoint(38, mid - 8.5), inked(sans(13), one[4] ? GREY : hot ? WHITE : one[2] && cogMode == 'profiles' ? GREEN : ICON));    // in the Profiles list, this window's profile is in the beam's blue    // an item an incognito window does not do is grey, its reason in its tooltip
         if (one[1]) { var keys = $(one[1]), kw = keys.sizeWithAttributes(inked(sans(12), GREY)).width; keys.drawAtPointWithAttributes($.NSMakePoint(size.width - 16 - kw, mid - 8), inked(sans(12), GREY)); }
     });
 }
@@ -6096,6 +6373,104 @@ function licenceChecked() {
     say('licence set ' + typed);
 }
 function licenceRemoved() { if (licenceWaiting) return; licenceWaiting = true; buttons([['Close', closeModal]]); say('licence remove'); }
+
+// Profiles: the icon left of the cogwheel, and the list it opens, drawn as the cogwheel's menu is. lzrprf tells the
+// list ("profiles begin", "profiles one ID this|open|shut NAME" for each, "profiles end") at the start and after each
+// change, and again when the icon is pressed ("profile list"), so which profile has a window open is said as it is
+// now. This window's profile is highlighted and does nothing when pressed; another opens in a new window ("profile
+// open ID"). "New profile..." takes a name in one field ("profile new<TAB>NAME"); "Rename or remove..." turns each
+// row into a press that opens the same field for that profile, with Rename ("profile rename<TAB>ID<TAB>NAME") and,
+// for a profile that is not the first and has no window open, Remove ("profile remove ID"), which lzrprf asks about
+// once in the strip. lzrprf checks every word again and says why when it did nothing ("profiles refused WORDS").
+// An incognito window is told no profile: it shows no icon, and the cogwheel's item only says why.
+var profileField, profiles = [], profilesNext = null, profilesOn = false, profileManage = false, profileWaiting = false, profileEditing = null;
+var PROFILES_MOST = 16, PROFILE_NAME = 32, PROFILE_TIP = 'An incognito window has no profile: it keeps nothing, and opens no profile.';    // DECLARED(lzrprf $PROFILES_MOST and $PROFILE_NAME)
+function profileText(name) { return Array.from(String(name).replace(/[\x00-\x1f\x7f-\x9f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g, '')).slice(0, PROFILE_NAME).join(''); }    // a name as text to draw, never as anything else: lzrprf sends only plain names, and this takes out what is not one
+function profileOf(state) { return profiles.filter(function (one) { return one.state == state; })[0]; }
+function profilesTold(rest) {
+    var at = rest.indexOf(' '), word = at < 0 ? rest : rest.slice(0, at), more = at < 0 ? '' : rest.slice(at + 1), was = profilesOn;
+    if (word == 'begin') profilesNext = [];
+    else if (word == 'one' && profilesNext) { var m = /^(first|[0-9a-f]{12}) (this|open|shut) (.+)$/.exec(more); if (m && profilesNext.length < PROFILES_MOST) profilesNext.push({ id: m[1], state: m[2], name: profileText(m[3]) }); }
+    else if (word == 'end' && profilesNext) {
+        profiles = profilesNext;
+        profilesNext = null;
+        profilesOn = !INCOGNITO && profiles.length > 0;
+        if (faces) { faces.hidden = !profilesOn; faces.toolTip = $(profileOf('this') ? 'Profiles. This window is ' + profileOf('this').name + '.' : 'Profiles'); }
+        if (profileWaiting && modalOpen && modalKind == 'profile') { profileWaiting = false; closeModal(); }
+        if (was != profilesOn) place();
+    }
+    else if (word == 'refused') { profileWaiting = false; if (modalOpen && modalKind == 'profile') { panelSub.stringValue = $(more); panelSub.textColor = YELLOW; buttons(profileChoices()); } }
+    if (cogOpen) cogPlaced();
+}
+function profileItems() {    // the rows of the Profiles list, in the form of the cogwheel's items
+    var rows = profiles.map(function (one) {
+        var act = profileManage ? function () { profileNamed(one); } : one.state == 'this' ? function () { } : function () { if (takes()) sent('profile open ' + one.id); };
+        return [one.name, one.state == 'this' ? 'this window' : one.state == 'open' ? 'open' : '', one.state == 'this', act, '', 'face'];
+    });
+    var full = profiles.length >= PROFILES_MOST ? 'There are ' + PROFILES_MOST + ' profiles, the most there may be. Remove one to make another.' : '';
+    rows.push(['New profile...', '', false, full ? function () { words.stringValue = $(full); } : function () { profileNamed(null); }, full, 'plus']);
+    rows.push([profileManage ? 'Done' : 'Rename or remove...', '', profileManage, function () { profileManage = !profileManage; facesOpened(profileManage); }, '', 'pen']);
+    return rows;
+}
+function paintFaces() {    // the Profiles icon: a head and shoulders in a thin line, as the cogwheel is drawn
+    var size = faces.frame.size, cx = size.width / 2, cy = size.height / 2, path = $.NSBezierPath.bezierPath, lit = takes(), over = hover.faces && lit;
+    path.appendBezierPathWithOvalInRect($.NSMakeRect(cx - 4, cy + 0.5, 8, 8));
+    path.moveToPoint($.NSMakePoint(cx - 8.5, cy - 9));
+    path.curveToPointControlPoint1ControlPoint2($.NSMakePoint(cx + 8.5, cy - 9), $.NSMakePoint(cx - 7.5, cy - 0.5), $.NSMakePoint(cx + 7.5, cy - 0.5));
+    stroked(path, over ? WHITE : lit ? ICON : GREY, 1.4, over ? GREEN : null, 8);
+}
+function facesClicked() {
+    if (cogOpen && cogMode == 'profiles') return cogHidden();
+    facesOpened(false);
+}
+function facesOpened(manage) {    // the Profiles list, open at once; lzrprf's fresh list redraws it when it comes
+    if (!takes() || !profilesOn) return;
+    if (cogOpen) cogHidden();
+    secureHidden();
+    techHidden();
+    suggestHidden();
+    cogMode = 'profiles';
+    profileManage = !!manage;
+    cogOpen = true;
+    hover.cogRow = -1;
+    cogCatch.hidden = false;
+    cogBox.hidden = false;
+    cogPlaced();
+    say('profile list');
+}
+function profileChoices() {
+    var one = profileEditing;
+    if (!one) return [['Cancel', closeModal], ['Make and open', profileSaid]];
+    return one.id == 'first' || one.state != 'shut' ? [['Cancel', closeModal], ['Rename', profileSaid]] : [['Cancel', closeModal], ['Remove...', profileRemoveSaid], ['Rename', profileSaid]];
+}
+function profileNamed(one) {    // the one field: a new profile's name (one null), or another name for this one
+    if (!takes()) return;
+    profileEditing = one;
+    profileWaiting = false;
+    var about = !one ? 'A profile is a browser of its own: its own bookmarks, history, log, home page and search, kept apart from every other profile. Type its name, at most ' + PROFILE_NAME + ' characters. It opens in a new window.'
+        : 'Type a new name for ' + one.name + ', at most ' + PROFILE_NAME + ' characters.' + (one.id == 'first' ? ' The first profile is never removed: its folder also holds what belongs to the whole installation.' : one.state != 'shut' ? ' It has a window open, so it cannot be removed now.' : ' Remove deletes its bookmarks, history, log and all that is kept for it; lzrprf asks once more.');
+    modal(one ? 'Rename or remove a profile' : 'New profile', about, profileChoices(), 'profile');
+    profileField.stringValue = $(one ? one.name : '');
+    win.makeFirstResponder(profileField);
+}
+function profileFit(typed) {    // the name as lzrprf takes it, or why not, in lzrprf's own words (sub profile_fit)
+    if (/[\x00-\x1f\x7f-\x9f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/.test(typed)) return { why: 'A profile name holds no control or format character.' };
+    var name = typed.replace(/\s+/g, ' ').trim(), count = Array.from(name).length;
+    if (!count) return { why: 'Type a name for the profile first.' };
+    if (count > PROFILE_NAME) return { why: 'A profile name is at most ' + PROFILE_NAME + ' characters. That one has ' + count + '.' };
+    return { name: name };
+}
+function profileSaid() {
+    if (profileWaiting) return;
+    var fit = profileFit(profileField.stringValue.js);
+    if (fit.why) { panelSub.stringValue = $(fit.why); panelSub.textColor = YELLOW; return; }
+    profileWaiting = true;
+    panelSub.stringValue = $(profileEditing ? 'Renaming the profile.' : 'Making the profile.');
+    panelSub.textColor = WHITE;
+    buttons([['Cancel', closeModal]]);
+    say(profileEditing ? 'profile rename\t' + profileEditing.id + '\t' + fit.name : 'profile new\t' + fit.name);
+}
+function profileRemoveSaid() { if (profileWaiting || !profileEditing) return; var id = profileEditing.id; closeModal(); sent('profile remove ' + id); }    // lzrprf says what is deleted, and asks once
 
 // A support request: a box for your words, which says before Send exactly what is sent and where, and a box to tick
 // for a picture of this window, off at first. The picture is the window's own drawing of itself, made into a
@@ -7373,6 +7748,7 @@ function modal(title, about, choices, kind) {
     form.hidden = kind != 'form';
     engineField.hidden = kind != 'engine';
     licenceField.hidden = kind != 'licence';
+    profileField.hidden = kind != 'profile';
     supportScroll.hidden = kind != 'support';
     supportTick.hidden = kind != 'support';
     supportPreview.hidden = true;
@@ -7488,14 +7864,15 @@ function flightEnded() {
 function placeModal() {
     if (!veil) return;
     var all = root.frame, wide = all.size.width, high = all.size.height, M = 18, big = modalKind == 'big';    // M: the room around the panel its glow is drawn in
-    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', tor = modalKind == 'tor', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : tor ? 640 : modalKind == 'tool' ? TOOL_WIDE : modalKind == 'support' ? 640 : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' || modalKind == 'licence' ? 330 : modalKind == 'support' ? Math.min(620, high - 48) : tor ? 320 : modalKind == 'tool' ? Math.min(TOOL_HIGH, high - 48) : 230;
+    var wizard = modalKind == 'wizard', tech = modalKind == 'tech', tor = modalKind == 'tor', w = Math.min(big ? 780 : wizard ? 660 : tech ? TECH_WIDE : tor ? 640 : modalKind == 'tool' ? TOOL_WIDE : modalKind == 'support' ? 640 : 580, wide - 48), h = big ? Math.min(welcoming ? 820 : 560, high - 48) : tech ? Math.min(TECH_HIGH, high - 48) : wizard ? Math.min(470, high - 48) : modalKind == 'form' ? 330 : modalKind == 'tall' ? 310 : modalKind == 'engine' || modalKind == 'licence' || modalKind == 'profile' ? 330 : modalKind == 'support' ? Math.min(620, high - 48) : tor ? 320 : modalKind == 'tool' ? Math.min(TOOL_HIGH, high - 48) : 230;
     veil.frame = $.NSMakeRect(0, 0, wide, high);
     panel.frame = $.NSMakeRect(Math.round((wide - w) / 2) - M, Math.round((high - h) / 2) - M, w + 2 * M, h + 2 * M);
     panel.needsDisplay = true;
     panelTitle.frame = $.NSMakeRect(M + 26, M + h - 52, w - 52, 28);
-    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : wizard ? $.NSMakeRect(M + 26, M + h - 108, w - 52, 52) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : modalKind == 'engine' || modalKind == 'licence' ? $.NSMakeRect(M + 26, M + 112, w - 52, h - 172) : modalKind == 'support' ? $.NSMakeRect(M + 26, M + h - 196, w - 52, 136) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
+    panelSub.frame = big ? $.NSMakeRect(M + 26, M + h - 98, w - 52, 42) : wizard ? $.NSMakeRect(M + 26, M + h - 108, w - 52, 52) : modalKind == 'form' ? $.NSMakeRect(M + 26, M + h - 84, w - 52, 30) : modalKind == 'engine' || modalKind == 'licence' || modalKind == 'profile' ? $.NSMakeRect(M + 26, M + 112, w - 52, h - 172) : modalKind == 'support' ? $.NSMakeRect(M + 26, M + h - 196, w - 52, 136) : $.NSMakeRect(M + 26, M + 64, w - 52, h - 124);
     engineField.frame = $.NSMakeRect(M + 26, M + 68, w - 52, 26);
     licenceField.frame = $.NSMakeRect(M + 26, M + 68, w - 52, 26);
+    profileField.frame = $.NSMakeRect(M + 26, M + 68, w - 52, 26);
     supportScroll.frame = $.NSMakeRect(M + 26, M + 210, w - 52, Math.max(60, h - 196 - 8 - 210));    // the box for the words, between what is sent and the picture
     supportTick.frame = $.NSMakeRect(M + 26, M + 62, w - 52, 22);
     supportPreview.frame = $.NSMakeRect(M + 26, M + 90, Math.min(200, w - 52), 112);
@@ -7954,6 +8331,13 @@ ObjC.registerSubclass({ name: 'LzrprfCog', superclass: 'NSView', methods: {
     'mouseExited:': { implementation: function (event) { hovered('cog', null); } }
 } });
 
+ObjC.registerSubclass({ name: 'LzrprfFaces', superclass: 'NSView', methods: {
+    'drawRect:': { implementation: function (dirty) { paintFaces(); } },
+    'mouseDown:': { implementation: function (event) { facesClicked(); } },
+    'mouseEntered:': { implementation: function (event) { hovered('faces', event); } },
+    'mouseExited:': { implementation: function (event) { hovered('faces', null); } }
+} });
+
 ObjC.registerSubclass({ name: 'LzrprfStar', superclass: 'NSView', methods: {
     'drawRect:': { implementation: function (dirty) { paintStar(); } },
     'mouseDown:': { implementation: function (event) { starClicked(); } },
@@ -8239,10 +8623,13 @@ function run(argv) {
     root.addSubview(star);
     cog = $.LzrprfCog.alloc.initWithFrame($.NSMakeRect(0, 0, 30, 30));
     root.addSubview(cog);
+    faces = $.LzrprfFaces.alloc.initWithFrame($.NSMakeRect(0, 0, 30, 30));    // the Profiles icon: hidden until lzrprf tells the profiles, and in an incognito window always
+    faces.hidden = true;
+    root.addSubview(faces);
     marksView = $.LzrprfMarks.alloc.initWithFrame($.NSMakeRect(0, 0, 960, MARKS_ROW));
     marksView.hidden = true;
     root.addSubview(marksView);
-    [tabsView, belt, cog, star, marksView].forEach(tracked);
+    [tabsView, belt, cog, faces, star, marksView].forEach(tracked);
     stripBack = $.LzrprfBack.alloc.initWithFrame($.NSMakeRect(0, 0, 960, 30));
     root.addSubview(stripBack);
     words = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 100, 24));
@@ -8387,6 +8774,13 @@ function run(argv) {
     licenceField.placeholderString = $('XXXXX-XXXXX-XXXXX-...');
     licenceField.hidden = true;
     panel.addSubview(licenceField);
+    profileField = $.NSTextField.alloc.initWithFrame($.NSMakeRect(0, 0, 400, 26));    // New profile, Rename: its one field
+    profileField.font = sans(13);
+    profileField.cell.usesSingleLineMode = true;
+    profileField.cell.scrollable = true;
+    profileField.placeholderString = $('A name, at most 32 characters');
+    profileField.hidden = true;
+    panel.addSubview(profileField);
     supportScroll = $.NSScrollView.alloc.initWithFrame($.NSMakeRect(0, 0, 580, 200));    // Support request: the box for your words
     supportScroll.hasVerticalScroller = true;
     supportScroll.borderType = 1;
@@ -8467,7 +8861,9 @@ END
 }
 
 my $command = shift // '';
+if ($command =~ /^(?:run|incognito|keep|log)\z/ && ($ARGV[0] // '') eq '--profile') { (undef, $PROFILE) = splice @ARGV, 0, 2; die "lzrprf: --profile takes the id of a profile, 12 hex digits as lzrprf made it. Nothing was started or changed. \"lzrprf profiles\" lists each id with its name.\n" unless ($PROFILE // '') =~ /\A[0-9a-f]{12}\z/ }    # a profile's window: its id alone is an argument, never its name (sub profile_command)
 if ($command =~ /^(?:run|incognito)\z/ && ($ARGV[0] // '') eq '--open') { ($OPEN, $OPEN_FRAME, @ARGV) = opened_with(\*STDIN, @ARGV); open STDIN, '<', '/dev/null' }
+if (defined $PROFILE && $command =~ /^(?:keep|log)\z/) { $DIR = profile_folder($PROFILE) // die "lzrprf: there is no profile with the id $PROFILE. Nothing was changed. \"lzrprf profiles\" lists each id with its name.\n" }    # the terminal's word for one profile: its folder, only when lzrprf finds it under the folder of the profiles
 die "lzrprf: this macOS has no /usr/bin/sandbox-exec. lzrprf contains with that command and with nothing else, so nothing was started.\n" if $command =~ /^(?:run|try|incognito)\z/ && !-x '/usr/bin/sandbox-exec';
 if ($command eq 'run') { run(@ARGV) }
 elsif ($command eq 'incognito') { $INCOGNITO = 1; run(@ARGV ? @ARGV : '/Applications/LZRBRWSR.app/Contents/MacOS/lzrbrwsr-bin') }    # [C16] with no program named: the installed application's
@@ -8475,6 +8871,7 @@ elsif ($command eq 'try' && @ARGV > 4 && $ARGV[0] =~ m{^\Q$DIR\E/[A-Za-z0-9][A-Z
     ($TRY, $DIR, $PEER, $TYPED, $ANSWER) = (1, splice @ARGV, 0, 4);    # for tests: lzrprf try FOLDER PEER|- TYPED|- allow|deny|ask|DIGITS /path/to/program
     run(@ARGV);
 }
+elsif ($command eq 'profiles' && !@ARGV) { print "$_\t", profile_name($_), "\n" for profile_ids() }    # each profile's id and its name; "--profile" takes each id but "first", which is the profile used without it
 elsif ($command eq 'log' && !@ARGV) { show() }
 elsif ($command eq 'keep' && @ARGV <= 2) { keep_command(@ARGV) }
 elsif ($command eq 'address' && @ARGV) { print "$_\t", (address($_))[0] // 'not fetched: not an address lzrprf fetches', "\n" for @ARGV }
@@ -8488,15 +8885,17 @@ elsif ($command eq 'public' && @ARGV) {
     }
 }
 elsif ($command eq 'mark' && !@ARGV) { print mark(), "\n" }
-elsif ($command eq 'behind' && @ARGV > 6 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask)$/ && $ARGV[4] =~ /^\d+$/ && ($ARGV[5] eq '-' || $ARGV[1] =~ m{/lzrprf-i\.\d+\.[0-9a-f]{12}\z})) {    # started by run, not by hand: the same five things "try" sets, handed on, and for an incognito window the folder its settings are read from
-    ($TRY, $DIR, $PEER, $ANSWER, $RUN, $BASE) = splice @ARGV, 0, 6;
+elsif ($command eq 'behind' && @ARGV > 7 && $ARGV[0] =~ /^[01]$/ && $ARGV[2] =~ /^(?:-|127\.0\.0\.1:\d+)$/ && $ARGV[3] =~ /^(?:allow|deny|ask)$/ && $ARGV[4] =~ /^\d+$/ && ($ARGV[5] eq '-' || $ARGV[1] =~ m{/lzrprf-i\.\d+\.[0-9a-f]{12}\z}) && ($ARGV[6] eq '-' || $ARGV[6] =~ /\A[0-9a-f]{12}\z/)) {    # started by run, not by hand: the same five things "try" sets, handed on, for an incognito window the folder its settings are read from, and for a profile's window its id
+    ($TRY, $DIR, $PEER, $ANSWER, $RUN, $BASE, $PROFILE) = splice @ARGV, 0, 7;
     ($INCOGNITO, $BASE) = $BASE eq '-' ? (0, undef) : (1, $BASE);
+    $ROOT = $INCOGNITO ? $BASE : $DIR;
+    if ($PROFILE eq '-') { undef $PROFILE } elsif ($INCOGNITO) { $BASE = profile_folder($PROFILE) // exit 1 } else { $DIR = profile_folder($PROFILE) // exit 1 }    # the folder of a profile lzrprf knows, or no start: what an incognito window reads, else this window's own
     named(@ARGV);
-    $TIMED = $TRY && -e kept_in() . '/times';
+    $TIMED = $TRY && -e "$ROOT/times";
     open $FROM, '<&=', 0 or exit 1;
     $SIG{PIPE} = 'IGNORE';
     $| = 1;
     behind();
 }
 elsif ($command eq 'lookup' && @ARGV == 1 && $ARGV[0] =~ /^$NAME$/) { lookup(@ARGV) }    # started for one address that was typed, not by hand
-else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf incognito [/path/to/program [arguments]]\n       lzrprf run|incognito --open \"X Y W H\" /path/to/program [arguments] (one line on standard input: the address, or none)\n       lzrprf log\n       lzrprf keep [nothing|hosts|all [DAYS]]\n       lzrprf address TEXT...\n       lzrprf request [--other] TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }
+else { die "usage: lzrprf run /path/to/program [arguments]\n       lzrprf incognito [/path/to/program [arguments]]\n       lzrprf run --profile ID /path/to/program [arguments] (ID: a profile lzrprf made)\n       lzrprf run|incognito --open \"X Y W H\" /path/to/program [arguments] (one line on standard input: the address, or none)\n       lzrprf incognito --profile ID [/path/to/program [arguments]]\n       lzrprf log [--profile ID]\n       lzrprf keep [--profile ID] [nothing|hosts|all [DAYS]]\n       lzrprf profiles\n       lzrprf address TEXT...\n       lzrprf request [--other] TEXT...\n       lzrprf public NUMBER...\n       lzrprf mark\n" }

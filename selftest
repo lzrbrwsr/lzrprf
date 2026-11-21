@@ -173,7 +173,7 @@ sub support_door {                        # what the test site answers at its su
 }
 sub logged {                              # lzrprf's log on the disk holds "connects to" for this address once more than it holds how such a request ended: the request now arriving is written down and has not ended
     my ($path, $host) = @_;
-    for my $log (glob "$base.*/log") {
+    for my $log (glob("$base.*/log"), glob("$base.*/profiles/*/log")) {    # a second profile's window logs in its own folder
         my $all = slurp($log);
         my ($begins, $address) = ("https://$host$path -> lzrprf connects ", "https://$host$path");
         my $begun = () = $all =~ /\Q$begins\E(?:to|through Tor)/g;    # directly, or through Tor
@@ -870,6 +870,61 @@ function licenceTried() {                    // the licence panel told by lines 
     heard('licence none');
     return out.join(' ; ');
 }
+function profilesTried() {                   // the Profiles icon and its list told by lines as lzrprf writes them; what the window says is caught here and never reaches lzrprf
+    var caught = [], sayAll = say, sentAll = sent, out = [];
+    say = function (line) { caught.push(line); };
+    sent = function (line) { caught.push(line); };
+    var rows = function () { return cogItems().map(function (item) { return item[0] + (item[2] ? '+' : '') + (item[1] ? ':' + item[1] : ''); }).join(','); };
+    try {
+        out.push('start on=' + profilesOn + ' icon=' + !faces.hidden + ' count=' + profiles.length + ' item=' + cogItem('Profiles...')[1]);
+        ['profiles begin', 'profiles one first shut First profile', 'profiles one a1b2c3d4e5f6 this Work <b>x</b>', 'profiles one b1b2c3d4e5f6 open Home\x07 one', 'profiles one ../../etc shut Away', 'profiles one 0123456789abc shut Long', 'profiles one ABCDEFABCDEF shut Upper', 'profiles end'].forEach(function (line) { heard(line); });
+        out.push('told count=' + profiles.length + ' tip=' + plain(faces.toolTip.js) + ' item=' + cogItem('Profiles...')[1] + ' paint=' + paintedOff(30, 30, paintFaces));
+        facesClicked();
+        out.push('open mode=' + cogMode + ' cog=' + cogOpen + ' said=' + caught.join(',') + ' rows=' + rows());
+        cogItems()[1][3](); cogItems()[0][3](); cogItems()[2][3]();
+        out.push('pressed=' + caught.slice(1).join(','));
+        caught = [];
+        cogItem('New profile...')[3]();
+        out.push('new modal=' + (modalOpen && modalKind == 'profile') + ' field=' + !profileField.hidden);
+        [' ', 'a\x01b', 'x'.repeat(33)].forEach(function (typed) { profileField.stringValue = $(typed); profileSaid(); out.push(plain(panelSub.stringValue.js) + ' said=' + caught.length); });
+        profileField.stringValue = $('  Two   words '); profileSaid();
+        out.push('sent=' + caught.join(','));
+        heard('profiles refused There is a profile called Two words already. Choose another name.');
+        out.push('refused=' + plain(panelSub.stringValue.js) + ' waiting=' + profileWaiting);
+        closeModal(); caught = [];
+        facesOpened(true);
+        out.push('manage rows=' + rows());
+        cogItems()[0][3]();
+        out.push('first buttons=' + profileChoices().map(function (b) { return b[0]; }).join('/'));
+        closeModal();
+        profileNamed(profiles[1]);
+        profileField.stringValue = $('Renamed'); profileSaid();
+        out.push('rename=' + caught.slice(1).join(','));
+        caught = [];
+        heard('profiles begin'); heard('profiles one first this First profile'); heard('profiles one c1c1c1c1c1c1 shut Old'); heard('profiles end');
+        out.push('closed=' + !modalOpen);
+        profileNamed(profiles[1]);
+        out.push('shut buttons=' + profileChoices().map(function (b) { return b[0]; }).join('/'));
+        profileRemoveSaid();
+        out.push('remove=' + caught.join(',') + ' modal=' + modalOpen);
+        if (cogOpen) cogHidden();
+        INCOGNITO = true;
+        heard('profiles begin'); heard('profiles one first this First profile'); heard('profiles end');
+        caught = [];
+        facesClicked();
+        var grey = cogItem('Profiles...');
+        grey[3]();
+        out.push('incognito on=' + profilesOn + ' icon=' + !faces.hidden + ' tip=' + (grey[4] == PROFILE_TIP) + ' said=' + caught.length + ' cog=' + cogOpen);
+    } catch (e) { out.push('fault ' + plain(e).slice(0, 120)); }
+    INCOGNITO = false;
+    say = sayAll;
+    sent = sentAll;
+    if (modalOpen) closeModal();
+    if (cogOpen) cogHidden();
+    cogMode = 'cog'; profileManage = false; profileWaiting = false; profileEditing = null;
+    heard('profiles begin'); heard('profiles one first this First profile'); heard('profiles end');
+    return out.join(' ; ');
+}
 function supportTried() {                    // the support panel told by lines as lzrprf writes them, with the window's own picture of itself; what it says is caught here
     var caught = [], sayAll = say, out = [];
     say = function (line) { caught.push(line); };
@@ -979,7 +1034,7 @@ function told(word, rest) {
     else if (step == 1 && word == 'ask') { step = 2; say('test asked ' + first.title.js + '|' + second.title.js + '|bar=' + bar.enabled + '|' + plain(words.stringValue.js).slice(0, 60)); second.performClick(null); }
     else if (step == 2 && word == 'idle') { step = 3; say('test page title=' + win.title.js + ' visible=' + win.visible + ' drawn=' + pictures + ' links=' + links() + ' editable=' + page.editable + ' menu=' + page.menuForEvent(null).numberOfItems + ' bar=' + bar.stringValue.js + ' strip=' + plain(words.stringValue.js) + ' words=' + plain(words.toolTip.js) + ' text=' + plain(page.string.js)); say('test made ' + plain(made.string.js)); say('test hover ' + hovers()); say('test secure ' + (secureLines ? secureLines.length + ' ' + secureLines.filter(function (one) { return one.charAt(0) == '#'; }).join('|') : 'none')); say('test nav ' + navState.join(' ')); say('test suggest ' + suggested('site.t').map(function (one) { return one.kind + ' ' + one.url; }).join('|') + ' none=' + suggested('nowhere-at-all').length); techs.performClick(null); say('test tech open=' + techOpen + ' shown=' + (!veil.hidden && modalKind == 'tech' && !under.hidden && panel.frame.size.width > 700) + ' list=' + under.superview.isEqual(panel) + ' tips=' + logs.toolTip.js + '|' + techs.toolTip.js + ' flies=' + (flightAllowed() ? !!flight && flight.opening && flight.from.w == techs.frame.size.width : 'still')); techs.performClick(null); say('test techclosed ' + techOpen + ' back=' + (flightAllowed() ? !!flight && !flight.opening && flight.to.x == techs.frame.origin.x && !veil.hidden : 'still')); logs.performClick(null); }
     else if (step == 3 && word == 'ask') { step = 5; say('test log a question came: ' + first.title.js + '|' + second.title.js); app.terminate(null); }    // with nothing kept and no log, the Log button has no question
-    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.toolTip.js).slice(0, 600) + '|' + listing + ' strip=' + plain(words.stringValue.js) + '|' + plain(logRows.map(function (row) { return row.heading || row.what; }).join('|')).slice(0, 2000)); say('test logmade ' + plain(made.string.js)); logs.performClick(null); say('test logshut ' + listing + ' page=' + !scroll.hidden); say('test find ' + findTried()); say('test toolpanel ' + toolTried()); say('test licencepanel ' + licenceTried()); say('test supportpanel ' + supportTried()); say('test logpaths ' + logTried()); say('test importsteps ' + importStepsTried()); say('test flight ' + flightTried()); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE, SETTINGS)); more(); }
+    else if (step == 3 && word == 'idle') { step = 5; say('test log ' + plain(words.toolTip.js).slice(0, 600) + '|' + listing + ' strip=' + plain(words.stringValue.js) + '|' + plain(logRows.map(function (row) { return row.heading || row.what; }).join('|')).slice(0, 2000)); say('test logmade ' + plain(made.string.js)); logs.performClick(null); say('test logshut ' + listing + ' page=' + !scroll.hidden); say('test find ' + findTried()); say('test toolpanel ' + toolTried()); say('test licencepanel ' + licenceTried()); say('test supportpanel ' + supportTried()); say('test profilespanel ' + profilesTried()); say('test logpaths ' + logTried()); say('test importsteps ' + importStepsTried()); say('test flight ' + flightTried()); say('test tries ' + tries(PORT, FILE, SECRET, KEEP, TEMP, NUMBERED, OUTSIDE, SETTINGS)); more(); }
     else if (step == 6 && word == 'idle') { step = 7; say('test idlehome ' + idleCost(2)); bar.stringValue = $(GO2); bar.performClick(null); }
     else if (step == 7 && word == 'ask') second.performClick(null);
     else if (step == 7 && word == 'busy' && /^Fetching (?!picture|style)/.test(rest) && !modalOpen && !asking) { step = 8; tabSaid('tab select 0'); drawnBefore = pictures; say('test pressed selected=' + selected + ' pending=' + (pendingTab ? pendingTab.line : 'none') + ' text=' + plain(page.string.js).slice(0, 40)); }
@@ -1213,6 +1268,21 @@ my %about = (
     supportincog => q{An incognito window keeps no licence and sends no request},
     supportbusy => q{A support address that refuses says why in plain words},
     supportlost => q{An answer read with a key it does not know says so},
+    profiletwo => q{A second profile's window keeps to its own folder},
+    profilefirst => q{The first profile's window keeps out of a second profile's folder},
+    profilehostile => q{Profile words that name no profile lzrprf made are refused},
+    profilenew => q{A profile is made with a name lzrprf checks, and renamed},
+    profilemost => q{A profile past the most there may be is not made},
+    profilewindows => q{Windows of profiles and pulled tabs share one bound},
+    profileremove => q{A profile is removed only when asked once, and only its folder},
+    profileincog => q{An incognito window has no profile and makes none},
+    profilenone => q{Profile words change nothing in an install with one profile},
+    profileincogtwo => q{An incognito window opened from a profile reads that profile only},
+    profilebehind => q{The real command line behind a profile's window opens that profile},
+    profileincogbehind => q{The real command line behind an incognito window of a profile reads that profile},
+    untestedincog => q{An incognito window's yes to an untested mark is not written to the state folder},
+    profilegone => q{An incognito window whose profile was removed meanwhile starts no window, and says why},
+    profilelate => q{A first profile's window opened before there were profiles takes its lock once its list is asked for},
 );
 sub run_of {
     my ($name, %how) = @_;
@@ -1354,7 +1424,7 @@ run_of('logbusy', typed => '=log', prepare => sub {
 });
 # What is kept. A run with a path and a query in every address, so that a file holding either is found.
 my $secret_path = 'secret-path?token=sesame';
-my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/window?q=2', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', '/incognito/one', '/incognito/two', '/incognito/mark', '/out/nap?incognitokilled', (map { "/out/$_" } @heavy), map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
+my %in_memory = map { $_ => 1 } "/nothing/$secret_path", "/mid/$secret_path", '/nothing/old', '/window?q=1', '/window?q=2', '/openservices?q=1', '/widerservices?q=1', '/drawn?faultlog', '/incognito/one', '/incognito/two', '/incognito/mark', '/profile/incoghome', '/untestedincog', '/out/nap?incognitokilled', (map { "/out/$_" } @heavy), map { "/broken/$_" } qw(junk link huge two fifo lines folder);    # requests of runs where nothing is kept: their lines are in memory alone
 run_of('memory', keep => undef, typed => "$t/nothing/$secret_path,,=log", answer => '2', fetches => ["/nothing/$secret_path"]);    # yes to the own network, then nobody answers
 run_of('hosts', keep => 'hosts 30', typed => "$t/hosts/$secret_path,,=log", answer => '2', fetches => ["/hosts/$secret_path"]);
 my %broken = (junk => sub { open my $out, '>', "$_[0]/keep"; print $out "keep everything\n" }, huge => sub { open my $out, '>', "$_[0]/keep"; print $out "all 3651\n" },
@@ -1632,6 +1702,85 @@ run_of('supportincog', app => bundle('supportincog', 'release 3', "support $t/su
     prepare => sub { $with_licence->($_[0]); put_file("$_[0]/support", "$support_ticket $support_key\n"); put_file("$_[0]/incognito", ''); $sums_before{supportincog} = tree_sums($_[0]) });
 run_of('supportbusy', app => bundle('supportbusy', 'release 3', "support $t/support-busy"), typed => "=support send $support_typed -");
 run_of('supportlost', app => bundle('supportlost', 'release 3', "support $t/support"), typed => '=support read', prepare => sub { put_file("$_[0]/support", "$support_ticket " . ('x' x 43) . "\n") });
+# Profiles. The test's folder stands for ~/.lzrprf and so for the first profile; a second profile is a
+# folder under its "profiles", made here as lzrprf makes one, and a file "profile" in the test's folder
+# names the profile a run opens, as --profile does. Each profile gets a home page, a bookmark and a log
+# that name it, so whatever one window reads or writes of another's shows in what it was told.
+sub state_sums { join "\n", grep { !m{\A/profiles[/ ]} } split /\n/, tree_sums($_[0]) }    # the first profile's own files: the state folder without the folder of the profiles
+my @profile_held;                         # a lock the test holds on a profile's "inuse" for as long as it runs, as an open window of it does
+my $held_open = sub { my $lock; sysopen($lock, $_[0], O_WRONLY | O_CREAT, 0600) && flock($lock, LOCK_SH) or die "selftest: cannot hold a profile open: $!\n"; push @profile_held, $lock };
+my $behind_of = sub {                     # the real command line of the process behind a window, with what its window would say on its standard input, from a shell, off the screen
+    my ($name, $dir, $incognito, $id, @events) = @_;
+    my $folder = "$base.$name";
+    return (command => ['/bin/sh', '-c', 'printf "%s\n" "start -" "ready" ' . join(' ', map { "'$_'" } @events) . ' | exec "$@"', 'sh', '/usr/bin/perl', $lzrprf, 'behind', '1', $dir->($folder), '127.0.0.1:' . $port{trusted}, 'allow', '0', $incognito ? $folder : '-', $id,
+        '/usr/bin/perl', '-e', $hostile, hostile_args($folder, 'page')]);
+};
+my $first_state = sub {
+    my ($at, $home) = @_;
+    put_file("$at/home", "$t/profile/firsthome\n") if $home;    # a home page opens at the start, and its visit is logged: only in the runs that look at what is read
+    put_file("$at/bookmarks/Bookmarks bar/First.mark", "First\n$t/profile/firstmark\n");
+    write_log($at, 3);
+};
+my $profile_state = sub {
+    my ($at, $id, $name) = @_;
+    my $own = "$at/profiles/$id";
+    put_file("$own/name", $name);
+    put_file("$own/keep", "all 0\n");
+    put_file("$own/home", "$t/profile/${name}home\n");
+    put_file("$own/bookmarks/Bookmarks bar/$name.mark", "$name\n$t/profile/${name}mark\n");
+    put_file("$own/log", "2026-01-01T00:00:00Z\t1\tyou typed https://$name.test/1\n");
+    chmod 0700, "$at/profiles", $own;
+};
+run_of('profiletwo', typed => join(',,', '=tab new', "$t/profile/secondvisit", "=mark save\t-\t\tSaved\t$t/profile/secondvisit", '=profile remove a1b2c3d4e5f6', '=profile open first', '=profile list'),
+    fetches => ['/profile/secondhome', '/profile/secondhome', '/profile/secondvisit'], prepare => sub { $first_state->($_[0], 1); $profile_state->($_[0], 'a1b2c3d4e5f6', 'second'); put_file("$_[0]/profile", "a1b2c3d4e5f6\n"); $held_open->("$_[0]/inuse"); $sums_before{profiletwo} = state_sums($_[0]) });    # a window of the first profile is open meanwhile
+run_of('profilefirst', typed => join(',,', '=tab new', "$t/profile/firstvisit", '=profile open b1b2c3d4e5f6'),
+    fetches => ['/profile/firsthome', '/profile/firsthome', '/profile/firstvisit'], prepare => sub { $first_state->($_[0], 1); $profile_state->($_[0], 'b1b2c3d4e5f6', 'second'); $sums_before{profilefirst} = tree_sums("$_[0]/profiles") });
+run_of('profilehostile', typed => join(',,', map { "=$_" } 'profile open ../../etc', 'profile open first/../..', 'profile open 0123456789abc', 'profile open abcdefabcdef', 'profile open ABCDEFABCDEF', 'profile open abcabcabcabc', 'profile remove ../profiles',
+        "profile rename\t..\tX", "profile rename\tabcdefabcdef\tX", 'profile remove abcdefabcdef', 'profile remove abcabcabcabc', 'profiles one first this X', 'profile open ' . ('a' x 400)),
+    prepare => sub { put_file("$_[0]/outside/kept", "not a profile\n"); put_file("$_[0]/profiles/.keep", ''); put_file("$_[0]/inuse", ''); symlink("$_[0]/outside", "$_[0]/profiles/abcabcabcabc") or die "selftest: cannot make a link: $!\n"; $sums_before{profilehostile} = tree_sums($_[0]) });
+run_of('profilenew', typed => join(',,', map { "=profile $_" } "new\t ", "new\t" . ('x' x 33), "new\ta\x01b", "new\t\xff\xfe", "new\t  Work   stuff ", "new\twork STUFF", "rename\tfirst\tMine"));
+run_of('profilemost', typed => "=profile new\tOne more", prepare => sub { $profile_state->($_[0], sprintf('d000000000%02x', $_), "p$_") for 1 .. 15 });
+run_of('profilewindows', typed => join(',,', ('=tab new', '=tab out 0 1 2 900 700') x 2, ('=profile open d1d1d1d1d1d1') x 31), prepare => sub { $profile_state->($_[0], 'd1d1d1d1d1d1', 'windows') });
+run_of('profileremove', typed => join(',,', map { "=profile remove $_" } qw(a0a0a0a0a0a0 b0b0b0b0b0b0 c1c1c1c1c1c1 first)), answer => '21', prepare => sub {
+    my ($at) = @_;
+    $first_state->($at);
+    $profile_state->($at, $_->[0], $_->[1]) for ['a0a0a0a0a0a0', 'gone'], ['b0b0b0b0b0b0', 'stays'], ['c1c1c1c1c1c1', 'busy'];
+    put_file("$at/outside/kept", "not a profile\n");
+    put_file("$at/inuse", '');            # the first profile's window takes its lock here, and this file stays as it was
+    symlink("$at/outside/kept", "$at/profiles/a0a0a0a0a0a0/link") or die "selftest: cannot make a link: $!\n";
+    put_file("$at/profiles/.removed.e0e0e0e0e0e0.3999999/log", "left by a removal that failed\n");    # left by a process that is gone: swept
+    symlink("$at/outside/kept", "$at/profiles/.removed.e1e1e1e1e1e1.3999998") or die "selftest: cannot make a link: $!\n";    # a link of that name: removed, never followed
+    put_file("$at/profiles/.removed.zz/kept", "not of that form\n");    # a name not of exactly that form: kept
+    $held_open->("$at/profiles/c1c1c1c1c1c1/inuse");
+    $sums_before{profileremove} = tree_sums($at);
+});
+run_of('profileincog', typed => join(',,', map { "=$_" } 'profile list', "profile new\tSecret", 'profile open first', 'profile remove abcdefabcdef', "profile rename\tfirst\tX"),
+    prepare => sub { put_file("$_[0]/incognito", ''); $first_state->($_[0]); $sums_before{profileincog} = tree_sums($_[0]) });
+run_of('profileincogtwo', typed => join(',,', map { "=$_" } 'profile list', "mark save\t-\t\tX\t$t/profile/x", "profile open f1f1f1f1f1f1", 'log'), fetches => ['/profile/incoghome'], prepare => sub {
+    my ($at) = @_;
+    $first_state->($at, 1);
+    $profile_state->($at, 'f1f1f1f1f1f1', 'incog');
+    put_file("$at/profiles/f1f1f1f1f1f1/search", "$t/profile/find?q=%s\n");
+    put_file("$at/profile", "f1f1f1f1f1f1\n");
+    put_file("$at/incognito", '');
+    $sums_before{profileincogtwo} = tree_sums($at);
+});
+run_of('profilebehind', fetches => [], $behind_of->('profilebehind', sub { $_[0] }, 0, 'e2e2e2e2e2e2', 'profile list'), prepare => sub { $first_state->($_[0], 1); $profile_state->($_[0], 'e2e2e2e2e2e2', 'behind'); unlink "$_[0]/profiles/e2e2e2e2e2e2/home"; $sums_before{profilebehind} = state_sums($_[0]) });
+run_of('profileincogbehind', fetches => [], $behind_of->('profileincogbehind', sub { "$_[0]/lzrprf-i.1.abcdefabcdef" }, 1, 'e3e3e3e3e3e3', 'profile list'), prepare => sub {
+    my ($at) = @_;
+    $first_state->($at, 1);
+    $profile_state->($at, 'e3e3e3e3e3e3', 'ibehind'); unlink "$at/profiles/e3e3e3e3e3e3/home";
+    $sums_before{profileincogbehind} = tree_sums($at);
+    mkdir "$at/lzrprf-i.1.abcdefabcdef", 0700 or die "selftest: cannot make the incognito folder: $!\n";
+});
+my $late_driver = 'use IPC::Open2; my $at = shift; my $pid = open2(my $from, my $to, @ARGV); select((select($to), $| = 1)[0]); $| = 1; print $to "start -\nready\n"; my $asked; while (defined(my $line = <$from>)) { print $line; if (!$asked && $line =~ /^idle /) { mkdir "$at/profiles", 0700; mkdir "$at/profiles/e4e4e4e4e4e4", 0700; open my $name, ">", "$at/profiles/e4e4e4e4e4e4/name" or exit 9; print $name "late\n"; close $name; print $to "profile list\n"; $asked = 1 } elsif ($asked && $line =~ /^profiles end$/) { close $to } } waitpid $pid, 0; exit $? >> 8';    # the folder of the profiles is made by another hand once this first profile window has started, and only then is its list asked for: what it waits on is what the window is told, never a time
+run_of('profilelate', fetches => [], command => ['/usr/bin/perl', '-e', $late_driver, "$base.profilelate", '/usr/bin/perl', $lzrprf, 'behind', '1', "$base.profilelate", '127.0.0.1:' . $port{trusted}, 'allow', '0', '-', '-', '/usr/bin/perl', '-e', $hostile, hostile_args("$base.profilelate", 'page')],
+    prepare => sub { $first_state->($_[0]) });
+my $gone_driver = 'use IPC::Open2; use File::Path qw(remove_tree); my $at = shift; my $pid = open2(my $from, my $to, @ARGV); select((select($to), $| = 1)[0]); $| = 1; print $to "start -\nready\n"; my $done; while (defined(my $line = <$from>)) { print $line; if (!$done && $line =~ /^idle /) { remove_tree("$at/profiles/e5e5e5e5e5e5"); print $to "incognito\ntab new\ntab out 0 1 2 900 700\n"; close $to; $done = 1 } } waitpid $pid, 0; exit $? >> 8';    # the profile is removed by another window once this incognito window of it has started; then a new incognito window and a pulled tab are asked for
+run_of('profilegone', fetches => [], command => ['/usr/bin/perl', '-e', $gone_driver, "$base.profilegone", '/usr/bin/perl', $lzrprf, 'behind', '1', "$base.profilegone/lzrprf-i.1.abcdefabcdef", '127.0.0.1:' . $port{trusted}, 'allow', '0', "$base.profilegone", 'e5e5e5e5e5e5', '/usr/bin/perl', '-e', $hostile, hostile_args("$base.profilegone", 'page')],
+    prepare => sub { my ($at) = @_; $first_state->($at); $profile_state->($at, 'e5e5e5e5e5e5', 'gone'); unlink "$at/profiles/e5e5e5e5e5e5/home"; mkdir "$at/lzrprf-i.1.abcdefabcdef", 0700 or die "selftest: cannot make the incognito folder: $!\n" });
+run_of('profilenone', typed => join(',,', map { "=$_" } 'profile list', 'profile open first', 'profile open abcdefabcdef', 'profile remove abcdefabcdef', 'profile remove first', "profile rename\tabcdefabcdef\tX"),
+    prepare => sub { $first_state->($_[0]); $sums_before{profilenone} = tree_sums($_[0]) });
 sub put_file { my ($file, $bytes) = @_; my ($dir) = $file =~ m{\A(.*)/}; system('/bin/mkdir', '-p', $dir) == 0 or die "selftest: cannot make $dir\n"; open my $out, '>:raw', $file or die "selftest: cannot write $file: $!\n"; print $out $bytes; close $out }
 sub lz4 {                                 # an LZ4 block of these bytes, made the plain way: each next 4 bytes looked for earlier, a match taken as far as it goes; and how many matches it holds
     my ($in) = @_;
@@ -1730,6 +1879,7 @@ sub said_yes { my ($line) = @_; return sub { open my $out, '>', "$_[0]/untested"
 run_of('untestedquit', typed => "$t/untestedquit", answer => 'deny', prepare => marked($untested_line));    # no yes yet, and the answer is Quit
 run_of('untestedstart', typed => "$t/untestedstart", fetches => ['/untestedstart'], prepare => marked($untested_line));    # no yes yet, and the answer is Start
 run_of('untestedyes', typed => "$t/untestedyes", fetches => ['/untestedyes'], prepare => sub { marked($untested_line)->($_[0]); said_yes($untested_line)->($_[0]) });    # a yes kept for exactly this line
+run_of('untestedincog', typed => "$t/untestedincog", fetches => ['/untestedincog'], prepare => sub { marked($untested_line)->($_[0]); put_file("$_[0]/incognito", ''); $sums_before{untestedincog} = tree_sums($_[0]) });    # [C16] no yes yet, and Start: an incognito window keeps that yes in its own folder only
 run_of('untestedother', typed => "$t/untestedother", answer => 'deny', prepare => sub { marked($untested_line)->($_[0]); said_yes("$mark, untested: another check (no way to try it here)")->($_[0]) });    # a yes kept for other checks
 my $lost_yes = mutant('lostyes', q{        return 1 if $yes eq "$line\n";} => '        return 1;');    # a copy of lzrprf that counts a line with untested checks without a yes
 run_of('lostyes', lzrprf => $lost_yes, typed => "$t/lostyes", answer => '2', fetches => ['/lostyes'], prepare => marked('macOS build ' . ($build // '') . ', lzrprf ' . Digest::SHA->new(256)->addfile($lost_yes)->hexdigest . ", selftest $own, untested: a check (no way to try it here)"));    # its own mark with a check untested, and no yes; the one answer given is a yes to the own network
@@ -1984,7 +2134,7 @@ my ($window_tries_came) = $window =~ /^test tries (.*)$/m;
 my ($window_services) = ($window_tries_came // '') =~ / services=(\S+)\z/;
 $window_tries_came =~ s/ services=\S+\z// if defined $window_tries_came;
 check(defined $window_container && $no_compiler ne $window_container && out('shaders') =~ /^compiled$/m && out('noshaders') !~ /^compiled$/m, 'window container: a shader of its own is compiled from inside it by the graphics card\'s compiler, which the system needs for each new way of drawing a picture (a tile, a scaled picture, a full-screen window) and without which it ends the window\'s process; a copy of the container without the compiler on its list does not get the same shader compiled', 'listed: ' . ((out('shaders') =~ /([^\n]+)\n*\z/)[0] // 'nothing') . ', unlisted: ' . ((out('noshaders') =~ /([^\n]+)\n*\z/)[0] // 'the process ended'));
-check($text_of_lzrprf =~ /^    if \(testing\(\)\) \{.*\n        busy\(.*\n        my \$until = now\(\) \+ 900;\n        select undef, undef, undef, 0\.5 while testing\(\) && now\(\) < \$until;\n        \$found = \$is->\(\);\n        return \$without->\(\$found\) if length \$found;\n    \}\n    return 0 if \$INCOGNITO; .*\n    my \$test = dirname\(\$SELF\) \. '\/selftest';\n/m && $text_of_lzrprf =~ /^sub testing \{\n    sysopen my \$lock, kept_in\(\) \. '\/selftest\.lock', O_RDONLY \| O_NOFOLLOW \| O_NONBLOCK or return 0;\n    return 0 unless -f \$lock;\n    return !flock \$lock, LOCK_SH \| LOCK_NB;\n\}\n/m, 'while a self-test runs on this Mac (an installer\'s, which takes this copy\'s mark out when it begins), a window that finds no mark waits up to 15 minutes for its result before it asks to test: read in "sub proven" and "sub testing"', 'read, not tried');
+check($text_of_lzrprf =~ /^    if \(testing\(\)\) \{.*\n        busy\(.*\n        my \$until = now\(\) \+ 900;\n        select undef, undef, undef, 0\.5 while testing\(\) && now\(\) < \$until;\n        \$found = \$is->\(\);\n        return \$without->\(\$found\) if length \$found;\n    \}\n    return 0 if \$INCOGNITO; .*\n    my \$test = dirname\(\$SELF\) \. '\/selftest';\n/m && $text_of_lzrprf =~ /^sub testing \{\n    sysopen my \$lock, "\$ROOT\/selftest\.lock", O_RDONLY \| O_NOFOLLOW \| O_NONBLOCK or return 0;\n    return 0 unless -f \$lock;\n    return !flock \$lock, LOCK_SH \| LOCK_NB;\n\}\n/m, 'while a self-test runs on this Mac (an installer\'s, which takes this copy\'s mark out when it begins), a window that finds no mark waits up to 15 minutes for its result before it asks to test: read in "sub proven" and "sub testing"', 'read, not tried');
 my ($open_tries) = out('openservices') =~ /^test tries (.*)$/m;
 my ($opened_services) = ($open_tries // '') =~ / services=(\S+)\z/;
 check(($window_tries_came // '') =~ /^network=refused file=refused program=refused home=refused data=refused number=refused temp=(?:read|refused) shared=refused system=1111111 signal=refused keep=refused settings=(?:read|refused)$/, 'window container: connect, write a file, start a program, read a file in the home folder by its two names or by its number on the disk, list the folder all users share, send a signal to the self-test\'s own process, write the setting of what is kept; and what the system says of it: no network, no new file, no second process, no system service when none is named, nothing opened through the system, no command to another program, no writing of settings; a file in your temporary folder, outside the home folder, is not denied to it by lzrprf, as the README says, and what came of that try is shown here; a file among your settings is in one of the four folders its container lets it read, and what came of that try is shown here too', $window_tries_came // 'nothing came of it');
@@ -2164,13 +2314,13 @@ my @out_told = told('tabout');
 check("@{[ words('tabout', 'tabs') ]}" eq '2 1 1 0' && (words('tabout', 'address'))[-1] eq "$t/tabout/two" && (grep { $_ eq 'A tab pulled out opens a new window: "lzrprf try" starts none.' } words('tabout', 'idle')) == 1 && asked('/tabout/one') == 1 && asked('/tabout/two') == 1 && !grep({ $_->[0] eq 'tabs' && $_->[1] !~ /^(?:2 1|1 0)$/ } @out_told),
     'a tab pulled out: lzrprf closes it here and the other tab shows ("lzrprf try" starts no second window and says so); the last tab, a tab that is not there and a frame of no size change nothing', join(' ', words('tabout', 'tabs')));
 my @most_idle = words('taboutmost', 'idle');
-check((grep { $_ eq 'A tab pulled out opens a new window: "lzrprf try" starts none.' } @most_idle) == 32 && (grep { /^The tab stays here: this window has opened 32 windows from its tabs, the most one window may\./ } @most_idle) == 1 && (words('taboutmost', 'tabs'))[-1] eq '2 1',
+check((grep { $_ eq 'A tab pulled out opens a new window: "lzrprf try" starts none.' } @most_idle) == 32 && (grep { /^The tab stays here: this window has opened 32 windows from its tabs and profiles, the most one window may\./ } @most_idle) == 1 && (words('taboutmost', 'tabs'))[-1] eq '2 1',
     'one window opens at most 32 windows from its tabs in its life, so a window process taken over cannot have lzrprf start processes without end: the 33rd tab pulled out stays in its strip, and lzrprf says why', scalar(@most_idle) . ' idle lines, tabs ' . ((words('taboutmost', 'tabs'))[-1] // 'none'));
 my $pulled_words = pulled_words();
 check($pulled_words eq 'run --open 10 20 900 700 /app x | incognito --open 1 2 30 40 /app | https://site.test/b,5 6 700 500,/app,y | -,5 6 700 500,/app | -,5 6 700 500,/app | died died died died | none https://site.test/c refused refused refused',
     'the window of a pulled tab: lzrprf starts a second lzrprf as it was started itself, in incognito from an incognito window, with only the frame as an argument ("--open FRAME" before the program); it reads one line on its standard input and no more, an address it fetches or nothing, and ends on anything else; behind hears that address from lzrprf as its first line ("start"), never from the window: "sub pulled_command", "sub opened_with" and "sub started", read from lzrprf and run here', $pulled_words);
 my $pulled_argv = pulled_argv();
-check($pulled_argv eq 'perl in=the address argv=7 holding it=0 | perl in=the address argv=7 holding it=0 | perl argv=11 holding it=0 | sandbox-exec argv=13 holding it=0' && $text_of_lzrprf !~ /argv\[3\]/,
+check($pulled_argv eq 'perl in=the address argv=7 holding it=0 | perl in=the address argv=7 holding it=0 | perl argv=12 holding it=0 | sandbox-exec argv=13 holding it=0' && $text_of_lzrprf !~ /argv\[3\]/,
     'the address of a pulled tab is in no command line, which every user of the computer can read in the list of processes: lzrprf hands it to the second lzrprf on its standard input, and that one to behind on the pipe it reads, while no argument of the second lzrprf, of behind or of the window holds it, and the window reads no address from its arguments ("sub tab_out", "sub pulled_command" and the two lines of "sub run" that start processes, read from lzrprf and run here with an address)', $pulled_argv);
 my @pulled_log = log_of('pulledin');
 my ($pulled_at) = grep { $pulled_log[$_] eq "you pulled a tab out into this window $t/pulledin/one" } 0 .. $#pulled_log;
@@ -2308,6 +2458,92 @@ check(join('|', grep { /^failed / } words('supportbusy', 'support')) eq 'failed 
     'a support address that refuses the request is said in plain words, and nothing is kept', join(' | ', words('supportbusy', 'support')));
 check(join('|', grep { /^failed / } words('supportlost', 'support')) eq 'failed The support address knows no request by this reference and key now.' && (grep { $_->{bytes} =~ /Bearer x{43}\r\n/ } @gets) == 1,
     'an answer asked for with a key the support address does not know is said plainly', join(' | ', words('supportlost', 'support')));
+# Profiles: each profile's window keeps to its own folder, and what the window says of a profile is checked.
+my $two_at = "$base.profiletwo/profiles/a1b2c3d4e5f6";
+my @two_marks = words('profiletwo', 'mark');
+my $two_told = out('profiletwo');
+check(defined $sums_before{profiletwo} && state_sums("$base.profiletwo") eq $sums_before{profiletwo} && $two_told !~ /firsthome|firstmark|earlier\.test/ && (grep { $_ eq "B 0 Bookmarks bar\tsecond\t$t/profile/secondmark" } @two_marks)
+        && slurp("$two_at/log") =~ m{\tyou typed https://second\.test/1\n.*\tyou typed \Q$t\E/profile/secondvisit\n}s && (() = tree_sums($two_at) =~ m{^/bookmarks/[^\n]*\.mark }mg) == 2 && -f "$two_at/inuse" && ((stat $two_at)[2] & 0777) == 0700,
+    'a second profile\'s window opens its own home page and bookmarks, writes its visit and its new bookmark in its own folder, and every file of the first profile\'s folder is what it was, byte for byte: its home page, bookmarks, log and what is kept are neither read nor written',
+    join(' | ', grep({ /^B / } @two_marks), (split /\n/, slurp("$two_at/log"))[-1] // 'no log'));
+my @two_said = words('profiletwo', 'profiles');
+check((grep { $_ eq 'one a1b2c3d4e5f6 this second' } @two_said) >= 2 && (grep { $_ eq 'one first open First profile' } @two_said) >= 2 && (grep { $_ eq 'begin' } @two_said) == (grep { $_ eq 'end' } @two_said)
+        && (grep { $_ eq 'refused The profile second is this window\'s own. Remove it from a window of another profile, once this one is closed.' } @two_said) == 1 && -d $two_at
+        && (grep { $_ eq 'A profile\'s window was asked for: "lzrprf try" starts none.' } words('profiletwo', 'idle')) == 1,
+    'a profile\'s window is told the list with its own profile marked "this", refuses to remove its own profile and says why, and asks for a window of the first profile', join(' | ', @two_said));
+my @first_marks = words('profilefirst', 'mark');
+check(defined $sums_before{profilefirst} && tree_sums("$base.profilefirst/profiles") eq $sums_before{profilefirst} && out('profilefirst') !~ /secondhome|secondmark|second\.test/ && (grep { $_ eq "B 0 Bookmarks bar\tFirst\t$t/profile/firstmark" } @first_marks)
+        && (grep { $_ eq "you typed $t/profile/firstvisit" } log_of('profilefirst')) == 1 && (grep { $_ eq 'one b1b2c3d4e5f6 shut second' } words('profilefirst', 'profiles')) && -f "$base.profilefirst/inuse" && !-s _,
+    'the first profile\'s window opens its own home page and bookmarks and logs its visit in the state folder, and every file of a second profile\'s folder is what it was, byte for byte: only its name is read, for the list',
+    join(' | ', grep({ /^B / } @first_marks), words('profilefirst', 'profiles')));
+my @hostile_said = words('profilehostile', 'profiles');
+my $not_word = 'refused That is not a profile lzrprf knows, or not a word it takes. Nothing was changed.';
+check(join('|', grep { /^refused / } @hostile_said) eq join('|', $not_word, $not_word, $not_word, 'refused That is not a profile lzrprf knows. No window was opened.', $not_word, 'refused That is not a profile lzrprf knows. No window was opened.', $not_word, $not_word,
+        'refused That is not a profile lzrprf knows. Nothing was renamed.', 'refused That is not a profile lzrprf knows. Nothing was removed.', 'refused That is not a profile lzrprf knows. Nothing was removed.', $not_word, $not_word)
+        && defined $sums_before{profilehostile} && tree_sums("$base.profilehostile") eq $sums_before{profilehostile} && join('|', grep { /^one / } @hostile_said) eq 'one first this First profile' && slurp("$base.profilehostile/outside/kept") eq "not a profile\n",
+    'a hostile window\'s profile words that climb out with dots or slashes, an id too long or in capitals, an id lzrprf never made and a profile that is a link to a folder outside are each refused and said, and no file anywhere is made, changed or removed',
+    join(' | ', map { s/^refused //r } grep { /^refused / } @hostile_said));
+my @new_said = words('profilenew', 'profiles');
+my @made = grep { m{/[0-9a-f]{12}\z} && -d } glob("'$base.profilenew/profiles/'*");
+my @named_in = grep { slurp($_) =~ /Work stuff/ } grep { -f } map { "$base.profilenew$_" } map { (split / /, $_, 2)[0] } split /\n/, tree_sums("$base.profilenew");
+check(join('|', grep { /^refused / } @new_said) eq join('|', 'refused Type a name for the profile first.', 'refused A profile name is at most 32 characters. That one has 33.', 'refused A profile name holds no control or format character.', 'refused A profile name is plain text, and that was not.', 'refused There is a profile called work STUFF already. Choose another name.')
+        && @made == 1 && slurp("$made[0]/name") eq "Work stuff\n" && ((stat $made[0])[2] & 0777) == 0700 && ((stat "$base.profilenew/profiles")[2] & 0777) == 0700 && "@named_in" eq "$made[0]/name" && slurp("$base.profilenew/profiles/first") eq "Mine\n"
+        && (grep { $_ eq 'The profile First profile is now called Mine.' } words('profilenew', 'idle')) == 1 && (grep { $_ eq 'A profile\'s window was asked for: "lzrprf try" starts none.' } words('profilenew', 'idle')) == 1 && (grep { /^one [0-9a-f]{12} shut Work stuff$/ } @new_said),
+    'an empty name, a name of 33 characters, one with a control character, one that is not UTF-8 and one that differs from another only in capitals are refused and said; a new profile gets a folder of 12 hex digits lzrprf drew, readable by you alone, its name in one file there and in no other, and opens; the first profile is renamed in profiles/first',
+    join(' | ', map { s/^refused //r } grep { /^refused / } @new_said) . ' | made ' . scalar(@made));
+check((grep { $_ eq 'refused There are 16 profiles, the most there may be. Remove one to make another.' } words('profilemost', 'profiles')) == 1 && (() = glob("'$base.profilemost/profiles/'*")) == 15,
+    'with 16 profiles, the first and 15 more, a 17th is refused with the bound in plain words and no folder is made', join(' | ', words('profilemost', 'profiles')));
+my @windows_idle = words('profilewindows', 'idle');
+check((grep { $_ eq 'A tab pulled out opens a new window: "lzrprf try" starts none.' } @windows_idle) == 2 && (grep { $_ eq 'A profile\'s window was asked for: "lzrprf try" starts none.' } @windows_idle) == 30
+        && (grep { $_ eq 'refused No window was opened: this window has opened 32 windows from its tabs and profiles, the most one window may. Open it from another window.' } words('profilewindows', 'profiles')) == 1,
+    'two tabs pulled out and 31 profile windows asked for: one window opens at most 32 windows from its tabs and profiles together, and the 33rd is refused with its reason', scalar(@windows_idle) . ' idle lines');
+my $removed_at = "$base.profileremove";
+my $kept_sums = join "\n", grep { !m{\A/profiles/(?:a0a0a0a0a0a0|\.removed\.e0e0e0e0e0e0\.3999999|\.removed\.e1e1e1e1e1e1\.3999998)[/ ]} } split /\n/, $sums_before{profileremove} // '';
+my @remove_said = (words('profileremove', 'profiles'), words('profileremove', 'idle'));
+check(defined $sums_before{profileremove} && !-e "$removed_at/profiles/a0a0a0a0a0a0" && tree_sums($removed_at) eq $kept_sums && slurp("$removed_at/outside/kept") eq "not a profile\n" && !glob("'$removed_at/profiles/'.removed.[0-9a-f]*") && -f "$removed_at/profiles/.removed.zz/kept"
+        && (grep { $_ eq "Remove the profile gone? Its bookmarks, history, log, home page, search address and all that is kept for it are deleted from this Mac. This cannot be undone.\tCancel\tRemove" } words('profileremove', 'ask')) == 1 && (() = words('profileremove', 'ask')) == 2
+        && (grep { $_ eq 'The profile gone was removed, and its folder with it.' } @remove_said) == 1 && (grep { $_ eq 'The profile stays was not removed.' } @remove_said) == 1
+        && (grep { $_ eq 'refused The profile busy has a window open. Close its windows first, then remove it.' } @remove_said) == 1
+        && (grep { $_ eq 'refused The first profile is never removed: its folder is the state folder itself, which also holds what belongs to the whole installation.' } @remove_said) == 1,
+    'a profile is removed only after one question that says what is deleted and that it cannot be undone: exactly its folder goes, and a link in it is removed without touching where it pointed, and what removals that failed part way left is swept, a link of that name removed and never followed, a name of another form kept; Cancel keeps one, and a profile with a window open and the first profile are refused and asked nothing',
+    join(' | ', grep { /removed|refused/ } @remove_said) . ' | asked ' . join(' + ', words('profileremove', 'ask')) . ' ' . join(' ', words('profileremove', 'answered')));
+my @incog_said = words('profileincog', 'profiles');
+check(@incog_said == 5 && !grep({ $_ ne 'refused An incognito window has no profile, and opens, makes or changes none.' } @incog_said) && !-e "$base.profileincog/profiles" && defined $sums_before{profileincog} && tree_sums("$base.profileincog") eq $sums_before{profileincog},
+    'an incognito window is told no profile, refuses every word of one and says why, and makes no folder of profiles: every file is what it was', join(' | ', @incog_said));
+check(defined $sums_before{profilenone} && tree_sums("$base.profilenone") eq $sums_before{profilenone} && !-e "$base.profilenone/profiles" && !-e "$base.profilenone/inuse" && join('|', grep { /^one / } words('profilenone', 'profiles')) eq 'one first this First profile|one first this First profile',
+    'in an install with one profile, words of profiles that make, rename or remove nothing leave every file of the state folder as it was, byte for byte, and no new file: an installed browser sees no change until a second profile is made',
+    do { my %was = map { $_ => 1 } split /\n/, $sums_before{profilenone} // ''; my %now = map { $_ => 1 } split /\n/, tree_sums("$base.profilenone"); join(' | ', (map { "was $_" } grep { !$now{$_} } sort keys %was), (map { "now $_" } grep { !$was{$_} } sort keys %now)) || join(' | ', words('profilenone', 'profiles')) });
+my $incog_two = out('profileincogtwo');
+my @incog_two_said = words('profileincogtwo', 'profiles');
+check(defined $sums_before{profileincogtwo} && tree_sums("$base.profileincogtwo") eq $sums_before{profileincogtwo} && (grep { $_ eq "B 0 Bookmarks bar\tincog\t$t/profile/incogmark" } words('profileincogtwo', 'mark')) && !grep({ /\tFirst\t/ } words('profileincogtwo', 'mark'))
+        && (words('profileincogtwo', 'search'))[0] eq 'set' && $incog_two !~ /firsthome|firstmark/ && !grep({ !/^refused An incognito window has no profile/ } @incog_two_said) && @incog_two_said == 2 && index($incog_two, 'f1f1f1f1f1f1') < 0 && (grep { /^note .*\. No button of this window makes lzrprf keep more\.$/ && !/keep hosts|--profile/ } words('profileincogtwo', 'log')) == 1,
+    'an incognito window opened from a second profile opens that profile\'s home page and shows its bookmarks and its search address, none of the first profile\'s; it is told no profile, refuses every word of one, and every file of both profiles is what it was, byte for byte; the id of the profile is in nothing the window is told, and its Log panel names no command to type, since none would be of it',
+    join(' | ', grep({ /^B / } words('profileincogtwo', 'mark')), 'search ' . ((words('profileincogtwo', 'search'))[0] // 'none'), @incog_two_said));
+my $behind_at = "$base.profilebehind/profiles/e2e2e2e2e2e2";
+check(defined $sums_before{profilebehind} && state_sums("$base.profilebehind") eq $sums_before{profilebehind} && (grep { $_ eq 'one e2e2e2e2e2e2 this behind' } words('profilebehind', 'profiles')) && (grep { $_ eq "B 0 Bookmarks bar\tbehind\t$t/profile/behindmark" } words('profilebehind', 'mark'))
+        && -f "$behind_at/inuse",
+    'the process behind a window, started on its real command line with a profile\'s id after the state folder, opens that profile: the list marks it as this window, its bookmarks are read, its lock is taken, and no file of the first profile changes (the profile has no home page here, so the run ends with nothing in flight)',
+    join(' | ', words('profilebehind', 'profiles'), substr(err('profilebehind'), 0, 200)));
+check(defined $sums_before{profileincogbehind} && tree_sums("$base.profileincogbehind") eq $sums_before{profileincogbehind} && (grep { $_ eq "B 0 Bookmarks bar\tibehind\t$t/profile/ibehindmark" } words('profileincogbehind', 'mark')) && !grep({ /\tFirst\t/ } words('profileincogbehind', 'mark'))
+        && !grep({ /^(?:begin|one|end)/ } words('profileincogbehind', 'profiles')) && (grep { $_->[0] eq 'incognito' } told('profileincogbehind')),
+    'the process behind an incognito window, started on its real command line with its own folder, the state folder and a profile\'s id, reads that profile\'s home page and bookmarks, is told no profile, and leaves every file as it was, its own folder gone',
+    join(' | ', grep({ /^B / } words('profileincogbehind', 'mark')), substr(err('profileincogbehind'), 0, 200)));
+check(-f "$base.profilelate/inuse" && !-s _ && (grep { $_ eq 'one first this First profile' } words('profilelate', 'profiles')) && (grep { $_ eq 'one e4e4e4e4e4e4 shut late' } words('profilelate', 'profiles')),
+    'a window of the first profile that started while there were no profiles takes its lock the first time its list is asked for, once another window made the folder of the profiles, so the others list it as open; one profile alone still writes no new file (run profilenone)', join(' | ', words('profilelate', 'profiles'), substr(err('profilelate'), 0, 200)));
+my @gone_said = words('profilegone', 'idle');
+check((grep { $_ eq 'No new window was started: the profile this window was opened from has been removed since. Open one from a window of another profile.' } @gone_said) == 1 && (grep { $_ eq 'The tab stays here. No new window was started: the profile this window was opened from has been removed since. Open one from a window of another profile.' } @gone_said) == 1
+        && !grep({ /asked for: "lzrprf try" starts none/ } @gone_said) && !-e "$base.profilegone/lzrprf-i.1.abcdefabcdef",
+    'an incognito window whose profile another window removed while it was open starts no new window and pulls out no tab: it says in the strip that the profile was removed, where a window started then would end at its first check and say nothing', join(' | ', map { substr($_, 0, 60) } @gone_said));
+check(defined $sums_before{untestedincog} && tree_sums("$base.untestedincog") eq $sums_before{untestedincog} && (grep { /^The self-test held on this Mac, but it could not try every check here/ } words('untestedincog', 'ask')) == 1 && asked('/untestedincog') == 1,
+    '[C16] an incognito window asks about a mark whose checks could not all be tried, and after Start every file of the state folder is what it was, byte for byte: the yes is kept in its own folder, which goes with it',
+    join(' | ', map { substr($_, 0, 80) } words('untestedincog', 'ask')));
+my $profile_argv = profile_argv();
+check($profile_argv eq 'run --profile a0a0a0a0a0a0 /app x | run /app x | run --profile a0a0a0a0a0a0 --open 1 2 300 400 /app x | incognito --profile a0a0a0a0a0a0 --open 1 2 300 400 /app x | behind 0 /Users/someone/.lzrprf - allow 1 - a0a0a0a0a0a0 /app x | behind 0 /tmp/lzrprf-i.1.abcdefabcdef - allow 1 /Users/someone/.lzrprf a0a0a0a0a0a0 /app x'
+        && index($text_of_lzrprf, q{apart(undef, '/usr/bin/perl', $SELF, 'incognito', defined $PROFILE ? ('--profile', $PROFILE) : (), $PROGRAM, @ARGUMENTS)}) >= 0
+        && index($text_of_lzrprf, q{become(undef, undef, undef, defined $PROFILE ? profile_command($PROFILE) : ('/usr/bin/open', '-n', $app));}) >= 0
+        && (() = $text_of_lzrprf =~ /\bprofile_command\(/g) == 2 && index($text_of_lzrprf, 'apart(undef, profile_command($id))') >= 0
+        && $text_of_lzrprf =~ /eq '--profile'\) \{ \(undef, \$PROFILE\) = splice \@ARGV, 0, 2; die .* unless \(\$PROFILE \/\/ ''\) =~ \/\\A\[0-9a-f\]\{12\}\\z\/ \}/,
+    'a profile is named on a command line by its id alone, for its own window, a tab pulled out of it and the process behind it, and never by its name; --profile takes 12 hex digits and nothing else', $profile_argv);
 # 5. The log.                                                [C5] [C12]
 print "\n5. The log.\n";
 my @page_log = log_of('page');
@@ -2414,6 +2650,20 @@ check($cli_back eq "From the next request on: Nothing is kept after a window clo
 check($cli_all eq "From the next request on: Kept on this computer until you clear it: full addresses.\nFull addresses can hold search words, tokens and invitation links.\n" && $cli_shorter =~ /^From the next request on: Kept on this computer for 30 days: hosts only\.\nThe log on this computer still holds 5 lines written before this choice\. They are not deleted or shortened: / && (log_of('keepcli'))[-1] eq 'what is kept was changed by "lzrprf keep": full addresses, until cleared -> hosts only, 30 days',
     'full addresses are chosen with "lzrprf keep", which says what they can hold; going back to hosts only says that the lines written before stay as they are', $cli_shorter =~ s/\n/ /gr);
 check($cli_log =~ /^What is kept: Nothing is kept after a window closes\. The full lines of a window that is open now are in that window only: press its Log button\.\nwhen \(UTC\)/ && $cli_log =~ m{earlier\.test/3\n[^\n]*what is kept was changed by "lzrprf keep": hosts only, 7 days -> nothing\n\z}, '"lzrprf log" prints what the disk holds, and says that the lines of an open window are in that window only', 'the setting, then 4 lines');
+mkdir "$base.keepcli/profiles", 0700; mkdir "$base.keepcli/profiles/e0e0e0e0e0e0", 0700; put_file("$base.keepcli/profiles/e0e0e0e0e0e0/name", "Work\n");
+my $cli_root = state_sums("$base.keepcli");
+my ($cli_one, $cli_one_code) = cli('keep', '--profile', 'e0e0e0e0e0e0', 'hosts', '7');
+my $cli_one_file = slurp("$base.keepcli/profiles/e0e0e0e0e0e0/keep");
+my $cli_root_after = state_sums("$base.keepcli");
+my $cli_tree = tree_sums("$base.keepcli");
+my @cli_bad = map { [cli('keep', '--profile', $_, 'all', '0')]->[1] } '../profiles', 'E0E0E0E0E0E0', 'e1e1e1e1e1e1', 'e0e0e0e0e0e0/..', '', 'first';
+push @cli_bad, [cli('log', '--profile', 'e1e1e1e1e1e1')]->[1], [cli('keep', '--profile')]->[1];
+my $cli_tree_after = tree_sums("$base.keepcli");
+my ($cli_list) = cli('profiles');
+my ($cli_one_log) = cli('log', '--profile', 'e0e0e0e0e0e0');
+check(!$cli_one_code && $cli_one eq "From the next request on: Kept on this computer for 7 days: hosts only.\n" && $cli_one_file eq "hosts 7\n" && $cli_root eq $cli_root_after && $cli_one_log =~ /^What is kept: Kept on this computer for 7 days: hosts only\./
+    && !grep({ !$_ } @cli_bad) && $cli_tree eq $cli_tree_after && $cli_list eq "first\tFirst profile\ne0e0e0e0e0e0\tWork\n",
+    '"lzrprf keep --profile ID" changes that profile\'s setting alone and "lzrprf log --profile ID" reads it; an id lzrprf did not make, one in capitals, one that is not there, a path, an empty word and "first" are refused and change nothing; "lzrprf profiles" prints each id with its name', $cli_list =~ s/\n/ | /gr . ' ' . scalar(grep { !$_ } @cli_bad) . ' let through');
 
 # 6. The questions.                                           [C4] [C8]
 print "\n6. What lzrprf asks you, and what it does without a yes.\n";
@@ -2654,6 +2904,8 @@ check(($at{licencepanel} // '') eq q{open=true field=true ; empty=Type or paste 
     'the licence panel in the window, told by lines as lzrprf writes them: "Enter licence code" opens it with its one field; an empty field or one with other signs is answered in the panel and nothing is said; a code is said as "licence set" with its spaces made single; a refusal is shown plainly; a kept code shows since when and hides the field; Remove code says "licence remove"; in an incognito window the item only says why it is not offered', $at{licencepanel} // 'nothing came: the window stopped before');
 check(($at{supportpanel} // '') eq q{open=true box=true tick=0 preview=false shot=png true ; about=truetruetruetruetruefalse ; empty=Write what the request is about first. said=0 ; sent=support send SGVsbG8Kd29ybGQ= - ; failed=The request could not be sent. The log says why. box=true waiting=false ; ticked preview=true ; picture=4 SGVsbG8Kd29ybGQ= iVBORw0KGgo ; done=true box=false preview=false item=answer kept ; licence=true tick=0 ; incognito tip=true modal=false ; said=2 icons=none/lit/none/lit},
     'the support panel in the window: it opens with the box, the picture unticked and no preview, and the window\'s own picture of itself made as a PNG; before Send it says where the request goes, that it is anonymous, the release number, that the picture shows the page, and that no address of a page goes; with no words nothing is said; Send says "support send" with the words in base64 and "-" for no picture, and only after the tick the preview is shown and the picture goes; a failure keeps the words; a sent request shows its reference; a kept licence is named in the list; in an incognito window the item only says why; the two new icons of the menu paint, with nothing thrown', $at{supportpanel} // 'nothing came: the window stopped before');
+check(($at{profilespanel} // '') eq "start on=true icon=true count=1 item=First profile ; told count=3 tip=Profiles. This window is Work <b>x</b>. item=Work <b>x</b> paint=none/lit ; open mode=profiles cog=true said=profile list rows=First profile,Work <b>x</b>+:this window,Home one:open,New profile...,Rename or remove... ; pressed=profile open first,profile open b1b2c3d4e5f6 ; new modal=true field=true ; Type a name for the profile first. said=0 ; A profile name holds no control or format character. said=0 ; A profile name is at most 32 characters. That one has 33. said=0 ; sent=profile new\tTwo words ; refused=There is a profile called Two words already. Choose another name. waiting=false ; manage rows=First profile,Work <b>x</b>+:this window,Home one:open,New profile...,Done+ ; first buttons=Cancel/Rename ; rename=profile rename\ta1b2c3d4e5f6\tRenamed ; closed=true ; shut buttons=Cancel/Remove.../Rename ; remove=profile remove c1c1c1c1c1c1 modal=false ; incognito on=false icon=false tip=true said=0 cog=false",
+    'the Profiles icon and its list in the window, told by lines as lzrprf writes them: the list it is told shows ids and states lzrprf takes and no other, its name as plain text; a press on another profile asks for its window and this window\'s own does nothing; a new name is checked as lzrprf checks it and sent with its spaces made single, and a refusal is shown in the panel; Rename or remove offers Remove only for a profile that is not the first and has no window open, and lzrprf asks about it; an incognito window shows no icon and says why', $at{profilespanel} // 'not run');
 check(($at{logpaths} // '') eq '-1:true:none/lit:1:true 0:true:none/lit:2:true 3:true:none/lit:4:true 600:true:none/lit:601:true pill=log>null:page=true:closing=false:said= arrow=log>null:page=true:closing=false:said= cog=log>null:page=true:closing=false:said= pill?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1 arrow?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1 cog?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1',
     'the log page paints to its end into a picture of the test\'s own with nothing thrown, empty, with a part and no line, short, and 600 lines long; its Close pill (pressed by a real mouse event), the back arrow and the line of the cogwheel\'s menu each close it and show the page again, saying nothing to lzrprf; with a question of lzrprf open, each answers it with the first button, which changes nothing, and the next question about the log is answered the same way and not shown', $at{logpaths} // 'nothing came: the window stopped before');
 my $steps_shown = $import_steps =~ s/\t/|/gr;
@@ -2684,7 +2936,7 @@ check($connects == 3 && $text_of_lzrprf =~ /^print 'network ', \(connect\(\$s, p
 my %programs = map { $_ => 1 } $text_of_lzrprf =~ m{(?<![\w/.])(/(?:usr/)?s?bin/[a-z-]+)}g;
 my @known = qw(/bin/launchctl /bin/ps /bin/sh /sbin/route /usr/bin/codesign /usr/bin/curl /usr/bin/env /usr/bin/open /usr/bin/osascript /usr/bin/perl /usr/bin/plutil /usr/bin/sandbox-exec /usr/bin/true /usr/bin/xattr /usr/sbin/sysctl);    # "open" only to start the application again after a done install, when you pressed Close and restart: the installer itself runs in lzrprf's own window, and nothing is opened in Terminal
 my @opens = grep { m{/usr/bin/open} } split /\n/, $text_of_lzrprf;
-check(@opens == 1 && $opens[0] eq "            become(undef, undef, undef, '/usr/bin/open', '-n', \$app);", 'lzrprf names "open" on one line, which opens the application it ran from and nothing else (Close and restart after a done install)', scalar(@opens) . ' lines');
+check(@opens == 1 && $opens[0] eq "            become(undef, undef, undef, defined \$PROFILE ? profile_command(\$PROFILE) : ('/usr/bin/open', '-n', \$app));", 'lzrprf names "open" on one line, which opens the application it ran from and nothing else (Close and restart after a done install, in the first profile; a profile\'s window starts its own lzrprf again with its id, as the Profiles icon does)', scalar(@opens) . ' lines');
 check(join(' ', sort keys %programs) eq "@known" && $text_of_lzrprf !~ /\bsystem\(|\bqx\b|`/, 'the programs lzrprf starts are the system\'s own, and these fifteen: ' . join(' ', map { m{([^/]+)$} } @known), scalar(keys %programs) . ' programs named');
 my %calls = map { my $name = $_; $name => scalar(() = $text_of_lzrprf =~ /(?<![\w\$])$name\(/g) } 'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted';
 check("@calls{'fetch', 'visit', 'fixed', 'reach', 'laid_out', 'pictured', 'sheeted'}" eq '5 1 5 1 3 4 1' && $text_of_lzrprf =~ /^    my \$got = fixed\('you sent a support request' /m && $text_of_lzrprf =~ /^    my \$got = fixed\("you read the answer to your support request: /m && $text_of_lzrprf =~ /^        \(\$got, \$why, \$from\) = fetch\(\$url, \$where, \{ method => \$method, /m && $text_of_lzrprf =~ /^sub live_fetched \{/m && $text_of_lzrprf =~ /^    my \(\$shown, \$fetched, \$wanted, \$decoded\) = pictured\(\$lines, \$paths, \$host, \$where, \$kept\);$/m && $text_of_lzrprf =~ /^        window\("page \$TAB", \@\{ \(pictured\(\$lines, \$paths, \$host, \$where, \$kept, \{\}\)\)\[0\] \}, '\.'\);    # nothing is fetched/m && $text_of_lzrprf =~ /^        my \(\$shown\) = pictured\(\$again\[0\], \$again\[2\], \$SHOWN->\{host\}, undef, undef, \$SHOWN->\{pictures\}\);$/m && $text_of_lzrprf =~ /^            \(\$shown\) = pictured\(\$checked, \$live->\{paths\}, \$live->\{host\}, undef, undef, \$live->\{pictures\}\);/m && $text_of_lzrprf =~ /^        my \(\$frame, \$with\) = sheeted\(\$named, \$host, \$where, \$kept\) or return idle\(\$UNWRITTEN\);$/m && $text_of_lzrprf =~ m{^        if \(\$event =~ /\^go \(\[\\x20-\\x7f\]\{1,2100\}\)\$/\) \{ typed\(\$1\) \}}m && $text_of_lzrprf =~ m{^sub typed \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ m{^sub navigated \{\n(?:    (?!.*\b(?:fetch|visit|fixed|reach)\().*\n){1,8}\}\n}m && $text_of_lzrprf =~ /^sub go \{\n    my \@next = \@_;\n    \@WAY = \(\);\n    \$WENT = now\(\);  +# [^\n]*\n    while \(\@next\) \{\n        undef \$NEXT;\n        visit\(\@next\);\n/m && $text_of_lzrprf =~ /^    return idle\(\$says\) unless ask\(.* == 2;.*\n    idle\(.*fixed\(/m && $text_of_lzrprf =~ /^    return unless \$may eq 'yes';\n    return newer_looked\(/m && $text_of_lzrprf =~ /^    return newer_looked\(.*, 1\) if \$asked;\n/m && $text_of_lzrprf =~ /^sub newer_looked \{\n(?:    .*\n){3}    my \$got = fixed\(/m && $text_of_lzrprf =~ /^    return unless ask\("A newer release of .* == 2;\n    installed\(/m,
@@ -2717,7 +2969,7 @@ my $readme = slurp("$here/README.md");
 if (length $readme) {
     my %cited = map { $_ => 1 } $readme =~ /\[(C\d+)\]/g;
     check(join(' ', sort keys %cited) eq join(' ', sort keys %marks), 'the README cites the same conditions, all of them and no other', scalar(keys %cited) . ' cited');
-    my @numbers = map { $text_of_lzrprf =~ /^my \$$_->[0] = ([\d_ *]+);/m ? [eval($1 =~ s/_//gr), $_->[1]] : [0, $_->[1]] } ['FETCH_SECONDS', '%d seconds'], ['PAGE_SECONDS', '%d seconds'], ['FETCH_BYTES', '%d MB'], ['PAGE_BYTES', '%d MB'], ['PIECES', '%d lines'], ['BOXES', '%d boxes'], ['BLOCK', '%d characters in a block'], ['HUNG', '%d characters in a row'], ['WORD', '%d characters with no white space'], ['ANSWER_SECONDS', '%d minutes'], ['FOUND', '%d addresses'];
+    my @numbers = map { $text_of_lzrprf =~ /^my \$$_->[0] = ([\d_ *]+);/m ? [eval($1 =~ s/_//gr), $_->[1]] : [0, $_->[1]] } ['FETCH_SECONDS', '%d seconds'], ['PAGE_SECONDS', '%d seconds'], ['FETCH_BYTES', '%d MB'], ['PAGE_BYTES', '%d MB'], ['PIECES', '%d lines'], ['BOXES', '%d boxes'], ['BLOCK', '%d characters in a block'], ['HUNG', '%d characters in a row'], ['WORD', '%d characters with no white space'], ['ANSWER_SECONDS', '%d minutes'], ['FOUND', '%d addresses'], ['PROFILES_MOST', 'at most %d profiles'], ['PROFILE_NAME', 'at most %d characters long'];
     my @unsaid = grep { index($readme, $_) < 0 } map { my ($n, $how) = @$_; sprintf $how, $how =~ /MB/ ? $n / 1048576 : $how =~ /minutes/ ? $n / 60 : $n } @numbers;
     check(!@unsaid, 'the numbers the README states are the numbers in lzrprf', @unsaid ? "not in the README: @unsaid" : scalar(@numbers) . ' numbers');
     my @named = grep { $text_of_lzrprf !~ /^sub \Q$_\E\b/m } $readme =~ /\bsub (\w+)/g;
@@ -2900,7 +3152,7 @@ sub pulled_words {                        # "sub pulled_command", "sub opened_wi
     my @rest = map { my ($one) = $text_of_lzrprf =~ /^(sub $_ \{.*?^\}\n)/ms; $one } qw(opened_with started address);
     my ($name) = $text_of_lzrprf =~ /^(my \$NAME = .*)$/m;
     return 'not found in lzrprf' if grep { !defined } $command, $name, @rest;
-    my $got = eval "package Pulled; no warnings; our (\$SELF, \$INCOGNITO, \$PROGRAM, \@ARGUMENTS, \@script) = ('lzrprf');\n$name\n$command\n" . join("\n", @rest) . "\nsub hear { shift \@script }\n" . q{
+    my $got = eval "package Pulled; no warnings; our (\$SELF, \$INCOGNITO, \$PROGRAM, \@ARGUMENTS, \$PROFILE, \@script) = ('lzrprf');\n$name\n$command\n" . join("\n", @rest) . "\nsub hear { shift \@script }\n" . q{
         my @words = map { $INCOGNITO = $_->[0]; ($PROGRAM, @ARGUMENTS) = @{ $_->[2] }; my @c = pulled_command(@{ $_->[1] }); join ' ', @c[2 .. $#c] } [0, ['10 20 900 700'], ['/app', 'x']], [1, ['1 2 30 40'], ['/app']];
         my $in = sub { my $bytes = shift; open my $h, '<', \$bytes; $h };
         my @opened = map { my ($bytes, @more) = @$_; join(',', map { $_ // '-' } opened_with($in->($bytes), '--open', '5 6 700 500', '/app', @more)) } ["site.test/b\nmore\n", 'y'], ["\n"], [''];
@@ -2917,7 +3169,7 @@ sub pulled_argv {                         # every command line lzrprf builds for
     my ($run) = $text_of_lzrprf =~ /^(sub run \{.*?^\}\n)/ms;
     my @lines = ($run // '') =~ /^(\s+become\(.*\n)/mg;
     return 'not found in lzrprf' if grep({ !defined } @subs, $command, $text) || @lines != 2;
-    my $got = eval "package Argv; no warnings; our (\$SELF, \$INCOGNITO, \$PROGRAM, \@ARGUMENTS, \@TABS, \$TAB, \$TRY, \$OPEN, \$OPEN_FRAME, \$APP, \$HOME, \$WINDOW_CONTAINER, \$SCRIPT, \$DIR, \$PEER, \$ANSWER, \$BASE, \@made, \$PULLED, \$PULLED_MOST) = ('lzrprf');\n(\$PULLED, \$PULLED_MOST) = (0, 32);\n"
+    my $got = eval "package Argv; no warnings; our (\$SELF, \$INCOGNITO, \$PROGRAM, \@ARGUMENTS, \@TABS, \$TAB, \$TRY, \$OPEN, \$OPEN_FRAME, \$APP, \$HOME, \$WINDOW_CONTAINER, \$SCRIPT, \$DIR, \$PEER, \$ANSWER, \$BASE, \$PROFILE, \$ROOT, \@made, \$PULLED, \$PULLED_MOST, \$GONE) = ('lzrprf');\n(\$PULLED, \$PULLED_MOST) = (0, 32);\n"
         . "sub address { (\$_[0]) } sub idle {} sub window {} sub tabbed {} sub frame_kept { '1 2 300 400' } sub apart { push \@made, ['apart', \@_]; 1 } sub become { push \@made, ['become', 'nothing', \@_[3 .. \$#_]] }\n"
         . join("\n", @subs, $command, $text) . q{
         my $secret = 'https://site.test/secret/page';
@@ -2932,6 +3184,25 @@ sub pulled_argv {                         # every command line lzrprf builds for
     return $got // "failed: $@";
 }
 
+sub profile_argv {                        # every command line that names a profile, run here in a profile's window: "sub profile_command" for the first and for another profile, "sub pulled_command", and the line of "sub run" that starts behind
+    my @subs = map { my ($one) = $text_of_lzrprf =~ /^(sub $_ \{.*)$/m; $one } qw(profile_command pulled_command);
+    my ($run) = $text_of_lzrprf =~ /^(sub run \{.*?^\}\n)/ms;
+    my ($behind) = ($run // '') =~ /^\s+(become\(\$from, \$to, .*)$/m;
+    return 'not found in lzrprf' if grep { !defined } @subs, $behind;
+    my $got = eval "package ProfileArgv; no warnings; our (\$SELF, \$INCOGNITO, \$PROGRAM, \@ARGUMENTS, \$PROFILE, \$ROOT, \$DIR, \$TRY, \$PEER, \$ANSWER, \$BASE, \@made) = ('lzrprf');\nsub become { push \@made, [\@_[3 .. \$#_]] }\n" . join("\n", @subs) . q{
+        $PROGRAM = '/app'; @ARGUMENTS = ('x'); $PROFILE = 'a0a0a0a0a0a0'; $INCOGNITO = 0;
+        ($ROOT, $DIR, $TRY, $PEER, $ANSWER) = ('/Users/someone/.lzrprf', '/Users/someone/.lzrprf/profiles/a0a0a0a0a0a0', 0, '-', 'allow');
+        my ($from, $to, $behind, $window, $program, @arguments) = (undef, undef, 0, 1, '/app', 'x');
+        my @lines = (profile_command('a0a0a0a0a0a0'), '|', profile_command('first'), '|', pulled_command('1 2 300 400'));
+        eval } . "q\x01$behind\x01" . q{ . "\n1" or return "failed: $@";
+        ($INCOGNITO, $DIR) = (1, '/tmp/lzrprf-i.1.abcdefabcdef');    # an incognito window opened from that profile's window
+        push @lines, '|', pulled_command('1 2 300 400');
+        eval } . "q\x01$behind\x01" . q{ . "\n1" or return "failed: $@";
+        my @one = (@lines, '|', @{ $made[0] // [] }, '|', @{ $made[1] // [] });
+        join(' ', map { $_ eq '/usr/bin/perl' || $_ eq 'lzrprf' ? () : $_ } @one);
+    };
+    return $got // "failed: $@";
+}
 sub closed_order {                        # "sub closed_kept" of lzrprf, taken out and run here: twelve tabs closed, then one with no address
     my ($text) = $text_of_lzrprf =~ /^(sub closed_kept \{.*?^\}\n)/ms;
     defined $text or return 'not found in lzrprf';

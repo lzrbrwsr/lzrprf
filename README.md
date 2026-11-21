@@ -280,12 +280,12 @@ One visit, in order (`sub visit`):
 | `[C9]` | Every line the application writes is checked, and a list with anything but the five kinds of line (from release 22 on, or the lines of a laid page, laid at the width its `=view` frame asked for), or with more than the window is given to set, is not drawn at all. The page's title, a line `=title` right after `=page` of at most 200 characters with every control and format character taken out, is shown in its tab and nowhere else. A laid page may also hold tiles: `K<n>,<x>,<y>,<w>,<h>` gives tile n (0 to 31, each once) at a corner of the grid of 256, exactly as wide and high as the page leaves there (256 at most), with one line `n<base64>` for each row: red, green and blue, a byte each and no alpha, since a tile is opaque, so a row is exactly 4 characters of base64 a pixel with no `=`, and its length and its alphabet are its whole check (from release 31 on; a picture keeps its rows `m` with how opaque), and `J<n>,<x>,<y>` places a tile given above again where it is cut the same; at most 32 tiles and 1024 places, outside the 262144 pixels of the pictures, which is why a list may hold 12 MB. | `sub checked`, `sub laid` | Hostile lists (a script, lzrprf's own words to the window, too large, a block that holds too much, not text, a thing the page is said to be made of in a wrong form or place): none is drawn. The fullest list of such things that is allowed is passed on, and the real window's pane is read. The most lines, the most boxes and a block that is exactly full are passed on; a row of hanging characters and a word with no white space come out changed at the 31st and after the 1000th; the heaviest pages the limits allow are drawn by the real window and timed. Laid pages broken in eleven ways (out of the page, a number in a second form, too narrow, too many rectangles, mixed with a flowing page either way, a row of a picture missing or too long, not base64 or base64 in a second form, too many pixels), and tiles broken in twenty-three ways (wider or narrower than their cut, a row 4 characters too long or too short or missing, a row `m` as a picture's, a row with `=` or `==` at its end or with `-` or `_` in it, a row `n` under a picture or under no tile, numbered 32, 01 or twice, placed before they are given, off the grid or out of the page, placed where they are cut otherwise, 33 tiles or 1025 places): none is drawn. A laid page that is fit, tiles too, is passed on as it is, and in its text a control character is replaced, not refused. |
 | `[C10]` | The window's process has no network of its own, writes no file, starts no other program (the one program its container lets it start is `/usr/bin/osascript`, the program it is, and that stays in the same container), opens nothing through the system, commands no other program, sends no signal to another process, and reads nothing under `/Users` or on another disk but your settings, fonts, keyboard layouts and input methods. Before the window takes an address or shows a fetched page, macOS is asked about eight operations of that process (connecting out, creating a file, starting a second process, reaching a system service when none is named, opening something through the system, commanding another program, writing your settings, sending a signal), and each must be refused; the rest of the container's text is not asked about, and `selftest` makes its own tries from the real window, starting another program among them. Until then the window shows only the words of lzrprf and of its `selftest`, and no fetched page. Of the system's services it looks up by name only the 41 its container lists and one local name, the clipboard's (from release 19 on; before that all but one). The question about a system service names none: it says that the container refuses by default, not which names its list lets through. | `$WINDOW_CONTAINER`, `sub inside`, `sub behind` | Runs its own tries inside the window's process, and asks macOS about that process. A copy with one refusal taken out: no page is shown. From the real window it asks for six system services by name: the clipboard, which the container lists, is answered, and the five it does not list are refused; a copy without that refusal is answered as a program outside every container is, and a copy whose list is one name wider is caught by the same try. |
 | `[C11]` | No page is fetched or shown before `selftest` held on this build of macOS with this `lzrprf` and the `selftest` beside it, in its last run there. The window is there earlier, with its bar switched off: it shows lzrprf's own questions and no page. A check the test could not try there is named in its mark, and then no page is fetched or shown before you said yes to starting without exactly those checks. | `sub proven`, `sub mark` | No mark, a mark from another build of macOS, a mark of another `lzrprf`, a mark made by another `selftest`, a mark that names no `selftest`: each time you are asked to test, and after a no nothing is shown, looked up or fetched. A mark that names a check that could not be tried, with no yes or with a yes to other checks: the window names the check and asks, and after Quit nothing is shown, looked up or fetched. A copy that counts such a mark without a yes: its line says it fetched. |
-| `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"), apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file `.order` of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (`install.txt`), a support member licence code you entered (`licence`), and the reference and key of the support request you sent last (`support`), never its words; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log`, `sub licence_set`, `sub licence_removed`, `sub support_sent`, `sub support_forgot` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. Runs `licencegood`, `licenceremove` and `support`: `licence` holds the code as written and `support` the reference and the key, each readable by you alone (0600), and removing the code removes its file; a refused code (`licencebad`) and a refused request (`supportbusy`) keep nothing; no log holds the words sent, the key or any part of the code. |
+| `[C12]` | lzrprf writes nothing of what you fetched to the disk unless you chose a kept log (what macOS keeps on its own is under "What is kept"), apart from the one address you made the home page, the bookmarks you made or imported (each a name and an address) and the order of each of their folders (a file `.order` of their names), whether the bookmarks bar is shown, and an installer you chose to run, with what it printed (`install.txt`), a support member licence code you entered (`licence`), the reference and key of the support request you sent last (`support`), never its words, and the profiles you made, each a folder of its own under `profiles` with its name and all of the above that belongs to it; a kept log holds hosts only unless you chose full addresses. It is only added to, apart from clearing by your button and the days you chose: in a kept log each of the two says so in its first line, and with nothing kept, clearing removes the log whole and the window's lines say so. | `sub record`, `sub keeping`, `sub choose_keeping`, `sub changed`, `sub clear_log`, `sub expire_log`, `sub licence_set`, `sub licence_removed`, `sub support_sent`, `sub support_forgot` | The window's buttons, pressed in every order the test knows, never leave more kept than before: more is taken from `lzrprf keep` only. A change is a line of the log. With nothing kept, no file holds a path or a query that was typed. Hosts only: no file holds them either. Tens of thousands of lines and none dropped; cleared only after two questions; not while a request is open; old lines taken out at the start of a window, said in the first line. A setting that is no setting keeps nothing. Runs `licencegood`, `licenceremove` and `support`: `licence` holds the code as written and `support` the reference and the key, each readable by you alone (0600), and removing the code removes its file; a refused code (`licencebad`) and a refused request (`supportbusy`) keep nothing; no log holds the words sent, the key or any part of the code. |
 | `[C13]` | The application opens no file for its fonts. lzrprf hands a page run, and never a picture run, eight fonts of the Mac by fixed paths in `/System/Library/Fonts/Supplemental` (Arial and Courier New, each plain, bold, italic and both), as one frame in front of the answer: `=fonts` and the eight lengths on one line, then their bytes. A face goes with length 0 unless it is a plain file and no link, of at most 2 MiB, that begins as a TrueType font; a pipe put in its place is not waited for. They are read once in a window, and the keeper hands them over after the same word of the system as the answer `[C3]`. A site cannot put a frame in front of lzrprf's: what it sends comes after it. | `sub faces`, `sub contained` | The application takes the frame off its input and says the length and SHA-256 of each face: they are the eight files as `selftest` reads them itself. A picture run gets no frame. A site whose answer holds a frame of its own: it arrives after the real one, byte for byte. A copy that reads its fonts from a folder of the test: a link to a font, a file one byte over 2 MiB, a pipe and a file that does not begin as a font each go with length 0, while a font of exactly 2 MiB is handed over whole; the same copy without O_NOFOLLOW hands over the font behind the link, and the test notices. |
 | `[C14]` | A page is laid out at most twice. The first run of a page is given the empty frame `=sheets` after the fonts, and may name up to eight style sheets on the page's own host in a line `=sheets`, checked as the paths of pictures are `[C9]`. lzrprf fetches them `[C4]` `[C5]` and runs the page a second time, with `=sheets`, the length of each and their answers byte for byte in front of the page's answer, each at most 1 MiB or with length 0. A second run that names style sheets again, or is not a page, is not shown: the first run's page is, and the bar says the sheets were not used. There is never a third run, and a picture run is given no style sheet. | `sub checked`, `sub sheeted`, `sub visit`, `sub contained` | The application says on each run the length and SHA-256 of each sheet it took off its input: none on the first run, the test site's answers on the second. A sheet whose body begins `=sheets 4` arrives inside its own length. A sheet over 1 MiB, a fetch that failed and a sheet not begun within the clock each go with length 0, the last neither logged nor asked for. Each sheet has two lines in the log and one request, of its own address; no other host is asked. Lines `=sheets` broken in six ways are refused with nothing fetched. A second run that names sheets again, or is not a page: the first run's page, two runs. A page that names none: one run. A picture run gets no frame. A copy that shows a second run naming sheets again shows it (`lostsheets`). |
 | `[C15]` | Another browser's bookmarks are read only after you chose that browser, or a bookmarks file, in the window's import wizard, by lzrprf itself and never by a container or the window, with no program started: `Local State` and each profile's `Bookmarks` of Chrome, Edge, Brave and Vivaldi, Firefox's `profiles.ini` and newest `bookmarkbackups/*.jsonlz4`, Safari's `Bookmarks.plist`, all at fixed places under your home folder, or an HTML bookmarks file of yours found in Downloads, Desktop or Documents or typed as a path in your home folder; each a plain file of yours and no link, of at most 32 MiB. Nothing in them is fetched, and nothing of them is written but the bookmarks kept after you pressed Import `[C12]`. | `sub import_read`, `sub import_profiles_of`, `sub import_files`, `sub import_path`, `sub import_preview`, `sub import_plan`, `sub import_go`, `sub lz4_block`, `sub plist_binary` | Fixture files of each format under the run's own folder, which a try takes for the home folder: Chrome's JSON with two profiles named in Local State, a Firefox backup whose LZ4 block holds matches, a binary plist made by `plutil`, an HTML export. Each is imported in its order, the bar into the bookmarks bar after what it held, the rest into "Imported from" and the browser's name, numbered past a folder of that name. Plain http and `javascript:` are skipped and a fifth folder deep is left out, each counted. A link to a bookmarks file is neither offered nor read; a typed path outside the home folder, or climbing out of it, is refused. Nothing imported is fetched or logged. |
 | `[C17]` | Tor is off until you turn it on in the window, and while it is off no Tor client runs. Turned on, lzrprf starts the client that stands beside the program, named by its SHA-256 in the release file, in a container of its own (its own folder and the network, nothing of yours), and every address is then fetched through it, the site's host its SOCKS user so each site has its own circuit; nothing is looked up or fetched directly, also while it connects or when it does not. Turned off, the client is ended. | `sub tor_on`, `sub tor_reach`, `sub tor_off` | A stand-in client that says the client's own first lines and relays SOCKS5: the window is told each step, then on; the page arrives through it by name with the site as its SOCKS user, its line in the log first; Tor off ends it. A stand-in that cannot connect: nothing reaches the site, the window says why, the client is ended. The container itself, tried with `/bin/cat`: its own folder is read, a file in your home folder is not. |
-| `[C16]` | An incognito window writes nothing that outlives it. Its log, history, tabs and everything it fetched are held in its memory or in one folder of its own, readable by you alone, in your temporary folder, named `lzrprf-i.<process number>.<12 random hex digits>`; of `~/.lzrprf` it reads, and never writes, the self-test's result, the home page, the search address, whether the bar is shown and the bookmarks. The folder is removed however the window ends, and one left by a run whose processes are all gone is removed at the next start. | `sub incognito_begun`, `sub swept`, `sub removed`, `sub leave` | Run `incognito`: two pages, a bookmark opened, the star and the import tried; every file of the run's lzrprf folder hashed before and after, byte for byte the same, and the window's folder gone. Runs `incognitokilled` and `incognitoswept`: kill -9 of the sweeper, the process behind the window and lzrprf leaves the folder; the next start removes it. |
+| `[C16]` | An incognito window writes nothing that outlives it. Its log, history, tabs and everything it fetched are held in its memory or in one folder of its own, readable by you alone, in your temporary folder, named `lzrprf-i.<process number>.<12 random hex digits>`; of `~/.lzrprf` it reads, and never writes, the self-test's result, the home page, the search address, whether the bar is shown and the bookmarks. It belongs to no profile: it is told none, refuses every word of one, and makes no folder of profiles. Opened from a profile's window, it reads these four of that profile's folder instead, and writes there neither; the self-test's result it reads from `~/.lzrprf` and writes nothing of it. The folder is removed however the window ends, and one left by a run whose processes are all gone is removed at the next start. | `sub incognito_begun`, `sub swept`, `sub removed`, `sub leave` | Run `incognito`: two pages, a bookmark opened, the star and the import tried; every file of the run's lzrprf folder hashed before and after, byte for byte the same, and the window's folder gone. Runs `incognitokilled` and `incognitoswept`: kill -9 of the sweeper, the process behind the window and lzrprf leaves the folder; the next start removes it. |
 | `[C18]` | A page may keep running with its tab, from release 53 on. An HTML page's answer goes to the application inside the frame `=live LEN`, and after its first list, checked and drawn as any other `[C9]`, the application writes `=ready` and stays in its container with the tab. lzrprf hands it three lines and nothing else: `=click X Y` for a click in the page (in the laid page's points after lzrprf's scrolling), `=key NAME` or `=key NAME shift` for a key, and `=text TEXT` (1 to 48 bytes of UTF-8, no control or format character) only while the page has said `=focus 1`; every line at most 64 bytes, checked twice, in the window and in lzrprf. The page answers with `=focus 0` or `=focus 1`, `=go ADDRESS` (a link followed or a GET form sent: a visit like a typed address, with every check of one), `=statement TEXT`, and `=again`, its lines and `=ready`, checked as a first list and drawn with the pictures already decoded, so nothing is fetched. A line of no form ends the page and keeps its last drawing. A tab that closes or goes elsewhere sends `=end`; the page is given one second, then it and its keeper are ended, and when lzrprf itself ends the keeper ends the page. At most three pages run at once (the oldest is ended first), each for at most half an hour and four laid pages of lines. | `sub contained`, `sub keeper`, `sub live_kept`, `sub live_input`, `sub live_answered`, `sub live_end` | A page whose script changes its text on a click is drawn again after each of two clicks. Text typed before any field has the focus reaches nothing; after `=focus 1` keys and finished text reach the page, and its `=go` is fetched as a typed address with the field in it, written in the log first. A tab that goes elsewhere tells the page `=end` before the site is asked for anything, and no process of it is left. An answer with a line of no kind ends the page: its first drawing stays and the next click reaches nothing. |
 | `[C19]` | A page kept running with its tab, from the moment it is read, may ask lzrprf for an address with GET, HEAD or POST, from release 54 on (while it is read from release 55 on, for the scripts it names by address, within the 30 seconds a page has to be read), one at a time and at most 600 times in its life. The application writes `=fetch METHOD LEN TYPE URL` and the body; each is checked as an address typed into the bar is (https only), written in the log first `[C5]` with the page it came from, and fetched through the one place that connects `[C6]`, carrying the fixed request of `[C7]` with nothing added but, for a POST, at most 64 KiB of the page's body and one of three types, and for another host the page's own `Origin`. A host inside your own network is refused without a question. The page is handed back `=fetched STATUS LEN LEN`: the status, six headers (the content type and the five of CORS) and the body, and nothing else. | `sub live_asked`, `sub live_fetched`, `sub live_parts`, `sub live_replied`, `sub fetch` | A page's script asks the test site for a path on its own host and draws the answer: the site is asked once, with the fixed request bytes, written in the log before the line that connects, and the page is handed only the content type of the answer's headers. A request to another host is written down with the page's host, fails there, and the page draws its error. A page that names `/s.js` asks for it before its first list: the site is asked once, it is written in the log before the line that connects, and the first list drawn carries what the script changed. |
 | `[C20]` | The application's tool, opened by its icon in the bottom bar and never in an incognito window. lzrprf reads this computer's processes and launchd jobs with the system's own programs (`ps`, `launchctl`, `plutil`, `codesign`) and hands what it saw to the application in its container, which has no network and no file, so nothing of it leaves this computer. A look changes nothing. lzrprf changes something only for a row you ticked and then confirmed, where each change is said in lzrprf's own words and written in the log first: a launchd job of your account is switched off, a process of yours is asked to end; never a job or a process of the system or of Apple, never lzrprf's own, never with a password. The jobs you switched off are kept in `~/.lzrprf/quieted`, looked at again at each start and every five minutes while a window is open, switched off again when something switched them on, and switched on again when you say so. | `sub tool_shown`, `sub tool_look`, `sub tool_checked`, `sub tool_may`, `sub tool_done`, `sub tool_watch` | Runs `tool`, `toolbad` and `toolwatch`, with stand-ins for what the system's programs say, so no real job and no real process is touched: the application is handed the processes, the jobs, the open apps and who signed their programs; of the changes it names, only a process of yours outside the system and a job of your account that is not Apple's can be ticked; a process of root, a job of the system, of Apple or one lzrprf never saw cannot. What was ticked is changed and nothing else, each change after its log line, and a process that is no longer the one listed is left alone. An answer with one line out of form shows nothing. A job switched off that is loaded again at a start is switched off again and the window told. |
@@ -730,7 +730,8 @@ the window alone, and nothing in it comes from a page.
   leaves the strip and is drawn as the small window it becomes. Let go there, it opens as a
   window of its own, of this window's size, placed so the tab stays under the pointer: the
   window says `tab out N X Y W H`, and lzrprf starts a second lzrprf as it was started itself,
-  `perl lzrprf run --open "X Y W H" /path/to/program` (`incognito` from an incognito window),
+  `perl lzrprf run --open "X Y W H" /path/to/program` (`incognito` from an incognito window,
+  and `--profile ID` before `--open` from a profile's window, so the tab stays in its profile),
   which goes through every start check of its own (`sub tab_out`, `sub pulled_command`). The
   tab's address goes to it as one line on its standard input, never as an argument: every user
   of this computer can read the arguments of a process in the list of processes for as long as
@@ -742,7 +743,7 @@ the window alone, and nothing in it comes from a page.
   fetched again and the tab's history stays behind. The tab then closes in the first window,
   with the line `you pulled a tab out into a new window`, and is not one of the closed tabs to
   reopen. When no process could be started, the tab stays. One window opens at most 32
-  windows from its tabs in its life, as many as it holds tabs, so a window process that was
+  windows from its tabs and profiles together in its life, as many as it holds tabs, so a window process that was
   taken over cannot have lzrprf start processes without end: the 33rd tab pulled out stays,
   and lzrprf says why (run `taboutmost`). The only tab of a window moves the window instead.
 - **Zoom.** Cmd-plus (or Cmd-=), Cmd-minus and Cmd-0, in the View menu, zoom the page of the
@@ -927,7 +928,8 @@ activity should be permanently retained without your explicit consent.
 So every line of the log is kept in the memory of the process behind the window
 (`sub record`), after it was written to the disk when a log is kept, and the Log button shows
 it. What stays on this computer after the window
-closes is your choice, held in the plain file `~/.lzrprf/keep` (`sub keeping`) `[C12]`:
+closes is your choice, held in the plain file `~/.lzrprf/keep` (`sub keeping`) `[C12]`, or in
+the folder of a second profile its own `keep` (see "Profiles"):
 
 | mode | what the Log button shows | what stays on this computer |
 | --- | --- | --- |
@@ -1002,7 +1004,10 @@ The limits, said plainly:
   printed, appended, `licence` (the support member licence code you entered, as it was given
   to you, until you remove it) and `support` (the reference and the key of the support request
   you sent last, so its answer can be read, and never its words, until "Forget it" or the next
-  request). An incognito window writes and reads neither, and offers neither. The closed tabs
+  request), and the folder `profiles` once you made a second profile or named the first: a
+  folder for each profile with its own `name`, `keep`, log, `home`, `search`, `bookmarks` and
+  `marksbar`, and the file `first` with the first profile's name (see "Profiles"). An incognito
+  window writes and reads neither licence nor support, and offers neither. The closed tabs
   to reopen and each tab's zoom are held in memory only. It also holds files lzrprf needs to
   work, none with an address you typed:
   `keep` (what is kept), `look` (your answer about newer releases), `welcomed` (the number of
@@ -1056,6 +1061,8 @@ keeps no licence code and sends no support request; lzrprf refuses their lines f
 (`sub licence_set`, `sub support_sent`, `sub support_read`), and `licence` and `support` are
 not read. Its closed tabs to reopen are held in memory, as in every window. A tab pulled out of
 it opens an incognito window, whose address goes on a pipe and never in the list of processes.
+It has no profile: it shows no Profiles icon, is told no profile, and lzrprf refuses every word
+of one from it (run `profileincog`).
 
 Every way out removes the folder. The process behind the window removes it in `sub leave`
 whether the window was quit, its last window closed, Command-Q pressed or the window's process
@@ -1085,6 +1092,120 @@ What macOS could keep, and what was checked:
   and that every file of the run's lzrprf folder is byte for byte what it was.
 - What it does not cover: what sites see (your internet address and what you send them), and the
   macOS unified log, which records process starts and sandbox refusals as for any program.
+
+## Profiles
+
+A profile is a browser of its own on the same Mac: its own bookmarks, history, log, home page
+and search, kept apart from every other profile. The Profiles icon, a head and shoulders left of
+the cogwheel, opens the list. The window's own profile is drawn in green and marked "this
+window"; a profile with a window open says "open". Pressing another profile opens it in a new
+window. "New profile..." asks for a name, makes the profile and opens it. "Rename or remove..."
+turns each row into a press that opens the same field for that profile, with Rename and, for a
+profile that may go, Remove. The cogwheel's "Profiles..." opens the same list.
+
+Where each lives. The first profile is the state folder itself, `~/.lzrprf`, exactly as it was
+before there were profiles: nothing is moved, and an installed browser sees no change and gets no
+new file until a second profile is made or the first is renamed (run `profilenone`). Every other
+profile is a folder `~/.lzrprf/profiles/ID`, mode 700, readable by you alone. ID is 12 hex
+digits lzrprf draws from `/dev/urandom` when it makes the profile, and never anything typed
+(`sub profile_new`). Its name is the one plain file `name` in that folder; the first profile's
+name, once you give it one, is the file `profiles/first` (`sub profile_renamed`).
+
+What is per profile, each in that profile's folder: `keep`, the log and its locks, `home`,
+`search`, the folder `bookmarks`, `marksbar`, the window's frame, Tor's folder `tor`, and the
+folders `tries.NUMBER` and `way.NUMBER` while its window runs. History, the closed tabs to reopen
+and each tab's zoom are held in the memory of the window's own process, and every profile's
+window is a process of its own, so they are per profile too. A profile's window reads and writes
+no file of another profile: run `profiletwo` hashes every file of the first profile before and
+after a second profile's window opens its home page, a page and a bookmark, and run
+`profilefirst` does the same the other way round. The one thing a window reads of another
+profile is its name, for the list.
+
+What belongs to the installation, and stays in `~/.lzrprf` for every profile alike: the release
+file and the look for a newer release with your answer (`look`), an installer and its lines
+(`install.txt`), the welcome (`welcomed`), the licence code (`licence`), the support request's
+reference (`support`), the self-test's result (`proven`, `untested`, `selftest.txt`,
+`selftest.lock`), and the jobs the application's tool switched off (`quieted`). These are facts
+about this Mac or this copy of LZRBRWSR, not about where you went.
+
+A profile's window is its own lzrprf, started as a pulled tab's window is
+(`sub profile_window`, `sub profile_command`):
+`perl lzrprf run --profile ID /path/to/program`. The id is the only word of a profile on a
+command line, because every user of this computer can read the list of processes; the name never
+goes on one. The window holds a shared lock on the file `inuse` in its folder for as long as it
+lives (`sub profile_held`). The first profile's windows hold the same lock on `~/.lzrprf/inuse`,
+but only once the folder of profiles is there, so an installed browser with one profile still
+gets no new file; from then on the first profile shows as "open" in another window's list too
+(runs `profiletwo`, `profilefirst`). A first profile's window that started before the folder
+was made takes the lock the first time its own list is told or a profile word reaches it, once
+(`sub first_held`, run `profilelate`); until then the other windows list the first profile as
+shut. A tab pulled out of a profile's window opens in the same profile. One
+window opens at most 32 windows from its tabs and profiles together in its life, the bound of a
+pulled tab (run `profilewindows`).
+
+Bounds, each a declared constant in `lzrprf`. There are at most 16 profiles, the first among
+them, so a window process that was taken over cannot fill the disk with folders; the 17th is
+refused with "There are 16 profiles, the most there may be. Remove one to make another." (run
+`profilemost`). A name is at most 32 characters long, of plain text with no control or format
+character, its spaces made single; it is refused otherwise, and two names that differ only in
+capitals are refused as the same name (`sub profile_fit`, run `profilenew`).
+
+Removing a profile asks once, in the strip, by lzrprf itself and not by the window: "Remove the
+profile NAME? Its bookmarks, history, log, home page, search address and all that is kept for it
+are deleted from this Mac. This cannot be undone." Remove then deletes exactly that profile's
+folder and nothing else; a link inside it is removed and never followed. The first profile is
+never removed, since its folder also holds what belongs to the installation, and neither is a
+profile with a window open, this window's own among them (`sub profile_removed`, run
+`profileremove`).
+
+The window's words, each checked by lzrprf as the words of a hostile window are: `profile list`;
+`profile open ID`; `profile new<TAB>NAME`; `profile rename<TAB>ID<TAB>NAME`; `profile remove ID`.
+ID is `first` or 12 hex digits, and only the id of a folder lzrprf finds under `profiles`, a
+folder of yours and no link, names a folder (`sub profile_folder`); dots, slashes, a longer id,
+capitals or an id lzrprf never made are refused and said (run `profilehostile`). lzrprf answers
+with `profiles begin`, a line `profiles one ID this|open|shut NAME` for each profile, and
+`profiles end` (`sub profiles_told`); and with `profiles refused WORDS` when it did nothing.
+The window shows a name as plain text, never as markup. A name is written to one file only,
+that profile's own `name` (or `profiles/first`); the list and the strip's words, such as "You made
+the profile NAME", are held in the window's memory and its strip, never on the disk (run
+`profilenew` looks for the name in every file of the state folder and finds it in that file alone).
+
+Making, renaming and removing a profile each take an exclusive lock on the folder of profiles,
+opened with no link followed, so two windows cannot pass the bound of 16 together or take one
+name twice; the count and the name are looked at again under the lock (`sub profiles_locked`).
+Under that lock a removal also clears what an earlier removal left half done: an entry named
+exactly `.removed.ID.PROCESS` whose process is gone. A link of that name is removed and never
+followed, and any other name is left as it is (`sub profiles_swept`, run `profileremove`).
+
+"Close and restart" after an update opens the new release in the same profile, with only its id
+on the command line, as the Profiles icon does (`sub restarted`). The installer has replaced
+`lzrprf` and the application in place, and a fresh perl reads `lzrprf` from the disk, so the
+window that comes back is the new release and passes every check of a start.
+
+An incognito window belongs to no profile. It is told none, shows no Profiles icon, and the
+cogwheel's item only says why; lzrprf refuses every word of a profile from it and makes no folder
+of profiles (run `profileincog`). An incognito window opened from a profile's window reads that
+profile and no other: its id is the one word of the profile on its command line
+(`perl lzrprf incognito --profile ID`), and the home page, the search address, the bar and the
+bookmarks it reads, never writes, are that profile's (`sub incognito_opened`, run
+`profileincogtwo`, and run `profileincogbehind` through the parser of the process behind the
+window). It writes nothing to the state folder either: a self-test mark it does not match is
+noted in its own folder only (run `untestedincog`). It holds no lock on the profile, so it does
+not keep the profile from being removed. It reads the profile's bookmarks, home page and search
+address each time it uses them, so once the profile is removed they are gone from that window
+too. It then starts no new window and pulls out no tab, since such a window would end at its
+first check; it says in the strip that the profile was removed (run `profilegone`). It is told
+nothing of profiles, and its Log panel names no command to type, since none would be of it.
+
+In a terminal, `perl lzrprf profiles` prints each profile's id and name, and `perl lzrprf log`
+and `perl lzrprf keep` take `--profile ID` to speak of that profile; without it they speak of the
+first. The id is 12 hex digits lzrprf made; any other word, or the id of no profile, is refused
+and nothing changes (`perl selftest`, the checks after run `keepcli`).
+
+What is left for a later part, and not built: a profile that stays signed in to an account
+provider, and shares that sign-in with a page only after you were asked, with three answers
+(from now on, only this time, or never), each host trusted on its own, and the hosts managed
+under a settings entry "Manage shared authentication".
 
 ## Which choices cost you, and where they are made
 
@@ -1190,8 +1311,8 @@ but is no address does not turn the comparison off: nothing is fetched. The inst
 the installer, and `release.txt` holds its SHA-256, so what your copy names is what is on record
 here:
 
-    release 62
-    new Pages built from module scripts run: import and export, top-level await and import(), each one fetched through the one road and held to the page's own script policy
+    release 63
+    new Profiles: the icon left of the cogwheel opens each profile in a window of its own, with its own bookmarks, history, log, home page and search, kept apart from every other profile
     newest https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/latest
     installer https://raw.githubusercontent.com/lzrbrwsr/lzrprf/main/install.sh
     same https://lzrbrwsr.com/install.sh
@@ -1199,7 +1320,7 @@ here:
     file lzrbrwsr 604a5cf1225c06b9beb01f80bd01d81645855dd3d63fc16a78b5e91198966eb1
     file lzrbrwsr-bin cca34c0a7dda919c1c38f3d92e003797923e0e8f01a32aead56b0949ae0a90ea
     file arti b27695a75064d3a768485b17071e7c58c2281cb93694a554fd379b15a134e444
-    lzrprf 3542e7982ae1e1751289336adbace265c7b12847d5463874a4d0c00034eb9e69
+    lzrprf 5930b46c03a8ad323fbbaecef38b408949f32cc53fde66f353b2891c467ff3cd
 
 ## When a page cannot be shown
 
@@ -1277,8 +1398,11 @@ narrows down who could have sent a report. The question shows the build before y
     press of either button of the question that is open ("Send", "Yes, look", "Install it",
     "Clear the log" and the buttons that keep less among them), a request for the
     log, a support request of its own words to the one support address of the release file
-    (with your licence code when one is kept), or a tab pulled out, which starts a second
-    lzrprf for the address that tab shows. Each of these that fetches is in the log before
+    (with your licence code when one is kept), a tab pulled out, which starts a second
+    lzrprf for the address that tab shows, or a window of a profile, by its id, or a
+    profile made, renamed or removed. Removing one asks lzrprf's own question, which such a
+    window could answer as it can any question; it never removes the first profile or one with a
+    window open. Each of these that fetches is in the log before
     it has an effect outside your Mac,
     and "Install it" runs the installer of the published release, the same from both places,
     in lzrprf's own modal. A
@@ -1472,9 +1596,12 @@ narrows down who could have sent a report. The question shows the build before y
     perl lzrprf run /path/to/program     open the window, with the program contained behind it
     perl lzrprf incognito [/path/to/program]  the same in an incognito window, which leaves nothing behind when it closes [C16]
     perl lzrprf run|incognito --open "X Y W H" /path/to/program   the window of a tab pulled out of another, at that frame: lzrprf starts it itself, with the tab's address as one line on standard input, never as an argument
-    perl lzrprf log                      what the log on this computer holds, and what is kept
-    perl lzrprf keep                     what is kept after a window closes, in words
-    perl lzrprf keep MODE [DAYS]         choose it: nothing, hosts or all; DAYS 0 keeps until you clear it. The one place where more is chosen
+    perl lzrprf run --profile ID [--open "X Y W H"] /path/to/program   a window of the profile whose id is ID, 12 hex digits lzrprf made: lzrprf starts it itself from the Profiles icon, and the name never goes on the command line
+    perl lzrprf incognito --profile ID [/path/to/program]   an incognito window that reads the profile whose id is ID; lzrprf starts it itself from that profile's window
+    perl lzrprf profiles                 each profile's id and its name; the first profile is "first", the one used without --profile
+    perl lzrprf log [--profile ID]       what the log on this computer holds, and what is kept
+    perl lzrprf keep [--profile ID]      what is kept after a window closes, in words
+    perl lzrprf keep [--profile ID] MODE [DAYS]   choose it: nothing, hosts or all; DAYS 0 keeps until you clear it. The one place where more is chosen
     perl lzrprf address TEXT             what would be fetched if TEXT were typed into the bar
     perl lzrprf request [--other] TEXT   the exact bytes a site is sent for TEXT: a page you visit, or with --other a picture, a style sheet or the release file
     perl lzrprf public NUMBER            whether a numeric address is public, and how this computer sends to it
