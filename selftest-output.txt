@@ -1,171 +1,189 @@
 now    A test site is built on this computer: no host outside this computer is used.
-now    165 runs of lzrprf, a hostile application in each: all of them are judged below.
-ran    1/165 0.9 A page whose answer cannot be handed over is ended
-ran    2/165 1.0 A broken lzrprf whose keeper ends nothing is caught
-ran    3/165 1.0 A broken lzrprf that leaves that page running is caught
-ran    4/165 1.0 A page is ended when lzrprf itself is killed
-ran    5/165 0.1 Control: outside lzrprf every hostile try succeeds
-ran    6/165 1.1 An application replaced while open shows no more pages
-ran    7/165 0.1 Control: outside lzrprf a link reaches a home file
-ran    8/165 1.1 A broken lzrprf that skips the program recheck is caught
-ran    9/165 1.2 A broken lzrprf fetching for a swapped program is caught
-ran    10/165 0.4 Linked, oversized or fake fonts are handed over empty
-ran    11/165 0.5 A broken lzrprf allowing code from app files is caught
-ran    12/165 0.4 A broken lzrprf that follows a font link is caught
-ran    13/165 0.5 A link in its own folder cannot read a file elsewhere
-ran    14/165 0.6 The page container refuses every try of the application
-ran    15/165 0.3 A no to a host in your own network fetches nothing
-ran    16/165 0.6 A picture is fetched under the page's host; on no other site
-ran    17/165 0.9 Site answers are handed on as sent, or not at all
-ran    18/165 0.5 A wider window lays out the kept page again, no refetch
-ran    19/165 1.3 All 24 pictures a page may name are fetched in time
-ran    20/165 0.2 A certificate that does not prove the host shows nothing
-ran    21/165 0.5 A broken lzrprf taking a second sheet list is caught
-ran    22/165 0.3 A host that does not answer shows nothing
-ran    23/165 0.3 In curl's place the hostile application reaches one site
-ran    24/165 0.2 An address that is not plain https is not fetched
-ran    25/165 0.2 A log without write permission stops every fetch
-ran    26/165 1.3 A site without encryption is sent nothing readable
-ran    27/165 2.5 Style sheets on the page's own host are fetched and used
-ran    28/165 0.2 A log that is a link to another file is not written
-ran    29/165 0.3 An answer is hidden when its log line cannot be written
-ran    30/165 0.3 The log is only added to and shown in the window
-ran    31/165 0.3 The log is cleared after you are asked twice
-ran    32/165 0.2 The log is not cleared while a request is open
-ran    33/165 0.4 Hosts only keeps the host and never the path or query
-ran    34/165 0.4 With nothing kept, no file holds the visited address
-ran    35/165 0.3 A keep setting that is a pipe keeps nothing
-ran    36/165 0.3 A keep setting that is a folder keeps nothing
-ran    37/165 0.4 A keep setting over 3650 days keeps nothing
-ran    38/165 0.3 A keep setting of unknown words keeps nothing
-ran    39/165 0.3 A keep setting with two lines keeps nothing
-ran    40/165 0.3 A keep setting that is a link keeps nothing
-ran    41/165 0.3 A keep setting file with a second name keeps nothing
-ran    42/165 0.2 With nothing kept, no window button starts a log
-ran    43/165 0.2 Log lines older than the chosen days are taken out
-ran    44/165 0.2 No window button keeps more than hosts only
-ran    45/165 0.2 Full addresses stay only after a yes to each question
-ran    46/165 0.3 Keeping less in the window turns full addresses to hosts
-ran    47/165 0.2 Keeping nothing in the window keeps old lines untouched
-ran    48/165 0.2 Keeping nothing from hosts only makes no log
-ran    49/165 0.3 A terminal choice of nothing is not undone by the window
-ran    50/165 0.2 Fewer days chosen in a terminal are kept by the window
-ran    51/165 0.2 A hosts-only log is cleared the same way
-ran    52/165 0.4 Keeping nothing mid-request stops its later log lines
-ran    53/165 0.4 An older log is marked for Time Machine on its next line
-ran    54/165 0.5 A log an older release left is not added to
-ran    55/165 0.5 A Time Machine mark that fails stops no request
-ran    56/165 0.2 Two clicks clear an old log while nothing is kept
-ran    57/165 0.3 A no to looking for updates fetches nothing
-ran    58/165 0.3 When the same release is published, nothing is asked
-ran    59/165 0.4 A yes to a newer release fetches and shows the installer
-ran    60/165 0.3 Check for updates looks once and keeps when it looked
-ran    61/165 0.3 The application's tool answers with a line in no form lzrprf takes
-ran    62/165 0.2 A launchd job you switched off is loaded again when a window starts
-ran    63/165 0.6 The application's tool: opened, a look at this computer, the rows ticked switched off, one switched on again
-ran    64/165 0.5 Tor that does not connect: nothing is fetched, not through Tor and not directly, and the client is ended
-ran    65/165 1.0 Tor on: the client starts on request, every request goes through it with the site's own circuit, and Tor off ends it
-ran    66/165 0.6 A field takes text only once it has the focus, and its GET form is fetched as a typed address
-ran    67/165 0.3 A page kept running that draws an unfit list is ended, its first drawing kept
-ran    68/165 0.6 A tab that goes elsewhere tells its page =end, and the page is gone
-ran    69/165 2.4 A page kept running gets each click and is drawn again after it
-ran    70/165 0.3 An update answer that is not a number counts for nothing
-ran    71/165 0.2 An update address that is a bare number is never fetched
-ran    72/165 0.2 A yes given for another update address is asked again
-ran    73/165 0.2 A yes kept without an address is asked again
-ran    74/165 2.5 A page kept running asks lzrprf for an address of its own host and of another, and is handed the replies
-ran    75/165 0.5 A fault report is sent only after a yes, as shown
-ran    76/165 2.5 A page kept running asks lzrprf for its external script while it is read, and its first list shows what the script did
-ran    77/165 0.4 A no to a fault report sends nothing, asked once
-ran    78/165 0.4 A fault while the log is shown offers no report
-ran    79/165 0.6 A fault claim with no page handed over asks nothing
-ran    80/165 0.2 An update yes that cannot be kept fetches nothing
-ran    81/165 0.2 An update yes whose log line fails is not kept
-ran    82/165 0.4 An installer fetched from two matching places is used
-ran    83/165 0.4 A quote in the installer address runs nothing
-ran    84/165 0.5 A quote in the second installer address runs nothing
-ran    85/165 0.4 The first start of a release shows the welcome once
-ran    86/165 0.6 An installer that differs for a moment is fetched again until both agree
-ran    87/165 0.3 An unfetchable second installer place stops the update
-ran    88/165 0.4 A release already welcomed shows no welcome
-ran    89/165 11.5 Style sheets get one 10-second clock to start
-ran    90/165 0.3 Cancel on a redirect fetches and shows nothing
-ran    91/165 0.4 A relative redirect becomes a new visit after Proceed
-ran    92/165 0.3 A redirect to the www host is followed without asking
-ran    93/165 0.3 A redirect to plain http by number is never followed
-ran    94/165 0.4 A redirect from a bookmark offers to update the bookmark
-ran    95/165 0.1 The window's own tab drag, run with no window
-ran    96/165 0.1 The window's reader of what lzrprf writes, run with no window
-ran    97/165 0.6 Tabs open, switch and close without refetching
-ran    98/165 0.5 A tab dragged along the strip moves among the tabs, and its page stays
-ran    99/165 2.3 An update whose installer copies differ is refused
-ran    100/165 0.2 A home page that is no https address opens nothing
-ran    101/165 0.4 A kept home page opens when the window starts
-ran    102/165 0.5 A page made the home page opens in a new tab
-ran    103/165 0.2 A home page file that is a link is not followed
-ran    104/165 0.3 Chrome's bookmarks are imported in their order, the bar into the bar
-ran    105/165 0.5 Bookmarks are saved, renamed, removed and opened
-ran    106/165 0.4 A Chrome whose files macOS keeps out is shown as kept out, with the two ways in
-ran    107/165 0.4 The window's size and place, said when it rests, is kept in one plain file for the next window, and a size in another shape is not
-ran    108/165 0.8 An incognito run killed outright leaves its folder behind
-ran    109/165 0.9 An incognito window changes no file of lzrprf's and leaves no folder
-ran    110/165 0.6 Safari's binary Bookmarks.plist is read and imported in order
-ran    111/165 0.6 An HTML bookmarks file is found or typed; a link is not followed
-ran    112/165 0.6 A Firefox backup (jsonlz4) is unpacked and imported in order
-ran    113/165 0.7 The next start removes a killed incognito run's folder
-ran    114/165 0.3 A bookmarks folder that is a link is not read or written
-ran    115/165 0.4 With no test mark, a no to testing shows nothing
-ran    116/165 0.4 A test mark from another macOS build asks to test again
-ran    117/165 0.2 A test mark of another lzrprf asks to test again
-ran    118/165 0.2 A test mark made by another selftest asks to test again
-ran    119/165 0.2 A test mark that names no selftest asks to test again
-ran    120/165 0.8 The pages shown are told to the bar's suggestions, and cleared with it
-ran    121/165 0.2 Start anyway on a mismatched pair still starts nothing
-ran    122/165 0.3 An application paired with another lzrprf does not start
-ran    123/165 0.2 A damaged release file naming another lzrprf is refused
-ran    124/165 0.5 A valid test mark after another copy's opens the page
-ran    125/165 0.2 An application that names no lzrprf does not start
-ran    126/165 0.2 An application whose program file changed does not start
-ran    127/165 0.2 A changed file beside the program stops the start
-ran    128/165 0.5 An application paired with this lzrprf opens its page
-ran    129/165 0.4 A broken lzrprf that starts a mismatched pair is caught
-ran    130/165 0.3 A named file that is missing stops the start
-ran    131/165 0.3 A release file not naming the program stops the start
-ran    132/165 0.3 A release file naming no file at all stops the start
-ran    133/165 0.3 A folder where a named file should be stops the start
-ran    134/165 0.2 A file line in the wrong shape stops the start
-ran    135/165 0.3 An unnamed extra file beside the program stops the start
-ran    136/165 0.3 A release file missing the launcher line stops the start
-ran    137/165 0.5 A dot file beside the program is passed over
-ran    138/165 0.2 An untested check asks first, and Quit shows nothing
-ran    139/165 0.4 A broken lzrprf that ignores extra files is caught
-ran    140/165 0.4 A broken lzrprf that skips the file check is caught
-ran    141/165 17.8 Only a well-formed page from the application is drawn
-ran    142/165 0.3 A yes kept for other untested checks asks again
-ran    143/165 0.4 Starting past an untested check keeps that yes
-ran    144/165 0.2 A container that refuses nothing is caught at the start
-ran    145/165 0.5 A kept yes for the untested check asks nothing
-ran    146/165 0.5 A broken lzrprf that ignores untested checks is caught
-ran    147/165 0.2 A page container with no memory limit is caught at start
-ran    148/165 0.4 An application that ends at once cannot pick the report
-ran    149/165 0.3 A missing memory limit is caught by the memory probe
-ran    150/165 0.4 A page container with no open-file limit is caught
-ran    151/165 0.4 A page container whose limits can be raised is caught
-ran    152/165 2.2 A broken lzrprf running curl uncontained is caught
-ran    153/165 2.4 An uncontained application is not handed the answer
-ran    154/165 3.8 A window container open to services is detected
-ran    155/165 0.1 Control: outside lzrprf every window try succeeds
-ran    156/165 3.9 A window container listing one extra service is caught
-ran    157/165 0.1 Without the compiler listed, no shader is compiled
-ran    158/165 2.9 A window container that allows opening apps is caught
-ran    159/165 0.7 The window container can reach the shader compiler
-ran    160/165 2.8 A window container that allows system services is caught
-ran    161/165 8.3 The real window is contained and draws the page
-ran    162/165 30.8 A site that never answers is given up on in 30 seconds
-ran    163/165 30.6 A page that never stops is ended after 30 seconds
-ran    164/165 30.6 A page that does nothing is ended after 30 seconds
-ran    165/165 33.6 The heaviest allowed pages are drawn in under 30 seconds
-selftest of lzrprf: macOS build 26B123, lzrprf 6b4a8901c40aa4ca54b4fdb94f1466f40b2aef2d56cfbb248fa0fa724b8c7ba0, selftest 996214d3bc5a5cfbe48686dbdc5d890656ddeee50e30eb4211d1d01d6388135b
+now    183 runs of lzrprf, a hostile application in each: all of them are judged below.
+ran    1/183 1.2 A broken lzrprf that leaves that page running is caught
+ran    2/183 1.2 A page whose answer cannot be handed over is ended
+ran    3/183 1.3 A page is ended when lzrprf itself is killed
+ran    4/183 1.3 A broken lzrprf whose keeper ends nothing is caught
+ran    5/183 0.1 Control: outside lzrprf every hostile try succeeds
+ran    6/183 1.4 An application replaced while open shows no more pages
+ran    7/183 1.5 A broken lzrprf fetching for a swapped program is caught
+ran    8/183 0.1 Control: outside lzrprf a link reaches a home file
+ran    9/183 1.5 A broken lzrprf that skips the program recheck is caught
+ran    10/183 0.8 The page container refuses every try of the application
+ran    11/183 0.6 A broken lzrprf that follows a font link is caught
+ran    12/183 0.6 Linked, oversized or fake fonts are handed over empty
+ran    13/183 0.7 A link in its own folder cannot read a file elsewhere
+ran    14/183 0.7 A broken lzrprf allowing code from app files is caught
+ran    15/183 0.4 A no to a host in your own network fetches nothing
+ran    16/183 0.8 A picture is fetched under the page's host; on no other site
+ran    17/183 1.1 Site answers are handed on as sent, or not at all
+ran    18/183 0.5 A wider window lays out the kept page again, no refetch
+ran    19/183 1.4 All 24 pictures a page may name are fetched in time
+ran    20/183 0.3 A certificate that does not prove the host shows nothing
+ran    21/183 0.6 A broken lzrprf taking a second sheet list is caught
+ran    22/183 0.3 A host that does not answer shows nothing
+ran    23/183 0.4 In curl's place the hostile application reaches one site
+ran    24/183 0.2 An address that is not plain https is not fetched
+ran    25/183 2.5 Style sheets on the page's own host are fetched and used
+ran    26/183 0.2 A log without write permission stops every fetch
+ran    27/183 0.2 A log that is a link to another file is not written
+ran    28/183 1.3 A site without encryption is sent nothing readable
+ran    29/183 0.3 An answer is hidden when its log line cannot be written
+ran    30/183 0.3 The log is cleared after you are asked twice
+ran    31/183 0.3 The log is only added to and shown in the window
+ran    32/183 0.2 The log is not cleared while a request is open
+ran    33/183 0.4 With nothing kept, no file holds the visited address
+ran    34/183 0.5 Hosts only keeps the host and never the path or query
+ran    35/183 0.4 A keep setting that is a pipe keeps nothing
+ran    36/183 0.4 A keep setting that is a folder keeps nothing
+ran    37/183 0.5 A keep setting over 3650 days keeps nothing
+ran    38/183 0.5 A keep setting of unknown words keeps nothing
+ran    39/183 0.3 A keep setting with two lines keeps nothing
+ran    40/183 0.4 A keep setting that is a link keeps nothing
+ran    41/183 0.3 Log lines older than the chosen days are taken out
+ran    42/183 0.4 A keep setting file with a second name keeps nothing
+ran    43/183 0.3 With nothing kept, no window button starts a log
+ran    44/183 0.4 No window button keeps more than hosts only
+ran    45/183 0.4 Keeping less in the window turns full addresses to hosts
+ran    46/183 0.2 Full addresses stay only after a yes to each question
+ran    47/183 0.4 Keeping nothing in the window keeps old lines untouched
+ran    48/183 0.3 Keeping nothing from hosts only makes no log
+ran    49/183 0.3 A terminal choice of nothing is not undone by the window
+ran    50/183 0.4 Fewer days chosen in a terminal are kept by the window
+ran    51/183 0.4 A hosts-only log is cleared the same way
+ran    52/183 0.5 Keeping nothing mid-request stops its later log lines
+ran    53/183 0.5 A Time Machine mark that fails stops no request
+ran    54/183 0.5 An older log is marked for Time Machine on its next line
+ran    55/183 0.4 A log an older release left is not added to
+ran    56/183 0.3 Two clicks clear an old log while nothing is kept
+ran    57/183 0.3 A no to looking for updates fetches nothing
+ran    58/183 0.5 A yes to a newer release fetches and shows the installer
+ran    59/183 0.4 When the same release is published, nothing is asked
+ran    60/183 0.4 Check for updates looks once and keeps when it looked
+ran    61/183 0.3 The application's tool answers with a line in no form lzrprf takes
+ran    62/183 0.3 A launchd job you switched off is loaded again when a window starts
+ran    63/183 0.6 The application's tool: opened, a look at this computer, the rows ticked switched off, one switched on again
+ran    64/183 0.6 Tor that does not connect: nothing is fetched, not through Tor and not directly, and the client is ended
+ran    65/183 1.1 Tor on: the client starts on request, every request goes through it with the site's own circuit, and Tor off ends it
+ran    66/183 0.6 A field takes text only once it has the focus, and its GET form is fetched as a typed address
+ran    67/183 0.4 A page kept running that draws an unfit list is ended, its first drawing kept
+ran    68/183 0.6 A tab that goes elsewhere tells its page =end, and the page is gone
+ran    69/183 2.5 A page kept running gets each click and is drawn again after it
+ran    70/183 0.4 An update answer that is not a number counts for nothing
+ran    71/183 0.2 An update address that is a bare number is never fetched
+ran    72/183 0.2 A yes given for another update address is asked again
+ran    73/183 0.2 A yes kept without an address is asked again
+ran    74/183 0.5 A fault report is sent only after a yes, as shown
+ran    75/183 2.6 A page kept running asks lzrprf for an address of its own host and of another, and is handed the replies
+ran    76/183 2.6 A page kept running asks lzrprf for its external script while it is read, and its first list shows what the script did
+ran    77/183 0.5 A no to a fault report sends nothing, asked once
+ran    78/183 0.5 A fault while the log is shown offers no report
+ran    79/183 0.7 A fault claim with no page handed over asks nothing
+ran    80/183 0.3 An update yes whose log line fails is not kept
+ran    81/183 0.3 An update yes that cannot be kept fetches nothing
+ran    82/183 11.6 Style sheets get one 10-second clock to start
+ran    83/183 0.4 An installer fetched from two matching places is used
+ran    84/183 0.5 A quote in the installer address runs nothing
+ran    85/183 0.5 A quote in the second installer address runs nothing
+ran    86/183 0.4 The first start of a release shows the welcome once
+ran    87/183 0.7 An installer that differs for a moment is fetched again until both agree
+ran    88/183 0.5 A release already welcomed shows no welcome
+ran    89/183 0.3 Cancel on a redirect fetches and shows nothing
+ran    90/183 0.4 An unfetchable second installer place stops the update
+ran    91/183 0.6 A relative redirect becomes a new visit after Proceed
+ran    92/183 0.4 A redirect to plain http by number is never followed
+ran    93/183 0.4 A redirect to the www host is followed without asking
+ran    94/183 0.3 A redirect from a bookmark offers to update the bookmark
+ran    95/183 0.1 The window's own tab drag, run with no window
+ran    96/183 0.6 Tabs open, switch and close without refetching
+ran    97/183 0.6 A tab dragged along the strip moves among the tabs, and its page stays
+ran    98/183 0.2 A tab is made and pulled out 33 times: the 33rd stays
+ran    99/183 0.6 A tab pulled out of the strip closes here, its window asked for
+ran    100/183 0.1 The window's own strip makes the place of a reopened tab, run with no window
+ran    101/183 0.1 The window's own Find and zoom, run with no window
+ran    102/183 2.5 An update whose installer copies differ is refused
+ran    103/183 0.1 The window's reader of what lzrprf writes, run with no window
+ran    104/183 0.4 The window of a pulled tab opens the address handed to it on a pipe
+ran    105/183 0.3 A home page that is no https address opens nothing
+ran    106/183 0.5 A kept home page opens when the window starts
+ran    107/183 0.2 A home page file that is a link is not followed
+ran    108/183 0.7 A page made the home page opens in a new tab
+ran    109/183 0.9 Closed tabs reopen at their place, the newest first
+ran    110/183 0.5 Bookmarks are saved, renamed, removed and opened
+ran    111/183 0.8 A good licence code, typed loosely, is checked and kept
+ran    112/183 0.8 An incognito run killed outright leaves its folder behind
+ran    113/183 0.9 An incognito window changes no file of lzrprf's and leaves no folder
+ran    114/183 0.6 A code of another key and a wrong code are refused
+ran    115/183 0.4 Removing the licence code removes its file
+ran    116/183 0.4 With no public key, a code's form is checked and it is kept
+ran    117/183 0.4 A support request carries the words and release, and its answer is read
+ran    118/183 0.6 The next start removes a killed incognito run's folder
+ran    119/183 0.3 An application that names no support address sends nothing
+ran    120/183 0.3 With a licence and the picture ticked, both go with the request
+ran    121/183 0.3 A support address with a query is not used
+ran    122/183 0.4 The support request goes only where the release file says
+ran    123/183 0.4 An incognito window keeps no licence and sends no request
+ran    124/183 0.4 A support address that refuses says why in plain words
+ran    125/183 0.4 An answer read with a key it does not know says so
+ran    126/183 0.3 The window's size and place, said when it rests, is kept in one plain file for the next window, and a size in another shape is not
+ran    127/183 0.2 A Chrome whose files macOS keeps out is shown as kept out, with the two ways in
+ran    128/183 0.4 Chrome's bookmarks are imported in their order, the bar into the bar
+ran    129/183 0.4 A Firefox backup (jsonlz4) is unpacked and imported in order
+ran    130/183 0.5 An HTML bookmarks file is found or typed; a link is not followed
+ran    131/183 0.5 Safari's binary Bookmarks.plist is read and imported in order
+ran    132/183 0.2 A bookmarks folder that is a link is not read or written
+ran    133/183 18.6 Only a well-formed page from the application is drawn
+ran    134/183 0.4 A test mark from another macOS build asks to test again
+ran    135/183 0.8 The pages shown are told to the bar's suggestions, and cleared with it
+ran    136/183 0.4 A test mark of another lzrprf asks to test again
+ran    137/183 0.5 With no test mark, a no to testing shows nothing
+ran    138/183 0.4 A test mark made by another selftest asks to test again
+ran    139/183 0.3 A test mark that names no selftest asks to test again
+ran    140/183 0.4 An application paired with another lzrprf does not start
+ran    141/183 0.4 Start anyway on a mismatched pair still starts nothing
+ran    142/183 0.3 A damaged release file naming another lzrprf is refused
+ran    143/183 0.6 A valid test mark after another copy's opens the page
+ran    144/183 0.4 An application paired with this lzrprf opens its page
+ran    145/183 0.3 An application that names no lzrprf does not start
+ran    146/183 0.4 An application whose program file changed does not start
+ran    147/183 0.3 A changed file beside the program stops the start
+ran    148/183 0.3 A named file that is missing stops the start
+ran    149/183 0.3 A release file naming no file at all stops the start
+ran    150/183 0.6 A broken lzrprf that starts a mismatched pair is caught
+ran    151/183 0.3 A release file not naming the program stops the start
+ran    152/183 0.3 A file line in the wrong shape stops the start
+ran    153/183 0.3 A folder where a named file should be stops the start
+ran    154/183 0.3 A release file missing the launcher line stops the start
+ran    155/183 0.3 An unnamed extra file beside the program stops the start
+ran    156/183 0.5 A dot file beside the program is passed over
+ran    157/183 0.4 An untested check asks first, and Quit shows nothing
+ran    158/183 0.6 A broken lzrprf that skips the file check is caught
+ran    159/183 0.6 A broken lzrprf that ignores extra files is caught
+ran    160/183 0.6 Starting past an untested check keeps that yes
+ran    161/183 0.3 A yes kept for other untested checks asks again
+ran    162/183 0.3 A container that refuses nothing is caught at the start
+ran    163/183 0.4 A kept yes for the untested check asks nothing
+ran    164/183 0.5 A broken lzrprf that ignores untested checks is caught
+ran    165/183 0.3 A page container with no memory limit is caught at start
+ran    166/183 0.5 An application that ends at once cannot pick the report
+ran    167/183 0.4 A missing memory limit is caught by the memory probe
+ran    168/183 0.4 A page container with no open-file limit is caught
+ran    169/183 0.4 A page container whose limits can be raised is caught
+ran    170/183 2.3 A broken lzrprf running curl uncontained is caught
+ran    171/183 2.5 An uncontained application is not handed the answer
+ran    172/183 2.5 A window container that allows opening apps is caught
+ran    173/183 0.1 Control: outside lzrprf every window try succeeds
+ran    174/183 4.0 A window container listing one extra service is caught
+ran    175/183 4.1 A window container open to services is detected
+ran    176/183 0.1 Without the compiler listed, no shader is compiled
+ran    177/183 2.5 A window container that allows system services is caught
+ran    178/183 0.8 The window container can reach the shader compiler
+ran    179/183 31.2 A site that never answers is given up on in 30 seconds
+ran    180/183 30.7 A page that never stops is ended after 30 seconds
+ran    181/183 30.8 A page that does nothing is ended after 30 seconds
+ran    182/183 8.6 The real window is contained and draws the page
+ran    183/183 35.4 The heaviest allowed pages are drawn in under 30 seconds
+selftest of lzrprf: macOS build 26B123, lzrprf 3542e7982ae1e1751289336adbace265c7b12847d5463874a4d0c00034eb9e69, selftest f6bd8cf19ddbe5c38efc3063cb7ee46a0fe8db10f7e7e09f74bda0c3105a762c
 
 1. The application, in its container. Each attempt was first made outside every container, where it worked.
 works  outside every container: use a file that was open in whoever started lzrprf (open)
@@ -348,7 +366,7 @@ held   a picture the page names on its own host is fetched, decoded by the appli
 held   a picture the page names on a name under its own host is written in the log before its host is looked up and again before it is fetched, is asked for with the same fixed request, and is drawn; the bar says which other host was asked (9 lines; its line was in the log first; site.test answered 133 bytes. 2 of the 4 pictures the page draws were fetched and shown; besides site.test, lzrprf asked img.site.test for them. The page names no other host.)
 held   a picture on a host that leads inside your own network is not fetched, and nothing is asked about it: its place stays a grey box, and the log says why (2 lines of the log name it)
 held   a picture the page names on another site is not fetched and its host is not even looked up: its place stays a grey box, and the log says why (1 lines of the log name it)
-held   all 24 pictures a page may name are fetched within the one clock of 20 seconds and drawn (the run took 1.3 seconds; site.test answered 133 bytes. 24 of the 24 pictures the page draws from site.test itself were fetched and shown. The page names no other host.)
+held   all 24 pictures a page may name are fetched within the one clock of 20 seconds and drawn (the run took 1.4 seconds; site.test answered 133 bytes. 24 of the 24 pictures the page draws from site.test itself were fetched and shown. The page names no other host.)
 held   a page that names 25 pictures, one more than it may, or a picture by an address with a port, a number for a host or plain http, is not drawn, and none of its pictures is fetched (none asked for)
 held   a line =statement is the application's own words for why the page is in compatibility-statement mode: they are shown as plain text at the end of lzrprf's strip, and are no line of the page (3 lines; site.test answered 133 bytes. The page names no other host. Not supported yet: Grid, inline scripts, and 1 more.)
 held   the longest statement there may be, 200 plain characters, is shown whole (260 characters said)
@@ -366,15 +384,15 @@ held   a page that names no style sheet is laid out once, and the bar says nothi
 held   a page with a line =sheets broken in any one way is not drawn at all, is laid out once, and nothing of it is fetched: a path that does not begin with /, nine paths, a character no path may hold, a second such line, a line =sheets after the line =statement or before the line =pictures (6 pages, none drawn)
 
 4. What a site is sent: by the test site's own record.
-held   the site was asked for what was typed, a bookmark or home page that was opened, a redirect that was followed, and the fixed addresses after a yes (the newest release, a report, the installer): each as often as it was asked for, and nothing else (315 requests)
-held   every request is the address and one fixed browser name, and nothing else: no cookie, no language, no number of this computer (315 requests, each of the same 5 lines, or 6 with the line Accept)
+held   the site was asked for what was typed, a bookmark or home page that was opened, a redirect that was followed, and the fixed addresses after a yes (the newest release, a report, the installer): each as often as it was asked for, and nothing else (322 requests)
+held   every request is the address and one fixed browser name, and nothing else: no cookie, no language, no number of this computer (322 requests, each of the same 5 lines, or 6 with the line Accept)
 held   the request of a page you visit, and only that, carries one more fixed line, "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8": typed, a redirect said yes to, the home page and a bookmark carry it; a picture, a style sheet, the release file and what a page kept running asks for do not (5 pages and 11 others asked for)
-held   every request names one browser, exactly "User-Agent: LZRBRWSR", once, with no version and no other word, and carries no other header that could tell one computer or release from another (315 requests)
+held   every request names one browser, exactly "User-Agent: LZRBRWSR", once, with no version and no other word, and carries no other header that could tell one computer or release from another (322 requests)
 held   "lzrprf request" prints the bytes the site received, byte for byte (370 bytes)
 held   a picture of the page is asked for with the request of its own address and nothing else: the bytes "lzrprf request --other" prints for that address (4 of 4 pictures asked for)
 held   the second request of a run carries nothing of the first: the site set a cookie, and it did not come back (the site sent Set-Cookie: kept=never with every answer)
-held   in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk (287 of 287; 28 more from runs that keep nothing)
-held   the bytes that open the encryption are the same for every request, apart from the random values the protocol requires and the name of the host asked for; no earlier connection is taken up again (315 requests from 165 starts, 214 bytes each)
+held   in every run that keeps a log, when a request arrived at the site its line was already in the log on the disk (294 of 294; 28 more from runs that keep nothing)
+held   the bytes that open the encryption are the same for every request, apart from the random values the protocol requires and the name of the host asked for; no earlier connection is taken up again (322 requests from 183 starts, 214 bytes each)
 held   every connection offers the site the same ciphers and curves, the ones lzrprf names, not the list the system's library would offer, so the first message of a connection does not tell which macOS it came from (ciphers 1303 1302 1301 c02b c02f c02c c030 cca9 cca8 00ff curves 001d 0017)
 held   a site without encryption is sent the opening of an encryption and nothing readable (230 bytes)
 held   and nothing of it is shown (Nothing is shown: no secure connection could be made.)
@@ -387,16 +405,26 @@ held   a redirect to a plain-http bare number: the modal says why in plain words
 held   a redirect to the same address with "www." in front of its host is followed without a question, once a visit, and written in the log as one line first; it is a new visit with every check (site.test redirected to www.site.test (301); followed, the same site)
 held   a redirect of a page opened from a bookmark offers a third button, "Proceed and update bookmark", which writes the new address into that bookmark; a page that was typed gets two; a bookmark kept at the top before the bookmarks bar had its own folder was moved into that folder (301	https://site.test/redirect/mark	https://site.test/redirect/marked		Cancel	Proceed	Proceed and update bookmark)
 held   tabs: a new tab, a second address in it, the first tab chosen again (its page sent again from the list lzrprf kept of it: the site is not asked again, the log gets no line, and the application is not run again, so it ran twice in all, once for each page), a tab that is not there changes nothing, and closing the last leaves one empty tab (2 1 2 0 1 0 1 0 1 0; the application ran 2 times)
-held   a tab moved along the strip: the second tab moved before the first stays the selected one, the page shown is neither cleared nor laid out again, a place that is not there and its own place change nothing, and the other tab, chosen then, is the first page (nothing is fetched again, the log gets no line); in the window, read from lzrprf and run with no window: a press that only trembles is a click and chooses the tab, a drag sends the move and then chooses the dragged tab when it was not the chosen one, a window that takes no press sends nothing, and the tab held is drawn under the pointer while the ones it passes stand aside (2 1 2 0 2 1 | 1 0 1 2 / 2 0 1 3 / 0 2 3 1 ;  0 abc false | tab select 1 1 abc false | tab move 0 1 1 bac true | tab move 2 0,tab select 0 0 cab true |  0 abc false ; 214 84 284)
+held   a tab moved along the strip: the second tab moved before the first stays the selected one, the page shown is neither cleared nor laid out again, a place that is not there and its own place change nothing, and the other tab, chosen then, is the first page (nothing is fetched again, the log gets no line); in the window, read from lzrprf and run with no window: a press that only trembles is a click and chooses the tab, a drag sends the move and then chooses the dragged tab when it was not the chosen one, a window that takes no press sends nothing, and the tab held is drawn under the pointer while the ones it passes stand aside (2 1 2 0 2 1 | 1 0 1 2 / 2 0 1 3 / 0 2 3 1 ;  0 abc false | tab select 1 1 abc false | tab move 0 1 1 bac true | tab move 2 0,tab select 0 0 cab true |  0 abc false ; 214 84 284 ; tab select 1 1 pulling=null origins= framed=0 | tab out 1 200 145 1000 700 1 pulling=1 origins= framed=0 | tab out 2 330 260 1000 700 2 pulling=2 origins= framed=0 | tab select 1 1 pulling=null origins= framed=0 |  0 pulling=null origins=110,120 120,190 framed=1 |  0 pulling=null origins= framed=0 ; 114 84 184)
+held   a tab pulled out of the strip, in the window, read from lzrprf and run with no window: 54 points below where it was pressed it is still a click, 55 below or 60 above it is pulled out, and let go there it says "tab out N X Y W H" with this window's size, placed so the tab stays under the pointer as the first of its new strip; a window that takes no press says only the tab chosen; the only tab moves its window with the pointer and says nothing but the new place; while pulled out the others close up behind it (tab select 1 1 pulling=null origins= framed=0 | tab out 1 200 145 1000 700 1 pulling=1 origins= framed=0 | tab out 2 330 260 1000 700 2 pulling=2 origins= framed=0 | tab select 1 1 pulling=null origins= framed=0 |  0 pulling=null origins=110,120 120,190 framed=1 |  0 pulling=null origins= framed=0 ; 114 84 184)
+held   a tab pulled out: lzrprf closes it here and the other tab shows ("lzrprf try" starts no second window and says so); the last tab, a tab that is not there and a frame of no size change nothing (2 1 1 0)
+held   one window opens at most 32 windows from its tabs in its life, so a window process taken over cannot have lzrprf start processes without end: the 33rd tab pulled out stays in its strip, and lzrprf says why (99 idle lines, tabs 2 1)
+held   the window of a pulled tab: lzrprf starts a second lzrprf as it was started itself, in incognito from an incognito window, with only the frame as an argument ("--open FRAME" before the program); it reads one line on its standard input and no more, an address it fetches or nothing, and ends on anything else; behind hears that address from lzrprf as its first line ("start"), never from the window: "sub pulled_command", "sub opened_with" and "sub started", read from lzrprf and run here (run --open 10 20 900 700 /app x | incognito --open 1 2 30 40 /app | https://site.test/b,5 6 700 500,/app,y | -,5 6 700 500,/app | -,5 6 700 500,/app | died died died died | none https://site.test/c refused refused refused)
+held   the address of a pulled tab is in no command line, which every user of the computer can read in the list of processes: lzrprf hands it to the second lzrprf on its standard input, and that one to behind on the pipe it reads, while no argument of the second lzrprf, of behind or of the window holds it, and the window reads no address from its arguments ("sub tab_out", "sub pulled_command" and the two lines of "sub run" that start processes, read from lzrprf and run here with an address) (perl in=the address argv=7 holding it=0 | perl in=the address argv=7 holding it=0 | perl argv=11 holding it=0 | sandbox-exec argv=13 holding it=0)
+held   the window of a pulled tab opens the address handed to it, checked as a typed one is [C4], and its log says so: "you pulled a tab out into this window", written before the name is looked up [C5], and not "you typed" (you pulled a tab out into this window https://site.test/pulledin/one | you allowed site.test, which is inside your own network (127.0.0.1), this once | https://site.test/pulledin/one -> lzrprf connects to the first that answers of: 127.0.0.1 | https://site.test/pulledin/one answered: 133 bytes from 127.0.0.1)
+held   Reopen Closed Tab: the tab closed last comes back first, at its old place, chosen; the two closed last are shown from what lzrprf kept and fetch nothing, the third is visited again, written in the log first; with none left it says so (2 1 3 2 4 3 3 2 2 1 1 0 2 0 3 0 4 0)
+held   the closed tabs are held newest first, ten at most, and only the two newest keep their page; a tab with no address is not held: "sub closed_kept", read from lzrprf and run here (10: 12@11+ 11@10+ 10@9 9@8 8@7 7@6 6@5 5@4 4@3 3@2 empty=10)
+held   the strip, read from lzrprf and run with no window: a reopened tab gets its own place, the tabs after it keeping their drawings, where they were read and their zoom; a pulled tab is let go once lzrprf says the tabs without it, and stays when lzrprf could not start its window; the tab shown then says its zoom's width (null,A,B 0,0.1,0.2 100,110,150 0 false null 3 | A,B,null 0.1,0.2,0 110,150,100 2 false null 3 | A,C 0.1,0.3 110,175 0 false null 2 | A,B,C 0.1,0.2,0.3 110,150,175 0 false null 3 viewed=4)
+held   Find and zoom, read from lzrprf and run with no window: Find finds every match, capitals and small letters alike, none overlapping, a thousand at most, nothing for an empty field, and steps round from the last to the first and back, saying "3 of 17"; zoom steps 50 67 80 90 100 110 125 150 175 200, held at the ends, 0 back to 100; the page is laid for the room divided by the zoom ("view W H", the road a new size takes) and scaled to fill the room, and each tab has its own (0:0 0:14 2:4 aa=2 empty=0 bound=1000 ; 0 2 0 2 2 -1 3 of 17|No match ; 110 125 150 175 200 200 200 / 90 80 67 50 50 50 / 100 100 100 ; 800 2000 960 1 1.25 1 1.042 1.875 ; view 960 640,view 640 427,view 1920 1280,view 960 640)
 held   the cogwheel's "Make current page the home page" keeps the address of the tab in one plain file, home, and a new tab opens it, written in the log first like a typed address (https://site.test/home/page )
 held   a window opens the home page kept from before at its start; a home page that is no address lzrprf fetches, or a link where the file goes, opens nothing (start, bad, link)
 held   a bookmark is one plain file in a folder of its own under lzrprf's folder; the window is told the whole tree, and opening one is a visit written in the log first (9 things said)
 held   a folder name that climbs out, or an address lzrprf does not fetch, saves nothing; a bookmark is changed in place and removed by its number, and one that is gone opens nothing; "Show bookmarks bar" is kept in one plain file (The bookmark was added: Test page, https://site.test/marks/one. | The bookmark was not saved: a folder is at most 4 deep, and each name in it is letters, digits, space, dot, underscore or hyphen, not beginning with a dot or a space. | The bookmark was not saved: lzrprf does not fetch that address. An address must be https, a host by its name, port 443, in plain characters without a space. | The bookmark was changed: Renamed, https://site.test/marks/one. | The bookmark was removed: Renamed. | That bookmark is no longer there.)
 held   an incognito window opens two pages and a bookmark and shows the bar, refuses the star and the import, and afterwards every file of lzrprf's folder is what it was, byte for byte, and its own folder is gone (perl is contained, in an incognito window: its log, history and tabs are held in its memory and one folder of its own, removed when it closes. Nothing is written to ~/.lzrprf. | site.test answered 133 bytes. The page names 2 other hosts (other.test, third.test). lzrprf asked none of them. | site.test answered 133 bytes. The page names 2 other hosts (other.test, third.test). lzrprf asked none of them. | site.test answered 133 bytes. The page names 2 other hosts (other.test, third.test). lzrprf asked none of them.)
-held   an incognito run killed outright, its sweeper and the process behind its window too, leaves its folder; the next lzrprf started removes it (lzrprf-i.30334.0848b9bd7a1f removed by the next start)
-held   a bookmarks folder that is a link to another folder: nothing in it is read, and nothing is written through it (perl is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. Kept on this computer until you clear it: full addresses. The bookmark was not saved: ~/.lzrprf/selftest.25875.markslink/bookmarks is not a folder of yours.)
+held   an incognito run killed outright, its sweeper and the process behind its window too, leaves its folder; the next lzrprf started removes it (lzrprf-i.76971.7c35bfd5aec7 removed by the next start)
+held   a bookmarks folder that is a link to another folder: nothing in it is read, and nothing is written through it (perl is contained: no network, no file of yours, no other program. lzrprf fetches what you type above, and writes it in the log first. Kept on this computer until you clear it: full addresses. The bookmark was not saved: ~/.lzrprf/selftest.72193.markslink/bookmarks is not a folder of yours.)
 held   the last size and place the window said it rested at is kept in the file frame, and a line in another shape changes nothing (-1800 40 1000 700 )
-held   a Chrome whose Local State and bookmarks macOS keeps lzrprf from opening is told to the wizard as kept out (2), never as not found, and choosing it says the export from Chrome as four numbered steps and the same file from the Google account, never asks for Full Disk Access, and reads nothing (source chrome 2 1 Chrome | refused macOS keeps the files of Chrome from perl, and perl asks for no more access than it has. Export the bookmarks instead:	1. In Chrome choose Bookmarks, Bookmark Manager (Option Command B).	2. Press the three dots at the top right of that page and choose Export bookmarks.	3. Save the file in Downloads, under the name it has.	4. Here choose A bookmarks file (HTML): the file is found by itself, the newest first.	Or from your Google account, where Chrome keeps them when sync is on: at takeout.google.com choose Chrome alone, download it, and import the Bookmarks.html in it the same way.)
+held   a Chrome whose Local State and bookmarks macOS keeps lzrprf from opening is told to the wizard as kept out (2), never as not found, and choosing it says the export from Chrome as four numbered steps and the same file from the Google account, never asks for Full Disk Access, and reads nothing (refused macOS keeps the files of Chrome from perl, and perl asks for no more access than it has. Export the bookmarks instead:	1. In Chrome choose Bookmarks, Bookmark Manager (Option Command B).	2. Press the three dots at the top right of that page and choose Export bookmarks.	3. Save the file in Downloads, under the name it has.	4. Here choose A bookmarks file (HTML): the file is found by itself, the newest first.	Or from your Google account, where Chrome keeps them when sync is on: at takeout.google.com choose Chrome alone, download it, and import the Bookmarks.html in it the same way. | source chrome 2 1 Chrome)
 held   the import wizard is told which browsers are on this Mac and how many profiles each has, Chrome's by the names in its Local State, and a browser not there is shown as not found (source chrome 1 2 Chrome | source edge 0 0 Edge | source brave 0 0 Brave | source firefox 0 0 Firefox | source safari 0 1 Safari | source vivaldi 0 0 Vivaldi | source file 1 0 A bookmarks file (HTML) | profile 0 Person 1 | profile 1 Work)
 held   Chrome's bookmarks bar goes into the bookmarks bar after what it held, folders and all, and the rest into "Imported from Chrome", each folder in Chrome's order, bookmarks and folders mixed, kept in its .order and told to the window in that order; plain http is skipped and a fifth folder deep is left out, each counted and said (preview 4 4 3 1 1	Imported from Chrome	1 in folders deeper than 4, the most LZRBRWSR keeps. | done 4 4 3 1 1	Imported from Chrome	1 in folders deeper than 4, the most LZRBRWSR keeps. | Mine.mark|One.mark|Work|Three.mark|)
 held   a Firefox profile found in profiles.ini: its newest bookmarks backup, an LZ4 block with matches in it, is unpacked by lzrprf itself and imported in order, the toolbar into the bookmarks bar, the menu and Other bookmarks into "Imported from Firefox" (preview 5 2 3 0 0	Imported from Firefox	 | done 5 2 3 0 0	Imported from Firefox	 | 30 matches)
@@ -409,6 +437,19 @@ held   the application is handed the answer as the site sent it (compared the by
 held   an answer larger than lzrprf takes is not handed on (Nothing is shown: the answer is larger than lzrprf takes.)
 held   what is not an https address of a host by its name is not fetched and not looked up: http, a number, another port, a name and password, a character that is not plain (7 texts)
 held   the listener the hostile application was told about heard from it twice outside every container, once through lzrprf's hands, and never from inside a container (3 connections)
+held   a good licence code typed in small letters with spaces is checked on this Mac against the public key, fetches nothing, and is kept as written in the file licence with the rights of the other small files; the window says since when; the log says a code was entered and holds none of it (none | kept November 2026 | The licence code is kept: this browser is a support member's, since November 2026. It was checked on this Mac. A support request you send carries it, so it is answered first. | 0600)
+held   a code signed by another key and a code in the wrong form are refused, each with its own plain line, and nothing is kept or written to the log (none | refused That code does not check: a letter may be mistyped. Paste it as it was given to you. | refused That is not a licence code: a code has 120 letters and digits, in groups of 5.)
+held   a kept code is shown at the start, and removing it removes its file; the log says so (kept November 2026 | none | The licence code was removed, and its file with it. Support requests now go without it.)
+held   while lzrprf holds no public key, a code of the right form is kept and the window says its signature is checked where the request goes (The licence code is kept: this browser is a support member's, since November 2026. Its form was checked on this Mac; its signature is checked where a support request goes, and a request you send carries it, so it is answered first.)
+held   a support request is one POST to the address the release file names, with the fixed browser lines, and a body of one field: your words with the release number under them; no picture unless it is ticked, no licence unless one is kept, no address of a page, no name of the computer, no number made for it; and its line was in the log before it arrived (Accept-Encoding: identity / Connection: close / Content-Length: 87 / Content-Type: application/json / Host: site.test / POST /support HTTP/1.1 / User-Agent: LZRBRWSR / {"text":"The tab bar froze after a click.\nK\u00e4ytt\u00e4j\u00e4 here.\n\nRelease 3"})
+held   with a kept licence code and the picture ticked, the body carries the code and the picture as well and nothing more; the request goes with priority, and the log says what went with it but not the words (355 bytes of body; on site.test 3 | kept - | sent Tk0aB1cD2eF3gH4iJ5kL6m priority accepted | kept Tk0aB1cD2eF3gH4iJ5kL6m)
+held   the window is told the reference, and its key is kept in the file support; the answer is read later by GET of the reference with the key as the one more line, and is handed to the window as text in base64; the log says a request was sent and its answer read, never the words (on site.test 3 | kept - | sent Tk0aB1cD2eF3gH4iJ5kL6m plain none | kept Tk0aB1cD2eF3gH4iJ5kL6m | thread answered  | message user 2026-11-21T10:00 d29yZHM= | message support 2026-11-21T11:30 Rml4ZWQgaW4gdGhlIG5leHQgcmVsZWFzZS4KVGhhbmsgeW91LCBrw6R5dHTDpGrDpC4= | thread end)
+held   the address comes from the release file alone: a line from the window that names another place is not taken, and the one request goes to the host the release file names; all runs together sent four requests and read two answers, none from the incognito window (4 requests, 2 reads, 1 to img.site.test)
+held   an application whose release file names no support address offers no support request, and sends nothing when asked (off none | kept - | failed This application names no address for support requests, so nothing was sent. | failed This application names no address for support requests.)
+held   a support address with a query in it is not one lzrprf sends to: nothing is sent (off none | kept - | failed This application names no address for support requests, so nothing was sent.)
+held   an incognito window offers neither the licence nor a support request: it changes no file, keeps nothing, sends nothing and reads nothing (off | refused An incognito window writes nothing, so it keeps no licence code. | refused An incognito window writes nothing, so it keeps no licence code. | off incognito | kept - | failed An incognito window writes nothing, so it sends no support request. | failed An incognito window writes nothing, so it reads no support request. | failed An incognito window writes nothing, so it keeps no support request.)
+held   a support address that refuses the request is said in plain words, and nothing is kept (on site.test 3 | kept - | failed The support address did not take the request: too many requests reached it just now; try again in an hour.)
+held   an answer asked for with a key the support address does not know is said plainly (on site.test 3 | kept Tk0aB1cD2eF3gH4iJ5kL6m | failed The support address knows no request by this reference and key now.)
 
 5. The log.
 held   a request is four lines: what you typed, your yes, where lzrprf connects, how it ended (8 lines for two requests)
@@ -416,7 +457,7 @@ held   a log that cannot be written (no permission): nothing is looked up, nothi
 held   a log that cannot be written (a link that leads elsewhere): nothing is looked up, nothing is fetched (Nothing was fetched: the log could not be written.)
 held   a log that cannot be written any more when the answer is there: the answer is not shown, and the window says the fetch was tried and not that nothing was fetched (lzrprf tried the fetch. Nothing of its answer is shown: the line that says how it ended could not be written to the log. (6 lines))
 held   the log is only added to, and has no size at which a line is dropped (30003 lines after 30000)
-held   the log is shown in the window, on a page of its own over the page shown: this window's lines, and under them the last 200 of the log on this computer (Every address lzrprf fetched for perl in this window is below. Kept on this computer until you clear it: full addresses. The log on this computer holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.25875.logkeep/log	Keep the log	Clear the log)
+held   the log is shown in the window, on a page of its own over the page shown: this window's lines, and under them the last 200 of the log on this computer (Every address lzrprf fetched for perl in this window is below. Kept on this computer until you clear it: full addresses. The log on this computer holds 30000 lines, 1.7 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z. Below are its last 200 lines. The whole of it: ~/.lzrprf/selftest.72193.logkeep/log	Keep the log	Clear the log)
 held   what closing the log page sends while its questions stand, the first button of each, keeps the log and what is kept as they were, closes the page and gives the strip back its short words (log shut / brief Contained / idle The log is as it was. Kept on this computer until you clear it: full addresses.)
 held   the log is cleared by your button, after you were asked twice, and its first line then says so (you cleared the log: it held 3 lines, 0.0 MB, from 2026-01-01T00:00:00Z to 2026-01-01T00:00:00Z)
 held   the log is not cleared while a request is between its first line and its last (The log was not cleared: an address is being fetched right now, or the log could not be written. Nothing was removed.)
@@ -449,20 +490,20 @@ held   "lzrprf log" prints what the disk holds, and says that the lines of an op
 
 6. What lzrprf asks you, and what it does without a yes.
 held   a host inside your own network, and a no: nothing is fetched, and the no is in the log (Nothing is shown: you said no to a host inside your own network.)
-held   Check for updates in the cogwheel menu looks once even after a no to looking at each start, its choice being the yes for that one look, and the window is told when it last looked and what it found, kept in a plain file for the next start (never/1795232899 same 7 asked=1)
+held   Check for updates in the cogwheel menu looks once even after a no to looking at each start, its choice being the yes for that one look, and the window is told when it last looked and what it found, kept in a plain file for the next start (never/1795238201 same 7 asked=1)
 held   a newer release: you are asked once whether lzrprf may look at each start, and again before anything is installed (2 questions)
 held   the look is one request for one fixed address, written in the log like every other, and the yes that allows it at each start is a line before it (lzrprf looks for a newer release: https://site.test/latest-yes)
-held   "Install it" is the yes: lzrprf fetches the installer itself, through "fixed" and "fetch", its line in the log before the connection like every request, and writes it into a file of its own folder that only you can read (~/.lzrprf/selftest.25875.upyes/install.28528/install.sh)
-held   before the installer runs, its SHA-256 and the file it is in are shown in the window and written in the log and in install.txt (the installer of release 7 has SHA-256 8f93f91e1ade80a135649dfc07749502153b33cabd5e8c9cdfd4c03aa5cadf30, and runs now in auto: ~/.lzrprf/selftest.25875.upyes/install.28528/install.sh)
+held   "Install it" is the yes: lzrprf fetches the installer itself, through "fixed" and "fetch", its line in the log before the connection like every request, and writes it into a file of its own folder that only you can read (~/.lzrprf/selftest.72193.upyes/install.74829/install.sh)
+held   before the installer runs, its SHA-256 and the file it is in are shown in the window and written in the log and in install.txt (the installer of release 7 has SHA-256 8f93f91e1ade80a135649dfc07749502153b33cabd5e8c9cdfd4c03aa5cadf30, and runs now in auto: ~/.lzrprf/selftest.72193.upyes/install.74829/install.sh)
 held   it runs only after that line is written, as a file: "/bin/sh install.sh auto" in its own folder, with env -i, the system's PATH, your home folder and TERM=dumb, so it asks nothing; nothing is piped into a shell, and a try of lzrprf writes it and runs nothing (read in "sub installed", and tried) (failed lzrprf try: the installer was written and is not run.)
 held   a release that names a second place for its installer: lzrprf fetches both copies, each with its line in the log, and goes on only when they are the same byte for byte (1 file written)
 held   two places that hold different installers: both are fetched again twelve times, nothing is written and nothing runs, and the window says why (failed The two places hold different installers. Nothing was changed: https://site.test/install.sh and https://site.test/second/differ.sh.)
 held   the first start of a release shows the welcome: what is new from the release file without its control characters, what is kept from you and what is yours to watch; Got it keeps the release number and the page is fetched after (begin 3 | line n What is new in release 3 | line b The first thing that is new | line b A second thing | line g What Test keeps you from | line b Page scripts: the scripts of a page run sealed in its container, with no network, no file of yours and no other program, so no tracking code, fingerprinting or hidden miner runs either. | line b Being followed: every site gets the same request from every computer, with no cookie and nothing kept from an earlier visit. | line b Pages reaching your Mac: each page is drawn in a sealed container with no network, no file of yours and no other program. | line b Hidden requests: nothing is fetched that you did not ask for, and every address is in your log before it is fetched. | line y What Test cannot keep you from: yours to watch | line b What you send: whatever you type into a site, a password, a card number, your name, goes to that site, to keep or to misuse. | line b What a site does on its side: a site you sign in to knows it is you, and keeps and shares what you do there on its own servers. | line b Fake sites and scams: a page can look exactly like your bank. Read the address in the bar before you trust it or type anything. | line b What you take elsewhere: a file you save and open, or a link you follow in another program, is outside Test. | line b Your internet address: every site you open sees it, as with every browser. | end)
-held   Tor on starts the client on request, its memory capped, and the window is told each step from the client's own lines, then that it is on; the page goes through it by name, with the site as the SOCKS user so each site has its own circuit, written in the log first; Tor off ends the client, so none runs while Tor is off (step 0 0 Starting the Tor client/step 1 10 Reading the directory of relays/step 2 30 Checking the directory/step 3 55 Learning the relays/step 4 85 Building circuits/step 5 100 Connected to Tor/on/off socks=user=site.test pass=lzrbrwsr head=05010003 host=site.test port=443 pid=28754 alive=0)
-held   Tor that does not connect says why and ends the client; a page asked for then is fetched neither through Tor nor directly, and the window says so (step 0 0 Starting the Tor client/step 1 10 Reading the directory of relays/failed Tor could not build a circuit pid=28769)
-held   an HTML page is sent in the =live frame and kept running with its tab: each click in the window reaches it as "=click X Y", and the list it writes after =again is checked as a first list and drawn again where it was read (=click 10 20/=click 300 4/its input ended drawn=Pp0|T@clicked at 10 20/Pp0|T@clicked at 300 4)
+held   Tor on starts the client on request, its memory capped, and the window is told each step from the client's own lines, then that it is on; the page goes through it by name, with the site as the SOCKS user so each site has its own circuit, written in the log first; Tor off ends the client, so none runs while Tor is off (step 0 0 Starting the Tor client/step 1 10 Reading the directory of relays/step 2 30 Checking the directory/step 3 55 Learning the relays/step 4 85 Building circuits/step 5 100 Connected to Tor/on/off socks=user=site.test pass=lzrbrwsr head=05010003 host=site.test port=443 pid=75102 alive=0)
+held   Tor that does not connect says why and ends the client; a page asked for then is fetched neither through Tor nor directly, and the window says so (step 0 0 Starting the Tor client/step 1 10 Reading the directory of relays/failed Tor could not build a circuit pid=75113)
+held   an HTML page is sent in the =live frame and kept running with its tab: each click in the window reaches it as "=click X Y", and the list it writes after =again is checked as a first list and drawn again where it was read (=click 10 20/=click 300 4 drawn=Pp0|T@clicked at 10 20/Pp0|T@clicked at 300 4)
 held   text typed while no field of the page has the focus reaches nothing; after the page says =focus 1 keys go as "=key" and finished text as "=text", and the GET form it sends (=go) is checked, written in the log and fetched as a typed address, which tells the page =end first (=click 5 5/=key a/=text ä/=key Space/=key B shift/=key Enter/=end/ended live=on 0/on 1/on 0/end its tab went elsewhere; it ended by itself/off 0 asked=1)
-held   a tab that goes elsewhere tells the page it kept running "=end" before anything is asked of the site, the page ends by itself, and no process of it is left (pid 28966/=end/ended told=address https://site.test/out/liveend/live on 0/address https://site.test/out/afterlive/live end its tab went elsewhere; it ended by itself/live off 0)
+held   a tab that goes elsewhere tells the page it kept running "=end" before anything is asked of the site, the page ends by itself, and no process of it is left (pid 75254/=end/ended told=address https://site.test/out/liveend/live on 0/address https://site.test/out/afterlive/live end its tab went elsewhere; it ended by itself/live off 0)
 held   a page kept running whose answer holds a line of no kind is ended: nothing of that answer is drawn, the first drawing stays, and the next click reaches nothing (=click 1 1/=end/ended live=on 0/end it drew a list that is not fit; it ended by itself/off 0)
 held   a page kept running that asks for an address ("=fetch") is answered once ("=fetched"): one of its own host is written down first, fetched with the request of its address alone and handed back with its status, its type and its body and no other header (no Set-Cookie); one of another host is written down, carries the page's Origin, and failing, is told 0, which the page draws as an error (=click 3 3/reply https://site.test/out/livefetchdata 200 content-type 26/reply https://other.test/out/livefetchother 0  0/its input ended drawn=Pp0
 T@came 200 the page of the test site / an error asked=1 log=the page https://site.test/out/livefetch asked for https://site.test/out/livefetchdata (GET)|https://site.test/out/livefetchdata -> lzrprf connects to the first that answers of: 127.0.0.1|https://site.test/out/livefetchdata answered 200: 26 bytes to the page from 127.0.0.1|the page https://site.test/out/livefetch asked for https://other.test/out/livefetchother (GET, from site.test)|https://other.test/out/livefetchother -> lzrprf connects to the first that answers of: 127.0.0.1|https://other.test/out/livefetchother failed: the certificate does not prove the host)
@@ -475,7 +516,7 @@ held   the tool changes only what you ticked and lzrprf itself saw: the process 
 held   an answer of the application's tool with one line in no form lzrprf takes is not shown at all, and nothing is changed (busy Reading the processes and the launchd jobs of this computer/none)
 held   a launchd job you switched off that is loaded again when a window starts is switched off again, written in the log first, and the window is told (back 1)
 held   a release that was welcomed already shows no welcome again (0 welcome lines)
-held   a second place one try behind, as while a release is published: the copies are fetched again, and the installer is used once both hold the same file (1 file written: Fetching the installer from https://site.test/install.sh | Fetching the installer from https://site.test/second/late.sh | The two places hold different installers for now. Nothing runs while they differ: a new release is usually being published, and one place can keep its old copy for up to five minutes. Both are fetched again in 30 seconds (try 1 of 12). | Fetching the installer from https://site.test/install.sh | Fetching the installer from https://site.test/second/late.sh | The installer was fetched from two places, and both hold the same file. | It is in this file, to read: ~/.lzrprf/selftest.25875.uplate/install.29660/install.sh | Its SHA-256: 8f93f91e1ade80a135649dfc07749502153b33cabd5e8c9cdfd4c03aa5cadf30 | lzrprf try: the installer was written and is not run.)
+held   a second place one try behind, as while a release is published: the copies are fetched again, and the installer is used once both hold the same file (1 file written: Fetching the installer from https://site.test/install.sh | Fetching the installer from https://site.test/second/late.sh | The two places hold different installers for now. Nothing runs while they differ: a new release is usually being published, and one place can keep its old copy for up to five minutes. Both are fetched again in 30 seconds (try 1 of 12). | Fetching the installer from https://site.test/install.sh | Fetching the installer from https://site.test/second/late.sh | The installer was fetched from two places, and both hold the same file. | It is in this file, to read: ~/.lzrprf/selftest.72193.uplate/install.76011/install.sh | Its SHA-256: 8f93f91e1ade80a135649dfc07749502153b33cabd5e8c9cdfd4c03aa5cadf30 | lzrprf try: the installer was written and is not run.)
 held   a second place that is named and is no address lzrprf fetches counts as one that does not agree: nothing is fetched, the installer does not quietly come from one place (failed The second place the release file names is not an address lzrprf fetches. Nothing was fetched.)
 held   an installer address with a quote and a command in it is an address like any other: curl is given it as one argument, through no shell, and nothing in it runs (it ran nothing)
 held   no escape reaches the window from what an installer prints: a colour it asks for becomes one letter, a line written over itself is what stands last, and a title, a link, a bell, a clearing of the screen are taken out ("sub install_line" of lzrprf, run here) (4 lines: install line g Installed into a link | install line - progress 100% | install line r error  | install line - plain)
@@ -496,7 +537,7 @@ held   a yes to looking whose line cannot be written is not kept: nothing is fet
 held   no mark of a test, a mark from another build of macOS, a mark of another lzrprf, a mark made by another selftest, a mark that names no selftest: you are asked to test, and after a no nothing is shown, looked up or fetched (5 starts, 5 questions)
 held   the mark of this build of macOS and this lzrprf, standing after the mark of another copy that was tested here: no question, and the page is shown (one request)
 held   a mark of now that names a check the test could not try, and no yes to it: the window names the check and asks, and after Quit nothing is shown, looked up or fetched, and no yes is kept (The self-test held on this Mac, but it could not try every check here: a check (no way to try it here). What it could not try is not shown to hold on this Mac as it is now. Start perl without it?	Quit	Start)
-held   the same mark, and the answer Start: the yes is kept as that whole line, and the page is shown (macOS build 26B123, lzrprf 6b4a8901c40aa4ca54b4fdb94f1466f40b2aef2d56cfbb248fa0fa724b8c7ba0, selftest 996214d3bc5a5cfbe48686dbdc5d890656ddeee50e30eb4211d1d01d6388135b, untested: a check (no way to try it here) )
+held   the same mark, and the answer Start: the yes is kept as that whole line, and the page is shown (macOS build 26B123, lzrprf 3542e7982ae1e1751289336adbace265c7b12847d5463874a4d0c00034eb9e69, selftest f6bd8cf19ddbe5c38efc3063cb7ee46a0fe8db10f7e7e09f74bda0c3105a762c, untested: a check (no way to try it here) )
 held   the same mark, with a yes kept for other checks that could not be tried: that yes is not a yes to this line, the question comes again, and after Quit nothing is shown, looked up or fetched (The self-test held on this Mac, but it could not try every check here: a check (no way to try it here). What it could not try is not shown to hold on this Mac as it is now. Start perl without it?	Quit	Start)
 held   the same mark, with a yes kept for exactly that line: no question, and the page is shown (1 request)
 held   a copy of lzrprf that counts a mark with an untested check without a yes: it asks nothing and fetches, so the runs above would see that weakening (1 request)
@@ -541,7 +582,7 @@ held   there is one window, it carries the application's name, and the bar on to
 held   on the home screen the plus fires its shot: it is there right after the press, it takes no press of its own (what lies under it does), and it is gone within half a second while the window goes on; with Reduce motion on there is none (fired=true through=true gone=true)
 held   the home screen's name is drawn in straight laser lines: its white core lies on the strokes of the letters and not between them (fault=none stroke=1 gap=0)
 held   a question stands in lzrprf's strip of that window, and the bar takes nothing while it is open (No|Yes, this once|bar=false|site.test is not on the public internet. It leads to 127.0.0)
-held   the page is drawn in the same window; the bar shows the address that was sent; the strip shows the status the site answered with, the time the whole took and the size, and holds the sentence in full as its tip; a link is a colour and leads nowhere; a page that names a picture is drawn twice, first at once with a grey box where the picture goes and then with the picture (title=Test visible=false drawn=2 links=0 editable=false menu=1 bar=https://site.test/window?q=1 strip=200 ? 311 ms ? 133 B words=site.test answered 13)
+held   the page is drawn in the same window; the bar shows the address that was sent; the strip shows the status the site answered with, the time the whole took and the size, and holds the sentence in full as its tip; a link is a colour and leads nowhere; a page that names a picture is drawn twice, first at once with a grey box where the picture goes and then with the picture (title=Test visible=false drawn=2 links=0 editable=false menu=1 bar=https://site.test/window?q=1 strip=200 ? 411 ms ? 133 B words=site.test answered 13)
 held   the lock knows the page shown: its connection, the redirects on the way and the certificate the site presented, from the fetch itself (17 # Connection|# Redirects on the way here|# Certificate 1 of 1: the site)
 held   after the first page of a tab there is nothing to go back or forward to, and it can be loaded again (0 0 1)
 held   the pointer moved over the tabs and the bookmarks and left them: the window found the first tab under it and went on (tab=0 mark=-1 out=-1)
@@ -551,10 +592,13 @@ held   what was typed into the bar is what the site was asked, once, as the requ
 held   in the panel of the bottom bar's second icon the same window lists what the application says the page is made of, a row for each thing under the name of its kind: its name, its version, and true or false for whether the application says it supports it; and it says that lzrprf checked the form only (What Test says this page is made of: 5 things, 2 of them supported by Test itself, as it says. lzrprf checked the form of this list, not whether it is true.?Document?-   supported by Test: true??HTML 5   supported by Test: true?CSS?Grid Level 1   supported by Test: false??Subgrid   supported by Test: false?Libraries?A library of the hostile application 1.2.3   supported by Test: false)
 held   the log lies over the page, which stays as it is under it: the list of what the page is made of is still the page's, and a second press on the log's icon closes the log and shows the page again (What Test says this page is made of: 5 things, 2 of them supported by Test itself, as it says. lzrprf checked the form of this list, not whether it is true.?Document?-   supported by Test: true??HTML 5   supported by Test: true?CSS?Grid Level 1   supported by Test: false??Subgrid   supported by Test: false?Libraries?A library of the hostile application 1.2.3   supported by Test: false / null page=true)
 held   the log is shown in the same window, on a page of its own: this window's lines, the newest first, down to its first line, which fetched nothing (that the window is contained), with nothing kept on the disk and no question that keeps anything, and the strip left as it was (Every address lzrprf fetched for Test in this window is below. Nothing is kept a)
-held   an idle window costs close to nothing (idlehome): once half a second has passed since lzrprf last said anything, the whole process and the window's own thread each spend under 3 in 100 of the time that passes, measured with the system's clocks in quarters of two seconds (the first quarter is shown and not judged: the window finishes what the last message began there); no timer is set and nothing is laid out, repainted or stepped meanwhile (cpu_ms=292,1,1,0 main_ms=130,0,0,0 wall_ms=2043 timers=000 place=0 redrawn=0 ticks=0)
-held   an idle window costs close to nothing (idlepage): once half a second has passed since lzrprf last said anything, the whole process and the window's own thread each spend under 3 in 100 of the time that passes, measured with the system's clocks in quarters of two seconds (the first quarter is shown and not judged: the window finishes what the last message began there); no timer is set and nothing is laid out, repainted or stepped meanwhile (cpu_ms=47,1,4,1 main_ms=28,0,1,0 wall_ms=2035 timers=000 place=0 redrawn=0 ticks=0)
+held   an idle window costs close to nothing (idlehome): once half a second has passed since lzrprf last said anything, the whole process and the window's own thread each spend under 3 in 100 of the time that passes, measured with the system's clocks in quarters of two seconds (the first quarter is shown and not judged: the window finishes what the last message began there); no timer is set and nothing is laid out, repainted or stepped meanwhile (cpu_ms=283,1,1,0 main_ms=123,0,0,0 wall_ms=2035 timers=000 place=0 redrawn=0 ticks=0)
+held   an idle window costs close to nothing (idlepage): once half a second has passed since lzrprf last said anything, the whole process and the window's own thread each spend under 3 in 100 of the time that passes, measured with the system's clocks in quarters of two seconds (the first quarter is shown and not judged: the window finishes what the last message began there); no timer is set and nothing is laid out, repainted or stepped meanwhile (cpu_ms=48,1,4,0 main_ms=28,0,2,0 wall_ms=2035 timers=000 place=0 redrawn=0 ticks=0)
 held   the onion of Tor connecting breathes only while the window is seen: with the window not seen its timer of 30 frames a second is not started (it ran on, drawing for nobody, for as long as Tor said connecting) (timer=false seen=false motion=true)
+held   Find in the page of the real window kept off the screen: Cmd-F's bar opens with the field to type in, a word of the page typed in capitals is found in its small letters, the first match is "1 of N", previous from the first goes round to the last and next back to the first; the bar and the page with its marks paint into pictures of the test's own with nothing thrown; a word not there finds nothing and says so; closing takes the marks away; nothing is said to lzrprf (open=true shown=true typed=true found=true first=true wrapped=true back=true bar=none/lit marks=text ; none=0:No match ; closed=true:true:0 ; said=0)
 held   the application's tool in the window, told by lines as lzrprf writes them and pressed by real mouse events, with what it says caught and kept from lzrprf: a row before "tool begin" and a busy line before any list change nothing; the list holds its rows; a tick on a row that can be switched off lets the button that switches off take a press, a row lzrprf can change nothing in takes no tick, and taking off the last tick takes the press away again; that button only asks, showing the ticked rows, and the words "tool act" are said only after the second press, naming exactly the rows ticked then; while lzrprf works no button but Close takes a press; a new list comes unticked; "tool none" closes the panel and "tool back" colours the icon and says why; the list, the question and the icon each paint to their end into a picture of the test's own, with nothing thrown (open=tool open modal=true 0act-1none-2act-3undo- act=false undo=false confirm=none ; 0act+1none-2act-3undo- act=true undo=false confirm=none ; 0act+1none-2act+3undo- act=true undo=false confirm=none ; 0act-1none-2act+3undo- act=true undo=false confirm=none ; 0act-1none-2act-3undo- act=false undo=false confirm=none ; seen=true paint=none/lit icon=none/lit ; asked=true said=1 0act+1none-2act+3undo- act=none undo=none confirm=Switch off 2:true paint=none/lit ; back 0act+1none-2act-3undo- act=none undo=none confirm=Switch off 1:true ; sent=tool act 0 busy=true 0act+1none-2act-3undo- act=false undo=false confirm=none ; again 0act-1none-2act-3undo- act=false undo=false confirm=none busy=false ; none tool=true modal=false paint=none/dark ; back=2 tip=2 launchd jobs you switched off were switched on again by something else, and switched off again icon=none/lit ; said=2)
+held   the licence panel in the window, told by lines as lzrprf writes them: "Enter licence code" opens it with its one field; an empty field or one with other signs is answered in the panel and nothing is said; a code is said as "licence set" with its spaces made single; a refusal is shown plainly; a kept code shows since when and hides the field; Remove code says "licence remove"; in an incognito window the item only says why it is not offered (open=true field=true ; empty=Type or paste your licence code first. said=0 ; wrong=That is not a licence code: a code has 120 letters and digits, in groups of 5. said=0 ; sent=licence set abcde fghij ; refused=The code is not a support member licence: its signature does not check. field=true ; kept=The code is kept. This browser is a support member's, since  field=false item=since November 2026 ; remove=licence remove ; none item=true field=true ; incognito tip=true modal=false said=2)
+held   the support panel in the window: it opens with the box, the picture unticked and no preview, and the window's own picture of itself made as a PNG; before Send it says where the request goes, that it is anonymous, the release number, that the picture shows the page, and that no address of a page goes; with no words nothing is said; Send says "support send" with the words in base64 and "-" for no picture, and only after the tick the preview is shown and the picture goes; a failure keeps the words; a sent request shows its reference; a kept licence is named in the list; in an incognito window the item only says why; the two new icons of the menu paint, with nothing thrown (open=true box=true tick=0 preview=false shot=png true ; about=truetruetruetruetruefalse ; empty=Write what the request is about first. said=0 ; sent=support send SGVsbG8Kd29ybGQ= - ; failed=The request could not be sent. The log says why. box=true waiting=false ; ticked preview=true ; picture=4 SGVsbG8Kd29ybGQ= iVBORw0KGgo ; done=true box=false preview=false item=answer kept ; licence=true tick=0 ; incognito tip=true modal=false ; said=2 icons=none/lit/none/lit)
 held   the log page paints to its end into a picture of the test's own with nothing thrown, empty, with a part and no line, short, and 600 lines long; its Close pill (pressed by a real mouse event), the back arrow and the line of the cogwheel's menu each close it and show the page again, saying nothing to lzrprf; with a question of lzrprf open, each answers it with the first button, which changes nothing, and the next question about the log is answered the same way and not shown (-1:true:none/lit:1:true 0:true:none/lit:2:true 3:true:none/lit:4:true 600:true:none/lit:601:true pill=log>null:page=true:closing=false:said= arrow=log>null:page=true:closing=false:said= cog=log>null:page=true:closing=false:said= pill?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1 arrow?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1 cog?=log>null:page=true:closing=true:said=button 41 1:then=button 42 1)
 held   the import wizard, told what lzrprf says when macOS keeps Chrome's files from it (lzrprf's own sub import_steps, read from it and run here), shows each line on a line of its own: the steps of Chrome's own export numbered 1 to 3 and a fourth to choose the file here, the Google account named beside them as the second way, nothing that asks for Full Disk Access, and the whole of it fits in the room the panel gives it (modal=true shown=true fits=true need=128 high=157 text=macOS keeps the files of Chrome from Test, and Test asks for no more access than it has. Export the bookmarks instead:|1. In Chrome choose Bookmarks, Bookmark Manager (Option Command B).|2. Press the three dots at the top right of that page and choose Export bookmarks.|3. Save the file in Downloads, under the name it has.|4. Here choose A bookmarks file (HTML): the file is found by itself, the newest first.|Or from your Google account, where Chrome keeps them when sync is on: at takeout.google.com choose Chrome alone, download it, and import the Bookmarks.html in it the same way.)
 held   a step of a panel's flight that throws stops its timer at once: the flight ends and its timer is no longer valid, where it went on stepping sixty times a second (steps=1 flight=true timer=false)
@@ -562,17 +606,17 @@ held   the window's reader of what lzrprf writes, read from lzrprf and run with 
 held   Tor turned on and then off in the window while a question is open is kept, in its order, and heard by the loop of sub behind right after the answer, the first thing it hears; the question takes the answer that names it: "sub asked" and "sub hear", read from lzrprf and run here (press=2 kept=tor on,tor off seen=tor on,view 900 700,tor off next=tor on,tor off left=0)
 held   a tab pressed while a page loads in another is shown at once with the drawing it kept, and the press is not lost: it waits for lzrprf and is said when lzrprf is free; the page that then arrives is kept for its own tab and not drawn over the one chosen, and after lzrprf has heard the press nothing more is drawn (the runs of the application are counted in the run of tabs, where its error output is the test's) (selected=0 pending=tab select 0 kept text=A page by the hostile application?a link / selected=0 tabs=2 drawn=0 pending=true kept1=true text=A page by the hostile application?a link)
 held   every tile on a laid page is an image of four bytes a pixel in the Mac's own form, and every picture of four in the form pictures always had: three bytes a pixel needs the graphics card taught a new step by a service the window's container does not reach, and the window closed the moment such a tile came on the screen (32/8194)
-held   the heaviest pages the limits allow of each kind that was measured slow are each fetched, checked, drawn by the real window and set to their last line in under 30 seconds on this Mac, and the window answers a press after them: the most lines, the most blocks, and full blocks of text in two other scripts, of marks on one letter, of one word, of words parted by no-break spaces, of marks and joining characters of another kind in turn, of eight scripts in turn, and 32 tiles of a laid page placed 1024 times (heavylines 3668 ms, heavyblocks 4582 ms, heavytext 4107 ms, heavymarks 1923 ms, heavyword 3241 ms, heavyspaced 2979 ms, heavyjoined 3585 ms, heavymixed 6111 ms, heavytiles 2858 ms of them 2266 ms drawing it)
+held   the heaviest pages the limits allow of each kind that was measured slow are each fetched, checked, drawn by the real window and set to their last line in under 30 seconds on this Mac, and the window answers a press after them: the most lines, the most blocks, and full blocks of text in two other scripts, of marks on one letter, of one word, of words parted by no-break spaces, of marks and joining characters of another kind in turn, of eight scripts in turn, and 32 tiles of a laid page placed 1024 times (heavylines 3830 ms, heavyblocks 4549 ms, heavytext 4292 ms, heavymarks 1875 ms, heavyword 3243 ms, heavyspaced 2928 ms, heavyjoined 3678 ms, heavymixed 6659 ms, heavytiles 2972 ms of them 2354 ms drawing it)
 
 9. The text of lzrprf, read by the test.
 held   the application is started on one line, and that line puts it in the page container (1 line)
 held   lzrprf connects in three places: to the site, from "reach"; to the Tor client on this computer's loopback, from "tor_reach", only while Tor is on; and, as one of the tries at the start, to a listener it opened itself on this computer (3 places)
 held   lzrprf names "open" on one line, which opens the application it ran from and nothing else (Close and restart after a done install) (1 lines)
 held   the programs lzrprf starts are the system's own, and these fifteen: launchctl ps sh route codesign curl env open osascript perl plutil sandbox-exec true xattr sysctl (15 programs named)
-held   a request has five roads and no sixth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures of its page, on its host or another, and its style sheets on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; and "live_fetched", for an address a page kept running asked for [C19]; "fetch" is called from those five and "reach" from "fetch" alone (fetch:5 fixed:3 laid_out:3 pictured:4 reach:1 sheeted:1 visit:1)
+held   a request has five roads and no sixth: "visit", through "go" alone, for an address from the bar (or the search made of its words, "sub typed"), back, forward or reload ("sub navigated", an address the tab went to), a bookmark, the home page or a redirect you said yes to; "pictured" and "sheeted" from "visit" for the pictures of its page, on its host or another, and its style sheets on its own host ("pictured" once more from "relaid" and once from "live_answered", for a page kept running that drew again, each with the pictures kept and nothing to fetch); "fixed" three times, each behind a yes: a report, the look for a newer release, the installer after "Install it"; "fixed" twice more, from the cogwheel's menu, for a support request you send and for the reading of its answer, both to the one support address of the release file; and "live_fetched", for an address a page kept running asked for [C19]; "fetch" is called from those five and "reach" from "fetch" alone (fetch:5 fixed:5 laid_out:3 pictured:4 reach:1 sheeted:1 visit:1)
 held   nothing of the window fades: no part of it is made more or less see-through over time, and nothing goes through AppKit's own animator; a move is a short flight and a change is at once (none)
-held   every function of the window has a name of its own: of two with one name the last stands for both, and the first is never called (244 functions)
-held   no text of the window is spelled, graded, corrected or replaced as it is typed: every text view is made through "unchecked", which turns off spelling, grammar, correction, replacement, quote and dash changes, completion and link and data detection, and every text field types into the one field editor that "typingView" makes the same way (5 text views)
+held   every function of the window has a name of its own: of two with one name the last stands for both, and the first is never called (287 functions)
+held   no text of the window is spelled, graded, corrected or replaced as it is typed: every text view is made through "unchecked", which turns off spelling, grammar, correction, replacement, quote and dash changes, completion and link and data detection, and every text field types into the one field editor that "typingView" makes the same way (6 text views)
 held   a question nobody answers in the window counts as its first button, the one that fetches, sends, replaces and keeps nothing, or keeps less: read in "sub asked", which "sub ask" hands its question to and the redirect modal uses with Cancel first, where the time running out returns 1, a press of a button the question does not have is not taken, and a closed window ends lzrprf (a test would have to wait 10 minutes) (read, not tried)
 held   what is carried between curl and the site stops at the allowance of each side: a side that sent more has nothing more passed on, and the request ends; read in "sub fetch" (read, not tried)
 held   the two ends of a question are told apart: "sub hear" of lzrprf, run against a pipe of the test's own, gives an empty line when nothing is said in time, so "sub ask" answers 1, and nothing when the window is gone, so lzrprf ends (time over: an empty line; window gone: nothing)
@@ -597,5 +641,5 @@ held   the same with a keeper that ends nothing: the application goes on running
 held   an application that does nothing is ended (after 31 seconds)
 held   a site that never answers is given up on (after 31 seconds)
 
-405 held or worked.
-Nothing failed. lzrprf holds on this Mac as it is now: macOS build 26B123, lzrprf 6b4a8901c40aa4ca54b4fdb94f1466f40b2aef2d56cfbb248fa0fa724b8c7ba0, selftest 996214d3bc5a5cfbe48686dbdc5d890656ddeee50e30eb4211d1d01d6388135b
+431 held or worked.
+Nothing failed. lzrprf holds on this Mac as it is now: macOS build 26B123, lzrprf 3542e7982ae1e1751289336adbace265c7b12847d5463874a4d0c00034eb9e69, selftest f6bd8cf19ddbe5c38efc3063cb7ee46a0fe8db10f7e7e09f74bda0c3105a762c
